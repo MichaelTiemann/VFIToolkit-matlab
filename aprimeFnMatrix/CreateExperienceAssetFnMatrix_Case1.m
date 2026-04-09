@@ -6,10 +6,12 @@ function [a2primeIndexes,a2primeProbs]=CreateExperienceAssetFnMatrix_Case1(aprim
 % just a2primeIndexes+1, so no need to waste memory storing them), and the
 % a2primeProbs are the probability of this lower point (prob of upper point
 % is just 1 minus this).
+% 
+% n_d and d_grid are actually the caller's n_d2 and d2_grid (to eval aprimeFn)
 
 ParamCell=cell(length(aprimeFnParams),1);
 for ii=1:length(aprimeFnParams)
-    if size(aprimeFnParams(ii))~=[1,1]
+    if ~isscalar(aprimeFnParams(ii))
         error('Using GPU for the return fn does not allow for any of aprimeFn parameters to be anything but a scalar')
     end
     ParamCell(ii,1)={aprimeFnParams(ii)};
@@ -170,3 +172,4 @@ if l_a2==1
 end
 
 
+end
