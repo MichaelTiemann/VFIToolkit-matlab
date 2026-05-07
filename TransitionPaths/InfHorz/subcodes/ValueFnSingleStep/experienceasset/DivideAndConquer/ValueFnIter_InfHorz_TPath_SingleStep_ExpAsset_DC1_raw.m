@@ -1,4 +1,4 @@
-function [V,Policy]=ValueFnIter_InfHorz_TPath_SingleStep_ExpAsset_DC1_raw(Vnext,n_d1,n_d2,n_a1,n_a2,n_z, d_gridvals, d2_grid, a1_gridvals, a2_grid, z_gridvals, pi_z, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames,aprimeFnParamNames, vfoptions)
+function [V,Policy]=ValueFnIter_InfHorz_TPath_SingleStep_ExpAsset_DC1_raw(Vnext,n_d1,n_d2,n_a1,n_a2,n_z, d_gridvals, d2_gridvals, a1_gridvals, a2_grid, z_gridvals, pi_z, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames,aprimeFnParamNames, vfoptions)
 
 N_d1=prod(n_d1);
 N_d2=prod(n_d2);
@@ -15,10 +15,10 @@ Policy=zeros(3,N_a,N_z,'gpuArray'); % d1, d2, a1prime
 a2_gridvals=CreateGridvals(n_a2,a2_grid,1);
 n_a1prime=n_a1;
 
-if vfoptions.lowmemory==1
-    special_n_z=ones(1,length(n_z));
+if vfoptions.lowmemory>=1
+    special_n_z=ones(1,length(n_z),'gpuArray');
 else
-    % precompute
+    % precompute; we don't special-case ExpAsset looping in DC1 case
     zind=shiftdim((0:1:N_z-1),-1); % already includes -1
 end
 
@@ -34,7 +34,7 @@ DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNa
 DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
 aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames);
-[a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix_Case1(aprimeFn, n_d2, n_a2, d2_grid, a2_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
+[a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix_Case1(aprimeFn, n_d2, n_a2, d2_gridvals, a2_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
 % Note: aprimeIndex is [N_d2,N_a2], whereas aprimeProbs is [N_d2,N_a2]
 
 aprimeIndex=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat(a2primeIndex-1,N_a1,1,1); % [N_d2*N_a1,N_a2]
@@ -114,13 +114,13 @@ if vfoptions.lowmemory==0
         end
     end
 
-elseif vfoptions.lowmemory==1
+elseif vfoptions.lowmemory>=1
 
     for z_c=1:N_z
         z_val=z_gridvals(z_c,:);
         % Calc the condl expectation term (except beta), which depends on z but not on control variables
         EV_z=EV.*shiftdim(pi_z(z_c,:)',-2);
-        EV_z(isnan(EV_z))=0; %multilications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilites)
+        EV_z(isnan(EV_z))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilites)
         EV_z=sum(EV_z,3);
 
         DiscountedentireEV_z=DiscountFactorParamsVec*repelem(reshape(EV_z,[N_d2,N_a1,1,N_a2]),N_d1,1,1,1); % (d,a1prime,1,a2)

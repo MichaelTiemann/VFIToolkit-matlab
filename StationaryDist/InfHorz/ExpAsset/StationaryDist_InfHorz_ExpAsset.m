@@ -50,11 +50,14 @@ l_a=length(n_a);
 
 N_a=prod(n_a);
 N_z=prod(n_z);
-
-
-%%
 if isfield(simoptions,'n_e')
     N_e=prod(simoptions.n_e);
+else
+    N_e=0;
+end
+
+%%
+if N_e>0
     StationaryDistKron=reshape(StationaryDistKron,[N_a*N_z*N_e,1]);
     Policy=reshape(Policy,[size(Policy,1),N_a,N_z*N_e]);
     n_ze=[n_z,simoptions.n_e];
@@ -76,7 +79,7 @@ Policy_a2prime=zeros(N_a,N_ze,2,'gpuArray'); % the lower grid point
 PolicyProbs=zeros(N_a,N_z,2,'gpuArray'); % The fourth dimension is lower/upper grid point
 whichisdforexpasset=length(n_d);  % is just saying which is the decision variable that influences the experience asset (it is the 'last' decision variable)
 aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames);
-[a2primeIndexes, a2primeProbs]=CreateaprimePolicyExperienceAsset_Case1(Policy,simoptions.aprimeFn, whichisdforexpasset, n_d, n_a1,n_a2, N_z, d_grid, a2_grid, aprimeFnParamsVec);
+[a2primeIndexes, a2primeProbs]=CreateaprimePolicyExperienceAsset(Policy,simoptions.aprimeFn, whichisdforexpasset, n_d, n_a1,n_a2, N_z, d_grid, a2_grid, aprimeFnParamsVec);
 % Note: aprimeIndexes and aprimeProbs are both [N_a,N_z]
 % Note: aprimeIndexes is always the 'lower' point (the upper points are just aprimeIndexes+1), and the aprimeProbs are the probability of this lower point (prob of upper point is just 1 minus this).
 Policy_a2prime(:,:,1)=a2primeIndexes; % lower grid point
@@ -99,7 +102,7 @@ end
 
 %%
 % Note: N_z=0 is a different code
-if isfield(simoptions,'n_e')
+if N_e>0
     StationaryDist=StationaryDist_InfHorz_Iteration_nProbs_e_raw(StationaryDistKron,Policy_aprime,PolicyProbs,2,N_a,N_z,N_e,pi_z,pi_e,simoptions); % zero is n_d, because we already converted Policy to only contain aprime
 else % no e
     StationaryDist=StationaryDist_InfHorz_Iteration_nProbs_raw(StationaryDistKron,Policy_aprime,PolicyProbs,2,N_a,N_z,pi_z,simoptions); % zero is n_d, because we already converted Policy to only contain aprime
