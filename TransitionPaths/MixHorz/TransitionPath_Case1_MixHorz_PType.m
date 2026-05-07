@@ -191,7 +191,7 @@ end
 % Later, when creating PTypeStructure, we get the ptype-specific versions out of this and create an AgeWeights_T structure.
 
 %%
-[PricePath0,ParamPath,PricePathNames,ParamPathNames,PricePathSizeVec,ParamPathSizeVec,PricePathSizeVec_ii,ParamPathSizeVec_ii]=PricePathParamPath_FHorz_StructToMatrix(PricePath0,ParamPath,N_j,T,N_i);
+[PricePath0,ParamPath,PricePathNames,ParamPathNames,PricePathSizeVec,ParamPathSizeVec,PricePathSizeVec_ii,ParamPathSizeVec_ii]=PricePathParamPath_MixHorz_StructToMatrix(PricePath0,ParamPath,N_j,T,N_i);
 
 if transpathoptions.verbose>1
     PricePathNames
@@ -955,7 +955,7 @@ end
 if transpathoptions.GEnewprice~=2
     % For permanent types, there is just one shooting command,
     % because things like z,e, and fastOLG, as well as ExpAsset are handled on a per-PType basis (to permit that they differ across ptype)
-    [PricePath,GEcondnPath]=TransitionPath_Case1_FHorz_PType_shooting(PricePath0, PricePathNames, ParamPath, ParamPathNames, T, V_final, AgentDist_initial, FnsToEvaluate, GeneralEqmEqns, PricePathSizeVec, ParamPathSizeVec, PricePathSizeVec_ii, ParamPathSizeVec_ii, GEeqnNames,nGeneralEqmEqns,nGeneralEqmEqns_acrossptypes,GeneralEqmEqnsCell,GeneralEqmEqnParamNames, use_tminus1price, use_tminus1params, use_tplus1price, use_tminus1AggVars, tminus1priceNames, tminus1paramNames, tplus1priceNames, tminus1AggVarsNames, transpathoptions, PTypeStructure);
+    [PricePath,GEcondnPath]=TransitionPath_Case1_MixHorz_PType_shooting(PricePath0, PricePathNames, ParamPath, ParamPathNames, T, V_final, AgentDist_initial, FnsToEvaluate, GeneralEqmEqns, PricePathSizeVec, ParamPathSizeVec, PricePathSizeVec_ii, ParamPathSizeVec_ii, GEeqnNames,nGeneralEqmEqns,nGeneralEqmEqns_acrossptypes,GeneralEqmEqnsCell,GeneralEqmEqnParamNames, use_tminus1price, use_tminus1params, use_tplus1price, use_tminus1AggVars, tminus1priceNames, tminus1paramNames, tplus1priceNames, tminus1AggVarsNames, transpathoptions, PTypeStructure);
 
     % Switch the solution into structure for output.
     pp_indexinpricepath=zeros(1,length(PricePathNames));
