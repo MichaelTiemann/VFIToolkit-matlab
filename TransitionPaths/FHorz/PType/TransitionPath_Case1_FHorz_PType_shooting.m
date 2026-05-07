@@ -256,6 +256,11 @@ while PricePathDist>transpathoptions.tolerance && pathcounter<=transpathoptions.
                 Parameters.(AggVarNames_ii{ff})=AggVars_ii.(AggVarNames_ii{ff}).Mean;
             end
 
+            % Uncommenting this allows you to do _tminus1 for AggVars, but only conditional on ptype [not yet possible without conditioning on ptype]
+            % for ff=1:length(AggVarNames)
+            %     Parameters.(AggVarNames{ff})=AggVars_ii.(AggVarNames{ff}).Mean;
+            % end
+
             % Keep AggVars in the AggVarsPath
             for ff=1:length(AggVarNames_ii)
                 AggVarsPath_ii(ff,tt)=AggVars_ii.(AggVarNames_ii{ff}).Mean;
@@ -264,6 +269,7 @@ while PricePathDist>transpathoptions.tolerance && pathcounter<=transpathoptions.
             %% GE EQNS THAT DEPEND ON PTYPE SHOULD BE DONE HERE!!!
 
             AgentDist_ii=AgentDistnext_ii;
+
         end
 
         AggVarsFullPath(logical(PTypeStructure.(iistr).WhichFnsForCurrentPType),:,ii)=AggVarsPath_ii;
