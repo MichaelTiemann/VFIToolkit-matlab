@@ -1,4 +1,4 @@
-function AllStats=EvalFnOnAgentDist_AllStats_FHorz_Case1_PType(StationaryDist, Policy, FnsToEvaluate, Parameters,n_d,n_a,n_z,N_j,Names_i,d_grid, a_grid, z_grid, simoptions)
+function AllStats=EvalFnOnAgentDist_AllStats_MixHorz_PType(StationaryDist, Policy, FnsToEvaluate, Parameters,n_d,n_a,n_z,N_j,Names_i,d_grid, a_grid, z_grid, simoptions)
 % Reports a variety of stats, both grouped and by PType.
 %
 % Allows for different permanent (fixed) types of agent.
