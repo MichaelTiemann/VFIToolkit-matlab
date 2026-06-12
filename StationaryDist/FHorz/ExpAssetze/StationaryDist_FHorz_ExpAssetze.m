@@ -59,8 +59,8 @@ Policy=reshape(Policy,[size(Policy,1),N_a,N_ze,N_j]);
 % (Kron'd linear index in N_a=N_a1*N_a2 space), per corner, with probs.
 % For l_a2==1: 2 corners (lower/upper). For l_a2==2: 4 corners (bilinear lattice).
 Kaprimepts=2^l_a2;
-Policy_aprime=zeros(N_a,N_ze,Kaprimepts,N_j,'gpuArray'); % Kron'd a-index per corner
-PolicyProbs  =zeros(N_a,N_ze,Kaprimepts,N_j,'gpuArray'); % corner probabilities
+Policy_aprime=zeros(N_a,N_ze,Kaprimepts,N_j,'gpuArray',like=N_a); % Kron'd a-index per corner
+PolicyProbs  =zeros(N_a,N_ze,Kaprimepts,N_j,'gpuArray',like=a2_grid); % corner probabilities
 whichisdforexpassetze=length(n_d)-simoptions.l_dexperienceassetze+1:length(n_d);
 
 l_a1=length(n_a)-l_a2;
@@ -71,14 +71,14 @@ end
 N_a2=prod(n_a2);
 
 for jj=1:N_j
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj,simoptions.precision);
     [aprimeIndexes, aprimeProbs]=CreateaprimePolicyExperienceAssetze(Policy(:,:,:,jj),simoptions.aprimeFn, whichisdforexpassetze, n_d, n_a1,n_a2, n_z, simoptions.n_e, 0,N_z,N_e, d_grid, a2_grid, z_gridvals_J(:,:,jj), simoptions.e_gridvals_J(:,:,jj), aprimeFnParamsVec);
     % l_a2==1: aprimeIndexes/aprimeProbs are [N_a, N_ze] (lower-corner; upper = lower+1)
     % l_a2==2: aprimeIndexes/aprimeProbs are [N_a, l_a2, N_ze] (per-dim factored)
 
     % Build a1-Kron'd index, same shape for all corners ([N_a, N_ze]).
     if l_a1==0
-        a1primeKron=zeros(N_a,N_ze,'gpuArray'); % no a1; offset is 0 (a2Kron itself is the index)
+        a1primeKron=zeros(N_a,N_ze,'gpuArray',like=N_a); % no a1; offset is 0 (a2Kron itself is the index)
     else
         a1primeKron=shiftdim(Policy(l_d+1,:,:,jj),1);
         if l_a1>=2
@@ -153,7 +153,7 @@ elseif simoptions.gridinterplayer==1
     Policy_aprime=gather(Policy_aprime);
 
     PolicyProbs=repmat(PolicyProbs,1,1,2,1);
-    aprimeProbs_upper=reshape(shiftdim((Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),1),[N_a,N_ze,1,N_j]); % probability of upper grid point (from L2 index; end-1 because end is now L2flag)
+    aprimeProbs_upper=reshape(shiftdim(double(Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),1),[N_a,N_ze,1,N_j]); % probability of upper grid point (from L2 index; end-1 because end is now L2flag)
     PolicyProbs(:,:,1:2,:)=PolicyProbs(:,:,1:2,:).*(1-aprimeProbs_upper); % lower a1
     PolicyProbs(:,:,3:4,:)=PolicyProbs(:,:,3:4,:).*aprimeProbs_upper; % upper a1
 

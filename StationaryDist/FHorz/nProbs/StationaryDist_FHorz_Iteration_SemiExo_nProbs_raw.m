@@ -15,7 +15,7 @@ function StationaryDist=StationaryDist_FHorz_Iteration_SemiExo_nProbs_raw(jequal
 % maximum number of non-zeros in any row of pi_semiz. And we then use this
 % in place of N_semiz as the second dimension.
 
-N_semizshort=max(max(max(sum((pi_semiz_J>0),2))));
+N_semizshort=str2func(underlyingType(N_a))(max(max(max(sum((pi_semiz_J>0),2)))));
 % Create smaller version of pi_semiz_J that eliminates as many non-zeros as possible
 [pi_semiz_J_short, idx] = sort(pi_semiz_J,2); % puts all the zeros on the left of the matrix
 
@@ -23,7 +23,8 @@ pi_semiz_J_short=pi_semiz_J_short(:,end-N_semizshort+1:end,:,:);
 idxshort=idx(:,end-N_semizshort+1:end,:,:);
 
 Policy_dsemiexo=reshape(Policy_dsemiexo,[N_a*N_semiz*N_z,1,N_j]);
-semizindex_short=repmat(repelem((1:1:N_semiz)',N_a,1),N_z,1)+N_semiz*(0:1:N_semizshort-1)+gather((N_semiz*N_semizshort)*(Policy_dsemiexo-1))+(N_semiz*N_semizshort*N_dsemiz)*shiftdim((0:1:N_j-1),-1); % index for semiz, plus that for semiz' (in the semiz' dim) and dsemiexo; their indexes in pi_semiz_J
+index_1=ones(1,1,like=N_a);
+semizindex_short=repmat(repelem((index_1:1:N_semiz)',N_a,1),N_z,1)+N_semiz*(0:1:N_semizshort-1)+gather((N_semiz*N_semizshort)*(Policy_dsemiexo-1))+(N_semiz*N_semizshort*N_dsemiz)*shiftdim((0:1:N_j-1),-1); % index for semiz, plus that for semiz' (in the semiz' dim) and dsemiexo; their indexes in pi_semiz_J
 pi_semiz_J_short=gather(pi_semiz_J_short);
 % semizindex_short is [N_a*N_semiz*N_z,N_semizshort,N_j]
 % used to index pi_semiz_J_short which is [N_semiz,N_semizshort,N_dsemiz,N_j]
@@ -44,7 +45,7 @@ N_bothz=N_semiz*N_z;
 
 %% Use Tan improvement
 
-StationaryDist=zeros(N_a*N_bothz,N_j,'gpuArray'); % StationaryDist cannot be sparse
+StationaryDist=zeros(N_a*N_bothz,N_j,underlyingType(jequaloneDistKron),'gpuArray'); % StationaryDist cannot be sparse
 StationaryDist(:,1)=jequaloneDistKron;
 StationaryDist_jj=sparse(gather(jequaloneDistKron)); % use sparse matrix
 
@@ -67,7 +68,7 @@ end
 
 % Reweight the different ages based on 'AgeWeightParamNames'. (it is assumed there is only one Age Weight Parameter (name))
 try
-    AgeWeights=Parameters.(AgeWeightParamNames{1});
+    AgeWeights=str2func(underlyingType(StationaryDist))(Parameters.(AgeWeightParamNames{1}));
 catch
     error('Unable to find the AgeWeightParamNames in the parameter structure')
 end

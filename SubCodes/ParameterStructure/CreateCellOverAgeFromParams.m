@@ -1,4 +1,4 @@
-function CellOverAgeOfParamValues=CreateCellOverAgeFromParams(Parameters,ParamNames,N_j,dimJ)
+function CellOverAgeOfParamValues=CreateCellOverAgeFromParams(Parameters,ParamNames,N_j,dimJ,precision)
 
 % CreateCellOverAgeFromParams looks in structure called 'Parameters' and
 % then creates a matrix with each column contains the values of it's fields that
@@ -11,6 +11,11 @@ function CellOverAgeOfParamValues=CreateCellOverAgeFromParams(Parameters,ParamNa
 % Note: this function is GPU-only. It wraps the parameter and the broadcast
 % ones() in gpuArray unconditionally, so it requires a GPU (no CPU fallback).
 
+if ~exist('precision','var')
+    precision='double';
+end
+cast2precision=str2func(precision);
+
 nCalibParams=length(ParamNames);
 FullParamNames=fieldnames(Parameters);
 nFields=length(FullParamNames);
@@ -21,7 +26,7 @@ for iCalibParam = 1:nCalibParams
     found=0;
     for iField=1:nFields
         if strcmp(ParamNames{iCalibParam},FullParamNames{iField})
-            CellOverAgeOfParamValues(iCalibParam)={shiftdim(reshape(gpuArray(Parameters.(FullParamNames{iField})),[length(Parameters.(FullParamNames{iField})),1]).*ones(N_j,1,'gpuArray'),1-dimJ)};
+            CellOverAgeOfParamValues(iCalibParam)={shiftdim(reshape(gpuArray(cast2precision(Parameters.(FullParamNames{iField}))),[length(Parameters.(FullParamNames{iField})),1]).*ones(N_j,1,precision,'gpuArray'),1-dimJ)};
             % Note, if parameter depends on age this is just the column vector, if parameter does not depend on age then this turns it into a constant valued column vector
             found=1;
             break

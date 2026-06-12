@@ -120,6 +120,7 @@ if l_a2==1
         a2_griddiff=a2_grid(2:end)-a2_grid(1:end-1);
 
         a2primeIndexes=discretize(a2primeVals,a2_grid);
+	a2primeIndexes=str2func(underlyingType(a2_grid))(a2primeIndexes);
 
         offBottomOfGrid=(a2primeVals<=a2_grid(1));
         a2primeIndexes(offBottomOfGrid)=1;
@@ -323,8 +324,8 @@ elseif l_a2==2
     %   a2primeIndexes(:,k,...) = lower-grid index in a2_k dim
     %   a2primeProbs(:,k,...)   = probability of lower grid point in a2_k dim
     Ntot=numel(loIdx_1);
-    a2primeIndexes_flat=zeros(Ntot,l_a2,'gpuArray');
-    a2primeProbs_flat=zeros(Ntot,l_a2,'gpuArray');
+    a2primeIndexes_flat=zeros(Ntot,l_a2,'gpuArray',like=n_a2(1));
+    a2primeProbs_flat=zeros(Ntot,l_a2,'gpuArray',like=a2_grid);
     a2primeIndexes_flat(:,1)=loIdx_1(:);
     a2primeIndexes_flat(:,2)=loIdx_2(:);
     a2primeProbs_flat(:,1)=prob_1(:);

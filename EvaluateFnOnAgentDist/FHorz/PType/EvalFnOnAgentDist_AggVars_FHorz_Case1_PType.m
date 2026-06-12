@@ -73,9 +73,9 @@ end
 % Note: pass to subcommand EvalFnOnAgentDist_AggVars_FHorz_Case1(), so no need to handle alreadygridvals and the like as those can be done there.
 
 if isa(StationaryDist.(Names_i{1}), 'gpuArray')
-    AggVarsFull=zeros(numFnsToEvaluate,N_i,'gpuArray');
+    AggVarsFull=zeros(numFnsToEvaluate,N_i,simoptions.precision,'gpuArray');
 else
-    AggVarsFull=zeros(numFnsToEvaluate,N_i);
+    AggVarsFull=zeros(numFnsToEvaluate,N_i,simoptions.precision);
 end
 
 

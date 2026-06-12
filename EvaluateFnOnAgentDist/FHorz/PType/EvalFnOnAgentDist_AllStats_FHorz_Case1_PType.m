@@ -119,10 +119,10 @@ end
 
 
 % Preallocate a few things
-MeanVec=nan(numFnsToEvaluate,N_i); % Note, these need to be nan so we can omitnan to ignore ptypes for who that FnToEvaluate is not relevant
-StdDevVec=zeros(numFnsToEvaluate,N_i);
-minvaluevec=nan(numFnsToEvaluate,N_i);
-maxvaluevec=nan(numFnsToEvaluate,N_i);
+MeanVec=nan(numFnsToEvaluate,N_i,simoptions.precision); % Note, these need to be nan so we can omitnan to ignore ptypes for who that FnToEvaluate is not relevant
+StdDevVec=zeros(numFnsToEvaluate,N_i,simoptions.precision);
+minvaluevec=nan(numFnsToEvaluate,N_i,simoptions.precision);
+maxvaluevec=nan(numFnsToEvaluate,N_i,simoptions.precision);
 AllStats=struct();
 
 
@@ -130,25 +130,25 @@ AllStats=struct();
 if simoptions.groupusingtdigest==1 % Things are being stored on cpu but solved on gpu
     % Following few lines relate to the digest
     delta=10000;
-    merge_nsofar=zeros(1,numFnsToEvaluate); % Keep count
-    merge_nsofar2=zeros(1,numFnsToEvaluate); % Keep count
+    merge_nsofar=zeros(1,numFnsToEvaluate,simoptions.precision); % Keep count
+    merge_nsofar2=zeros(1,numFnsToEvaluate,simoptions.precision); % Keep count
 
     AllCMerge=struct();
     Alldigestweightsmerge=struct();
     for ff=1:numFnsToEvaluate % Each of the functions to be evaluated on the grid
-        AllCMerge.(FnsToEvalNames{ff})=zeros(5000*N_i,1); % This is intended to be an upper limit on number of points that might be use
-        Alldigestweightsmerge.(FnsToEvalNames{ff})=zeros(5000*N_i,1); % This is intended to be an upper limit on number of points that might be use
+        AllCMerge.(FnsToEvalNames{ff})=zeros(5000*N_i,1,simoptions.precision),; % This is intended to be an upper limit on number of points that might be use
+        Alldigestweightsmerge.(FnsToEvalNames{ff})=zeros(5000*N_i,1,simoptions.precision); % This is intended to be an upper limit on number of points that might be use
     end
 else
     AllValues=struct();
     AllWeights=struct();
     for ff=1:numFnsToEvaluate % Each of the functions to be evaluated on the grid
-        AllValues.(FnsToEvalNames{ff})=[];
-        AllWeights.(FnsToEvalNames{ff})=[];
+        AllValues.(FnsToEvalNames{ff})=str2func(simoptions.precision)([]);
+        AllWeights.(FnsToEvalNames{ff})=str2func(simoptions.precision)([]);
     end
 end
 
-FnsAndPTypeIndicator=zeros(numFnsToEvaluate,N_i,'gpuArray');
+FnsAndPTypeIndicator=zeros(numFnsToEvaluate,N_i,simoptions.precision,'gpuArray');
 
 
 %% If there are any conditional restrictions, set up for these
@@ -278,10 +278,10 @@ for ii=1:N_i
             end
 
             if l_z_temp==0
-                CellOverAgeOfParamValues=CreateCellOverAgeFromParams(Parameters_temp,CondlRestnFnParamNames,N_j_temp,2); % j in 2nd dimension: (a,j,l_d+l_a), so we want j to be after N_a
+                CellOverAgeOfParamValues=CreateCellOverAgeFromParams(Parameters_temp,CondlRestnFnParamNames,N_j_temp,2,simoptions.precision); % j in 2nd dimension: (a,j,l_d+l_a), so we want j to be after N_a
                 RestrictionValues=logical(EvalFnOnAgentDist_Grid_J(CondlRestnFn,CellOverAgeOfParamValues,PolicyValuesPermute_temp,l_daprime_temp,n_a_temp,0,a_gridvals_temp,[]));
             else
-                CellOverAgeOfParamValues=CreateCellOverAgeFromParams(Parameters_temp,CondlRestnFnParamNames,N_j_temp,3); % j in 3rd dimension: (a,z,j,l_d+l_a), so we want j to be after N_a and N_z
+                CellOverAgeOfParamValues=CreateCellOverAgeFromParams(Parameters_temp,CondlRestnFnParamNames,N_j_temp,3,simoptions.precision); % j in 3rd dimension: (a,z,j,l_d+l_a), so we want j to be after N_a and N_z
                 RestrictionValues=logical(EvalFnOnAgentDist_Grid_J(CondlRestnFn,CellOverAgeOfParamValues,PolicyValuesPermute_temp,l_daprime_temp,n_a_temp,n_z_temp,a_gridvals_temp,z_gridvals_J_temp));
             end
             RestrictionValues=reshape(RestrictionValues,[N_a_temp*N_z_temp*N_j_temp,1]);
@@ -319,9 +319,9 @@ for ii=1:N_i
                 FnsToEvaluateParamNames={};
             end
             if l_z_temp==0
-                CellOverAgeOfParamValues=CreateCellOverAgeFromParams(Parameters_temp,FnsToEvaluateParamNames,N_j_temp,2);
+                CellOverAgeOfParamValues=CreateCellOverAgeFromParams(Parameters_temp,FnsToEvaluateParamNames,N_j_temp,2,simoptions.precision);
             else
-                CellOverAgeOfParamValues=CreateCellOverAgeFromParams(Parameters_temp,FnsToEvaluateParamNames,N_j_temp,3);
+                CellOverAgeOfParamValues=CreateCellOverAgeFromParams(Parameters_temp,FnsToEvaluateParamNames,N_j_temp,3,simoptions.precision);
             end
 
             %% We have set up the current PType, now do some calculations for it.

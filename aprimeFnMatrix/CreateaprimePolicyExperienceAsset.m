@@ -175,8 +175,8 @@ elseif l_a2==2
     else
         N=N_a*N_semizze;
     end
-    a2primeIndexes=zeros(N,l_a2,'gpuArray');
-    a2primeProbs=zeros(N,l_a2,'gpuArray');
+    a2primeIndexes=zeros(N,l_a2,'gpuArray',like=N_a);
+    a2primeProbs=zeros(N,l_a2,'gpuArray',like=a2_grid);
     a2primeIndexes(:,1)=loIdx_1(:);
     a2primeIndexes(:,2)=loIdx_2(:);
     a2primeProbs(:,1)=prob_1(:);
