@@ -3,8 +3,8 @@ function [V,Policy]=ValueFnIter_FHorz_TPath_SingleStep_GI2A_nod_noz_raw(V,n_a, N
 
 N_a=prod(n_a);
 
-Policy=zeros(3,N_a,N_j,'gpuArray'); % first dim is (a1prime midpoint,a2prime,a1prime L2)
-PolicyL2flag=2*ones(1,N_a,N_j,'gpuArray'); % 1=all weight to lower coarse a1, 2=usual linear weights, 3=all weight to upper coarse a1
+Policy=zeros(3,N_a,N_j,vfoptions.indexT,'gpuArray'); % first dim is (a1prime midpoint,a2prime,a1prime L2)
+PolicyL2flag=2*ones(1,N_a,N_j,vfoptions.indexT,'gpuArray'); % 1=all weight to lower coarse a1, 2=usual linear weights, 3=all weight to upper coarse a1
 % When ReturnFn is -Inf on one of the course grid points, we will allow fine index between that and the neighbouring course grid point, but we use L2flag to record this and so later avoid that -Inf point when simulating/iteration
 
 %%

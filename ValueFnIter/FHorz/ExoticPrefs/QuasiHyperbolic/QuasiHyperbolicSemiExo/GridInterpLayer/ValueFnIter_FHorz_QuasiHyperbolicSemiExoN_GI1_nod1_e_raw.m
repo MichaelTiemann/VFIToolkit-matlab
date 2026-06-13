@@ -10,12 +10,12 @@ N_z=prod(n_z);
 N_bothz=prod(n_bothz);
 N_e=prod(n_e);
 
-Valt=zeros(N_a,N_semiz*N_z,N_e,N_j,'gpuArray');
-Vtilde=zeros(N_a,N_semiz*N_z,N_e,N_j,'gpuArray');
-Policy=zeros(3,N_a,N_semiz*N_z,N_e,N_j,'gpuArray');
-PolicyL2flag=2*ones(1,N_a,N_semiz*N_z,N_e,N_j,'gpuArray');
-Policyalt=zeros(3,N_a,N_semiz*N_z,N_e,N_j,'gpuArray'); % exponential discounter optimal [d2; midpoint; aprimeL2ind]
-PolicyL2flagalt=2*ones(1,N_a,N_semiz*N_z,N_e,N_j,'gpuArray');
+Valt=zeros(N_a,N_semiz*N_z,N_e,N_j,vfoptions.precision,'gpuArray');
+Vtilde=zeros(N_a,N_semiz*N_z,N_e,N_j,vfoptions.precision,'gpuArray');
+Policy=zeros(3,N_a,N_semiz*N_z,N_e,N_j,vfoptions.indexT,'gpuArray');
+PolicyL2flag=2*ones(1,N_a,N_semiz*N_z,N_e,N_j,vfoptions.indexT,'gpuArray');
+Policyalt=zeros(3,N_a,N_semiz*N_z,N_e,N_j,vfoptions.indexT,'gpuArray'); % exponential discounter optimal [d2; midpoint; aprimeL2ind]
+PolicyL2flagalt=2*ones(1,N_a,N_semiz*N_z,N_e,N_j,vfoptions.indexT,'gpuArray');
 
 %%
 special_n_d2=ones(1,length(n_d2));

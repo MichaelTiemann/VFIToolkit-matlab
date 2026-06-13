@@ -8,8 +8,8 @@ N_a=N_a1*N_a2;
 N_z=prod(n_z);
 N_e=prod(n_e);
 
-Policy=zeros(3,N_a,N_z,N_e,N_j,'gpuArray'); %first dim indexes the optimal choice for d and a1prime rest of dimensions a,z
-PolicyL2flag=2*ones(1,N_a,N_z,N_e,N_j,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
+Policy=zeros(3,N_a,N_z,N_e,N_j,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for d and a1prime rest of dimensions a,z
+PolicyL2flag=2*ones(1,N_a,N_z,N_e,N_j,vfoptions.indexT,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
 
 %%
 a2_gridvals=CreateGridvals(n_a2,a2_grid,1);

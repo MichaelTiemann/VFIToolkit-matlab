@@ -8,8 +8,8 @@ function [Vtilde,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicN_GI1_n
 N_a=prod(n_a);
 
 Valt=zeros(N_a,N_j,'gpuArray');
-Policy=zeros(2,N_a,N_j,'gpuArray'); % [midpoint; aprimeL2ind]
-PolicyL2flag=2*ones(1,N_a,N_j,'gpuArray'); % 1=all weight to lower coarse pt, 2=usual linear weights, 3=all weight to upper coarse pt
+Policy=zeros(2,N_a,N_j,vfoptions.indexT,'gpuArray'); % [midpoint; aprimeL2ind]
+PolicyL2flag=2*ones(1,N_a,N_j,vfoptions.indexT,'gpuArray'); % 1=all weight to lower coarse pt, 2=usual linear weights, 3=all weight to upper coarse pt
 Policyalt=zeros(2,N_a,N_j,'gpuArray'); % exponential discounter optimal (midpoint, L2ind)
 PolicyL2flagalt=2*ones(1,N_a,N_j,'gpuArray');
 

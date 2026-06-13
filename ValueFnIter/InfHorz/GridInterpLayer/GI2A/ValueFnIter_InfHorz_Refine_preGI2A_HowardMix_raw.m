@@ -169,7 +169,7 @@ end
 
 %% Switch policy to lower grid index and L2 index (is currently index on fine grid)
 fineindex=reshape(Policy_a,[1,N_a,N_z]);
-Policy=zeros(5,N_a,N_z,'gpuArray'); % +1 channel for PolicyL2flag
+Policy=zeros(5,N_a,N_z,vfoptions.indexT,'gpuArray'); % +1 channel for PolicyL2flag
 fineindexvec1=rem(fineindex-1,N_a1prime)+1;
 fineindexvec2=ceil(fineindex/N_a1prime);
 L1a=ceil((fineindexvec1-1)/(n2short+1))-1;

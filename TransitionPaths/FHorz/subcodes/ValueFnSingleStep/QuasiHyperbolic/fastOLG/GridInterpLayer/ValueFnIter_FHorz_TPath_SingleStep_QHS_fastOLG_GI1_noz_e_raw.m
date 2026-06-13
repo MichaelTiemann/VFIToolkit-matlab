@@ -8,7 +8,7 @@ N_a=prod(n_a);
 N_e=prod(n_e);
 
 Vhat=zeros(N_a*N_j,N_e,'gpuArray'); % pre-Vunderbar value (snapshot of V before the beta*EV-at-policy correction)
-Policy=zeros(4,N_a,N_j,N_e,'gpuArray'); %first dim indexes the optimal choice for d and aprime (d, midpoint, aprimeL2ind, L2flag)
+Policy=zeros(4,N_a,N_j,N_e,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for d and aprime (d, midpoint, aprimeL2ind, L2flag)
 
 e_gridvals_J=shiftdim(e_gridvals_J,-3); % [1,1,1,N_j,N_e,l_e]
 

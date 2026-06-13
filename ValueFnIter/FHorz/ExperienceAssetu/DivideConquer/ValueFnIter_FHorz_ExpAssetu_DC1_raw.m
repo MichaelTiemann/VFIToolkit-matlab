@@ -10,7 +10,7 @@ N_z=prod(n_z);
 N_u=prod(n_u);
 
 V=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(N_a,N_z,N_j,'gpuArray'); %first dim indexes the optimal choice for d and a1prime rest of dimensions a,z
+Policy=zeros(N_a,N_z,N_j,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for d and a1prime rest of dimensions a,z
 
 %%
 a2_gridvals=CreateGridvals(n_a2,a2_grid,1);

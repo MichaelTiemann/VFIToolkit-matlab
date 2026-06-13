@@ -5,7 +5,7 @@ N_a=prod(n_a);
 N_z=prod(n_z);
 N_e=prod(n_e);
 
-Policy=zeros(3,N_a,N_z,N_e,N_j,'gpuArray'); % first dim indexes the optimal choice for midpoint, L2, L2flag
+Policy=zeros(3,N_a,N_z,N_e,N_j,vfoptions.indexT,'gpuArray'); % first dim indexes the optimal choice for midpoint, L2, L2flag
 
 % e is start-of-period: precompute the expectation of V over e for use as continuation
 Vnext=sum(V.*shiftdim(pi_e_J(:,[1,1:end-1]),-2),3); % Take expectations over e: Vnext(...,jj+1) is read for current age jj, so weight V at age jj+1 by pi_e_J(:,jj) [same timing as standard ValueFnIter commands]; first column is padding, never read

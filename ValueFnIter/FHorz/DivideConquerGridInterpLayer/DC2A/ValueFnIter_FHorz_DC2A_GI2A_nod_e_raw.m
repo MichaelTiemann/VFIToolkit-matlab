@@ -7,8 +7,8 @@ N_z=prod(n_z);
 N_e=prod(n_e);
 
 V=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(3,N_a,N_z,N_e,N_j,'gpuArray'); % first dim is (a1prime midpoint,a2prime,a1prime L2)
-PolicyL2flag=2*ones(1,N_a,N_z,N_e,N_j,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
+Policy=zeros(3,N_a,N_z,N_e,N_j,vfoptions.indexT,'gpuArray'); % first dim is (a1prime midpoint,a2prime,a1prime L2)
+PolicyL2flag=2*ones(1,N_a,N_z,N_e,N_j,vfoptions.indexT,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
 
 %%
 n_a1=n_a(1);

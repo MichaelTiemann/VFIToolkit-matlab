@@ -8,7 +8,7 @@ N_a=prod(n_a);
 
 % On CPU
 if n_d(1)==0
-    Policy=zeros(l_aprime,N_a,N_j);
+    Policy=zeros(l_aprime,N_a,N_j,like=PolicyKron);
     for a_c=1:N_a
         for jj=1:N_j
             optaindexKron=PolicyKron(a_c,jj);
@@ -19,7 +19,7 @@ if n_d(1)==0
     Policy=reshape(Policy,[l_aprime,n_a,N_j]);
 else
     l_d=length(n_d);
-    Policy=zeros(l_d+l_aprime,N_a,N_j);
+    Policy=zeros(l_d+l_aprime,N_a,N_j,like=PolicyKron);
     for a_c=1:N_a
         for jj=1:N_j
             optdindexKron=PolicyKron(1,a_c,jj);

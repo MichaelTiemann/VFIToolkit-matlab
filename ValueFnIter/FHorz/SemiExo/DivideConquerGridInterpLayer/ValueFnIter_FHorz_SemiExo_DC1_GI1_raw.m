@@ -13,8 +13,8 @@ N_bothz=prod(n_bothz);
 
 V=zeros(N_a,N_semiz*N_z,N_j,vfoptions.precision,'gpuArray');
 % For semiz it turns out to be easier to go straight to constructing policy that stores d,d2,aprime seperately
-Policy=zeros(4,N_a,N_semiz*N_z,N_j,'gpuArray'); % first dim indexes the optimal choice for d1,d2,aprime and aprime2 (in GI layer)
-PolicyL2flag=2*ones(1,N_a,N_semiz*N_z,N_j,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
+Policy=zeros(4,N_a,N_semiz*N_z,N_j,vfoptions.indexT,'gpuArray'); % first dim indexes the optimal choice for d1,d2,aprime and aprime2 (in GI layer)
+PolicyL2flag=2*ones(1,N_a,N_semiz*N_z,N_j,vfoptions.indexT,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
 
 %%
 special_n_d=[n_d1,ones(1,length(n_d2))];

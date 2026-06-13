@@ -5,8 +5,8 @@ function [V,Policy,Vhat]=ValueFnIter_FHorz_TPath_SingleStep_QHS_fastOLG_DC1_GI1_
 N_d=prod(n_d);
 N_a=prod(n_a);
 
-Policy=zeros(4,N_a,N_j,'gpuArray'); % first dim indexes the optimal choice for d and aprime (d, midpoint, L2, L2 flag)
-Vhat=zeros(N_a,N_j,'gpuArray');
+Policy=zeros(4,N_a,N_j,vfoptions.indexT,'gpuArray'); % first dim indexes the optimal choice for d and aprime (d, midpoint, L2, L2 flag)
+Vhat=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
 
 %%
 % Preallocate

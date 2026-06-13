@@ -4,8 +4,8 @@ function [V,Policy,Vhat]=ValueFnIter_FHorz_TPath_SingleStep_QHS_DC1_GI1_nod_noz_
 
 N_a=prod(n_a);
 
-Policy=zeros(3,N_a,N_j,'gpuArray'); % [midpoint; aprimeL2ind; L2flag]
-Vhat=zeros(N_a,N_j,'gpuArray');
+Policy=zeros(3,N_a,N_j,vfoptions.indexT,'gpuArray'); % [midpoint; aprimeL2ind; L2flag]
+Vhat=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
 
 %%
 midpoints_jj=zeros(1,N_a,'gpuArray');

@@ -69,7 +69,7 @@ ReturnMatrix         = shiftdim(ReturnMatrix,1);
 % Policy(2,a,z) is Policy_a
 % Policy(1,a,z) is dstar(Policy_a(a,z),a,z)
 
-Policy=zeros(2,N_a,N_z);
+Policy=zeros(2,N_a,N_z,vfoptions.indexT);
 Policy(2,:,:)=shiftdim(Policy_a,-1);
 temppolicyindex=reshape(Policy_a,[1,N_a*N_z])+(0:1:N_a*N_z-1)*N_a;
 Policy(1,:,:)=reshape(dstar(temppolicyindex),[N_a,N_z]);

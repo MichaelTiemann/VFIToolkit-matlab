@@ -13,7 +13,7 @@ level1iidiff=level1ii(2:end)-level1ii(1:end-1)-1;
 ReturnMatrixLvl1=CreateReturnFnMatrix_Disc_DC1(ReturnFn, n_d, n_z, d_gridvals, a_grid, a_grid(level1ii), z_gridvals, ReturnFnParamsVec, 1);
 
 V=reshape(V0,[N_a,N_z]);
-Policy=zeros(N_a,N_z,'gpuArray');
+Policy=zeros(N_a,N_z,vfoptions.indexT,'gpuArray');
 
 % for Howards, preallocate
 Ftemp=zeros(N_a,N_z,'gpuArray');
@@ -132,7 +132,7 @@ end
 
 %% Reshape output
 Policyraw=reshape(Policy,[N_a,N_z]);
-Policy=zeros(2,N_a,N_z,'gpuArray');
+Policy=zeros(2,N_a,N_z,vfoptions.indexT,'gpuArray');
 Policy(1,:,:)=rem(Policyraw-1,N_d)+1;
 Policy(2,:,:)=ceil(Policyraw/N_d);
 

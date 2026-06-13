@@ -9,8 +9,8 @@ N_e=prod(n_e);
 N_u=prod(n_u);
 
 V=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(3,N_a,N_z,N_e,N_j,'gpuArray'); %first dim indexes the optimal choice for d and a1prime rest of dimensions a,z
-PolicyL2flag=2*ones(1,N_a,N_z,N_e,N_j,'gpuArray'); % 1=all weight to lower coarse a1, 2=usual linear weights, 3=all weight to upper coarse a1
+Policy=zeros(3,N_a,N_z,N_e,N_j,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for d and a1prime rest of dimensions a,z
+PolicyL2flag=2*ones(1,N_a,N_z,N_e,N_j,vfoptions.indexT,'gpuArray'); % 1=all weight to lower coarse a1, 2=usual linear weights, 3=all weight to upper coarse a1
 
 %%
 a2_gridvals=CreateGridvals(n_a2,a2_grid,1);

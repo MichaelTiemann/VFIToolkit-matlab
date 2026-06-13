@@ -4,7 +4,7 @@ function [V, Policy]=ValueFnIter_FHorz_TPath_SingleStep_fastOLG_DC1_GI1_nod_noz_
 N_a=prod(n_a);
 
 % V=zeros(N_a,N_j,vfoptions.precision,'gpuArray'); % V is over (a,j)
-Policy=zeros(3,N_a,N_j,'gpuArray'); % first dim indexes the optimal choice for aprime (layer 1, layer 2, and L2 flag)
+Policy=zeros(3,N_a,N_j,vfoptions.indexT,'gpuArray'); % first dim indexes the optimal choice for aprime (layer 1, layer 2, and L2 flag)
 
 %%
 

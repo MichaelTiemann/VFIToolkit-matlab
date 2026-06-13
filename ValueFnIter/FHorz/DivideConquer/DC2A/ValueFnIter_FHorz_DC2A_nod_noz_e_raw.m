@@ -6,7 +6,7 @@ N_a=prod(n_a);
 N_e=prod(n_e);
 
 V=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(N_a,N_e,N_j,'gpuArray'); % joint (a1prime,a2prime) index at each (a,e,j) cell
+Policy=zeros(N_a,N_e,N_j,vfoptions.indexT,'gpuArray'); % joint (a1prime,a2prime) index at each (a,e,j) cell
 
 %%
 n_a1=n_a(1);

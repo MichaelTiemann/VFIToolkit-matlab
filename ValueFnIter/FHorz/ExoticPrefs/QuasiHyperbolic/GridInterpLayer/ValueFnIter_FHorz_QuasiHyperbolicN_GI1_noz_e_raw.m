@@ -11,8 +11,8 @@ N_e=prod(n_e);
 
 Valt=zeros(N_a,N_e,N_j,'gpuArray');
 Vtilde=zeros(N_a,N_e,N_j,'gpuArray');
-Policy=zeros(3,N_a,N_e,N_j,'gpuArray');
-PolicyL2flag=2*ones(1,N_a,N_e,N_j,'gpuArray'); % 1=all weight to lower coarse pt, 2=usual linear weights, 3=all weight to upper coarse pt
+Policy=zeros(3,N_a,N_e,N_j,vfoptions.indexT,'gpuArray');
+PolicyL2flag=2*ones(1,N_a,N_e,N_j,vfoptions.indexT,'gpuArray'); % 1=all weight to lower coarse pt, 2=usual linear weights, 3=all weight to upper coarse pt
 Policyalt=zeros(3,N_a,N_e,N_j,'gpuArray'); % exponential discounter optimal choice
 PolicyL2flagalt=2*ones(1,N_a,N_e,N_j,'gpuArray');
 

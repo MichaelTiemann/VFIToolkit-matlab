@@ -5,7 +5,7 @@ N_a=prod(n_a);
 N_z=prod(n_z);
 
 V=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(N_a,N_z,N_j,'gpuArray'); %first dim indexes the optimal choice for d and aprime rest of dimensions a,z
+Policy=zeros(N_a,N_z,N_j,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for d and aprime rest of dimensions a,z
 
 
 %% Get the parameter values that depend on the z_state.
@@ -130,7 +130,7 @@ for reverse_j=1:N_j-1
     end
 end
 
-Policy=zeros(2,N_a,N_z,N_j,'gpuArray'); %NOTE: this is not actually in Kron form
+Policy=zeros(2,N_a,N_z,N_j,vfoptions.indexT,'gpuArray'); %NOTE: this is not actually in Kron form
 Policy(1,:,:,:)=shiftdim(rem(Policy-1,N_d)+1,-1);
 Policy(2,:,:,:)=shiftdim(ceil(Policy/N_d),-1);
 

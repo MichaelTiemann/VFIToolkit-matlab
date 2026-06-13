@@ -9,9 +9,9 @@ N_z=prod(n_z);
 N_e=prod(n_e);
 
 
-Policy=zeros(3,N_a,N_z,N_e,N_j,'gpuArray');
-PolicyL2flag=2*ones(1,N_a,N_z,N_e,N_j,'gpuArray');
-Vhat=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+Policy=zeros(3,N_a,N_z,N_e,N_j,vfoptions.indexT,'gpuArray');
+PolicyL2flag=2*ones(1,N_a,N_z,N_e,N_j,vfoptions.indexT,'gpuArray');
+Vhat=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
 
 %%
 if vfoptions.lowmemory>0

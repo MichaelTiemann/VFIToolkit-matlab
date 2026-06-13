@@ -13,7 +13,7 @@ N_a=prod(n_a);
 N_z=prod(n_z);
 
 Valt=zeros(N_a,N_z,N_j,'gpuArray');
-Policy=zeros(N_a,N_z,N_j,'gpuArray');  % optimal aprime index
+Policy=zeros(N_a,N_z,N_j,vfoptions.indexT,'gpuArray');  % optimal aprime index
 Policyalt=zeros(N_a,N_z,N_j,'gpuArray'); % exponential discounter optimal choice (Valt is computed at this)
 
 %%
@@ -98,7 +98,7 @@ else
     EV(isnan(EV))=0;
     EV=sum(EV,2);   % N_a-by-1-by-N_z
 
-    Vtilde=zeros(N_a,N_z,N_j,'gpuArray');
+    Vtilde=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
 
     if vfoptions.lowmemory==0
         ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1_nod(ReturnFn, n_z, a_grid, a_grid(level1ii), z_gridvals_J(:,:,N_j), ReturnFnParamsVec,1);

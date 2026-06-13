@@ -94,7 +94,7 @@ if vfoptions.gridinterplayer==1
             Vtilde=zeros(N_a,N_j,'gpuArray');
         else
             Vunderbar=zeros(N_a,N_j,'gpuArray');
-            Vhat=zeros(N_a,N_j,'gpuArray');
+            Vhat=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
         end
 
         for reverse_j=0:N_j-1
@@ -170,7 +170,7 @@ if vfoptions.gridinterplayer==1
             Vtilde=zeros(N_a,N_e,N_j,'gpuArray');
         else
             Vunderbar=zeros(N_a,N_e,N_j,'gpuArray');
-            Vhat=zeros(N_a,N_e,N_j,'gpuArray');
+            Vhat=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
         end
 
         for reverse_j=0:N_j-1
@@ -249,7 +249,7 @@ if vfoptions.gridinterplayer==1
             PolicyProbs_alt(:,:,:,2)=(L2_alt-1)/(n2short+1);
             PolicyProbs_alt(:,:,:,1)=1-PolicyProbs_alt(:,:,:,2);
             Valt=zeros(N_a,N_z,N_j,'gpuArray');
-            Vtilde=zeros(N_a,N_z,N_j,'gpuArray');
+            Vtilde=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
         else
             Vunderbar=zeros(N_a,N_z,N_j,'gpuArray');
             Vhat=zeros(N_a,N_z,N_j,'gpuArray');
@@ -328,10 +328,10 @@ if vfoptions.gridinterplayer==1
             PolicyProbs_alt(:,:,:,:,2)=(L2_alt-1)/(n2short+1);
             PolicyProbs_alt(:,:,:,:,1)=1-PolicyProbs_alt(:,:,:,:,2);
             Valt=zeros(N_a,N_z,N_e,N_j,'gpuArray');
-            Vtilde=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+            Vtilde=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
         else
             Vunderbar=zeros(N_a,N_z,N_e,N_j,'gpuArray');
-            Vhat=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+            Vhat=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
         end
         zidxoffset=N_a*gpuArray(0:N_z-1); % (1, N_z)
 
@@ -409,7 +409,7 @@ if N_z==0 && N_e==0
         Vtilde=zeros(N_a,N_j,'gpuArray');
     else
         Vunderbar=zeros(N_a,N_j,'gpuArray');
-        Vhat=zeros(N_a,N_j,'gpuArray');
+        Vhat=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
     end
 
     for reverse_j=0:N_j-1
@@ -489,7 +489,7 @@ elseif N_z==0 && N_e>0
         Vtilde=zeros(N_a,N_e,N_j,'gpuArray');
     else
         Vunderbar=zeros(N_a,N_e,N_j,'gpuArray');
-        Vhat=zeros(N_a,N_e,N_j,'gpuArray');
+        Vhat=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
     end
 
     for reverse_j=0:N_j-1
@@ -565,7 +565,7 @@ elseif N_z>0 && N_e==0
         PolicyaltValuesPermute=permute(PolicyaltValues,[2,3,1,4]);
         PolicyIndexesKronAlt=KronPolicyIndexes_forValueFnFromPolicy(Policyalt, n_d, n_a, n_z, N_j, vfoptions);
         Valt=zeros(N_a,N_z,N_j,'gpuArray');
-        Vtilde=zeros(N_a,N_z,N_j,'gpuArray');
+        Vtilde=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
     else
         Vunderbar=zeros(N_a,N_z,N_j,'gpuArray');
         Vhat=zeros(N_a,N_z,N_j,'gpuArray');
@@ -650,10 +650,10 @@ elseif N_z>0 && N_e>0
         PolicyaltValuesPermute=permute(PolicyaltValues,[2,3,1,4]);
         PolicyIndexesKronAlt=KronPolicyIndexes_forValueFnFromPolicy(Policyalt, n_d, n_a, [n_z,vfoptions.n_e], N_j, vfoptions);
         Valt=zeros(N_a,N_z,N_e,N_j,'gpuArray');
-        Vtilde=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+        Vtilde=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
     else
         Vunderbar=zeros(N_a,N_z,N_e,N_j,'gpuArray');
-        Vhat=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+        Vhat=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
     end
     zN_e_kron=kron(kron(ones(N_e,1,'gpuArray'),(1:1:N_z)'),ones(N_a,1,'gpuArray'));
 

@@ -6,7 +6,7 @@ N_d=prod(n_d);
 N_a=prod(n_a);
 N_e=prod(n_e);
 
-Policy=zeros(N_a,N_e,N_j,'gpuArray'); %first dim indexes the optimal choice for d and aprime rest of dimensions a,e
+Policy=zeros(N_a,N_e,N_j,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for d and aprime rest of dimensions a,e
 Policyalt=zeros(N_a,N_e,N_j,'gpuArray'); % exponential discounter optimal choice (Valt is computed at this)
 Vtilde=zeros(N_a,N_e,N_j,'gpuArray'); % agent's-perspective value (beta0*beta-discounted)
 

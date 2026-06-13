@@ -15,7 +15,7 @@ N_d=prod(n_d);
 N_a=prod(n_a);
 N_z=prod(n_z);
 
-Policy=zeros(N_a,N_z,'gpuArray');
+Policy=zeros(N_a,N_z,vfoptions.indexT,'gpuArray');
 
 %%
 VKronold=VKron;
@@ -37,7 +37,7 @@ for z_c=1:N_z
     Policy(:,z_c)=maxindex;
 end
 
-Policy=zeros(2,N_a,N_z,'gpuArray'); %NOTE: this is not actually in Kron form
+Policy=zeros(2,N_a,N_z,vfoptions.indexT,'gpuArray'); %NOTE: this is not actually in Kron form
 Policy(1,:,:)=shiftdim(rem(Policy-1,N_d)+1,-1);
 Policy(2,:,:)=shiftdim(ceil(Policy/N_d),-1);
 

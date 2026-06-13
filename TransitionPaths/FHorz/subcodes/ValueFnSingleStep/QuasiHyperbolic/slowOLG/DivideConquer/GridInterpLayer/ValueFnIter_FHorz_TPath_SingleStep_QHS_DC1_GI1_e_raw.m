@@ -7,8 +7,8 @@ N_a=prod(n_a);
 N_z=prod(n_z);
 N_e=prod(n_e);
 
-Policy=zeros(4,N_a,N_z,N_e,N_j,'gpuArray'); % [d_ind; midpoint; aprimeL2ind; L2flag]
-Vhat=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+Policy=zeros(4,N_a,N_z,N_e,N_j,vfoptions.indexT,'gpuArray'); % [d_ind; midpoint; aprimeL2ind; L2flag]
+Vhat=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
 
 % e is start-of-period: precompute the expectation of V over e for use as continuation
 Vnext=sum(V.*shiftdim(pi_e_J(:,[1,1:end-1]),-2),3); % Take expectations over e: Vnext(...,jj+1) is read for current age jj, so weight V at age jj+1 by pi_e_J(:,jj) [same timing as standard ValueFnIter commands]; first column is padding, never read

@@ -8,7 +8,7 @@ eval('fieldexists_ExogShockFn=1;vfoptions.ExogShockFn;','fieldexists_ExogShockFn
 eval('fieldexists_ExogShockFnParamNames=1;vfoptions.ExogShockFnParamNames;','fieldexists_ExogShockFnParamNames=0;')
 
 V=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(N_a,N_z,N_j,'gpuArray'); %indexes the optimal choice for d given rest of dimensions a,z
+Policy=zeros(N_a,N_z,N_j,vfoptions.indexT,'gpuArray'); %indexes the optimal choice for d given rest of dimensions a,z
 
 %%
 eval('fieldexists_pi_z_J=1;vfoptions.pi_z_J;','fieldexists_pi_z_J=0;')

@@ -7,11 +7,12 @@ function [V,Policy,Policyalt,Vtilde]=ValueFnIter_FHorz_TPath_SingleStep_QHN_GI1_
 N_a=prod(n_a);
 N_e=prod(n_e);
 
-Policy=zeros(2,N_a,N_e,N_j,'gpuArray'); % [midpoint; aprimeL2ind]
-PolicyL2flag=2*ones(1,N_a,N_e,N_j,'gpuArray');
-Policyalt=zeros(2,N_a,N_e,N_j,'gpuArray');
-PolicyL2flagalt=2*ones(1,N_a,N_e,N_j,'gpuArray');
-Vtilde=zeros(N_a,N_e,N_j,'gpuArray');
+cast2index=str2func(vfoptions.indexT);
+Policy=zeros(2,N_a,N_e,N_j,vfoptions.indexT,'gpuArray'); % [midpoint; aprimeL2ind]
+PolicyL2flag=2*ones(1,N_a,N_e,N_j,vfoptions.indexT,'gpuArray');
+Policyalt=zeros(2,N_a,N_e,N_j,vfoptions.indexT,'gpuArray');
+PolicyL2flagalt=2*ones(1,N_a,N_e,N_j,vfoptions.indexT,'gpuArray');
+Vtilde=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
 
 %%
 if vfoptions.lowmemory==1
@@ -196,7 +197,7 @@ end
 % (which ranges -n2short-1:1:1+n2short). It is much easier to use later if
 % we switch Policy(1,:) to 'lower grid point' and then have Policy(2,:)
 % counting 0:nshort+1 up from this.
-adjust=(Policy(2,:,:,:)<1+n2short+1);
+adjust=cast2index(Policy(2,:,:,:)<1+n2short+1);
 Policy(1,:,:,:)=Policy(1,:,:,:)-adjust;
 Policy(2,:,:,:)=adjust.*Policy(2,:,:,:)+(1-adjust).*(Policy(2,:,:,:)-n2short-1);
 

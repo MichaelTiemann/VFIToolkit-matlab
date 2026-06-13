@@ -8,9 +8,9 @@ N_a=N_a1*N_a2;
 N_z=prod(n_z);
 N_e=prod(n_e);
 
-Vhat=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+Vhat=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
 Vunderbar=zeros(N_a,N_z,N_e,N_j,'gpuArray');
-Policy=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+Policy=zeros(N_a,N_z,N_e,N_j,vfoptions.indexT,'gpuArray');
 
 a2_gridvals=CreateGridvals(n_a2,a2_grid,1);
 

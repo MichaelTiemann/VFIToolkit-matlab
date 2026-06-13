@@ -7,8 +7,8 @@ N_d=prod(n_d);
 N_a=prod(n_a);
 N_z=prod(n_z);
 
-Policy=zeros(3,N_a,N_z,N_j,'gpuArray'); % [d_ind; midpoint; aprimeL2ind]
-PolicyL2flag=2*ones(1,N_a,N_z,N_j,'gpuArray');
+Policy=zeros(3,N_a,N_z,N_j,vfoptions.indexT,'gpuArray'); % [d_ind; midpoint; aprimeL2ind]
+PolicyL2flag=2*ones(1,N_a,N_z,N_j,vfoptions.indexT,'gpuArray');
 Vhat=zeros(N_a,N_z,N_j,'gpuArray');
 
 %%

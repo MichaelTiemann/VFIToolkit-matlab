@@ -9,10 +9,10 @@ N_d=prod(n_d);
 N_a=prod(n_a);
 N_semiz=prod(n_semiz);
 
-Valt=zeros(N_a,N_semiz,N_j,'gpuArray');
-Vtilde=zeros(N_a,N_semiz,N_j,'gpuArray');
-Policy=zeros(3,N_a,N_semiz,N_j,'gpuArray');
-Policyalt=zeros(3,N_a,N_semiz,N_j,'gpuArray'); % exponential discounter optimal (d1, d2, aprime)
+Valt=zeros(N_a,N_semiz,N_j,vfoptions.precision,'gpuArray');
+Vtilde=zeros(N_a,N_semiz,N_j,vfoptions.precision,'gpuArray');
+Policy=zeros(3,N_a,N_semiz,N_j,vfoptions.indexT,'gpuArray');
+Policyalt=zeros(3,N_a,N_semiz,N_j,vfoptions.indexT,'gpuArray'); % exponential discounter optimal (d1, d2, aprime)
 
 %%
 special_n_d=[n_d1,ones(1,length(n_d2))];

@@ -23,8 +23,8 @@ N_d23=N_d2*N_d3;
 d23_grid=[d2_grid; d3_grid];
 
 V=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(5,N_a,N_z,N_j,'gpuArray'); % (1)=d1, (2)=d2, (3)=d3, (4)=a1prime midpoint, (5)=a1primeL2ind
-PolicyL2flag=2*ones(1,N_a,N_z,N_j,'gpuArray');
+Policy=zeros(5,N_a,N_z,N_j,vfoptions.indexT,'gpuArray'); % (1)=d1, (2)=d2, (3)=d3, (4)=a1prime midpoint, (5)=a1primeL2ind
+PolicyL2flag=2*ones(1,N_a,N_z,N_j,vfoptions.indexT,'gpuArray');
 % d2 stored directly into Policy(2,...); no separate d2Policy slab
 
 %%

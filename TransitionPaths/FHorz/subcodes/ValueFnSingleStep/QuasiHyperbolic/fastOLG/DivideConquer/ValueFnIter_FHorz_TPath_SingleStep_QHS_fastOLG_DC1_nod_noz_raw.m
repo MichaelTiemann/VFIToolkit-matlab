@@ -4,8 +4,8 @@ function [V, Policy, Vhat]=ValueFnIter_FHorz_TPath_SingleStep_QHS_fastOLG_DC1_no
 % V carries Vunderbar for Sophisticated QH
 N_a=prod(n_a);
 
-Policy=zeros(N_a,N_j,'gpuArray'); % first dim indexes the optimal choice for aprime
-Vhat=zeros(N_a,N_j,'gpuArray'); % beta0*beta-step value (snapshot of V before Vunderbar transform)
+Policy=zeros(N_a,N_j,vfoptions.indexT,'gpuArray'); % first dim indexes the optimal choice for aprime
+Vhat=zeros(N_a,N_j,vfoptions.precision,'gpuArray'); % beta0*beta-step value (snapshot of V before Vunderbar transform)
 
 %%
 a_grid=gpuArray(a_grid);

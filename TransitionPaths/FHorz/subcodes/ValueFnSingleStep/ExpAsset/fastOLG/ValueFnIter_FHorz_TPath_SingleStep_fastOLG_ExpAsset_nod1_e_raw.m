@@ -97,7 +97,7 @@ if vfoptions.lowmemory==0
 elseif vfoptions.lowmemory==1
     special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
     V=zeros(N_a*N_j,N_z,N_e,vfoptions.precision,'gpuArray');
-    Policy=zeros(N_a*N_j,N_z,N_e,'gpuArray');
+    Policy=zeros(N_a*N_j,N_z,N_e,vfoptions.indexT,'gpuArray');
 
     for e_c=1:N_e
         e_val=e_gridvals_J(:,:,:,:,:,:,e_c,:); % e_gridvals_J is [1,1,1,1,1,N_j,N_e,l_e] — e on dim 7
@@ -115,7 +115,7 @@ elseif vfoptions.lowmemory==2
     special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
     special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
     V=zeros(N_a*N_j,N_z,N_e,vfoptions.precision,'gpuArray');
-    Policy=zeros(N_a*N_j,N_z,N_e,'gpuArray');
+    Policy=zeros(N_a*N_j,N_z,N_e,vfoptions.indexT,'gpuArray');
 
     for z_c=1:N_z
         z_val=z_gridvals_J(:,:,:,:,:,z_c,:); % z_gridvals_J is [1,1,1,1,N_j,N_z,l_z] — z on dim 6

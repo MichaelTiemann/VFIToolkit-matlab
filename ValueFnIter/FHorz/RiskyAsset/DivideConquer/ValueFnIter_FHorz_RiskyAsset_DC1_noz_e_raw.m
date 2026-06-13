@@ -21,7 +21,7 @@ N_d23=N_d2*N_d3;
 d23_grid=[d2_grid; d3_grid];
 
 V=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(4,N_a,N_e,N_j,'gpuArray'); % (1)=d1, (2)=d2, (3)=d3, (4)=a1prime
+Policy=zeros(4,N_a,N_e,N_j,vfoptions.indexT,'gpuArray'); % (1)=d1, (2)=d2, (3)=d3, (4)=a1prime
 % We will refine away d2 out of EV before combining with ReturnFn
 
 %%

@@ -10,7 +10,7 @@ l_aprime=length(n_a);
 n_aprime=n_a;
 
 % On CPU
-Policy=zeros(l_aprime,N_a,N_z,N_j);
+Policy=zeros(l_aprime,N_a,N_z,N_j,like=PolicyKron);
 if n_d(1)==0
     for a_c=1:N_a
         for z_c=1:N_z
@@ -24,7 +24,7 @@ if n_d(1)==0
     Policy=reshape(Policy,[l_aprime,n_a,n_z,N_j]);
 else
     l_d=length(n_d);
-    Policy=zeros(l_d+l_aprime,N_a,N_z,N_j);
+    Policy=zeros(l_d+l_aprime,N_a,N_z,N_j,like=PolicyKron);
     for a_c=1:N_a
         for z_c=1:N_z
             for jj=1:N_j

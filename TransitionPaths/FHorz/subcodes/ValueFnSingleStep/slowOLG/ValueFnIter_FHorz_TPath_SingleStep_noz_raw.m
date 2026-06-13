@@ -3,7 +3,7 @@ function [V,Policy]=ValueFnIter_FHorz_TPath_SingleStep_noz_raw(V,n_d,n_a,N_j, d_
 N_d=prod(n_d);
 N_a=prod(n_a);
 
-Policy=zeros(N_a,N_j,'gpuArray'); % first dim indexes the optimal choice for d and aprime rest of dimensions a,z
+Policy=zeros(N_a,N_j,vfoptions.indexT,'gpuArray'); % first dim indexes the optimal choice for d and aprime rest of dimensions a,z
 
 %% j=N_j
 

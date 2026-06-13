@@ -42,7 +42,7 @@ elseif vfoptions.lowmemory==1
 
     n_e_special=ones(1,length(n_e));
     V=zeros(N_a*N_j,N_e,vfoptions.precision,'gpuArray');
-    Policy=zeros(N_a,N_j,N_e,'gpuArray'); %first dim indexes the optimal choice for aprime rest of dimensions a,z
+    Policy=zeros(N_a,N_j,N_e,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for aprime rest of dimensions a,z
     Policyalt=zeros(N_a,N_j,N_e,'gpuArray');
     Vtilde=zeros(N_a*N_j,N_e,'gpuArray');
 

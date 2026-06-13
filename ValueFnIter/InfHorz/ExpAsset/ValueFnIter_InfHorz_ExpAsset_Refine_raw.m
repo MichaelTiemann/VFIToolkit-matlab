@@ -43,7 +43,7 @@ end
 
 %%
 V=reshape(V0,[N_a,N_z]);
-Policy=zeros(N_a,N_z,'gpuArray'); %first dim indexes the optimal choice for d and a1prime rest of dimensions a,z
+Policy=zeros(N_a,N_z,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for d and a1prime rest of dimensions a,z
 
 % for Howards, preallocate
 Ftemp=zeros(N_a,N_z,'gpuArray');

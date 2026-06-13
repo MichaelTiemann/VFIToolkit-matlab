@@ -21,12 +21,8 @@ d23_grid=[d2_grid; d3_grid];
 N_a=N_a1*N_a2;
 % N_d=N_d1*N_d2*N_d3;
 
-indexT=vfoptions.indexT;
-cast2index=str2func(indexT);
-index_0=cast2index(0); index_1=cast2index(1);
-
 V=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(3,N_a,N_z,N_j,indexT,'gpuArray'); % d2, d3, a1prime
+Policy=zeros(3,N_a,N_z,N_j,vfoptions.indexT,'gpuArray'); % d2, d3, a1prime
 
 %%
 d3_grid=gpuArray(d3_grid);

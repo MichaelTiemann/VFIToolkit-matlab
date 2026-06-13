@@ -17,11 +17,11 @@ N_semiz=prod(n_semiz);
 N_z=prod(n_z);
 N_bothz=prod(n_bothz);
 
-Valt=zeros(N_a,N_semiz*N_z,N_j,'gpuArray');
-Vtilde=zeros(N_a,N_semiz*N_z,N_j,'gpuArray');
+Valt=zeros(N_a,N_semiz*N_z,N_j,vfoptions.precision,'gpuArray');
+Vtilde=zeros(N_a,N_semiz*N_z,N_j,vfoptions.precision,'gpuArray');
 % Policy stores (d1,d2,aprime)
-Policy=zeros(3,N_a,N_semiz*N_z,N_j,'gpuArray');
-Policyalt=zeros(3,N_a,N_semiz*N_z,N_j,'gpuArray'); % exponential discounter optimal (d1, d2, aprime)
+Policy=zeros(3,N_a,N_semiz*N_z,N_j,vfoptions.indexT,'gpuArray');
+Policyalt=zeros(3,N_a,N_semiz*N_z,N_j,vfoptions.indexT,'gpuArray'); % exponential discounter optimal (d1, d2, aprime)
 
 %%
 special_n_d=[n_d1,ones(1,length(n_d2))];

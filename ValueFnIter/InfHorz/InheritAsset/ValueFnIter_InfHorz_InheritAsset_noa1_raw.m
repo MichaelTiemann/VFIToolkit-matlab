@@ -7,7 +7,7 @@ N_a=N_a2;
 N_z=prod(n_z);
 
 % V=zeros(N_a,N_z,vfoptions.precision,'gpuArray');
-% Policy=zeros(N_a,N_z,'gpuArray');
+% Policy=zeros(N_a,N_z,vfoptions.indexT,'gpuArray');
 
 %% Refine d1
 % CreateReturnFnMatrix_Disc_CPU creates a matrix of dimension (d1 and d2 and aprime)-by-a-by-z.

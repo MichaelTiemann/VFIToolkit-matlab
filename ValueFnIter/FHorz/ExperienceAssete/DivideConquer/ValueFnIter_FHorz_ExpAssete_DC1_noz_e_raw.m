@@ -10,7 +10,7 @@ N_e=prod(n_e);
 d2ind=repelem((1:1:N_d2)',N_d1,1); % [N_d,1]; maps full d-index to d2-component
 
 V=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(N_a,N_e,N_j,'gpuArray'); %first dim indexes the optimal choice for d and a1prime rest of dimensions a,e
+Policy=zeros(N_a,N_e,N_j,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for d and a1prime rest of dimensions a,e
 
 %%
 a2_gridvals=CreateGridvals(n_a2,a2_grid,1);

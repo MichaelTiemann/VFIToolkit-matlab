@@ -50,7 +50,7 @@ DiscountedEVinterp=reshape(beta0beta_J,[1,1,N_j]).*EVinterp;
 
 if vfoptions.lowmemory==0
 
-    Policy=zeros(3,N_a,N_j,N_z,N_e,'gpuArray'); %first dim indexes the optimal choice for aprime (midpoint, aprimeL2ind, L2flag)
+    Policy=zeros(3,N_a,N_j,N_z,N_e,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for aprime (midpoint, aprimeL2ind, L2flag)
     Policyalt=zeros(3,N_a,N_j,N_z,N_e,'gpuArray');
 
     ReturnMatrix=CreateReturnFnMatrix_fastOLG_Disc_DC1_nod_e(ReturnFn, n_z, n_e, N_j, a_grid, a_grid, z_gridvals_J, e_gridvals_J, ReturnFnParamsAgeMatrix,1);
@@ -96,7 +96,7 @@ elseif vfoptions.lowmemory==1
 
     special_n_e=ones(1,length(n_e),vfoptions.precision);
     V=zeros(N_a*N_j,N_z,N_e,vfoptions.precision,'gpuArray');
-    Policy=zeros(3,N_a,N_j,N_z,N_e,'gpuArray');
+    Policy=zeros(3,N_a,N_j,N_z,N_e,vfoptions.indexT,'gpuArray');
     Policyalt=zeros(3,N_a,N_j,N_z,N_e,'gpuArray');
 
     for e_c=1:N_e
@@ -147,7 +147,7 @@ elseif vfoptions.lowmemory==2
     special_n_z=ones(1,length(n_z),vfoptions.precision);
     special_n_e=ones(1,length(n_e),vfoptions.precision);
     V=zeros(N_a*N_j,N_z,N_e,vfoptions.precision,'gpuArray');
-    Policy=zeros(3,N_a,N_j,N_z,N_e,'gpuArray');
+    Policy=zeros(3,N_a,N_j,N_z,N_e,vfoptions.indexT,'gpuArray');
     Policyalt=zeros(3,N_a,N_j,N_z,N_e,'gpuArray');
 
     for z_c=1:N_z

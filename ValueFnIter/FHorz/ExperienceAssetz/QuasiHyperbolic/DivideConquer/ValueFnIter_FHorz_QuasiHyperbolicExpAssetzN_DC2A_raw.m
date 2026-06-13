@@ -13,8 +13,8 @@ N_a=N_a1*N_a2*N_a3;
 N_z=prod(n_z);
 
 Valt=zeros(N_a,N_z,N_j,'gpuArray');
-Vtilde=zeros(N_a,N_z,N_j,'gpuArray');
-Policy=zeros(3,N_a,N_z,N_j,'gpuArray');
+Vtilde=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
+Policy=zeros(3,N_a,N_z,N_j,vfoptions.indexT,'gpuArray');
 Policyalt=zeros(3,N_a,N_z,N_j,'gpuArray');
 
 zind=shiftdim((0:1:N_z-1),-1);

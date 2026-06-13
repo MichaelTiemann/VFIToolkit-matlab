@@ -5,7 +5,7 @@ l_z=length(n_z);
 N_a=prod(n_a);
 N_z=prod(n_z);
 
-Policy=zeros(N_a,N_z,'gpuArray');
+Policy=zeros(N_a,N_z,vfoptions.indexT,'gpuArray');
 
 Ftemp=zeros(N_a,N_z,'gpuArray');
 

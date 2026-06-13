@@ -12,7 +12,7 @@ N_e=prod(n_e);
 z_gridvals_J=shiftdim(z_gridvals_J,-3);
 e_gridvals_J=reshape(e_gridvals_J,[1,1,1,N_j,1,N_e,length(n_e)]);
 
-Policy=zeros(N_a,N_j,N_z,N_e,'gpuArray'); % first dim indexes the optimal choice for d and aprime
+Policy=zeros(N_a,N_j,N_z,N_e,vfoptions.indexT,'gpuArray'); % first dim indexes the optimal choice for d and aprime
 
 %%
 

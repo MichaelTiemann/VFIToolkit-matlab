@@ -9,7 +9,7 @@ N_e=prod(n_e);
 
 
 % fastOLG, so a-j-e
-Policy=zeros(3,N_a,N_j,N_e,'gpuArray'); % first dim indexes the optimal choice for aprime (midpoint, L2, L2 flag)
+Policy=zeros(3,N_a,N_j,N_e,vfoptions.indexT,'gpuArray'); % first dim indexes the optimal choice for aprime (midpoint, L2, L2 flag)
 
 e_gridvals_J=shiftdim(e_gridvals_J,-2); % needed shape for ReturnFnMatrix with fastOLG without z
 

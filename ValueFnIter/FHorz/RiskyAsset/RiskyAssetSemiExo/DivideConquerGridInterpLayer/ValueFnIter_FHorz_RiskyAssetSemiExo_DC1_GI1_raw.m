@@ -34,7 +34,7 @@ d23_grid=[d2_grid; d3_grid];
 V=zeros(N_a,N_bothz,N_j,vfoptions.precision,'gpuArray');
 % Stores (d13, a1prime midpoint, L2ind) packed; d2 and d4 added after cross-d4 max
 Policy3=zeros(3,N_a,N_bothz,N_j,'gpuArray');
-PolicyL2flag=2*ones(1,N_a,N_bothz,N_j,'gpuArray');
+PolicyL2flag=2*ones(1,N_a,N_bothz,N_j,vfoptions.indexT,'gpuArray');
 d2Policy=ones(1,N_a,N_bothz,N_j,'gpuArray');
 d4Policy=ones(1,N_a,N_bothz,N_j,'gpuArray');
 

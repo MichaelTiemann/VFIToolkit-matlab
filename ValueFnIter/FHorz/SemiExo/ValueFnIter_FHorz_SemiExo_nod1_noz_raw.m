@@ -6,7 +6,7 @@ N_semiz=prod(n_semiz);
 
 V=zeros(N_a,N_semiz,N_j,vfoptions.precision,'gpuArray');
 % For semiz it turns out to be easier to go straight to constructing policy that stores d,d2,aprime seperately
-Policy=zeros(2,N_a,N_semiz,N_j,'gpuArray'); % just d2 and aprime
+Policy=zeros(2,N_a,N_semiz,N_j,vfoptions.indexT,'gpuArray'); % just d2 and aprime
 
 %%
 special_n_d2=ones(1,length(n_d2));

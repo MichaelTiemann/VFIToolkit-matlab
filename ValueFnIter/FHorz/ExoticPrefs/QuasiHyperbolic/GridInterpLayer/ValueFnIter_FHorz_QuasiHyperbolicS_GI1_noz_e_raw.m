@@ -9,9 +9,9 @@ N_d=prod(n_d);
 N_a=prod(n_a);
 N_e=prod(n_e);
 
-Vhat=zeros(N_a,N_e,N_j,'gpuArray');
-Policy=zeros(3,N_a,N_e,N_j,'gpuArray');
-PolicyL2flag=2*ones(1,N_a,N_e,N_j,'gpuArray'); % 1=all weight to lower coarse pt, 2=usual linear weights, 3=all weight to upper coarse pt
+Vhat=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
+Policy=zeros(3,N_a,N_e,N_j,vfoptions.indexT,'gpuArray');
+PolicyL2flag=2*ones(1,N_a,N_e,N_j,vfoptions.indexT,'gpuArray'); % 1=all weight to lower coarse pt, 2=usual linear weights, 3=all weight to upper coarse pt
 
 if vfoptions.lowmemory>0
     special_n_e=ones(1,length(n_e),vfoptions.precision);

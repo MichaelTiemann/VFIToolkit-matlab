@@ -12,7 +12,7 @@ N_z=prod(n_z);
 
 % V=zeros(N_a*N_j,N_z,vfoptions.precision,'gpuArray');
 Vtilde=zeros(N_a*N_j,N_z,'gpuArray'); % QH-optimal value (max after L2 refinement on beta0beta-step)
-Policy=zeros(4,N_a,N_j,N_z,'gpuArray'); %first dim indexes the optimal choice for d and aprime rest of dimensions a,z (channels: d, midpoint, aprimeL2ind, L2flag)
+Policy=zeros(4,N_a,N_j,N_z,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for d and aprime rest of dimensions a,z (channels: d, midpoint, aprimeL2ind, L2flag)
 Policyalt=zeros(4,N_a,N_j,N_z,'gpuArray'); % exponential discounter optimal choice (Valt is computed at this)
 
 z_gridvals_J=shiftdim(z_gridvals_J,-3); % [1,1,1,N_j,N_z,l_z]

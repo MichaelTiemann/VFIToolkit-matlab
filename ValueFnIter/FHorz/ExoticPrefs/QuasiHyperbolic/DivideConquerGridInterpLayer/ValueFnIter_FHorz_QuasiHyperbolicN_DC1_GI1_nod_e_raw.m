@@ -10,8 +10,8 @@ N_z=prod(n_z);
 N_e=prod(n_e);
 
 Valt=zeros(N_a,N_z,N_e,N_j,'gpuArray');
-Policy=zeros(2,N_a,N_z,N_e,N_j,'gpuArray'); % [midpoint; aprimeL2ind]
-PolicyL2flag=2*ones(1,N_a,N_z,N_e,N_j,'gpuArray'); % 1=all weight to lower coarse pt, 2=usual linear weights, 3=all weight to upper coarse pt
+Policy=zeros(2,N_a,N_z,N_e,N_j,vfoptions.indexT,'gpuArray'); % [midpoint; aprimeL2ind]
+PolicyL2flag=2*ones(1,N_a,N_z,N_e,N_j,vfoptions.indexT,'gpuArray'); % 1=all weight to lower coarse pt, 2=usual linear weights, 3=all weight to upper coarse pt
 Policyalt=zeros(2,N_a,N_z,N_e,N_j,'gpuArray'); % exponential discounter optimal (midpoint, L2ind)
 PolicyL2flagalt=2*ones(1,N_a,N_z,N_e,N_j,'gpuArray');
 
@@ -169,7 +169,7 @@ else
 
     EVinterp=interp1(a_grid,EV,aprime_grid);
 
-    Vtilde=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+    Vtilde=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
 
     if vfoptions.lowmemory==0
         ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1_nod_e(ReturnFn, n_z, n_e, a_grid, a_grid(level1ii), z_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,1);

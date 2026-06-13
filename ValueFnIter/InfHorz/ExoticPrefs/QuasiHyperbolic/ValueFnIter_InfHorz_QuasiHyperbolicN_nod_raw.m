@@ -16,7 +16,7 @@ function [VKron, Policy]=ValueFnIter_InfHorz_QuasiHyperbolicN_nod_raw(VKron, n_a
 N_a=prod(n_a);
 N_z=prod(n_z);
 
-Policy=zeros(N_a,N_z,'gpuArray');
+Policy=zeros(N_a,N_z,vfoptions.indexT,'gpuArray');
 
 %%
 VKronold=VKron;

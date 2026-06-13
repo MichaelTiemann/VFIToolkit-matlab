@@ -9,9 +9,9 @@ N_d=prod(n_d);
 N_a=prod(n_a);
 N_e=prod(n_e);
 
-Vhat=zeros(N_a,N_e,N_j,'gpuArray');
+Vhat=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
 Vunderbar=zeros(N_a,N_e,N_j,'gpuArray');
-Policy=zeros(N_a,N_e,N_j,'gpuArray');
+Policy=zeros(N_a,N_e,N_j,vfoptions.indexT,'gpuArray');
 
 level1ii=round(linspace(1,n_a,vfoptions.level1n));
 

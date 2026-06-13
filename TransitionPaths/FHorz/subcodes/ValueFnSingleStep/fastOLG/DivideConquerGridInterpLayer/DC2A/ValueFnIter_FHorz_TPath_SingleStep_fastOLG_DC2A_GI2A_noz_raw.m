@@ -6,8 +6,8 @@ N_d=prod(n_d);
 N_a=prod(n_a);
 
 % V is over (a,j) (no z); Policy first dim is (d, a1prime midpoint, a2prime, a1prime L2)
-Policy=zeros(4,N_a,N_j,'gpuArray');
-PolicyL2flag=2*ones(1,N_a,N_j,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
+Policy=zeros(4,N_a,N_j,vfoptions.indexT,'gpuArray');
+PolicyL2flag=2*ones(1,N_a,N_j,vfoptions.indexT,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
 
 %% Split endogenous state into a1 (DC) and a2 (iterate)
 n_a1=n_a(1);

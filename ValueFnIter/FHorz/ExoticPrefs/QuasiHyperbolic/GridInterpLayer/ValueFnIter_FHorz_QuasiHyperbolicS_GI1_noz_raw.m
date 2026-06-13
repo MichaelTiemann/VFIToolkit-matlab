@@ -8,9 +8,9 @@ function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicS_GI1_noz_raw(
 N_d=prod(n_d);
 N_a=prod(n_a);
 
-Vhat=zeros(N_a,N_j,'gpuArray');
-Policy=zeros(3,N_a,N_j,'gpuArray'); % [d_ind; midpoint; aprimeL2ind]
-PolicyL2flag=2*ones(1,N_a,N_j,'gpuArray'); % 1=all weight to lower coarse pt, 2=usual linear weights, 3=all weight to upper coarse pt
+Vhat=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
+Policy=zeros(3,N_a,N_j,vfoptions.indexT,'gpuArray'); % [d_ind; midpoint; aprimeL2ind]
+PolicyL2flag=2*ones(1,N_a,N_j,vfoptions.indexT,'gpuArray'); % 1=all weight to lower coarse pt, 2=usual linear weights, 3=all weight to upper coarse pt
 
 aind=gpuArray(0:1:N_a-1);
 

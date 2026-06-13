@@ -139,7 +139,7 @@ end
 % elseif Case2_Type==11 % phi(d,a,z')
 %     disp('ERROR: StationaryDist_FHorz_Case2_Iteration_raw() not yet implemented for Case2_Type==11 (nor SimPanelIndexes_FHorz_Case2_raw)')
 % elseif Case2_Type==12 % phi(d,a,z)
-%     Phi_of_Policy=zeros(N_a,N_z,N_j,'gpuArray'); %a'(a,z)
+%     Phi_of_Policy=zeros(N_a,N_z,N_j,vfoptions.indexT,'gpuArray'); %a'(a,z)
 % elseif Case2_Type==2  % phi(d,z',z)
 %     Phi_of_Policy=zeros(N_a,N_z,N_z,N_j,'gpuArray'); %a'(d,z',z)
 % end

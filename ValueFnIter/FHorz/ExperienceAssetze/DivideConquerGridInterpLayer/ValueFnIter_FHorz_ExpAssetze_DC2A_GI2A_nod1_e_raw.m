@@ -14,8 +14,8 @@ N_e=prod(n_e);
 a3_gridvals=CreateGridvals(n_a3,a3_grid,1);
 
 V=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(4,N_a,N_z,N_e,N_j,'gpuArray');
-PolicyL2flag=2*ones(1,N_a,N_z,N_e,N_j,'gpuArray');
+Policy=zeros(4,N_a,N_z,N_e,N_j,vfoptions.indexT,'gpuArray');
+PolicyL2flag=2*ones(1,N_a,N_z,N_e,N_j,vfoptions.indexT,'gpuArray');
 
 aind=gpuArray(0:1:N_a-1);
 if vfoptions.lowmemory==0

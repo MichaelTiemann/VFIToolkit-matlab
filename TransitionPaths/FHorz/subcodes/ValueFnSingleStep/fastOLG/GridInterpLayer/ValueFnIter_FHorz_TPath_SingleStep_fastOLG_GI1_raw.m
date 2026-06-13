@@ -11,7 +11,7 @@ N_a=prod(n_a);
 N_z=prod(n_z);
 
 % V=zeros(N_a*N_j,N_z,vfoptions.precision,'gpuArray');
-Policy=zeros(4,N_a,N_j,N_z,'gpuArray'); %first dim indexes the optimal choice for d and aprime rest of dimensions a,z (channels: d, midpoint, aprimeL2ind, L2flag)
+Policy=zeros(4,N_a,N_j,N_z,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for d and aprime rest of dimensions a,z (channels: d, midpoint, aprimeL2ind, L2flag)
 
 z_gridvals_J=shiftdim(z_gridvals_J,-3); % [1,1,1,N_j,N_z,l_z]
 

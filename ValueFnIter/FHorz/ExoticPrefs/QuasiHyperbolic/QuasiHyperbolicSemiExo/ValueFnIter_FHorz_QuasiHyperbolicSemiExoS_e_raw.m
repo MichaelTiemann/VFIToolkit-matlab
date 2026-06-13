@@ -15,7 +15,7 @@ N_e=prod(n_e);
 
 Vhat=zeros(N_a,N_semiz*N_z,N_e,N_j,'gpuArray');
 Vunderbar=zeros(N_a,N_semiz*N_z,N_e,N_j,'gpuArray');
-Policy=zeros(3,N_a,N_semiz*N_z,N_e,N_j,'gpuArray');
+Policy=zeros(3,N_a,N_semiz*N_z,N_e,N_j,vfoptions.indexT,'gpuArray');
 
 %%
 d_gridvals=[repmat(d1_gridvals,N_d2,1),repelem(d2_gridvals,N_d1,1)];

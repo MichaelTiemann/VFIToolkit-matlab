@@ -56,7 +56,7 @@ while currdist>Tolerance && tempcounter<=maxiter
 
 end
 
-Policy=zeros(2,N_a,N_z);
+Policy=zeros(2,N_a,N_z,like=VKron);
 Policy(1,:,:)=permute(PolicyIndexes1,[3,1,2]);
 Policy(2,:,:)=permute(PolicyIndexes2,[3,1,2]);
 

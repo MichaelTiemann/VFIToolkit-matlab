@@ -4,7 +4,7 @@ N_a=prod(n_a);
 N_z=prod(n_z);
 
 V=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(N_a,N_z,N_j,'gpuArray'); %first dim indexes the optimal choice for aprime rest of dimensions a,z
+Policy=zeros(N_a,N_z,N_j,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for aprime rest of dimensions a,z
 
 %%
 a_gridvals=CreateGridvals(n_a,a_grid,1); % The 1 at end indicates want output in form of matrix.

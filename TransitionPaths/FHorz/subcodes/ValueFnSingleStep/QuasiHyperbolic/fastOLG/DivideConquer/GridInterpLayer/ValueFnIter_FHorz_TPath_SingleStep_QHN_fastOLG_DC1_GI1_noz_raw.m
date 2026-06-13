@@ -5,7 +5,7 @@ function [V,Policy,Policyalt,Vtilde]=ValueFnIter_FHorz_TPath_SingleStep_QHN_fast
 N_d=prod(n_d);
 N_a=prod(n_a);
 
-Policy=zeros(4,N_a,N_j,'gpuArray'); % first dim indexes the optimal choice for d and aprime (d, midpoint, L2, L2 flag)
+Policy=zeros(4,N_a,N_j,vfoptions.indexT,'gpuArray'); % first dim indexes the optimal choice for d and aprime (d, midpoint, L2, L2 flag)
 Policyalt=zeros(4,N_a,N_j,'gpuArray'); % exponential discounter optimal (d, midpoint, L2, L2 flag)
 Vtilde=zeros(N_a,N_j,'gpuArray');
 

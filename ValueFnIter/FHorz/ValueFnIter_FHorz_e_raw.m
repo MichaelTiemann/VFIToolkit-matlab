@@ -5,12 +5,8 @@ N_a=prod(n_a);
 N_z=prod(n_z);
 N_e=prod(n_e);
 
-indexT=vfoptions.indexT;
-cast2index=str2func(indexT);
-index_0=cast2index(0); index_1=cast2index(1);
-
 V=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(1,N_a,N_z,N_e,N_j,indexT,'gpuArray'); %first dim indexes the optimal choice for d and aprime rest of dimensions a,z
+Policy=zeros(1,N_a,N_z,N_e,N_j,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for d and aprime rest of dimensions a,z
 
 %%
 if vfoptions.lowmemory>0

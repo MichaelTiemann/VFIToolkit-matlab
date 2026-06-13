@@ -19,7 +19,7 @@ d23_grid=[d2_grid; d3_grid];
 
 V=zeros(N_a,N_semiz,N_j,vfoptions.precision,'gpuArray');
 Policy3=zeros(3,N_a,N_semiz,N_j,'gpuArray');
-PolicyL2flag=2*ones(1,N_a,N_semiz,N_j,'gpuArray');
+PolicyL2flag=2*ones(1,N_a,N_semiz,N_j,vfoptions.indexT,'gpuArray');
 d2Policy=ones(1,N_a,N_semiz,N_j,'gpuArray');
 d4Policy=ones(1,N_a,N_semiz,N_j,'gpuArray');
 

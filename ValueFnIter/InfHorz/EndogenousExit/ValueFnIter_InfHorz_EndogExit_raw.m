@@ -58,7 +58,7 @@ while currdist>Tolerance
     tempcounter=tempcounter+1;
 end
 
-Policy=zeros(2,N_a,N_z); %NOTE: this is not actually in Kron form
+Policy=zeros(2,N_a,N_z,like=VKron); %NOTE: this is not actually in Kron form
 if keeppolicyonexit==0 % This is default
     % Deliberate add zeros when ExitPolicy==1 so that cannot accidently make mistakes elsewhere in codes without throwing errors.
     Policy(1,:,:)=(1-ExitPolicy).*shiftdim(rem(PolicyIndexes-1,N_d)+1,-1);

@@ -3,7 +3,7 @@ function [V, Policy]=ValueFnIter_FHorz_TPath_SingleStep_fastOLG_DC1_nod_noz_raw(
 % fastOLG just means parallelize over "age" (j)
 N_a=prod(n_a);
 
-Policy=zeros(N_a,N_j,'gpuArray'); % first dim indexes the optimal choice for d and aprime
+Policy=zeros(N_a,N_j,vfoptions.indexT,'gpuArray'); % first dim indexes the optimal choice for d and aprime
 
 %%
 a_grid=gpuArray(a_grid);

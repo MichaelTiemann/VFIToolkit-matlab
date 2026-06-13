@@ -12,7 +12,7 @@ N_e=prod(n_e);
 
 Vhat=zeros(N_a,N_semiz,N_e,N_j,'gpuArray');
 Vunderbar=zeros(N_a,N_semiz,N_e,N_j,'gpuArray');
-Policy=zeros(3,N_a,N_semiz,N_e,N_j,'gpuArray');
+Policy=zeros(3,N_a,N_semiz,N_e,N_j,vfoptions.indexT,'gpuArray');
 
 %%
 special_n_d=[n_d1,ones(1,length(n_d2))];

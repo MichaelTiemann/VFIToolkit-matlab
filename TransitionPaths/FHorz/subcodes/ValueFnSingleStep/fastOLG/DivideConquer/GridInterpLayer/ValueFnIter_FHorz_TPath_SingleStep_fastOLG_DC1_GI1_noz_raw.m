@@ -5,7 +5,7 @@ N_d=prod(n_d);
 N_a=prod(n_a);
 
 % V=zeros(N_a,N_j,vfoptions.precision,'gpuArray'); % V is over (a,j)
-Policy=zeros(4,N_a,N_j,'gpuArray'); % first dim indexes the optimal choice for d and aprime (d, midpoint, L2, L2 flag)
+Policy=zeros(4,N_a,N_j,vfoptions.indexT,'gpuArray'); % first dim indexes the optimal choice for d and aprime (d, midpoint, L2, L2 flag)
 
 %%
 % Preallocate

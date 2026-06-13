@@ -3,7 +3,7 @@ function [V,Policy,Vhat]=ValueFnIter_FHorz_TPath_SingleStep_QHS_nod_raw(V,n_a,n_
 N_a=prod(n_a);
 N_z=prod(n_z);
 
-Policy=zeros(N_a,N_z,N_j,'gpuArray'); %first dim indexes the optimal choice for aprime rest of dimensions a,z
+Policy=zeros(N_a,N_z,N_j,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for aprime rest of dimensions a,z
 Vhat=zeros(N_a,N_z,N_j,'gpuArray'); % agent's-perspective value at QH-optimal policy under beta0beta
 
 if vfoptions.lowmemory==1

@@ -4,7 +4,7 @@ N_a=prod(n_a);
 N_e=prod(n_e);
 
 V=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(N_a,N_e,N_j,'gpuArray'); %first dim indexes the optimal choice for aprime rest of dimensions a,z
+Policy=zeros(N_a,N_e,N_j,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for aprime rest of dimensions a,z
 
 %%
 if vfoptions.lowmemory>0

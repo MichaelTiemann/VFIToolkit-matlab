@@ -7,8 +7,8 @@ function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicS_DC1_nod_noz_
 
 N_a=prod(n_a);
 
-Vhat=zeros(N_a,N_j,'gpuArray');
-Policy=zeros(N_a,N_j,'gpuArray');
+Vhat=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
+Policy=zeros(N_a,N_j,vfoptions.indexT,'gpuArray');
 
 level1ii=round(linspace(1,n_a,vfoptions.level1n));
 

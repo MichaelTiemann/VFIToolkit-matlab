@@ -6,7 +6,7 @@ function [V,Policy,Policyalt,Vtilde]=ValueFnIter_FHorz_TPath_SingleStep_QHN_DC1_
 N_a=prod(n_a);
 N_e=prod(n_e);
 
-Policy=zeros(3,N_a,N_e,N_j,'gpuArray'); % [midpoint; aprimeL2ind; L2flag]
+Policy=zeros(3,N_a,N_e,N_j,vfoptions.indexT,'gpuArray'); % [midpoint; aprimeL2ind; L2flag]
 Policyalt=zeros(3,N_a,N_e,N_j,'gpuArray');
 Vtilde=zeros(N_a,N_e,N_j,'gpuArray');
 

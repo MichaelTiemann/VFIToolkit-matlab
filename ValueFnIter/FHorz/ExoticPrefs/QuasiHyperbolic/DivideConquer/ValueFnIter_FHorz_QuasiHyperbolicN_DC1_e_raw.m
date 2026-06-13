@@ -8,8 +8,8 @@ N_z=prod(n_z);
 N_e=prod(n_e);
 
 Valt=zeros(N_a,N_z,N_e,N_j,'gpuArray');
-Vtilde=zeros(N_a,N_z,N_e,N_j,'gpuArray');
-Policy=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+Vtilde=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
+Policy=zeros(N_a,N_z,N_e,N_j,vfoptions.indexT,'gpuArray');
 Policyalt=zeros(N_a,N_z,N_e,N_j,'gpuArray'); % exponential discounter optimal choice (Valt is computed at this)
 
 if vfoptions.lowmemory>=1
@@ -139,7 +139,7 @@ else
     EV(isnan(EV))=0;
     EV=sum(EV,2);
 
-    Vtilde=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+    Vtilde=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
 
     if vfoptions.lowmemory==0
         ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn, n_d, n_z, n_e, d_gridvals, a_grid, a_grid(level1ii), z_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,1);

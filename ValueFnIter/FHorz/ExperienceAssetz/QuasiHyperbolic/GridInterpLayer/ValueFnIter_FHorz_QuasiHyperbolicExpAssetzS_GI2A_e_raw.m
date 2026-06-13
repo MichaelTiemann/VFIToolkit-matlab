@@ -15,10 +15,10 @@ N_a=N_a1*N_a2*N_a3;
 N_z=prod(n_z);
 N_e=prod(n_e);
 
-Vhat=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+Vhat=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
 Vunderbar=zeros(N_a,N_z,N_e,N_j,'gpuArray');
-Policy=zeros(4,N_a,N_z,N_e,N_j,'gpuArray');
-PolicyL2flag=2*ones(1,N_a,N_z,N_e,N_j,'gpuArray');
+Policy=zeros(4,N_a,N_z,N_e,N_j,vfoptions.indexT,'gpuArray');
+PolicyL2flag=2*ones(1,N_a,N_z,N_e,N_j,vfoptions.indexT,'gpuArray');
 
 n2short=vfoptions.ngridinterp;
 n2long=vfoptions.ngridinterp*2+3;

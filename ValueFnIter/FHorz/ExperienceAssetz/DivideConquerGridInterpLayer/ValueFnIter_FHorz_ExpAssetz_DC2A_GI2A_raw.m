@@ -13,8 +13,8 @@ N_a=N_a1*N_a2*N_a3;
 N_z=prod(n_z);
 
 V=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(4,N_a,N_z,N_j,'gpuArray');
-PolicyL2flag=2*ones(1,N_a,N_z,N_j,'gpuArray');
+Policy=zeros(4,N_a,N_z,N_j,vfoptions.indexT,'gpuArray');
+PolicyL2flag=2*ones(1,N_a,N_z,N_j,vfoptions.indexT,'gpuArray');
 
 if vfoptions.lowmemory>0
     special_n_z=ones(1,length(n_z),vfoptions.precision);

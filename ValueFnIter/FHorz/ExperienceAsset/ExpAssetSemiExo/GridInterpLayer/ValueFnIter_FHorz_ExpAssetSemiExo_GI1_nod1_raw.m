@@ -16,8 +16,8 @@ N_bothz=prod(n_bothz);
 
 V=zeros(N_a,N_semiz*N_z,N_j,vfoptions.precision,'gpuArray');
 % For semiz it turns out to be easier to go straight to constructing policy that stores d2,d3,a1prime seperately
-Policy=zeros(4,N_a,N_semiz*N_z,N_j,'gpuArray');
-PolicyL2flag=2*ones(1,N_a,N_semiz*N_z,N_j,'gpuArray'); % 1=all weight to lower coarse a1, 2=usual linear weights, 3=all weight to upper coarse a1
+Policy=zeros(4,N_a,N_semiz*N_z,N_j,vfoptions.indexT,'gpuArray');
+PolicyL2flag=2*ones(1,N_a,N_semiz*N_z,N_j,vfoptions.indexT,'gpuArray'); % 1=all weight to lower coarse a1, 2=usual linear weights, 3=all weight to upper coarse a1
 
 %%
 a2_gridvals=CreateGridvals(n_a2,a2_grid,1);

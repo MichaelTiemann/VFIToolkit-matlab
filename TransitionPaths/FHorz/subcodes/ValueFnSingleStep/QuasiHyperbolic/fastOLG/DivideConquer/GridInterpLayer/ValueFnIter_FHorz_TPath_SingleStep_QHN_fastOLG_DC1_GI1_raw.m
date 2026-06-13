@@ -10,7 +10,7 @@ N_a=prod(n_a);
 N_z=prod(n_z);
 
 % fastOLG, so a-j-z
-Policy=zeros(4,N_a,N_j,N_z,'gpuArray'); % first dim indexes the optimal choice for d and aprime (d, midpoint, L2, L2 flag)
+Policy=zeros(4,N_a,N_j,N_z,vfoptions.indexT,'gpuArray'); % first dim indexes the optimal choice for d and aprime (d, midpoint, L2, L2 flag)
 Policyalt=zeros(4,N_a,N_j,N_z,'gpuArray'); % exponential discounter optimal (d, midpoint, L2, L2 flag)
 Vtilde=zeros(N_a*N_j,N_z,'gpuArray');
 

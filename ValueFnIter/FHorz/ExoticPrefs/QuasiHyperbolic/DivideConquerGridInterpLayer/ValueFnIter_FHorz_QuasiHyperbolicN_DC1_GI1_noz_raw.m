@@ -9,8 +9,8 @@ N_d=prod(n_d);
 N_a=prod(n_a);
 
 Valt=zeros(N_a,N_j,'gpuArray');
-Policy=zeros(3,N_a,N_j,'gpuArray'); % [d_ind; midpoint; aprimeL2ind]
-PolicyL2flag=2*ones(1,N_a,N_j,'gpuArray'); % 1=all weight to lower coarse pt, 2=usual linear weights, 3=all weight to upper coarse pt
+Policy=zeros(3,N_a,N_j,vfoptions.indexT,'gpuArray'); % [d_ind; midpoint; aprimeL2ind]
+PolicyL2flag=2*ones(1,N_a,N_j,vfoptions.indexT,'gpuArray'); % 1=all weight to lower coarse pt, 2=usual linear weights, 3=all weight to upper coarse pt
 Policyalt=zeros(3,N_a,N_j,'gpuArray'); % exponential discounter optimal [d_ind; midpoint; aprimeL2ind]
 PolicyL2flagalt=2*ones(1,N_a,N_j,'gpuArray');
 

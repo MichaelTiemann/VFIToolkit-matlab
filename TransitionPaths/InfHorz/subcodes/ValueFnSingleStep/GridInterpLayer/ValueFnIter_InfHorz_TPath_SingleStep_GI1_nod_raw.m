@@ -23,7 +23,7 @@ n2aprime=length(aprime_grid);
 % aprime_grid=repelem(a_grid,1+n2short,1);
 % aprime_grid=aprime_grid(1:(N_a+(N_a-1)*n2short));
 
-Policy=zeros(3,N_a,N_z,'gpuArray'); %first dim indexes the optimal choice for aprime rest of dimensions a,z (extra channel for PolicyL2flag pilot)
+Policy=zeros(3,N_a,N_z,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for aprime rest of dimensions a,z (extra channel for PolicyL2flag pilot)
 
 %%
 % Create a vector containing all the return function parameters (in order)

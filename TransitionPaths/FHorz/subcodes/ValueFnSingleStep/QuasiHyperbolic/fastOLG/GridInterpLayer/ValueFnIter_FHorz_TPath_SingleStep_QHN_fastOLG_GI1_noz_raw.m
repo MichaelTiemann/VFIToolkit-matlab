@@ -6,7 +6,7 @@ N_d=prod(n_d);
 N_a=prod(n_a);
 
 Vtilde=zeros(N_a,N_j,'gpuArray'); % QH-optimal value (max after L2 refinement on beta0beta-step)
-Policy=zeros(4,N_a,N_j,'gpuArray'); % first dim indexes the optimal choice for d & aprime (d, midpoint, aprimeL2ind, L2flag)
+Policy=zeros(4,N_a,N_j,vfoptions.indexT,'gpuArray'); % first dim indexes the optimal choice for d & aprime (d, midpoint, aprimeL2ind, L2flag)
 Policyalt=zeros(4,N_a,N_j,'gpuArray');
 
 %% Grid interpolation

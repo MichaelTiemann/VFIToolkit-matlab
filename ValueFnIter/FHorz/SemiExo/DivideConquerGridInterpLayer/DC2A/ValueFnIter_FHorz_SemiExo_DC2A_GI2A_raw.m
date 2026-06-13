@@ -12,8 +12,8 @@ N_z=prod(n_z);
 N_bothz=N_semiz*N_z;
 
 V=zeros(N_a,N_bothz,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(5,N_a,N_bothz,N_j,'gpuArray');
-PolicyL2flag=2*ones(1,N_a,N_bothz,N_j,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
+Policy=zeros(5,N_a,N_bothz,N_j,vfoptions.indexT,'gpuArray');
+PolicyL2flag=2*ones(1,N_a,N_bothz,N_j,vfoptions.indexT,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
 
 %% Split a
 n_a1=n_a(1);

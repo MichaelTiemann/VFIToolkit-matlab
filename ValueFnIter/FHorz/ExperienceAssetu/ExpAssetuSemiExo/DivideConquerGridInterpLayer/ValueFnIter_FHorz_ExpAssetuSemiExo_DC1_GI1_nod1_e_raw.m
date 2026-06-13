@@ -18,8 +18,8 @@ N_u=prod(n_u);
 
 V=zeros(N_a,N_semiz*N_z,N_e,N_j,vfoptions.precision,'gpuArray');
 % For semiz it turns out to be easier to go straight to constructing policy that stores d2,d3,a1prime seperately
-Policy=zeros(4,N_a,N_semiz*N_z,N_e,N_j,'gpuArray');
-PolicyL2flag=2*ones(1,N_a,N_semiz*N_z,N_e,N_j,'gpuArray');
+Policy=zeros(4,N_a,N_semiz*N_z,N_e,N_j,vfoptions.indexT,'gpuArray');
+PolicyL2flag=2*ones(1,N_a,N_semiz*N_z,N_e,N_j,vfoptions.indexT,'gpuArray');
 
 pi_u=shiftdim(pi_u,-2); % put it into third dimension
 

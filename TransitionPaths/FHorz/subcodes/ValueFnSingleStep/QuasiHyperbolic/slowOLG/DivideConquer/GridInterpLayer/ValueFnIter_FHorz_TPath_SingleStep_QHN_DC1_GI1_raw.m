@@ -7,9 +7,9 @@ N_d=prod(n_d);
 N_a=prod(n_a);
 N_z=prod(n_z);
 
-Policy=zeros(4,N_a,N_z,N_j,'gpuArray'); % [d_ind; midpoint; aprimeL2ind; L2flag]
-Policyalt=zeros(4,N_a,N_z,N_j,'gpuArray');
-Vtilde=zeros(N_a,N_z,N_j,'gpuArray');
+Policy=zeros(4,N_a,N_z,N_j,vfoptions.indexT,'gpuArray'); % [d_ind; midpoint; aprimeL2ind; L2flag]
+Policyalt=zeros(4,N_a,N_z,N_j,vfoptions.indexT,'gpuArray');
+Vtilde=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
 
 %%
 % Preallocate

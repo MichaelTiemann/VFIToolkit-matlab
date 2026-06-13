@@ -5,9 +5,9 @@ function [V,Policy,Vhat]=ValueFnIter_FHorz_TPath_SingleStep_QHS_GI1_nod_noz_raw(
 
 N_a=prod(n_a);
 
-Policy=zeros(2,N_a,N_j,'gpuArray'); % [midpoint; aprimeL2ind]
-PolicyL2flag=2*ones(1,N_a,N_j,'gpuArray');
-Vhat=zeros(N_a,N_j,'gpuArray');
+Policy=zeros(2,N_a,N_j,vfoptions.indexT,'gpuArray'); % [midpoint; aprimeL2ind]
+PolicyL2flag=2*ones(1,N_a,N_j,vfoptions.indexT,'gpuArray');
+Vhat=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
 
 %%
 % Grid interpolation

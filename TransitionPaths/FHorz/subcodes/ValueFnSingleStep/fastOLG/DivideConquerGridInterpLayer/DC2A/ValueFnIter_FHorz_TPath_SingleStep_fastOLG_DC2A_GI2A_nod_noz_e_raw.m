@@ -15,8 +15,8 @@ elseif vfoptions.lowmemory>=2
 end
 
 % Policy: 3 channels (a1prime midpoint, a2prime, a1prime L2); L2flag appended at end.
-Policy=zeros(3,N_a,N_j,N_e,'gpuArray');
-PolicyL2flag=2*ones(1,N_a,N_j,N_e,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
+Policy=zeros(3,N_a,N_j,N_e,vfoptions.indexT,'gpuArray');
+PolicyL2flag=2*ones(1,N_a,N_j,N_e,vfoptions.indexT,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
 
 %% Split endogenous state into a1 (DC) and a2 (iterate)
 n_a1=n_a(1);

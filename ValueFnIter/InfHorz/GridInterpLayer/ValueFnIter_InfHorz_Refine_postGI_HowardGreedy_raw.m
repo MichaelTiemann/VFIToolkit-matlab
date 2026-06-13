@@ -162,7 +162,7 @@ while currdist>vfoptions.tolerance && tempcounter<=vfoptions.maxiter
 end
 
 %% For refinement, add d back into Policy
-Policy=zeros(4,N_a,N_z,'gpuArray'); % +1 channel for PolicyL2flag
+Policy=zeros(4,N_a,N_z,vfoptions.indexT,'gpuArray'); % +1 channel for PolicyL2flag
 temppolicyindex=reshape(Policy_a,[1,N_a*N_z])+N_aprime*(0:1:N_a*N_z-1);
 Policy(1,:,:)=reshape(dstar(temppolicyindex),[N_a,N_z]); % note: dstar is defined on the fine grid
 

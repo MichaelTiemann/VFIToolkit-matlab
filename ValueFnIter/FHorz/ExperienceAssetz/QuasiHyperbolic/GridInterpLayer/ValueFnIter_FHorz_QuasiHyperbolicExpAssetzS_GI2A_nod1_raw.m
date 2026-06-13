@@ -13,8 +13,8 @@ N_z=prod(n_z);
 
 Vhat=zeros(N_a,N_z,N_j,'gpuArray');
 Vunderbar=zeros(N_a,N_z,N_j,'gpuArray');
-Policy=zeros(4,N_a,N_z,N_j,'gpuArray');
-PolicyL2flag=2*ones(1,N_a,N_z,N_j,'gpuArray');
+Policy=zeros(4,N_a,N_z,N_j,vfoptions.indexT,'gpuArray');
+PolicyL2flag=2*ones(1,N_a,N_z,N_j,vfoptions.indexT,'gpuArray');
 
 n2short=vfoptions.ngridinterp;
 n2long=vfoptions.ngridinterp*2+3;

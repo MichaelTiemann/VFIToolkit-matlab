@@ -4,7 +4,7 @@ function [V,Policy]=ValueFnIter_FHorz_TPath_SingleStep_fastOLG_GI1_noz_raw(V,n_d
 N_d=prod(n_d);
 N_a=prod(n_a);
 
-Policy=zeros(4,N_a,N_j,'gpuArray'); % first dim indexes the optimal choice for d & aprime (d, midpoint, aprimeL2ind, L2flag)
+Policy=zeros(4,N_a,N_j,vfoptions.indexT,'gpuArray'); % first dim indexes the optimal choice for d & aprime (d, midpoint, aprimeL2ind, L2flag)
 
 %% Grid interpolation
 % vfoptions.ngridinterp=9;

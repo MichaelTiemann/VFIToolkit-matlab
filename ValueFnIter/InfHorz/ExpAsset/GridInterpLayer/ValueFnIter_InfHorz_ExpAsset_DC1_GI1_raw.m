@@ -26,7 +26,7 @@ level1iidiff=level1ii(2:end)-level1ii(1:end-1)-1;
 ReturnMatrixLvl1=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2,n_a1prime,n_a1,n_a2, n_z, d_gridvals, a1_gridvals, a1_gridvals(level1ii,:), a2_gridvals, z_gridvals, ReturnFnParamsVec,1,1); % Level=1, Refine=1
 
 V=reshape(V0,[N_a,N_z]);
-Policy=zeros(N_a,N_z,'gpuArray'); %first dim indexes the optimal choice for d and a1prime rest of dimensions a,z
+Policy=zeros(N_a,N_z,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for d and a1prime rest of dimensions a,z
 
 % for Howards, preallocate
 Ftemp=zeros(N_a,N_z,'gpuArray');
@@ -148,7 +148,7 @@ while currdist>vfoptions.tolerance && tempcounter<=vfoptions.maxiter
 
     if isfinite(currdist) && currdist/vfoptions.tolerance>10 && vfoptions.maxhowards>0 % Use Howards Policy Fn Iteration Improvement
         Ftemp2=reshape(Ftemp,[N_a*N_z,1]);
-        % Policy=zeros(N_a,N_z,'gpuArray'); %first dim indexes the optimal choice for d and a1prime rest of dimensions a,z
+        % Policy=zeros(N_a,N_z,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for d and a1prime rest of dimensions a,z
         % Contains d1, d2, a1prime (no a2prime because expasset)
         Policy_a1primeind=ceil(Policy(:)/(N_d1*N_d2)); % size(Policy_a1primeind) is [N_a*N_z,1]
         % Policy_d=rem(Policy(:)-1,N_d1*N_d2)+1);

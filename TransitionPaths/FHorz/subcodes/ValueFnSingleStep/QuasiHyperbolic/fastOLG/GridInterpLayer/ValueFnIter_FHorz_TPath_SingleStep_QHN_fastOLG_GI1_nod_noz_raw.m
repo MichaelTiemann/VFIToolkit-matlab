@@ -5,7 +5,7 @@ function [V, Policy, Policyalt, Vtilde]=ValueFnIter_FHorz_TPath_SingleStep_QHN_f
 N_a=prod(n_a);
 
 Vtilde=zeros(N_a,N_j,'gpuArray'); % QH-optimal value (max after L2 refinement on beta0beta-step)
-Policy=zeros(3,N_a,N_j,'gpuArray'); % first dim indexes the optimal choice for aprime (midpoint, aprimeL2ind, L2flag)
+Policy=zeros(3,N_a,N_j,vfoptions.indexT,'gpuArray'); % first dim indexes the optimal choice for aprime (midpoint, aprimeL2ind, L2flag)
 Policyalt=zeros(3,N_a,N_j,'gpuArray');
 
 %%

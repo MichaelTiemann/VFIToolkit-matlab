@@ -9,9 +9,9 @@ N_a=prod(n_a);
 N_z=prod(n_z);
 N_e=prod(n_e);
 
-Vhat=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+Vhat=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
 Vunderbar=zeros(N_a,N_z,N_e,N_j,'gpuArray');
-Policy=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+Policy=zeros(N_a,N_z,N_e,N_j,vfoptions.indexT,'gpuArray');
 
 if vfoptions.lowmemory==0
     loweredgesize=[1,1,N_z,N_e];

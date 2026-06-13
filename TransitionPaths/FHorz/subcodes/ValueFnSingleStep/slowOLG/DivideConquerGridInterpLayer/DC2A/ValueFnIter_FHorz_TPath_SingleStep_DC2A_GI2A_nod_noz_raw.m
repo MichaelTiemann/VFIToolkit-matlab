@@ -4,8 +4,8 @@ function [V,Policy]=ValueFnIter_FHorz_TPath_SingleStep_DC2A_GI2A_nod_noz_raw(V,n
 
 N_a=prod(n_a);
 
-Policy=zeros(3,N_a,N_j,'gpuArray'); % first dim is (a1prime midpoint,a2prime,a1prime L2)
-PolicyL2flag=2*ones(1,N_a,N_j,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
+Policy=zeros(3,N_a,N_j,vfoptions.indexT,'gpuArray'); % first dim is (a1prime midpoint,a2prime,a1prime L2)
+PolicyL2flag=2*ones(1,N_a,N_j,vfoptions.indexT,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
 
 %%
 n_a1=n_a(1);

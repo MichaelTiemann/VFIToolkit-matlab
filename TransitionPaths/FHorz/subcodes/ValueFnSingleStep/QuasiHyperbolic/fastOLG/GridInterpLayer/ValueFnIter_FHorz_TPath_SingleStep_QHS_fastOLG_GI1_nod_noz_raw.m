@@ -4,8 +4,8 @@ function [V, Policy, Vhat]=ValueFnIter_FHorz_TPath_SingleStep_QHS_fastOLG_GI1_no
 
 N_a=prod(n_a);
 
-Vhat=zeros(N_a,N_j,'gpuArray'); % pre-Vunderbar value (snapshot of V before the beta*EV-at-policy correction)
-Policy=zeros(3,N_a,N_j,'gpuArray'); % first dim indexes the optimal choice for aprime (midpoint, aprimeL2ind, L2flag)
+Vhat=zeros(N_a,N_j,vfoptions.precision,'gpuArray'); % pre-Vunderbar value (snapshot of V before the beta*EV-at-policy correction)
+Policy=zeros(3,N_a,N_j,vfoptions.indexT,'gpuArray'); % first dim indexes the optimal choice for aprime (midpoint, aprimeL2ind, L2flag)
 
 %%
 

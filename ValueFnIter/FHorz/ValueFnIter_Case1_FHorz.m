@@ -31,6 +31,7 @@ if exist('vfoptions','var')==0
     vfoptions.alreadygridvals=0; % =1 when calling as a subcommand
     vfoptions.alreadygridvals_semiexo=0; % =1 when calling as a subcommand
     vfoptions.precision='double';
+    vfoptions.indexT='double';
 else
     % Check vfoptions for missing fields, if there are some fill them with the defaults
     if ~isfield(vfoptions,'verbose')
@@ -105,6 +106,9 @@ else
     end
     if ~isfield(vfoptions,'precision')
         vfoptions.precision='double';
+    end
+    if ~isfield(vfoptions,'indexT')
+        vfoptions.indexT='double';
     end
 end
 

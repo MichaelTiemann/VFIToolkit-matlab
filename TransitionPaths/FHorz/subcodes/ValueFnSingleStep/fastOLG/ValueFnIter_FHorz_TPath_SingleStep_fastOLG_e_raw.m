@@ -45,7 +45,7 @@ elseif vfoptions.lowmemory==1
 
     special_n_e=ones(1,length(n_e),vfoptions.precision);
     V=zeros(N_a*N_j,N_z,N_e,vfoptions.precision,'gpuArray');
-    Policy=zeros(N_a,N_j,N_z,N_e,'gpuArray');
+    Policy=zeros(N_a,N_j,N_z,N_e,vfoptions.indexT,'gpuArray');
 
     for e_c=1:N_e
         e_vals=e_gridvals_J(1,1,1,:,1,e_c,:); % e_gridvals_J has shape (1,1,1,j,1,prod(n_e),l_e) for fastOLG with d
@@ -65,7 +65,7 @@ elseif vfoptions.lowmemory==2
     special_n_e=ones(1,length(n_e),vfoptions.precision);
     special_n_z=ones(1,length(n_z),vfoptions.precision);
     V=zeros(N_a*N_j,N_z,N_e,vfoptions.precision,'gpuArray');
-    Policy=zeros(N_a,N_j,N_z,N_e,'gpuArray');
+    Policy=zeros(N_a,N_j,N_z,N_e,vfoptions.indexT,'gpuArray');
 
     for z_c=1:N_z
         z_vals=z_gridvals_J(1,1,1,:,z_c,:); % z_gridvals_J has shape (1,1,1,j,prod(n_z),l_z) for fastOLG with d

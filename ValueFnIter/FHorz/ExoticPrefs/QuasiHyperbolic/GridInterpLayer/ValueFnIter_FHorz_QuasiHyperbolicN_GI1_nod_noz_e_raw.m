@@ -8,12 +8,13 @@ function [Vtilde,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicN_GI1_n
 N_a=prod(n_a);
 N_e=prod(n_e);
 
-Valt=zeros(N_a,N_e,N_j,'gpuArray');
-Vtilde=zeros(N_a,N_e,N_j,'gpuArray');
-Policy=zeros(2,N_a,N_e,N_j,'gpuArray');
-PolicyL2flag=2*ones(1,N_a,N_e,N_j,'gpuArray'); % 1=all weight to lower coarse pt, 2=usual linear weights, 3=all weight to upper coarse pt
-Policyalt=zeros(2,N_a,N_e,N_j,'gpuArray'); % exponential discounter optimal choice
-PolicyL2flagalt=2*ones(1,N_a,N_e,N_j,'gpuArray');
+cast2precision=str2func(vfoptions.indexT);
+Valt=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
+Vtilde=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
+Policy=zeros(2,N_a,N_e,N_j,vfoptions.indexT,'gpuArray');
+PolicyL2flag=2*ones(1,N_a,N_e,N_j,vfoptions.indexT,'gpuArray'); % 1=all weight to lower coarse pt, 2=usual linear weights, 3=all weight to upper coarse pt
+Policyalt=zeros(2,N_a,N_e,N_j,vfoptions.indexT,'gpuArray'); % exponential discounter optimal choice
+PolicyL2flagalt=2*ones(1,N_a,N_e,N_j,vfoptions.indexT,'gpuArray');
 
 if vfoptions.lowmemory==1
     special_n_e=ones(1,length(n_e),vfoptions.precision);
@@ -265,13 +266,13 @@ end
 % (which ranges -n2short-1:1:1+n2short). It is much easier to use later if
 % we switch Policy(1,:) to 'lower grid point' and then have Policy(2,:)
 % counting 0:nshort+1 up from this.
-adjust=(Policy(2,:,:,:)<1+n2short+1);
+adjust=cast2precision(Policy(2,:,:,:)<1+n2short+1);
 Policy(1,:,:,:)=Policy(1,:,:,:)-adjust;
 Policy(2,:,:,:)=adjust.*Policy(2,:,:,:)+(1-adjust).*(Policy(2,:,:,:)-n2short-1);
 
 Policy=[Policy;PolicyL2flag];
 
-adjustalt=(Policyalt(2,:,:,:)<1+n2short+1);
+adjustalt=cast2precision(Policyalt(2,:,:,:)<1+n2short+1);
 Policyalt(1,:,:,:)=Policyalt(1,:,:,:)-adjustalt;
 Policyalt(2,:,:,:)=adjustalt.*Policyalt(2,:,:,:)+(1-adjustalt).*(Policyalt(2,:,:,:)-n2short-1);
 

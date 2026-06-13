@@ -8,7 +8,7 @@ N_a=prod(n_a);
 N_e=prod(n_e);
 
 % fastOLG, so a-j-e
-Policy=zeros(N_a,N_j,N_e,'gpuArray'); % first dim indexes the optimal choice for d and aprime
+Policy=zeros(N_a,N_j,N_e,vfoptions.indexT,'gpuArray'); % first dim indexes the optimal choice for d and aprime
 
 e_gridvals_J=shiftdim(e_gridvals_J,-2); % needed shape for ReturnFnMatrix with fastOLG and DC1
 

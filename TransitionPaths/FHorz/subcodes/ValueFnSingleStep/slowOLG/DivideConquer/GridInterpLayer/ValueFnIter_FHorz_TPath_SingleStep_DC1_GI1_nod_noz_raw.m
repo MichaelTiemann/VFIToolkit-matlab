@@ -3,7 +3,7 @@ function [V,Policy]=ValueFnIter_FHorz_TPath_SingleStep_DC1_GI1_nod_noz_raw(V,n_a
 
 N_a=prod(n_a);
 
-Policy=zeros(3,N_a,N_j,'gpuArray'); % first dim indexes the optimal choice for midpoint, L2, L2flag
+Policy=zeros(3,N_a,N_j,vfoptions.indexT,'gpuArray'); % first dim indexes the optimal choice for midpoint, L2, L2flag
 
 %%
 % Preallocate

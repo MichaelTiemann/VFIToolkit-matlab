@@ -9,12 +9,12 @@ N_d=N_d1*N_d2;
 N_a=prod(n_a);
 N_semiz=prod(n_semiz);
 
-Valt=zeros(N_a,N_semiz,N_j,'gpuArray');
-Vtilde=zeros(N_a,N_semiz,N_j,'gpuArray');
-Policy=zeros(4,N_a,N_semiz,N_j,'gpuArray');
-PolicyL2flag=2*ones(1,N_a,N_semiz,N_j,'gpuArray');
-Policyalt=zeros(4,N_a,N_semiz,N_j,'gpuArray'); % exponential discounter optimal [d1; d2; midpoint; aprimeL2ind]
-PolicyL2flagalt=2*ones(1,N_a,N_semiz,N_j,'gpuArray');
+Valt=zeros(N_a,N_semiz,N_j,vfoptions.precision,'gpuArray');
+Vtilde=zeros(N_a,N_semiz,N_j,vfoptions.precision,'gpuArray');
+Policy=zeros(4,N_a,N_semiz,N_j,vfoption.indexT,'gpuArray');
+PolicyL2flag=2*ones(1,N_a,N_semiz,N_j,vfoptions.indexT,'gpuArray');
+Policyalt=zeros(4,N_a,N_semiz,N_j,vfoption.indexT,'gpuArray'); % exponential discounter optimal [d1; d2; midpoint; aprimeL2ind]
+PolicyL2flagalt=2*ones(1,N_a,N_semiz,N_j,vfoptions.indexT,'gpuArray');
 
 %%
 special_n_d=[n_d1,ones(1,length(n_d2))];
