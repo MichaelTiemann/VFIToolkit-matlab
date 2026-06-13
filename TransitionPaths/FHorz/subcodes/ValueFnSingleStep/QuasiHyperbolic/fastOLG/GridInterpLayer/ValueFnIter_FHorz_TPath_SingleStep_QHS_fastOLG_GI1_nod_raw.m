@@ -89,7 +89,7 @@ if vfoptions.lowmemory==0
 elseif vfoptions.lowmemory==1
 
     special_n_z=ones(1,length(n_z));
-    V=zeros(N_a*N_j,N_z,'gpuArray');
+    V=zeros(N_a*N_j,N_z,vfoptions.precision,'gpuArray');
     Policy=zeros(3,N_a,N_j,N_z,'gpuArray'); %first dim indexes the optimal choice for aprime (midpoint, aprimeL2ind, L2flag)
 
     for z_c=1:N_z

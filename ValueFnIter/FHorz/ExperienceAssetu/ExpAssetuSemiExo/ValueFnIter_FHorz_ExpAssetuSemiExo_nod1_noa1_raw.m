@@ -13,7 +13,7 @@ N_z=prod(n_z);
 N_bothz=prod(n_bothz);
 N_u=prod(n_u);
 
-V=zeros(N_a,N_bothz,N_j,'gpuArray');
+V=zeros(N_a,N_bothz,N_j,vfoptions.precision,'gpuArray');
 Policy2=zeros(2,N_a,N_bothz,N_j,'gpuArray');
 
 pi_u=shiftdim(pi_u,-2); % put it into third dimension

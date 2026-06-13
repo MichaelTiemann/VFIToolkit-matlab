@@ -8,7 +8,7 @@ N_d=prod(n_d); % Needed for N_j when converting to form of Policy3
 N_a=prod(n_a);
 N_semiz=prod(n_semiz);
 
-V=zeros(N_a,N_semiz,N_j,'gpuArray');
+V=zeros(N_a,N_semiz,N_j,vfoptions.precision,'gpuArray');
 % For semiz it turns out to be easier to go straight to constructing policy that stores d,d2,aprime seperately
 Policy3=zeros(3,N_a,N_semiz,N_j,'gpuArray');
 

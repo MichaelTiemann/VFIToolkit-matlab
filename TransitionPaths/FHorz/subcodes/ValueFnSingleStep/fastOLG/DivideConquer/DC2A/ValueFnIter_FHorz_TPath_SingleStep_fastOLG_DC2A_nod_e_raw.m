@@ -59,7 +59,7 @@ elseif vfoptions.EVpre==1
     EV(isnan(EV))=0;
     EV=reshape(sum(EV,6),[N_a1,N_a2,1,1,N_j,N_z]);
 end
-V=zeros(N_a,N_j,N_z,N_e,'gpuArray'); % V is over (a,j,z,e)
+V=zeros(N_a,N_j,N_z,N_e,vfoptions.precision,'gpuArray'); % V is over (a,j,z,e)
 
 DiscountedEV=reshape(DiscountFactor_J,[1,1,1,1,N_j]).*EV; % [N_a1,N_a2,1,1,N_j,N_z]
 

@@ -148,7 +148,7 @@ if N_z==0 && N_e==0
     PolicyIndexesKron=KronPolicyIndexes_forValueFnFromPolicy(Policy, n_d, n_a, 1, N_j, vfoptions);
 
     %% Calculate the Value Fn by backward iteration
-    V=zeros(N_a,N_j,'gpuArray');
+    V=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
 
     for reverse_j=0:N_j-1
         jj=N_j-reverse_j; % current period, counts backwards from J-1
@@ -189,7 +189,7 @@ elseif N_z==0 && N_e>0
     PolicyIndexesKron=KronPolicyIndexes_forValueFnFromPolicy(Policy, n_d, n_a, vfoptions.n_e, N_j, vfoptions);
 
     %% Calculate the Value Fn by backward iteration
-    V=zeros(N_a,N_e,N_j,'gpuArray');
+    V=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
 
     for reverse_j=0:N_j-1
         jj=N_j-reverse_j; % current period, counts backwards from J-1
@@ -229,7 +229,7 @@ elseif N_z>0 && N_e==0
     PolicyIndexesKron=KronPolicyIndexes_forValueFnFromPolicy(Policy, n_d, n_a, n_z, N_j, vfoptions);
 
     %% Calculate the Value Fn by backward iteration
-    V=zeros(N_a,N_z,N_j,'gpuArray');
+    V=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
 
     for reverse_j=0:N_j-1
         jj=N_j-reverse_j; % current period, counts backwards from J-1
@@ -273,7 +273,7 @@ elseif N_z>0 && N_e>0
 
 
     %% Calculate the Value Fn by backward iteration
-    V=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+    V=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
 
     for reverse_j=0:N_j-1
         jj=N_j-reverse_j; % current period, counts backwards from J-1

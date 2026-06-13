@@ -7,7 +7,7 @@ N_a=N_a1*N_a2;
 N_z=prod(n_z);
 N_e=prod(n_e);
 
-V=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+V=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(3,N_a,N_z,N_e,N_j,'gpuArray'); %first dim indexes the optimal choice for d and a1prime rest of dimensions a,z,e
 PolicyL2flag=2*ones(1,N_a,N_z,N_e,N_j,'gpuArray'); % 1=all weight to lower coarse a1, 2=usual linear weights, 3=all weight to upper coarse a1
 

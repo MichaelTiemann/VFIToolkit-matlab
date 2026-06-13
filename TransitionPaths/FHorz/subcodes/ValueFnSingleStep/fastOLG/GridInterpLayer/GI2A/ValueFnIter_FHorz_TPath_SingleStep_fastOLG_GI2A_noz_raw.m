@@ -43,7 +43,7 @@ DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamN
 ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j);
 
 %% Build next-period expected value (V-shift trick, no reverse_j loop, no z)
-EV=zeros(N_a1,N_a2,1,1,N_j,'gpuArray');
+EV=zeros(N_a1,N_a2,1,1,N_j,vfoptions.precision,'gpuArray');
 EV(:,:,1,1,1:N_j-1)=reshape(V(:,2:end),[N_a1,N_a2,1,1,N_j-1]); % zeros at j=N_j
 
 % Interpolate EV over a1prime_grid (interp1 acts on the first dim)

@@ -3,7 +3,7 @@ function [V, Policy]=ValueFnIter_FHorz_Par1_nod_raw(n_a,n_z,N_j, a_grid, z_grid,
 N_a=prod(n_a);
 N_z=prod(n_z);
 
-V=zeros(N_a,N_z,N_j);
+V=zeros(N_a,N_z,N_j,vfoptions.precision);
 Policy=zeros(N_a,N_z,N_j); %first dim indexes the optimal choice for aprime rest of dimensions a,z
 
 %% j=N_j

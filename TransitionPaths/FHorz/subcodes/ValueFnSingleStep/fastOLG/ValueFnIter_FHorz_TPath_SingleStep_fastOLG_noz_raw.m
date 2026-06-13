@@ -16,7 +16,7 @@ ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames
 
 DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j),2);
 
-EV=zeros(N_a,1,N_j,'gpuArray');
+EV=zeros(N_a,1,N_j,vfoptions.precision,'gpuArray');
 EV(:,1,1:N_j-1)=V(:,2:end);
 
 DiscountedEV=repelem(reshape(DiscountFactor_J,[1,1,N_j]).*EV,N_d,1,1); % [N_d*N_aprime,1,N_j]

@@ -133,7 +133,7 @@ else
 end
 
 %% Backward iteration
-V=zeros(N_a, N_shocks, N_e, N_j, 'gpuArray');
+V=zeros(N_a, N_shocks, N_e, N_j, vfoptions.precision, 'gpuArray');
 
 [~, SZ_grid_noz]=ndgrid(1:N_a, 1:N_semiz);
 if N_z>0

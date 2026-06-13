@@ -8,7 +8,7 @@ N_d=N_d1*N_d2;
 N_a=prod(n_a);
 N_semiz=prod(n_semiz);
 
-V=zeros(N_a,N_semiz,N_j,'gpuArray');
+V=zeros(N_a,N_semiz,N_j,vfoptions.precision,'gpuArray');
 % Policy: 5 channels [d1, d2, a1prime midpoint, a2prime, a1prime L2]
 Policy=zeros(5,N_a,N_semiz,N_j,'gpuArray');
 PolicyL2flag=2*ones(1,N_a,N_semiz,N_j,'gpuArray'); % 1=all weight to lower coarse a1, 2=usual linear weights, 3=all weight to upper coarse a1

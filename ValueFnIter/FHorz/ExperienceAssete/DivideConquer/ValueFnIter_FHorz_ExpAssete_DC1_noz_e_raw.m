@@ -9,7 +9,7 @@ N_a=N_a1*N_a2;
 N_e=prod(n_e);
 d2ind=repelem((1:1:N_d2)',N_d1,1); % [N_d,1]; maps full d-index to d2-component
 
-V=zeros(N_a,N_e,N_j,'gpuArray');
+V=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(N_a,N_e,N_j,'gpuArray'); %first dim indexes the optimal choice for d and a1prime rest of dimensions a,e
 
 %%

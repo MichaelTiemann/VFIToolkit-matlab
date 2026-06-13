@@ -116,9 +116,9 @@ end
 
 %% Backward iteration
 if N_e==0
-    V=zeros(N_a, N_shocks, N_j, 'gpuArray');
+    V=zeros(N_a, N_shocks, N_j, vfoptions.precision, 'gpuArray');
 else
-    V=zeros(N_a, N_shocks, N_e, N_j, 'gpuArray');
+    V=zeros(N_a, N_shocks, N_e, N_j, vfoptions.precision, 'gpuArray');
 end
 
 [~, SZ_grid_noz]=ndgrid(1:N_a, 1:N_semiz); % for N_z==0 lookup

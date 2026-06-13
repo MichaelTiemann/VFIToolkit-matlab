@@ -42,7 +42,7 @@ elseif vfoptions.EVpre==1
     EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
     EV=reshape(sum(EV,4),[N_a,1,N_j,N_z]); % (aprime,1,j,z), 2nd dim will be autofilled with a
 end
-V=zeros(N_a,N_j,N_z,'gpuArray'); % preallocate: V is over (a,j,z)
+V=zeros(N_a,N_j,N_z,vfoptions.precision,'gpuArray'); % preallocate: V is over (a,j,z)
 
 DiscountedEV=reshape(DiscountFactor_J,[1,1,N_j]).*EV;
 

@@ -161,7 +161,7 @@ if vfoptions.lowmemory==0
     inUpperStrict = (maxindexL2a1 >= n2short+3) & (maxindexL2a1 <= n2long-1);
     PolicyL2flag(1,:,:,:,:) = 2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper);
 elseif vfoptions.lowmemory==1
-    V=zeros(N_a*N_j,N_z,N_e,'gpuArray');
+    V=zeros(N_a*N_j,N_z,N_e,vfoptions.precision,'gpuArray');
     for e_c=1:N_e
         e_vals=e_gridvals_J(1,1,1,1,1,:,1,e_c,:);
         midpoints_jj=zeros(N_d,1,N_a2,N_a1,N_a2,N_j,N_z,'gpuArray');
@@ -218,7 +218,7 @@ elseif vfoptions.lowmemory==1
         PolicyL2flag(1,:,:,:,e_c) = 2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper);
     end
 elseif vfoptions.lowmemory==2
-    V=zeros(N_a*N_j,N_z,N_e,'gpuArray');
+    V=zeros(N_a*N_j,N_z,N_e,vfoptions.precision,'gpuArray');
     for e_c=1:N_e
         e_vals=e_gridvals_J(1,1,1,1,1,:,1,e_c,:);
         for z_c=1:N_z

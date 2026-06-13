@@ -4,7 +4,7 @@ function [V,Policy]=ValueFnIter_FHorz_TPath_SingleStep_fastOLG_DC1_GI1_noz_raw(V
 N_d=prod(n_d);
 N_a=prod(n_a);
 
-% V=zeros(N_a,N_j,'gpuArray'); % V is over (a,j)
+% V=zeros(N_a,N_j,vfoptions.precision,'gpuArray'); % V is over (a,j)
 Policy=zeros(4,N_a,N_j,'gpuArray'); % first dim indexes the optimal choice for d and aprime (d, midpoint, L2, L2 flag)
 
 %%
@@ -37,7 +37,7 @@ ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames
 DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j),2);
 
 if vfoptions.EVpre==0
-    EV=zeros(N_a,1,N_j,'gpuArray');
+    EV=zeros(N_a,1,N_j,vfoptions.precision,'gpuArray');
     EV(:,1,1:N_j-1)=V(:,2:end);
 elseif vfoptions.EVpre==1
     % This is used for 'Matched Expecations Path'

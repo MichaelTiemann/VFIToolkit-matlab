@@ -6,7 +6,7 @@ N_d2=prod(n_d2);
 N_a=prod(n_a);
 N_semiz=prod(n_semiz);
 
-V=zeros(N_a,N_semiz,N_j,'gpuArray');
+V=zeros(N_a,N_semiz,N_j,vfoptions.precision,'gpuArray');
 PolicyL2flag=2*ones(1,N_a,N_semiz,N_j,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
 % Policy: 4 channels [d2, a1prime midpoint, a2prime, a1prime L2]
 Policy=zeros(4,N_a,N_semiz,N_j,'gpuArray');

@@ -25,7 +25,7 @@ ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames
 
 DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j),2);
 
-EV=zeros(N_a,1,N_j,'gpuArray');
+EV=zeros(N_a,1,N_j,vfoptions.precision,'gpuArray');
 EV(:,1,1:N_j-1)=V(:,2:end);
 % Interpolate EV over aprime_grid
 EVinterp=interp1(a_grid,EV,aprime_grid);

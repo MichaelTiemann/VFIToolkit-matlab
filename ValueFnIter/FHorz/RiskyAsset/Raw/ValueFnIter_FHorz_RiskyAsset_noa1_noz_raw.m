@@ -15,7 +15,7 @@ n_d13=[n_d1,n_d3];
 n_d23=[n_d2,n_d3];
 d23_grid=[d2_grid; d3_grid];
 
-V=zeros(N_a,N_j,'gpuArray');
+V=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(3,N_a,N_j,'gpuArray'); % three: d1, d2, d3
 
 %%

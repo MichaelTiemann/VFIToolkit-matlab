@@ -7,7 +7,7 @@ N_a2=prod(n_a2);
 N_a3=prod(n_a3);
 N_a=N_a1*N_a2*N_a3;
 
-V=zeros(N_a,N_j,'gpuArray');
+V=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(3,N_a,N_j,'gpuArray'); % channels: 1=d2, 2=a1prime, 3=a2prime
 
 % n-Monotonicity over a1 (the DC dim)

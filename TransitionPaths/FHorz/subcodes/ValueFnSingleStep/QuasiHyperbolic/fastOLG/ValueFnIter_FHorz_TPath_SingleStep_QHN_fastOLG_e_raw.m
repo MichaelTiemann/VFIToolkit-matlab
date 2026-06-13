@@ -51,7 +51,7 @@ if vfoptions.lowmemory==0
 elseif vfoptions.lowmemory==1
 
     special_n_e=ones(1,length(n_e));
-    V=zeros(N_a*N_j,N_z,N_e,'gpuArray');
+    V=zeros(N_a*N_j,N_z,N_e,vfoptions.precision,'gpuArray');
     Policy=zeros(N_a,N_j,N_z,N_e,'gpuArray');
     Policyalt=zeros(N_a,N_j,N_z,N_e,'gpuArray');
     Vtilde=zeros(N_a*N_j,N_z,N_e,'gpuArray');
@@ -77,7 +77,7 @@ elseif vfoptions.lowmemory==2
 
     special_n_e=ones(1,length(n_e));
     special_n_z=ones(1,length(n_z));
-    V=zeros(N_a*N_j,N_z,N_e,'gpuArray');
+    V=zeros(N_a*N_j,N_z,N_e,vfoptions.precision,'gpuArray');
     Policy=zeros(N_a,N_j,N_z,N_e,'gpuArray');
     Policyalt=zeros(N_a,N_j,N_z,N_e,'gpuArray');
     Vtilde=zeros(N_a*N_j,N_z,N_e,'gpuArray');

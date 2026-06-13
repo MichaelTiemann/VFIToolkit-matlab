@@ -97,7 +97,7 @@ end
 DiscountedEV=DiscountFactorParamsVec.*reshape(EV,[N_d2,N_a1,1,N_a2,N_j,N_z]); % (d2,a1prime,1,a2,j,z)
 % Note: does not contain d1
 
-V=zeros(N_a,N_j,N_z,N_e,'gpuArray');
+V=zeros(N_a,N_j,N_z,N_e,vfoptions.precision,'gpuArray');
 Policy=zeros(N_a,N_j,N_z,N_e,'gpuArray');
 
 if vfoptions.lowmemory==0

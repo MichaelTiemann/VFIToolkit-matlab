@@ -35,7 +35,7 @@ n2aprime=length(aprime_grid);
 % aprime_grid=repelem(a_grid,1+n2short,1);
 % aprime_grid=aprime_grid(1:(N_a+(N_a-1)*n2short));
 
-V=zeros(N_a,N_z,'gpuArray');
+V=zeros(N_a,N_z,vfoptions.precision,'gpuArray');
 Policy=zeros(4,N_a,N_z,'gpuArray'); %first dim indexes the optimal choice for d and aprime rest of dimensions a,z (extra channel for PolicyL2flag pilot)
 
 %%

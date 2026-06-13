@@ -102,7 +102,7 @@ if vfoptions.lowmemory==0
     Policy(3,:,:) = 2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper);
 
 elseif vfoptions.lowmemory==1
-    V=zeros(N_a,N_z,'gpuArray'); % preallocate
+    V=zeros(N_a,N_z,vfoptions.precision,'gpuArray'); % preallocate
 
     for z_c=1:N_z
         z_val=z_gridvals(z_c,:);

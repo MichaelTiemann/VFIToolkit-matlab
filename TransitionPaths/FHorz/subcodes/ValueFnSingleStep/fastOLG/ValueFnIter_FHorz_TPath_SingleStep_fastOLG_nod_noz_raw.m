@@ -14,7 +14,7 @@ ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames
 
 DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j),2);
 
-EV=zeros(N_a,1,N_j,'gpuArray');
+EV=zeros(N_a,1,N_j,vfoptions.precision,'gpuArray');
 EV(:,1,1:N_j-1)=V(:,2:end); % Leave N_j as zeros
 
 ReturnMatrix=CreateReturnFnMatrix_fastOLG_Disc_nod_noz(ReturnFn, n_a, N_j, a_grid, a_grid, ReturnFnParamsAgeMatrix);

@@ -18,7 +18,7 @@ N_semiz=prod(n_semiz);
 N_z=prod(n_z);
 N_bothz=N_semiz*N_z;
 
-V=zeros(N_a,N_bothz,N_j,'gpuArray');
+V=zeros(N_a,N_bothz,N_j,vfoptions.precision,'gpuArray');
 % Policy storage with separate entries for d1, d2, d3, a1prime
 Policy3=zeros(4,N_a,N_bothz,N_j,'gpuArray');
 

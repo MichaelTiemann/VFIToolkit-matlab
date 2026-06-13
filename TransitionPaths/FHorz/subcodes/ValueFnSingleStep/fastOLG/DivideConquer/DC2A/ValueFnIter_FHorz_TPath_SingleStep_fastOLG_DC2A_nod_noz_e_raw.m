@@ -50,7 +50,7 @@ elseif vfoptions.EVpre==1
     % 'Matched Expectations Path': input V is already E[V'|.] across e'
     EV=reshape(V,[N_a1,N_a2,1,1,N_j]);
 end
-V=zeros(N_a,N_j,N_e,'gpuArray'); % V is over (a,j,e)
+V=zeros(N_a,N_j,N_e,vfoptions.precision,'gpuArray'); % V is over (a,j,e)
 
 DiscountedEV=reshape(DiscountFactor_J,[1,1,1,1,N_j]).*EV; % [N_a1,N_a2,1,1,N_j]; trailing N_e broadcasts in via the per-e loop
 

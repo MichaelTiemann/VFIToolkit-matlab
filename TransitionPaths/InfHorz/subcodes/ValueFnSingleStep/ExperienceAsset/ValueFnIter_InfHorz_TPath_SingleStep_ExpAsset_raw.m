@@ -7,7 +7,7 @@ N_a2=prod(n_a2);
 N_a=N_a1*N_a2;
 N_z=prod(n_z);
 
-V=zeros(N_a,N_z,'gpuArray');
+V=zeros(N_a,N_z,vfoptions.precision,'gpuArray');
 PolicyTemp=zeros(1,N_a,N_z,'gpuArray');
 Policy=zeros(3,N_a,N_z,'gpuArray'); % d1, d2, a1prime
 

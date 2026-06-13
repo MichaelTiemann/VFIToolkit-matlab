@@ -54,7 +54,7 @@ elseif vfoptions.EVpre==1
     EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
     EV=reshape(sum(EV,4),[N_a,1,N_j,N_z]); % (aprime,1,j,z), 2nd dim will be autofilled with a
 end
-V=zeros(N_a,N_j,N_z,N_e,'gpuArray'); % V is over (a,j,z,e); for Naive QH carries Valt
+V=zeros(N_a,N_j,N_z,N_e,vfoptions.precision,'gpuArray'); % V is over (a,j,z,e); for Naive QH carries Valt
 
 DiscountedEV=repelem(shiftdim(reshape(DiscountFactor_J,[1,1,N_j]).*EV,-1),N_d,1,1,1); % [N_d,N_aprime,1,N_j,N_z] beta_j*EV
 Beta0DiscountedEV=repelem(shiftdim(reshape(Beta0DiscountFactor_J,[1,1,N_j]).*EV,-1),N_d,1,1,1); % [N_d,N_aprime,1,N_j,N_z] beta0_j*beta_j*EV

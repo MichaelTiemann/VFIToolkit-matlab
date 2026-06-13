@@ -4,7 +4,7 @@ function [V,Policy]=ValueFnIter_FHorz_DC1_noz_raw(n_d,n_a,N_j, d_gridvals, a_gri
 N_d=prod(n_d);
 N_a=prod(n_a);
 
-V=zeros(N_a,N_j,'gpuArray');
+V=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(N_a,N_j,'gpuArray'); %first dim indexes the optimal choice for d and aprime rest of dimensions a,z
 
 

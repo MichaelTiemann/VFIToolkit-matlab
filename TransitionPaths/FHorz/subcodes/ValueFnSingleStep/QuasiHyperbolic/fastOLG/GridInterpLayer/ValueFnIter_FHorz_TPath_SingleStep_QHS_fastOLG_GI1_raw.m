@@ -10,7 +10,7 @@ N_d=prod(n_d);
 N_a=prod(n_a);
 N_z=prod(n_z);
 
-% V=zeros(N_a*N_j,N_z,'gpuArray');
+% V=zeros(N_a*N_j,N_z,vfoptions.precision,'gpuArray');
 Vhat=zeros(N_a*N_j,N_z,'gpuArray'); % pre-Vunderbar value (snapshot of V before the beta*EV-at-policy correction)
 Policy=zeros(4,N_a,N_j,N_z,'gpuArray'); %first dim indexes the optimal choice for d and aprime rest of dimensions a,z (channels: d, midpoint, aprimeL2ind, L2flag)
 
@@ -103,7 +103,7 @@ if vfoptions.lowmemory==0
 elseif vfoptions.lowmemory==1
 
     special_n_z=ones(1,length(n_z));
-    V=zeros(N_a*N_j,N_z,'gpuArray');
+    V=zeros(N_a*N_j,N_z,vfoptions.precision,'gpuArray');
 
     for z_c=1:N_z
         z_vals=z_gridvals_J(1,1,1,:,z_c,:); % z_gridvals_J has shape (j,prod(n_z),l_z) for fastOLG

@@ -45,7 +45,7 @@ V=reshape(V0,[N_a,N_z]);
 
 
 %% Now that we are armed with a (hopefully decent) initial guess, we can get on with the full problem
-% V=zeros(N_a,N_z,'gpuArray');
+% V=zeros(N_a,N_z,vfoptions.precision,'gpuArray');
 Policy=zeros(N_a,N_z,'gpuArray'); % first dim indexes the optimal choice for aprime rest of dimensions a1,a2,z
 
 Ftemp=zeros(N_a,N_z,'gpuArray');

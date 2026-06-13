@@ -146,7 +146,7 @@ if vfoptions.lowmemory==0
     Policy(4,:,:,:,:)=a1prime_L2;
     Policy(5,:,:,:,:)=PolicyL2flag;
 elseif vfoptions.lowmemory==1
-    V=zeros(N_a*N_j,N_z,N_e,'gpuArray');
+    V=zeros(N_a*N_j,N_z,N_e,vfoptions.precision,'gpuArray');
     for e_c=1:N_e
         e_vals=e_gridvals_J(1,1,1,1,1,:,1,e_c,:); % [1,1,1,1,1,N_j,1,1,l_e]
         % EV/EVinterp don't depend on e (i.i.d.), reuse full DiscountedEV/DiscountedEVinterp
@@ -192,7 +192,7 @@ elseif vfoptions.lowmemory==1
         Policy(5,:,:,:,e_c)=PolicyL2flag;
     end
 elseif vfoptions.lowmemory==2
-    V=zeros(N_a*N_j,N_z,N_e,'gpuArray');
+    V=zeros(N_a*N_j,N_z,N_e,vfoptions.precision,'gpuArray');
     for e_c=1:N_e
         e_vals=e_gridvals_J(1,1,1,1,1,:,1,e_c,:);
         for z_c=1:N_z

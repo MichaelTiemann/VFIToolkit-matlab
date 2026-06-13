@@ -119,7 +119,7 @@ if vfoptions.lowmemory==0
 elseif vfoptions.lowmemory==1
 
     special_n_z=ones(1,length(n_z));
-    V=zeros(N_a*N_j,N_z,'gpuArray'); % preallocate: V is over (a,j,z)
+    V=zeros(N_a*N_j,N_z,vfoptions.precision,'gpuArray'); % preallocate: V is over (a,j,z)
 
     for z_c=1:N_z
         z_vals=z_gridvals_J(1,1,:,z_c,:); % z_gridvals_J has shape (1,1,N_j,N_z,l_z) for fastOLG

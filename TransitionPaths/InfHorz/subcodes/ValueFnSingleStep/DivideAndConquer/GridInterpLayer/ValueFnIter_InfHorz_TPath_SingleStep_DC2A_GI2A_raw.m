@@ -39,7 +39,7 @@ N_a1prime=length(a1prime_grid);
 % aprime_grid=repelem(a_grid,1+n2short,1);
 % aprime_grid=aprime_grid(1:(N_a+(N_a-1)*n2short));
 
-V=zeros(N_a,N_z,'gpuArray');
+V=zeros(N_a,N_z,vfoptions.precision,'gpuArray');
 Policy=zeros(5,N_a,N_z,'gpuArray'); % first dim: d,a1,a2,a1L2,L2flag (pilot)
 
 %%

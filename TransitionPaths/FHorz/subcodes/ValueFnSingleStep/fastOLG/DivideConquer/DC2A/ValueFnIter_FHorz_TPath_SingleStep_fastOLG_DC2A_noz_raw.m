@@ -37,14 +37,14 @@ ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames
 DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j),2);
 
 if vfoptions.EVpre==0
-    EV=zeros(N_a,N_j,'gpuArray');
+    EV=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
     EV(:,1:N_j-1)=V(:,2:end); % shift next-age V down into current-age slot; j=N_j gets zero (terminal)
     EV=reshape(EV,[N_a1,N_a2,1,1,N_j]);
 elseif vfoptions.EVpre==1
     % This is used for 'Matched Expectations Path'
     EV=reshape(V,[N_a1,N_a2,1,1,N_j]);
 end
-V=zeros(N_a,N_j,'gpuArray'); % V is over (a,j)
+V=zeros(N_a,N_j,vfoptions.precision,'gpuArray'); % V is over (a,j)
 
 DiscountedEV=shiftdim(reshape(DiscountFactor_J,[1,1,1,1,N_j]).*EV,-1); % [1,N_a1,N_a2,1,1,N_j] — 1st dim autofills d
 

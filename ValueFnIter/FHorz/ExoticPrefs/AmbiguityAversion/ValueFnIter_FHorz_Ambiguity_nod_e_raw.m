@@ -4,7 +4,7 @@ N_a=prod(n_a);
 N_z=prod(n_z);
 N_e=prod(n_e);
 
-V=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+V=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(N_a,N_z,N_e,N_j,'gpuArray'); %first dim indexes the optimal choice for aprime rest of dimensions a,z
 
 %%
@@ -64,7 +64,7 @@ else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    ambEV=zeros(N_a,n_z,n_ambiguity(N_j)); % aprime,zprime, prior
+    ambEV=zeros(N_a,n_z,n_ambiguity(N_j),vfoptions.precision); % aprime,zprime, prior
     for amb_c=1:n_ambiguity(N_j) % Evaluate expectations under each of the multiple priors
         EV=V_Jplus1.*ambiguity_pi_e_J(1,1,:,N_j,amb_c);
         EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
@@ -78,7 +78,7 @@ else
     if vfoptions.lowmemory==0
         ReturnMatrix=CreateReturnFnMatrix_Disc_e(ReturnFn, 0, n_a, n_z, n_e, 0, a_grid, z_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,0);
 
-        ambEV=zeros(N_a,1,N_z,n_ambiguity(N_j)); % aprime, nothing, z, prior
+        ambEV=zeros(N_a,1,N_z,n_ambiguity(N_j),vfoptions.precision); % aprime, nothing, z, prior
         for amb_c=1:n_ambiguity(N_j) % Evaluate expectations under each of the multiple priors
             EV=EV.*shiftdim(ambiguity_pi_z_J(:,:,N_j,amb_c)',-1);
             EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
@@ -99,7 +99,7 @@ else
 
 
     elseif vfoptions.lowmemory==1
-        ambEV=zeros(N_a,1,N_z,n_ambiguity(N_j)); % aprime, nothing, z, prior
+        ambEV=zeros(N_a,1,N_z,n_ambiguity(N_j),vfoptions.precision); % aprime, nothing, z, prior
         for amb_c=1:n_ambiguity(N_j) % Evaluate expectations under each of the multiple priors
             EV=EV.*shiftdim(ambiguity_pi_z_J(:,:,N_j,amb_c)',-1);
             EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
@@ -172,7 +172,7 @@ for reverse_j=1:N_j-1
 
     EVpre=V(:,:,:,jj+1);
 
-    ambEV=zeros(N_a,n_z,n_ambiguity(jj)); % aprime,zprime, prior
+    ambEV=zeros(N_a,n_z,n_ambiguity(jj),vfoptions.precision); % aprime,zprime, prior
     for amb_c=1:n_ambiguity(jj) % Evaluate expectations under each of the multiple priors
         EV=EVpre.*ambiguity_pi_e_J(1,1,:,jj,amb_c);
         EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
@@ -186,7 +186,7 @@ for reverse_j=1:N_j-1
     if vfoptions.lowmemory==0
         ReturnMatrix=CreateReturnFnMatrix_Disc_e(ReturnFn, 0, n_a, n_z, n_e, 0, a_grid, z_gridvals_J(:,:,jj), e_gridvals_J(:,:,jj), ReturnFnParamsVec,0);
 
-        ambEV=zeros(N_a,1,N_z,n_ambiguity(jj)); % aprime, nothing, z, prior
+        ambEV=zeros(N_a,1,N_z,n_ambiguity(jj),vfoptions.precision); % aprime, nothing, z, prior
         for amb_c=1:n_ambiguity(jj) % Evaluate expectations under each of the multiple priors
             EV=EV.*shiftdim(ambiguity_pi_z_J(:,:,jj,amb_c)',-1);
             EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
@@ -207,7 +207,7 @@ for reverse_j=1:N_j-1
 
 
     elseif vfoptions.lowmemory==1
-        ambEV=zeros(N_a,1,N_z,n_ambiguity(jj)); % aprime, nothing, z, prior
+        ambEV=zeros(N_a,1,N_z,n_ambiguity(jj),vfoptions.precision); % aprime, nothing, z, prior
         for amb_c=1:n_ambiguity(jj) % Evaluate expectations under each of the multiple priors
             EV=EV.*shiftdim(ambiguity_pi_z_J(:,:,jj,amb_c)',-1);
             EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)

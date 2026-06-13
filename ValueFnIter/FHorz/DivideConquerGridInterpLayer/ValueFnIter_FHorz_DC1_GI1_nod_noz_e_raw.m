@@ -3,7 +3,7 @@ function [V, Policy]=ValueFnIter_FHorz_DC1_GI1_nod_noz_e_raw(n_a,n_e,N_j, a_grid
 N_a=prod(n_a);
 N_e=prod(n_e);
 
-V=zeros(N_a,N_e,N_j,'gpuArray');
+V=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(2,N_a,N_e,N_j,'gpuArray'); % first dim indexes the optimal choice for aprime and aprime2 (in GI layer)
 PolicyL2flag=2*ones(1,N_a,N_e,N_j,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
 

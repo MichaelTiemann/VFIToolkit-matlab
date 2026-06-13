@@ -4,7 +4,7 @@ function  [V,Policy]=ValueFnIter_FHorz_Ambiguity_nod_noz_e_raw(n_ambiguity,n_a, 
 N_a=prod(n_a);
 N_e=prod(n_e);
 
-V=zeros(N_a,N_e,N_j,'gpuArray');
+V=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(N_a,N_e,N_j,'gpuArray'); % no d variable
 
 if vfoptions.lowmemory>0
@@ -43,7 +43,7 @@ else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    ambEV=zeros(N_a,n_ambiguity(N_j)); % aprime, prior
+    ambEV=zeros(N_a,n_ambiguity(N_j),vfoptions.precision); % aprime, prior
     for amb_c=1:n_ambiguity(N_j) % Evaluate expectations under each of the multiple priors
         EV=V_Jplus1.*ambiguity_pi_e_J(1,:,N_j,amb_c);
         EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
@@ -96,7 +96,7 @@ for reverse_j=1:N_j-1
 
     EVpre=V(:,:,jj+1);
 
-    ambEV=zeros(N_a,n_ambiguity(jj)); % aprime, prior
+    ambEV=zeros(N_a,n_ambiguity(jj),vfoptions.precision); % aprime, prior
     for amb_c=1:n_ambiguity(jj) % Evaluate expectations under each of the multiple priors
         EV=EVpre.*ambiguity_pi_e_J(1,:,jj,amb_c);
         EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)

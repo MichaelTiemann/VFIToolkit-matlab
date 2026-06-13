@@ -103,7 +103,7 @@ for jj=1:N_j
 end
 
 %% V allocation
-V=zeros(N_a, N_z, N_e, N_j, 'gpuArray');
+V=zeros(N_a, N_z, N_e, N_j, vfoptions.precision, 'gpuArray');
 
 %% Backward iteration
 for reverse_j=0:N_j-1

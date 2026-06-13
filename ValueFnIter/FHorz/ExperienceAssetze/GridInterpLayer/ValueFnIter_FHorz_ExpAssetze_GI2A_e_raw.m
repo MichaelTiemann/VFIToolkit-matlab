@@ -15,7 +15,7 @@ N_e=prod(n_e);
 % Per-dim factored a3 grid for the ReturnFn builder (l_a3==1: 1 column, l_a3==2: 2 columns)
 a3_gridvals=CreateGridvals(n_a3,a3_grid,1);
 
-V=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+V=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(4,N_a,N_z,N_e,N_j,'gpuArray');
 PolicyL2flag=2*ones(1,N_a,N_z,N_e,N_j,'gpuArray');
 

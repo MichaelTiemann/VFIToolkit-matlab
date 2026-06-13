@@ -138,13 +138,13 @@ end
 
 %% Backward iteration
 if N_z==0 && N_e==0
-    V=zeros(N_a, N_j, 'gpuArray');
+    V=zeros(N_a, N_j, vfoptions.precision, 'gpuArray');
 elseif N_z==0 && N_e>0
-    V=zeros(N_a, N_e, N_j, 'gpuArray');
+    V=zeros(N_a, N_e, N_j, vfoptions.precision, 'gpuArray');
 elseif N_z>0 && N_e==0
-    V=zeros(N_a, N_z, N_j, 'gpuArray');
+    V=zeros(N_a, N_z, N_j, vfoptions.precision, 'gpuArray');
 else
-    V=zeros(N_a, N_z, N_e, N_j, 'gpuArray');
+    V=zeros(N_a, N_z, N_e, N_j, vfoptions.precision, 'gpuArray');
 end
 
 for reverse_j=0:N_j-1

@@ -7,7 +7,7 @@ N_z=prod(n_z);
 eval('fieldexists_ExogShockFn=1;vfoptions.ExogShockFn;','fieldexists_ExogShockFn=0;')
 eval('fieldexists_ExogShockFnParamNames=1;vfoptions.ExogShockFnParamNames;','fieldexists_ExogShockFnParamNames=0;')
 
-V=zeros(N_a,N_z,N_j,'gpuArray');
+V=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(N_a,N_z,N_j,'gpuArray'); %indexes the optimal choice for d given rest of dimensions a,z
 
 %%
@@ -372,7 +372,7 @@ while currdist>vfoptions.tolerance
             %         FmatrixKron_j=reshape(FmatrixFn_j(jj),[N_d,N_a,N_z]);
             %         Phi_aprimeKron=Phi_aprimeKronFn_j(jj);
 
-            EV=zeros(N_d*N_z,N_z,'gpuArray');
+            EV=zeros(N_d*N_z,N_z,vfoptions.precision,'gpuArray');
             for zprime_c=1:N_z
                 EV(:,zprime_c)=VKronold(Phi_aprime(:,:,zprime_c),zprime_c); %(d,z')
             end
@@ -508,7 +508,7 @@ while currdist>vfoptions.tolerance
             end
 
             ReturnMatrix=CreateReturnFnMatrix_Case2_Disc(ReturnFn, n_d, n_a, n_z, d_grid, a_grid, z_grid,ReturnFnParamsVec);
-            EV=zeros(N_d*N_z,N_z,'gpuArray');
+            EV=zeros(N_d*N_z,N_z,vfoptions.precision,'gpuArray');
             for zprime_c=1:N_z
                 EV(:,zprime_c)=EVpre(Phi_aprimeMatrix(:,zprime_c)*ones(1,N_z),zprime_c); %(d,z')
             end

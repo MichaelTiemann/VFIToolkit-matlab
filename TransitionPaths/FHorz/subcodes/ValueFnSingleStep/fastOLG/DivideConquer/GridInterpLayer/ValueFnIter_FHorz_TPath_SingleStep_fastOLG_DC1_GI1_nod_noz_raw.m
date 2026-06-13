@@ -3,7 +3,7 @@ function [V, Policy]=ValueFnIter_FHorz_TPath_SingleStep_fastOLG_DC1_GI1_nod_noz_
 % fastOLG just means parallelize over "age" (j)
 N_a=prod(n_a);
 
-% V=zeros(N_a,N_j,'gpuArray'); % V is over (a,j)
+% V=zeros(N_a,N_j,vfoptions.precision,'gpuArray'); % V is over (a,j)
 Policy=zeros(3,N_a,N_j,'gpuArray'); % first dim indexes the optimal choice for aprime (layer 1, layer 2, and L2 flag)
 
 %%
@@ -35,7 +35,7 @@ ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames
 DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j),2);
 
 if vfoptions.EVpre==0
-    EV=zeros(N_a,N_j,'gpuArray');
+    EV=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
     EV(:,1:N_j-1)=V(:,2:end);
     EV=reshape(EV,[N_a,1,N_j]);
 elseif vfoptions.EVpre==1

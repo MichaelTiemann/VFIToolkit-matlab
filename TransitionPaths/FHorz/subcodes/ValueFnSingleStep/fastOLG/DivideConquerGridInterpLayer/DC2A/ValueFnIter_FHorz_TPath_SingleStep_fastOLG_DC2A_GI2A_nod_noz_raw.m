@@ -47,7 +47,7 @@ DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamN
 ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j);
 
 if vfoptions.EVpre==0
-    EV=zeros(N_a,N_j,'gpuArray');
+    EV=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
     EV(:,1:N_j-1)=V(:,2:end);
 elseif vfoptions.EVpre==1
     EV=reshape(V,[N_a,N_j]); % input V is of size [N_a,N_j]

@@ -3,7 +3,7 @@ function [V, Policy]=ValueFnIter_FHorz_Ambiguity_nod_raw(n_ambiguity, n_a,n_z,N_
 N_a=prod(n_a);
 N_z=prod(n_z);
 
-V=zeros(N_a,N_z,N_j,'gpuArray');
+V=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(N_a,N_z,N_j,'gpuArray'); %first dim indexes the optimal choice for aprime rest of dimensions a,z
 
 %%
@@ -48,7 +48,7 @@ else
         ReturnMatrix=CreateReturnFnMatrix_Disc(ReturnFn, 0, n_a, n_z, 0, a_grid, z_gridvals_J(:,:,N_j), ReturnFnParamsVec,0);
         % (aprime,a,z)
 
-        ambEV=zeros(N_a,1,N_z,n_ambiguity(N_j)); % aprime, nothing, z, prior
+        ambEV=zeros(N_a,1,N_z,n_ambiguity(N_j),vfoptions.precision); % aprime, nothing, z, prior
         for amb_c=1:n_ambiguity(N_j) % Evaluate expectations under each of the multiple priors
             EV=V_Jplus1.*shiftdim(ambiguity_pi_z_J(:,:,N_j,amb_c)',-1);
             EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
@@ -116,7 +116,7 @@ for reverse_j=1:N_j-1
         ReturnMatrix=CreateReturnFnMatrix_Disc(ReturnFn, 0, n_a, n_z, 0, a_grid, z_gridvals_J(:,:,jj), ReturnFnParamsVec,0);
         % (aprime,a,z)
 
-        ambEV=zeros(N_a,1,N_z,n_ambiguity(jj)); % aprime, nothing, z, prior
+        ambEV=zeros(N_a,1,N_z,n_ambiguity(jj),vfoptions.precision); % aprime, nothing, z, prior
         for amb_c=1:n_ambiguity(jj) % Evaluate expectations under each of the multiple priors
             EV=EVpre.*shiftdim(ambiguity_pi_z_J(:,:,jj,amb_c)',-1);
             EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)

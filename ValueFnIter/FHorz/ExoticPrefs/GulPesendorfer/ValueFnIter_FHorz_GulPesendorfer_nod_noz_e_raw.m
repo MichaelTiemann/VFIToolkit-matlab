@@ -4,7 +4,7 @@ function  [V,Policy]=ValueFnIter_FHorz_GulPesendorfer_nod_noz_e_raw(n_a, n_e, N_
 N_a=prod(n_a);
 N_e=prod(n_e);
 
-V=zeros(N_a,N_e,N_j,'gpuArray');
+V=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(N_a,N_e,N_j,'gpuArray'); % no d variable
 
 %%

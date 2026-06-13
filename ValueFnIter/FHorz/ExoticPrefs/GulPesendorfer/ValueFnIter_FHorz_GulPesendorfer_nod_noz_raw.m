@@ -2,7 +2,7 @@ function [V, Policy]=ValueFnIter_FHorz_GulPesendorfer_nod_noz_raw(n_a,N_j, a_gri
 
 N_a=prod(n_a);
 
-V=zeros(N_a,N_j,'gpuArray');
+V=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(N_a,N_j,'gpuArray'); %first dim indexes the optimal choice for aprime rest of dimensions a,z
 
 %%

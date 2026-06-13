@@ -21,7 +21,7 @@ pathcounter=1;
 
 V_final=reshape(V_final,[N_a,N_z,N_j]);
 AgentDist_initial=reshape(StationaryDist_init,[N_a*N_z,N_j]);
-V=zeros(size(V_final),'gpuArray'); %preallocate space
+V=zeros(size(V_final),vfoptions.precision,'gpuArray'); %preallocate space
 GeneralEqmCondnPath=nan(size(PricePathOld),'gpuArray'); GeneralEqmCondnPath(T,:)=0;
 Policy=zeros(2,N_a,N_z,N_j,'gpuArray');
 

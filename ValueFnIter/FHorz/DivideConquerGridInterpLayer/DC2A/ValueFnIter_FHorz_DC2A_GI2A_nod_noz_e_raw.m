@@ -5,7 +5,7 @@ function [V,Policy]=ValueFnIter_FHorz_DC2A_GI2A_nod_noz_e_raw(n_a, n_e, N_j, a_g
 N_a=prod(n_a);
 N_e=prod(n_e);
 
-V=zeros(N_a,N_e,N_j,'gpuArray');
+V=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(3,N_a,N_e,N_j,'gpuArray'); % first dim is (a1prime midpoint,a2prime,a1prime L2)
 PolicyL2flag=2*ones(1,N_a,N_e,N_j,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
 

@@ -16,7 +16,7 @@ N_semiz=prod(n_semiz);
 N_z=prod(n_z);
 N_bothz=N_semiz*N_z;
 
-V=zeros(N_a,N_bothz,N_j,'gpuArray');
+V=zeros(N_a,N_bothz,N_j,vfoptions.precision,'gpuArray');
 Policy3=zeros(3,N_a,N_bothz,N_j,'gpuArray');
 
 %%

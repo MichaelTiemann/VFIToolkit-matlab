@@ -39,7 +39,7 @@ elseif vfoptions.EVpre==1
     % This is used for 'Matched Expecations Path'
     EV=sum(reshape(V,[N_a*N_j,N_e]).*pi_e_J,2);  % input V is already of size [N_a,N_j] and we want to use the whole thing
 end
-V=zeros(N_a,N_j,N_e,'gpuArray'); % V is over (a,j)
+V=zeros(N_a,N_j,N_e,vfoptions.precision,'gpuArray'); % V is over (a,j)
 
 discountedEV=shiftdim(reshape(DiscountFactor_J,[1,1,N_j]).*reshape(EV,[N_a,1,N_j]),-1); % [1,aprime,1,j] — pre-discounted; broadcasts over d (and level1n) at every use site
 

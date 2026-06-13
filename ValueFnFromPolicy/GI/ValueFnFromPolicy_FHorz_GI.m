@@ -39,7 +39,7 @@ if l_a==1
         PolicyProbs(:,:,1)=1-PolicyProbs(:,:,2);
 
         %% Calculate the Value Fn by backward iteration
-        V=zeros(N_a,N_j,'gpuArray');
+        V=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
 
         for reverse_j=0:N_j-1
             jj=N_j-reverse_j; % current period, counts backwards from J-1
@@ -73,7 +73,7 @@ if l_a==1
         PolicyProbs(:,:,:,1)=1-PolicyProbs(:,:,:,2);
 
         %% Calculate the Value Fn by backward iteration
-        V=zeros(N_a,N_e,N_j,'gpuArray');
+        V=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
 
         for reverse_j=0:N_j-1
             jj=N_j-reverse_j;
@@ -110,7 +110,7 @@ if l_a==1
         PolicyProbs(:,:,:,1)=1-PolicyProbs(:,:,:,2);
 
         %% Calculate the Value Fn by backward iteration
-        V=zeros(N_a,N_z,N_j,'gpuArray');
+        V=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
 
         for reverse_j=0:N_j-1
             jj=N_j-reverse_j;
@@ -149,7 +149,7 @@ if l_a==1
         PolicyProbs(:,:,:,:,1)=1-PolicyProbs(:,:,:,:,2);
 
         %% Calculate the Value Fn by backward iteration
-        V=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+        V=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
 
         for reverse_j=0:N_j-1
             jj=N_j-reverse_j;
@@ -197,7 +197,7 @@ elseif l_a>=2
         PolicyProbs(:,:,1)=1-PolicyProbs(:,:,2);
 
         %% Calculate the Value Fn by backward iteration
-        V=zeros(N_a,N_j,'gpuArray');
+        V=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
 
         for reverse_j=0:N_j-1
             jj=N_j-reverse_j;
@@ -235,7 +235,7 @@ elseif l_a>=2
         PolicyProbs(:,:,:,1)=1-PolicyProbs(:,:,:,2);
 
         %% Calculate the Value Fn by backward iteration
-        V=zeros(N_a,N_e,N_j,'gpuArray');
+        V=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
 
         for reverse_j=0:N_j-1
             jj=N_j-reverse_j;
@@ -274,7 +274,7 @@ elseif l_a>=2
         PolicyProbs(:,:,:,1)=1-PolicyProbs(:,:,:,2);
 
         %% Calculate the Value Fn by backward iteration
-        V=zeros(N_a,N_z,N_j,'gpuArray');
+        V=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
 
         for reverse_j=0:N_j-1
             jj=N_j-reverse_j;
@@ -316,7 +316,7 @@ elseif l_a>=2
         PolicyProbs(:,:,:,:,1)=1-PolicyProbs(:,:,:,:,2);
 
         %% Calculate the Value Fn by backward iteration
-        V=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+        V=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
 
         for reverse_j=0:N_j-1
             jj=N_j-reverse_j;

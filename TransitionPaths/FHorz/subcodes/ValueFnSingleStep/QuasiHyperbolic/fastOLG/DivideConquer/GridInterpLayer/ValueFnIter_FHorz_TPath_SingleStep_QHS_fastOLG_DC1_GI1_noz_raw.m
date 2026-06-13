@@ -41,7 +41,7 @@ beta0beta_J=beta0_J.*beta_J;
 betaminusbeta0beta_J=beta_J-beta0beta_J;
 
 if vfoptions.EVpre==0
-    EV=zeros(N_a,1,N_j,'gpuArray');
+    EV=zeros(N_a,1,N_j,vfoptions.precision,'gpuArray');
     EV(:,1,1:N_j-1)=V(:,2:end);
 elseif vfoptions.EVpre==1
     % This is used for 'Matched Expecations Path'

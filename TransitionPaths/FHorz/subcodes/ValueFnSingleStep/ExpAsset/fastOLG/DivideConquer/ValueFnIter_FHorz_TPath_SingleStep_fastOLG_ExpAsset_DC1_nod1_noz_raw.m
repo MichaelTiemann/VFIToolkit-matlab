@@ -79,7 +79,7 @@ end
 
 DiscountedEV=reshape(DiscountFactorParamsVec,[1,1,1,1,N_j]).*reshape(EV,[N_d2,N_a1,1,N_a2,N_j]); % (d2,a1prime,1,a2,j,z)
 
-V=zeros(N_a,N_j,'gpuArray');
+V=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(N_a,N_j,'gpuArray');
 
 % n-Monotonicity

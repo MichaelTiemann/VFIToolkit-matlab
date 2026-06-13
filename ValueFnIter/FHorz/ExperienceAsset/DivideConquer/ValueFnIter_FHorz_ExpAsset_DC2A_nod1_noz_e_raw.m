@@ -11,7 +11,7 @@ N_a3=prod(n_a3);
 N_a=N_a1*N_a2*N_a3;
 N_e=prod(n_e);
 
-V=zeros(N_a,N_e,N_j,'gpuArray');
+V=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(3,N_a,N_e,N_j,'gpuArray');
 
 if vfoptions.lowmemory==0

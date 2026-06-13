@@ -27,7 +27,7 @@ d23_grid=[d2_grid; d3_grid];
 special_n_d4=ones(1,length(n_d4)); %#ok<NASGU>
 d4_gridvals=CreateGridvals(n_d4,d4_grid,1);
 
-V=zeros(N_a,N_bothz,N_e,N_j,'gpuArray');
+V=zeros(N_a,N_bothz,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(N_a,N_bothz,N_e,N_j,'gpuArray');
 
 %%

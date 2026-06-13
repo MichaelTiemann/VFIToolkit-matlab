@@ -131,7 +131,7 @@ if vfoptions.lowmemory==0
     Policy(3,:,:,:)=a1prime_L2;
     Policy(4,:,:,:)=PolicyL2flag;
 elseif vfoptions.lowmemory==1
-    V=zeros(N_a*N_j,N_z,'gpuArray');
+    V=zeros(N_a*N_j,N_z,vfoptions.precision,'gpuArray');
     for z_c=1:N_z
         z_vals=z_gridvals_J(1,1,1,1,:,z_c,:); % [1,1,1,1,N_j,1,l_z]
         DiscountedEV_z=DiscountedEV(:,:,:,:,:,z_c);

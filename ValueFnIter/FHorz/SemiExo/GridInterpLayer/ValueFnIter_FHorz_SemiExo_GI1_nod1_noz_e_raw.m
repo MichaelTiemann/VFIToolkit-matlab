@@ -5,7 +5,7 @@ N_a=prod(n_a);
 N_semiz=prod(n_semiz);
 N_e=prod(n_e);
 
-V=zeros(N_a,N_semiz,N_e,N_j,'gpuArray');
+V=zeros(N_a,N_semiz,N_e,N_j,vfoptions.precision,'gpuArray');
 % For semiz it turns out to be easier to go straight to constructing policy that stores d,d2,aprime seperately
 Policy=zeros(3,N_a,N_semiz,N_e,N_j,'gpuArray'); % first dim indexes the optimal choice for d2, aprime and aprime2 (in GI layer)
 PolicyL2flag=2*ones(1,N_a,N_semiz,N_e,N_j,'gpuArray'); % 1=all weight to lower coarse pt, 2=usual linear weights, 3=all weight to upper coarse pt

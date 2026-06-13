@@ -5,7 +5,7 @@ function [V,Policy]=ValueFnIter_FHorz_DC2A_nod_noz_e_raw(n_a, n_e, N_j, a_grid, 
 N_a=prod(n_a);
 N_e=prod(n_e);
 
-V=zeros(N_a,N_e,N_j,'gpuArray');
+V=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(N_a,N_e,N_j,'gpuArray'); % joint (a1prime,a2prime) index at each (a,e,j) cell
 
 %%

@@ -144,7 +144,7 @@ if vfoptions.lowmemory==0
     Policy3(4,:,:,:,:)=shiftdim(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper),-1);
 
 elseif vfoptions.lowmemory==1
-    V=zeros(N_a,N_j,N_z,N_e,'gpuArray');
+    V=zeros(N_a,N_j,N_z,N_e,vfoptions.precision,'gpuArray');
     special_n_e=ones(1,length(n_e),'gpuArray');
 
     for e_c=1:N_e
@@ -183,7 +183,7 @@ elseif vfoptions.lowmemory==1
         Policy3(4,:,:,:,e_c)=shiftdim(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper),-1);
     end
 elseif vfoptions.lowmemory==2
-    V=zeros(N_a,N_j,N_z,N_e,'gpuArray');
+    V=zeros(N_a,N_j,N_z,N_e,vfoptions.precision,'gpuArray');
     special_n_z=ones(1,length(n_z),'gpuArray');
     special_n_e=ones(1,length(n_e),'gpuArray');
 

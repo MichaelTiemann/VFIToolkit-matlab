@@ -17,7 +17,7 @@ beta_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j),
 beta0_J=CreateAgeMatrixFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
 beta0beta_J=beta0_J.*beta_J; % Discount factor between today and tomorrow.
 
-EV=zeros(N_a,1,N_j,'gpuArray');
+EV=zeros(N_a,1,N_j,vfoptions.precision,'gpuArray');
 EV(:,1,1:N_j-1)=V(:,2:end);
 
 DiscountedEV_under=repelem(reshape(beta_J,[1,1,N_j]).*EV,N_d,1,1); % [N_d*N_aprime,1,N_j]

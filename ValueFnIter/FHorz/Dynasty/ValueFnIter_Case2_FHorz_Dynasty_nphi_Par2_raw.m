@@ -4,7 +4,7 @@ N_d=prod(n_d);
 N_a=prod(n_a);
 N_z=prod(n_z);
 
-V=zeros(N_a,N_z,N_j,'gpuArray');
+V=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(N_a,N_z,N_j,'gpuArray'); %indexes the optimal choice for d given rest of dimensions a,z
 
 %%
@@ -430,7 +430,7 @@ while currdist>vfoptions.tolerance
             end
 
             ReturnMatrix=CreateReturnFnMatrix_Case2_Disc(ReturnFn, n_d, n_a, n_z, d_grid, a_grid, z_grid,ReturnFnParamsVec);
-            EV=zeros(N_d*N_z,N_z,'gpuArray');
+            EV=zeros(N_d*N_z,N_z,vfoptions.precision,'gpuArray');
             for zprime_c=1:N_z
                 EV(:,zprime_c)=EVpre(Phi_aprimeMatrix_Alt(:,zprime_c)*ones(1,N_z),zprime_c); %(d,z')
             end
@@ -489,7 +489,7 @@ while currdist>vfoptions.tolerance
 
             if vfoptions.lowmemory==0
                 ReturnMatrix=CreateReturnFnMatrix_Case2_Disc(ReturnFn, n_d, n_a, n_z, d_grid, a_grid, z_grid,ReturnFnParamsVec);
-                EV=zeros(N_d*N_z,N_z,'gpuArray');
+                EV=zeros(N_d*N_z,N_z,vfoptions.precision,'gpuArray');
                 for zprime_c=1:N_z % This can likely be improved
                     EV(:,zprime_c)=EVpre(Phi_aprimeMatrix_Alt(:)*ones(1,N_z),zprime_c); %(d,z')
                 end
@@ -507,7 +507,7 @@ while currdist>vfoptions.tolerance
                 end
             elseif vfoptions.lowmemory==1
 
-                EV=zeros(N_d*N_z,N_z,'gpuArray');
+                EV=zeros(N_d*N_z,N_z,vfoptions.precision,'gpuArray');
                 for zprime_c=1:N_z % This can likely be improved
                     EV(:,zprime_c)=EVpre(Phi_aprimeMatrix_Alt(:)*ones(1,N_z),zprime_c); %(d,z')
                 end

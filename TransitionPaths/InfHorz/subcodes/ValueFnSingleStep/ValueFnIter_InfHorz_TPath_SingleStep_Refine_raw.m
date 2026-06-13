@@ -7,7 +7,7 @@ N_a=prod(n_a);
 N_z=prod(n_z);
 d_gridvals=CreateGridvals(n_d,d_grid,1);
 
-V=zeros(N_a,N_z,'gpuArray');
+V=zeros(N_a,N_z,vfoptions.precision,'gpuArray');
 Policy_a=zeros(N_a,N_z,'gpuArray');
 
 %%

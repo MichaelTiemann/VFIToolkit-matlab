@@ -94,7 +94,7 @@ if vfoptions.lowmemory==0
 
 elseif vfoptions.lowmemory==1
     special_n_z=ones(1,length(n_z),'gpuArray');
-    V=zeros(N_a*N_j,N_z,'gpuArray');
+    V=zeros(N_a*N_j,N_z,vfoptions.precision,'gpuArray');
     Policy=zeros(N_a*N_j,N_z,'gpuArray');
 
     for z_c=1:N_z

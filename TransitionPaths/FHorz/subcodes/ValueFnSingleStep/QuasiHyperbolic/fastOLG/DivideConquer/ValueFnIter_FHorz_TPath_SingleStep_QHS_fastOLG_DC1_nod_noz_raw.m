@@ -27,14 +27,14 @@ Beta0DiscountFactor_J=Beta0_J.*DiscountFactor_J;
 BetaMinusBeta0Beta_J=DiscountFactor_J-Beta0DiscountFactor_J;
 
 if vfoptions.EVpre==0
-    EV=zeros(N_a,N_j,'gpuArray');
+    EV=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
     EV(:,1:N_j-1)=V(:,2:end);
     EV=reshape(EV,[N_a,1,N_j]);
 elseif vfoptions.EVpre==1
     % This is used for 'Matched Expecations Path'
     EV=reshape(V,[N_a,1,N_j]); % input V is of size [N_a,N_j] and we want to use the whole thing
 end
-V=zeros(N_a,N_j,'gpuArray'); % V is over (a,j); for Sophisticated QH carries Vunderbar
+V=zeros(N_a,N_j,vfoptions.precision,'gpuArray'); % V is over (a,j); for Sophisticated QH carries Vunderbar
 
 Beta0DiscountedEV=reshape(Beta0DiscountFactor_J,[1,1,N_j]).*EV; % beta0_j*beta_j*EV
 

@@ -84,7 +84,7 @@ if vfoptions.lowmemory==0
 elseif vfoptions.lowmemory==1
 
     special_n_e=ones(1,length(n_e));
-    V=zeros(N_a*N_j,N_e,'gpuArray'); %first dim indexes the optimal choice for d and aprime rest of dimensions a,z
+    V=zeros(N_a*N_j,N_e,vfoptions.precision,'gpuArray'); %first dim indexes the optimal choice for d and aprime rest of dimensions a,z
 
     for e_c=1:N_e
         e_vals=e_gridvals_J(1,1,1,:,e_c,:); % z_gridvals_J has shape (j,prod(n_z),l_z) for fastOLG

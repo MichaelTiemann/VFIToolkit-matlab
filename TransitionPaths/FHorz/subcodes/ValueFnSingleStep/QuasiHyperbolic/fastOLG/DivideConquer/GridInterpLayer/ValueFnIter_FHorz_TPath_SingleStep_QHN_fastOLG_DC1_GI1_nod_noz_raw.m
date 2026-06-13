@@ -39,7 +39,7 @@ beta0_J=CreateAgeMatrixFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j)
 beta0beta_J=beta0_J.*beta_J;
 
 if vfoptions.EVpre==0
-    EV=zeros(N_a,N_j,'gpuArray');
+    EV=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
     EV(:,1:N_j-1)=V(:,2:end);
     EV=reshape(EV,[N_a,1,N_j]);
 elseif vfoptions.EVpre==1

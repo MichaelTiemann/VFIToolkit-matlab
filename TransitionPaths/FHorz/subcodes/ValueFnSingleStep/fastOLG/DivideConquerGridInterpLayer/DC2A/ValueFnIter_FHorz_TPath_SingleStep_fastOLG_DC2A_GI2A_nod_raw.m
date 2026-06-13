@@ -144,7 +144,7 @@ if vfoptions.lowmemory==0
 
 elseif vfoptions.lowmemory==1
 
-    V=zeros(N_a*N_j,N_z,'gpuArray');
+    V=zeros(N_a*N_j,N_z,vfoptions.precision,'gpuArray');
 
     for z_c=1:N_z
         z_vals=z_gridvals_J(1,1,1,1,:,z_c,:); % z_gridvals_J has shape (1,1,1,1,N_j,N_z,l_z)

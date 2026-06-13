@@ -141,7 +141,7 @@ if vfoptions.lowmemory==0
     Policy(3,:,:,:,:)=a1prime_L2;
     Policy(4,:,:,:,:)=PolicyL2flag;
 elseif vfoptions.lowmemory==1
-    V=zeros(N_a*N_j,N_z,N_e,'gpuArray');
+    V=zeros(N_a*N_j,N_z,N_e,vfoptions.precision,'gpuArray');
     for e_c=1:N_e
         e_vals=e_gridvals_J(1,1,1,1,:,1,e_c,:); % [1,1,1,1,N_j,1,1,l_e]
         ReturnMatrix_e=CreateReturnFnMatrix_fastOLG_Disc_DC2A_nod_e(ReturnFn, n_z, special_n_e, N_j, a1_grid, a2_grid, a1_grid, a2_grid, z_gridvals_J, e_vals, ReturnFnParamsAgeMatrix, 1);
@@ -183,7 +183,7 @@ elseif vfoptions.lowmemory==1
         Policy(4,:,:,:,e_c)=PolicyL2flag;
     end
 elseif vfoptions.lowmemory==2
-    V=zeros(N_a*N_j,N_z,N_e,'gpuArray');
+    V=zeros(N_a*N_j,N_z,N_e,vfoptions.precision,'gpuArray');
     for e_c=1:N_e
         e_vals=e_gridvals_J(1,1,1,1,:,1,e_c,:);
         for z_c=1:N_z

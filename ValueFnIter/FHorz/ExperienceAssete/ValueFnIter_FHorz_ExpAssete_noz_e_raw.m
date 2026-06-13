@@ -7,7 +7,7 @@ N_a2=prod(n_a2);
 N_a=N_a1*N_a2;
 N_e=prod(n_e);
 
-V=zeros(N_a,N_e,N_j,'gpuArray');
+V=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(N_a,N_e,N_j,'gpuArray'); %first dim indexes the optimal choice for d, rest of dimensions a,e
 
 %%
