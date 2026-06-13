@@ -79,18 +79,17 @@ else
             tempsize=size(Policy);
             Policy=reshape(Policy,[tempsize(1),prod(tempsize)/tempsize(1)]);
             Policy=reshape(Policy(1:end-1,:), [tempsize(1)-1, tempsize(2:end)]);
-	    index_1=ones(1,1,like=n_aprime(1));
-            a1prime_grid=interp1(gpuArray(index_1:1:n_aprime(1))',aprime_grid(index_1:n_aprime(1)),linspace(index_1,n_aprime(1),n_aprime(1)+(n_aprime(1)-index_1)*vfoptions.ngridinterp))';
+            a1prime_grid=interp1(gpuArray(1:1:n_aprime(1))',aprime_grid(1:n_aprime(1)),linspace(1,n_aprime(1),n_aprime(1)+(n_aprime(1)-1)*vfoptions.ngridinterp))';
             if isscalar(n_aprime)
                 aprime_grid=a1prime_grid;
             else
-                aprime_grid=[a1prime_grid; aprime_grid(n_aprime(1)+index_1:end)];
+                aprime_grid=[a1prime_grid; aprime_grid(n_aprime(1)+1:end)];
             end
-            n_aprime(1)=n_aprime(1)+(n_aprime(1)-index_1)*vfoptions.ngridinterp; % =length(a1prime_grid)
+            n_aprime(1)=n_aprime(1)+(n_aprime(1)-1)*vfoptions.ngridinterp; % =length(a1prime_grid)
             % Put the last two parts of Policy together to get the aprime index
             tempsize=size(Policy);
             Policy=reshape(Policy,[tempsize(1),prod(tempsize)/tempsize(1)]); % note: prod(tempsize) is just a presumably faster way to numel(tempsize)
-            Policy(end-l_aprime,:)=(vfoptions.ngridinterp+1)*(Policy(end-l_aprime,:)-index_1)+Policy(end,:); % combine (lower grid point and 2nd layer point) to get aprime index [lower grid point is in the first n_a, it is NOT end-l_a+1 because we then have another -1 for the 2nd layer index]
+            Policy(end-l_aprime,:)=(vfoptions.ngridinterp+1)*(Policy(end-l_aprime,:)-1)+Policy(end,:); % combine (lower grid point and 2nd layer point) to get aprime index [lower grid point is in the first n_a, it is NOT end-l_a+1 because we then have another -1 for the 2nd layer index]
             tempsize(1)=tempsize(1)-1; % put last two policies together (lower grid point, and the second layer grid index; get aprime grid index)
             Policy=reshape(Policy(1:end-1,:),tempsize); % get rid of last policy entry
         end

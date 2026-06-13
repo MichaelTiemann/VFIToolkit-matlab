@@ -123,11 +123,11 @@ Policy=reshape(Policy,[size(Policy,1),N_a,N_bothze,N_j]);
 
 
 %% riskyasset transitions
-Policy_aprime=zeros(N_a,N_bothze,N_u,2,N_j,'gpuArray',like=N_a); % the lower grid point
+Policy_aprime=zeros(N_a,N_bothze,N_u,2,N_j,'gpuArray'); % the lower grid point
 PolicyProbs=zeros(N_a,N_bothze,N_u,2,N_j,simoptions.precision,'gpuArray'); % probabilities of grid points
 whichisdforriskyasset=(simoptions.refine_d(1)+1):1:sum(simoptions.refine_d(1:3));  % is just saying which is the decision variable that influences the risky asset (it is all the decision variables)
 for jj=1:N_j
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj,simoptions.precision);
     [aprimeIndexes,aprimeProbs]=CreateaprimePolicyRiskyAsset(Policy(1:l_d,:,:,jj),simoptions.aprimeFn, whichisdforriskyasset, n_d, n_a1,n_a2, N_bothze, simoptions.n_u, simoptions.d_grid, a2_grid, u_grid, aprimeFnParamsVec);
     % Note: aprimeIndexes and aprimeProbs are both [N_a,N_z,N_u]
     % Note: aprimeIndexes is always the 'lower' point (the upper points are just aprimeIndexes+1), and the aprimeProbs are the probability of this lower point (prob of upper point is just 1 minus this).

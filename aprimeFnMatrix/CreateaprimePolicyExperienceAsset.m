@@ -41,6 +41,7 @@ if nargin(aprimeFn)~=l_dexp+l_a2+(l_a2>=2)+length(aprimeFnParams)
     % When l_a2>=2, aprimeFn takes an extra 'whicha' integer selector slot after the a2 inputs.
     error('Number of inputs to aprimeFn does not fit with size of aprimeFnParams')
 end
+precision=underlyingType(a2_grid);
 
 if l_dexp>=1
     if whichisdforexpasset(1)==1
@@ -175,8 +176,8 @@ elseif l_a2==2
     else
         N=N_a*N_semizze;
     end
-    a2primeIndexes=zeros(N,l_a2,'gpuArray',like=N_a);
-    a2primeProbs=zeros(N,l_a2,'gpuArray',like=a2_grid);
+    a2primeIndexes=zeros(N,l_a2,'gpuArray');
+    a2primeProbs=zeros(N,l_a2,precision,'gpuArray');
     a2primeIndexes(:,1)=loIdx_1(:);
     a2primeIndexes(:,2)=loIdx_2(:);
     a2primeProbs(:,1)=prob_1(:);

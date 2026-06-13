@@ -57,6 +57,7 @@ if l_d>=1
         end
     end
 end
+precision=underlyingType(a2_grid);
 
 if l_a2==1
     a2vals=shiftdim(a2_grid(1:n_a2(1)),-1);
@@ -80,7 +81,6 @@ if l_a2==1
     % For small aprimeVals and a_grid, max() is faster than discretize()
     if N_d*N_a2*N_a2<1000000
         [~,a2primeIndexes]=max((a2_grid>a2primeVals),[],1);
-	a2primeIndexes=str2func(underlyingType(a2_grid))(a2primeIndexes);
         a2primeIndexes=a2primeIndexes-1;
         a2primeIndexes(a2primeIndexes==0)=1;
         a2primeIndexes=reshape(a2primeIndexes,[N_d*N_a2,1]);
@@ -95,7 +95,6 @@ if l_a2==1
         a2primeProbs(offBottomOfGrid)=1;
     else
         a2primeIndexes=discretize(a2primeVals,a2_grid);
-	a2primeIndexes=str2func(underlyingType(a2_grid))(a2primeIndexes);
         offBottomOfGrid=(a2primeVals<=a2_grid(1));
         a2primeIndexes(offBottomOfGrid)=1;
         offTopOfGrid=(a2primeVals>=a2_grid(end));
@@ -194,8 +193,8 @@ elseif l_a2==2
     %   a2primeIndexes(k,:) = lower-grid index in a2_k dim (1..n_a2(k))
     %   a2primeProbs(k,:)   = probability of lower grid point in a2_k dim
     % Caller does nested 2-corner interp with skipinterp at each level (bit-exact when V is flat).
-    a2primeIndexes=zeros(l_a2,N_d*N_a2,'gpuArray',like=n_a2(1));
-    a2primeProbs=zeros(l_a2,N_d*N_a2,'gpuArray',like=a2_grid);
+    a2primeIndexes=zeros(l_a2,N_d*N_a2,'gpuArray');
+    a2primeProbs=zeros(l_a2,N_d*N_a2,precision,'gpuArray');
     a2primeIndexes(1,:)=loIdx_1(:);
     a2primeIndexes(2,:)=loIdx_2(:);
     a2primeProbs(1,:)=prob_1(:);

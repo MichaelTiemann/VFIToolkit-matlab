@@ -7,6 +7,7 @@ N_d=prod(n_d);
 N_a=prod(n_a);
 
 a_gridvals=CreateGridvals(n_a,a_grid,1);
+precision=underlyingType(a_grid);
 
 if N_d~=0
     d_gridvals=CreateGridvals(n_d,d_grid,1);
@@ -15,7 +16,7 @@ end
 if Parallel==0
 
     if N_d==0
-        Fmatrix=zeros(N_a,N_a,like=a_grid);
+        Fmatrix=zeros(N_a,N_a,precision);
         for i1=1:N_a
             for i2=1:N_a
                 tempcell=num2cell([a_gridvals(i1,:),a_gridvals(i2,:)]);
@@ -24,7 +25,7 @@ if Parallel==0
         end
 
     else
-        Fmatrix=zeros(N_d*N_a,N_a,like=a_grid);
+        Fmatrix=zeros(N_d*N_a,N_a,precision);
 
         for i1=1:N_d
             for i2=1:N_a
@@ -40,9 +41,9 @@ if Parallel==0
 elseif Parallel==1
 
     if N_d==0
-        Fmatrix=zeros(N_a,N_a,like=a_grid);
+        Fmatrix=zeros(N_a,N_a,precision);
         parfor i2=1:N_a
-            Fmatrix_a=zeros(N_a,1,like=a_grid);
+            Fmatrix_a=zeros(N_a,1,precision);
             a_vals=a_gridvals(i2,:);
             for i1=1:N_a
                 tempcell=num2cell([a_gridvals(i1,:),a_vals]);
@@ -51,9 +52,9 @@ elseif Parallel==1
             Fmatrix(:,i2)=Fmatrix_a;
         end
     else
-        Fmatrix=zeros(N_d*N_a,N_a,like=a_grid);
+        Fmatrix=zeros(N_d*N_a,N_a,precision);
         parfor i3=1:N_a
-            Fmatrix_a=zeros(N_d*N_a,1,like=a_grid);
+            Fmatrix_a=zeros(N_d*N_a,1,precision);
             a_vals=a_gridvals(i3,:);
             for i1=1:N_d
                 for i2=1:N_a

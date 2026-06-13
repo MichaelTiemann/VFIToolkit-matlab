@@ -73,8 +73,8 @@ Policy=reshape(Policy,[size(Policy,1),N_a,N_ze,N_j]);
 %% expasset transitions
 % Policy is currently about d and a1prime. Convert it to being about aprime
 % as that is what we need for simulation, and we can then just send it to standard Case1 commands.
-Policy_aprime=zeros(N_a,N_ze,2,N_j,'gpuArray',like=N_a); % the lower grid point
-PolicyProbs=zeros(N_a,N_ze,2,N_j,'gpuArray',like=a2_grid); % The fourth dimension is lower/upper grid point
+Policy_aprime=zeros(N_a,N_ze,2,N_j,'gpuArray'); % the lower grid point
+PolicyProbs=zeros(N_a,N_ze,2,N_j,precision,'gpuArray'); % The fourth dimension is lower/upper grid point
 whichisdforexpasset=length(n_d)-simoptions.l_dexperienceasset+1:length(n_d);  % is just saying which is the decision variable that influences the experience asset (it is the 'last' decision variable)
 for jj=1:N_j
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj,simoptions.precision);

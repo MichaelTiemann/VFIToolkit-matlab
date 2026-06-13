@@ -43,13 +43,13 @@ if gridpiboth==3 || gridpiboth==1 || isfield(options,'SemiExoStateFn')
     elseif ndims(options.semiz_grid)==2
         if all(size(options.semiz_grid)==[sum(options.n_semiz),1])
             % need to convert to joint-grid, and make age-dependent
-            semiz_gridvals_J=CreateGridvals(options.n_semiz,options.semiz_grid,1).*ones(1,1,N_j,precision,'gpuArray');
+            semiz_gridvals_J=CreateGridvals(options.n_semiz,options.semiz_grid,1).*ones(1,1,N_j,options.precision,'gpuArray');
         elseif all(size(options.semiz_grid)==[prod(options.n_semiz),length(options.n_semiz)]) % joint grid
             % already joint-grid, need to make age-dependent
-            semiz_gridvals_J=options.semiz_grid.*ones(1,1,N_j,precision,'gpuArray');
+            semiz_gridvals_J=options.semiz_grid.*ones(1,1,N_j,options.precision,'gpuArray');
         elseif all(size(options.semiz_grid)==[sum(options.n_semiz),N_j])
             % already age-dependent, but need to convert to joint-grid
-            semiz_gridvals_J=zeros(prod(options.n_semiz),length(options.n_semiz),N_j,precision,'gpuArray');
+            semiz_gridvals_J=zeros(prod(options.n_semiz),length(options.n_semiz),N_j,options.precision,'gpuArray');
             for jj=1:N_j
                 semiz_gridvals_J(:,:,jj)=CreateGridvals(options.n_semiz,options.semiz_grid(:,jj),1);
             end
@@ -62,7 +62,8 @@ end
 if gridpiboth==3 || gridpiboth==2
     if isempty(n_d)
         % FnsToEvaluate don't need pi_semiz_J
-        pi_semiz_J=str2func(precision)([]);
+        cast2precision=str2func(options.precision);
+        pi_semiz_J=cast2precision([]);
     else
         %% Find decision variables that matter for semiz (can differ by setting)
         if ~isfield(options,'riskyasset')
@@ -94,9 +95,9 @@ if gridpiboth==3 || gridpiboth==2
                 SemiExoStateFnParamNames={};
             end
             % Create pi_semiz_J
-            pi_semiz_J=zeros(N_semiz,N_semiz,N_dsemiz,N_j,precision,'gpuArray');
+            pi_semiz_J=zeros(N_semiz,N_semiz,N_dsemiz,N_j,options.precision,'gpuArray');
             for jj=1:N_j
-                SemiExoStateFnParamValues=CreateVectorFromParams(Parameters,SemiExoStateFnParamNames,jj,precision);
+                SemiExoStateFnParamValues=CreateVectorFromParams(Parameters,SemiExoStateFnParamNames,jj,options.precision);
                 pi_semiz_J(:,:,:,jj)=gpuArray(CreatePiSemiZ(n_dsemiz,options.n_semiz,dsemiz_grid,semiz_gridvals_J(:,:,jj),options.SemiExoStateFn,SemiExoStateFnParamValues));
             end
         else
@@ -121,7 +122,7 @@ if gridpiboth==3 || gridpiboth==2
 
         %% Check that pi_semiz_J has rows summing to one
         % Check that pi_semiz_J has rows summing to one, if not, print a warning
-        if strcmp(precision,'single')
+        if strcmp(options.precision,'single')
             pi_semiz_tolerance=1e-5;
         else
             pi_semiz_tolerance=1e-14;

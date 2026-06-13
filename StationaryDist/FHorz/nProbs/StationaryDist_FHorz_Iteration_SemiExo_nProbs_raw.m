@@ -3,6 +3,9 @@ function StationaryDist=StationaryDist_FHorz_Iteration_SemiExo_nProbs_raw(jequal
 % Policy_aprime has an additional dimension of length N_probs which is the N_probs points (and contains only the aprime indexes, no d indexes as would usually be the case).
 % PolicyProbs are the corresponding probabilities of each of these N_probs.
 
+precision=underlyingType(jequaloneDistKron);
+cast2precision=str2func(precision);
+
 % When we use semiz, we need to use a different shape for Policy_aprime.
 % sparse() limits us to 2-D, and we need to get in a semiz' dimension. So I
 % put a&semiz&z together into the 1st dim, semiz'&nprobs into the 2nd dim.
@@ -15,7 +18,7 @@ function StationaryDist=StationaryDist_FHorz_Iteration_SemiExo_nProbs_raw(jequal
 % maximum number of non-zeros in any row of pi_semiz. And we then use this
 % in place of N_semiz as the second dimension.
 
-N_semizshort=str2func(underlyingType(N_a))(max(max(max(sum((pi_semiz_J>0),2)))));
+N_semizshort=max(max(max(sum((pi_semiz_J>0),2))));
 % Create smaller version of pi_semiz_J that eliminates as many non-zeros as possible
 [pi_semiz_J_short, idx] = sort(pi_semiz_J,2); % puts all the zeros on the left of the matrix
 
@@ -45,7 +48,7 @@ N_bothz=N_semiz*N_z;
 
 %% Use Tan improvement
 
-StationaryDist=zeros(N_a*N_bothz,N_j,underlyingType(jequaloneDistKron),'gpuArray'); % StationaryDist cannot be sparse
+StationaryDist=zeros(N_a*N_bothz,N_j,precision,'gpuArray'); % StationaryDist cannot be sparse
 StationaryDist(:,1)=jequaloneDistKron;
 StationaryDist_jj=sparse(gather(jequaloneDistKron)); % use sparse matrix
 
@@ -68,7 +71,7 @@ end
 
 % Reweight the different ages based on 'AgeWeightParamNames'. (it is assumed there is only one Age Weight Parameter (name))
 try
-    AgeWeights=str2func(underlyingType(StationaryDist))(Parameters.(AgeWeightParamNames{1}));
+    AgeWeights=cast2precision(Parameters.(AgeWeightParamNames{1}));
 catch
     error('Unable to find the AgeWeightParamNames in the parameter structure')
 end

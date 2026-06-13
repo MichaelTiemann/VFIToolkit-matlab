@@ -27,21 +27,21 @@ level1ii=cast2index(round(linspace(1,N_a1,vfoptions.level1n)));
 
 % Grid interpolation
 % vfoptions.ngridinterp=9;
-n2short=cast2index(vfoptions.ngridinterp); % number of (evenly spaced) points to put between each grid point (not counting the two points themselves)
+n2short=vfoptions.ngridinterp; % number of (evenly spaced) points to put between each grid point (not counting the two points themselves)
 n2long=vfoptions.ngridinterp*2+3; % total number of aprime points we end up looking at in second layer
 a1prime_grid=interp1(1:1:N_a1,a1_grid,linspace(1,N_a1,N_a1+(N_a1-1)*n2short))';
 N_a1fine=length(a1prime_grid);
 % aprime_grid=[a1prime_grid; a2_grid];
 
 % precompute
-a2ind=gpuArray(index_0:1:N_a2-1); % already includes -1
-a12ind=repmat(gpuArray(index_0:1:N_a1-1),1,N_a2)+N_a1*repelem(gpuArray(index_0:1:N_a2-1),1,N_a1);
+a2ind=gpuArray(0:1:N_a2-1); % already includes -1
+a12ind=repmat(gpuArray(0:1:N_a1-1),1,N_a2)+N_a1*repelem(gpuArray(0:1:N_a2-1),1,N_a1);
 if vfoptions.lowmemory==0
-    midpoints_jj=zeros(1,N_a2,N_a1,N_a2,N_z,indexT,'gpuArray');
-    zind=shiftdim(gpuArray(index_0:1:N_z-1),-1); % already includes -1
-    zBind=shiftdim(gpuArray(index_0:1:N_z-1),-3); % already includes -1
+    midpoints_jj=zeros(1,N_a2,N_a1,N_a2,N_z,'gpuArray');
+    zind=shiftdim(gpuArray(0:1:N_z-1),-1); % already includes -1
+    zBind=shiftdim(gpuArray(0:1:N_z-1),-3); % already includes -1
 elseif vfoptions.lowmemory==1
-    midpoints_jj=zeros(1,N_a2,N_a1,N_a2,indexT,'gpuArray');
+    midpoints_jj=zeros(1,N_a2,N_a1,N_a2,'gpuArray');
     special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 end
 
@@ -446,7 +446,7 @@ end
 % (which ranges -n2short-1:1:1+n2short). It is much easier to use later if
 % we switch Policy(1,:) to 'lower grid point' and then have Policy(3,:)
 % counting 0:nshort+1 up from this.
-adjust=(Policy(3,:,:,:)<1+n2short+1); % if second layer is choosing below midpoint
+adjust=cast2index(Policy(3,:,:,:)<1+n2short+1); % if second layer is choosing below midpoint
 Policy(1,:,:,:)=Policy(1,:,:,:)-adjust; % lower grid point
 Policy(3,:,:,:)=adjust.*Policy(3,:,:,:)+(1-adjust).*(Policy(3,:,:,:)-n2short-1); % from 1 (lower grid point) to 1+n2short+1 (upper grid point)
 

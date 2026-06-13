@@ -59,8 +59,8 @@ Policy=reshape(Policy,[size(Policy,1),N_a,N_ze,N_j]);
 % (Kron'd linear index in N_a=N_a1*N_a2 space), per corner, with probs.
 % For l_a2==1: 2 corners (lower/upper). For l_a2==2: 4 corners (bilinear lattice).
 Kaprimepts=2^l_a2;
-Policy_aprime=zeros(N_a,N_ze,Kaprimepts,N_j,'gpuArray',like=N_a); % Kron'd a-index per corner
-PolicyProbs  =zeros(N_a,N_ze,Kaprimepts,N_j,'gpuArray',like=a2_grid); % corner probabilities
+Policy_aprime=zeros(N_a,N_ze,Kaprimepts,N_j,'gpuArray'); % Kron'd a-index per corner
+PolicyProbs  =zeros(N_a,N_ze,Kaprimepts,N_j,simoptions.precision,'gpuArray'); % corner probabilities
 whichisdforexpassetze=length(n_d)-simoptions.l_dexperienceassetze+1:length(n_d);
 
 l_a1=length(n_a)-l_a2;
@@ -78,7 +78,7 @@ for jj=1:N_j
 
     % Build a1-Kron'd index, same shape for all corners ([N_a, N_ze]).
     if l_a1==0
-        a1primeKron=zeros(N_a,N_ze,'gpuArray',like=N_a); % no a1; offset is 0 (a2Kron itself is the index)
+        a1primeKron=zeros(N_a,N_ze,'gpuArray'); % no a1; offset is 0 (a2Kron itself is the index)
     else
         a1primeKron=shiftdim(Policy(l_d+1,:,:,jj),1);
         if l_a1>=2

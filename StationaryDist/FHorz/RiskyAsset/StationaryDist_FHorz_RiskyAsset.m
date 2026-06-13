@@ -107,7 +107,7 @@ jequaloneDist=reshape(jequaloneDist,[N_a*N_ze,1]);
 Policy=reshape(Policy,[size(Policy,1),N_a,N_ze,N_j]);
 
 %% riskyasset transitions
-Policy_aprime=zeros(N_a,N_ze,N_u,2,N_j,'gpuArray',like=N_a); % the lower grid point
+Policy_aprime=zeros(N_a,N_ze,N_u,2,N_j,simoptions.indexT,'gpuArray'); % the lower grid point
 PolicyProbs=zeros(N_a,N_ze,N_u,2,N_j,simoptions.precision,'gpuArray'); % probabilities of grid points
 whichisdforriskyasset=(simoptions.refine_d(1)+1):1:length(n_d);  % is just saying which is the decision variable that influences the risky asset (namely, d2 and d3 both do)
 for jj=1:N_j

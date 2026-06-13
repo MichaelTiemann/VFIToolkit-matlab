@@ -22,19 +22,20 @@ end
 if l_z>2
     error('Using CPU does not allow for more than two z variables (you have length(n_z)>2)')
 end
+precision=underlyingType(a_grid);
 
 % Parallel==1
 
 if N_z==0
     if N_d==0
-        Fmatrix=zeros(N_a,N_a,like=a_grid);
+        Fmatrix=zeros(N_a,N_a,precision);
         for i2=1:N_a % a today
             for i1=1:N_a % a' tomorrow
                 Fmatrix(i1,i2)=ReturnFn(a_grid(i1),a_grid(i2),ReturnFnParamsCell{:});
             end
         end
     else
-        Fmatrix=zeros(N_d*N_a,N_a,N_z,like=a_grid);
+        Fmatrix=zeros(N_d*N_a,N_a,N_z,precision);
         for i3=1:N_a % a today
             for i2=1:N_a % a' tomorrow
                 for i1=1:N_d % d choice
@@ -46,9 +47,9 @@ if N_z==0
 else
     if l_z==1
         if N_d==0
-            Fmatrix=zeros(N_a,N_a,N_z,like=a_grid);
+            Fmatrix=zeros(N_a,N_a,N_z,precision);
             parfor i3=1:N_z
-                Fmatrix_z=zeros(N_a,N_a,like=a_grid);
+                Fmatrix_z=zeros(N_a,N_a,precision);
                 for i2=1:N_a % a today
                     for i1=1:N_a % a' tomorrow
                         Fmatrix_z(i1,i2)=ReturnFn(a_grid(i1),a_grid(i2),z_gridvals(i3),ReturnFnParamsCell{:});
@@ -57,9 +58,9 @@ else
                 Fmatrix(:,:,i3)=Fmatrix_z;
             end
         else
-            Fmatrix=zeros(N_d*N_a,N_a,N_z,like=a_grid);
+            Fmatrix=zeros(N_d*N_a,N_a,N_z,precision);
             parfor i4=1:N_z
-                Fmatrix_z=zeros(N_d*N_a,N_a,like=a_grid);
+                Fmatrix_z=zeros(N_d*N_a,N_a,precision);
                 for i3=1:N_a % a today
                     for i2=1:N_a % a' tomorrow
                         for i1=1:N_d % d choice
@@ -72,11 +73,11 @@ else
         end
     elseif l_z==2
         if N_d==0
-            Fmatrix=zeros(N_a,N_a,N_z,like=a_grid);
+            Fmatrix=zeros(N_a,N_a,N_z,precision);
             parfor i3=1:N_z
                 z1=z_gridvals(i3,1);
                 z2=z_gridvals(i3,2);
-                Fmatrix_z=zeros(N_a,N_a,like=a_grid);
+                Fmatrix_z=zeros(N_a,N_a,precision);
                 for i2=1:N_a % a today
                     for i1=1:N_a % a' tomorrow
                         Fmatrix_z(i1,i2)=ReturnFn(a_grid(i1),a_grid(i2),z1,z2,ReturnFnParamsCell{:});
@@ -85,11 +86,11 @@ else
                 Fmatrix(:,:,i3)=Fmatrix_z;
             end
         else
-            Fmatrix=zeros(N_d*N_a,N_a,N_z);
+            Fmatrix=zeros(N_d*N_a,N_a,N_z,precision);
             parfor i4=1:N_z
                 z1=z_gridvals(i4,1);
                 z2=z_gridvals(i4,2);
-                Fmatrix_z=zeros(N_d*N_a,N_a,like=a_grid);
+                Fmatrix_z=zeros(N_d*N_a,N_a,precision);
                 for i3=1:N_a % a today
                     for i2=1:N_a % a' tomorrow
                         for i1=1:N_d % d choice

@@ -43,7 +43,7 @@ if nargin(aprimeFn)~=l_dexp+l_a2+(l_a2>=2)+size(aprimeFnParams,2)
     % When l_a2>=2, aprimeFn takes an extra 'whicha' integer selector slot after the a2 inputs.
     error('Number of inputs to aprimeFn does not fit with size of aprimeFnParams')
 end
-
+precision=underlyingType(a2_grid);
 
 if l_a2==1
     % ===================== legacy l_a2==1 (unchanged) =====================
@@ -99,7 +99,7 @@ if l_a2==1
             a2vals=repelem(a2_grid,N_a1,1);
         end
 
-        a2vals=a2vals.*ones(1,1,1,'gpuArray');
+        a2vals=a2vals.*ones(1,1,1,precision,'gpuArray');
         if l_dexp==1
             a2primeVals=arrayfun(aprimeFn, d1vals, a2vals, ParamCell{:});
         elseif l_dexp==2
@@ -120,7 +120,6 @@ if l_a2==1
         a2_griddiff=a2_grid(2:end)-a2_grid(1:end-1);
 
         a2primeIndexes=discretize(a2primeVals,a2_grid);
-	a2primeIndexes=str2func(underlyingType(a2_grid))(a2primeIndexes);
 
         offBottomOfGrid=(a2primeVals<=a2_grid(1));
         a2primeIndexes(offBottomOfGrid)=1;
@@ -196,7 +195,7 @@ if l_a2==1
             a2vals=repelem(a2_grid,N_a1,1);
         end
 
-        a2vals=a2vals.*ones(1,1,1,'gpuArray');
+        a2vals=a2vals.*ones(1,1,1,precision,'gpuArray');
         if l_dexp==1
             a2primeVals=arrayfun(aprimeFn, d1vals, a2vals, ParamCell{:});
         elseif l_dexp==2
@@ -299,8 +298,8 @@ elseif l_a2==2
     end
 
     % Broadcast a2vals_* to target_shape
-    a2vals_1=a2vals_1.*ones(1,1,1,'gpuArray');
-    a2vals_2=a2vals_2.*ones(1,1,1,'gpuArray');
+    a2vals_1=a2vals_1.*ones(1,1,1,precision,'gpuArray');
+    a2vals_2=a2vals_2.*ones(1,1,1,precision,'gpuArray');
 
     % GPU arrayfun requires scalar output; call once per a2 dim with whicha selector
     if l_dexp==1
@@ -324,8 +323,8 @@ elseif l_a2==2
     %   a2primeIndexes(:,k,...) = lower-grid index in a2_k dim
     %   a2primeProbs(:,k,...)   = probability of lower grid point in a2_k dim
     Ntot=numel(loIdx_1);
-    a2primeIndexes_flat=zeros(Ntot,l_a2,'gpuArray',like=n_a2(1));
-    a2primeProbs_flat=zeros(Ntot,l_a2,'gpuArray',like=a2_grid);
+    a2primeIndexes_flat=zeros(Ntot,l_a2,'gpuArray');
+    a2primeProbs_flat=zeros(Ntot,l_a2,precision,'gpuArray');
     a2primeIndexes_flat(:,1)=loIdx_1(:);
     a2primeIndexes_flat(:,2)=loIdx_2(:);
     a2primeProbs_flat(:,1)=prob_1(:);

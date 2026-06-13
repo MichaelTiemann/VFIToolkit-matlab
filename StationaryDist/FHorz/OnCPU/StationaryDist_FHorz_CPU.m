@@ -9,6 +9,8 @@ end
 
 N_a=prod(n_a);
 N_z=prod(n_z);
+precision=simoptions.precision;
+cast2precision=str2func(precision);
 
 jequaloneDist=gather(jequaloneDist);
 Policy=gather(Policy);
@@ -24,7 +26,7 @@ if N_z==0
     Policy_aprime=Policy(l_d+1,:,:);
     Policy_aprime=shiftdim(Policy_aprime,1);
 
-    StationaryDistKron=zeros(N_a,N_j);
+    StationaryDistKron=zeros(N_a,N_j,precision);
     StationaryDistKron(:,1)=jequaloneDist;
 
     StationaryDistKron_jj=sparse(jequaloneDist);
@@ -42,7 +44,7 @@ if N_z==0
 
     % Reweight the different ages based on 'AgeWeightParamNames'. (it is assumed there is only one Age Weight Parameter (name))
     try
-        AgeWeights=Parameters.(AgeWeightParamNames{1});
+        AgeWeights=cast2precision(Parameters.(AgeWeightParamNames{1}));
     catch
         error('Unable to find the AgeWeightParamNames in the parameter structure')
     end
@@ -65,7 +67,7 @@ else % N_z>0
 
     Policy_aprimez=Policy_aprime+N_a*(0:1:N_z-1); % Note: add z' index following the z dimension [Tan improvement, z stays where it is]
 
-    StationaryDistKron=zeros(N_a*N_z,N_j);
+    StationaryDistKron=zeros(N_a*N_z,N_j,precision);
     StationaryDistKron(:,1)=jequaloneDist;
 
     StationaryDist_jj=sparse(jequaloneDist);
@@ -91,7 +93,7 @@ else % N_z>0
 
     % Reweight the different ages based on 'AgeWeightParamNames'. (it is assumed there is only one Age Weight Parameter (name))
     try
-        AgeWeights=Parameters.(AgeWeightParamNames{1});
+        AgeWeights=cast2precision(Parameters.(AgeWeightParamNames{1}));
     catch
         error('Unable to find the AgeWeightParamNames in the parameter structure')
     end

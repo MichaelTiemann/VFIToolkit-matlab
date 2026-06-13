@@ -10,13 +10,14 @@ PolicyProbs=gather(reshape(PolicyProbs,[N_a*N_z*N_e,N_probs,N_j])); % sparse() r
 
 %% Use Tan improvement
 
-StationaryDist=zeros(N_a*N_z*N_e,N_j,underlyingType(jequaloneDistKron),'gpuArray');
+precision=underlyingType(jequaloneDistKron);
+cast2precision=str2func(precision);
+StationaryDist=zeros(N_a*N_z*N_e,N_j,precision,'gpuArray');
 StationaryDist(:,1)=jequaloneDistKron;
 StationaryDist_jj=sparse(gather(jequaloneDistKron)); % sparse() creates a matrix of zeros
 
 % Precompute
-index_1=ones(1,1,like=N_a);
-II2=repmat((index_1:1:N_a*N_z*N_e)',1,N_probs); %  Index for this period (a,z), note the N_probs-copies
+II2=repmat((1:1:N_a*N_z*N_e)',1,N_probs); %  Index for this period (a,z), note the N_probs-copies
 
 for jj=1:(N_j-1)
 
@@ -39,7 +40,7 @@ end
 
 % Reweight the different ages based on 'AgeWeightParamNames'. (it is assumed there is only one Age Weight Parameter (name))
 try
-    AgeWeights=str2func(underlyingType(StationaryDist))(Parameters.(AgeWeightParamNames{1}));
+    AgeWeights=cast2precision(Parameters.(AgeWeightParamNames{1}));
 catch
     error('Unable to find the AgeWeightParamNames in the parameter structure')
 end

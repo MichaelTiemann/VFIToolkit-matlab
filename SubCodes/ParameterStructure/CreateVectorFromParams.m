@@ -33,19 +33,18 @@ else
     % Don't confuse `precision` with index 1 or 2
     nargin_temp=nargin_temp-1;
 end
-cast2precision=str2func(precision);
 
 nCalibParams=length(ParamNames);
 FullParamNames=fieldnames(Parameters);
 nFields=length(FullParamNames);
 
-VectorOfParamValues=zeros(1,nCalibParams);
+VectorOfParamValues=zeros(1,nCalibParams,precision);
 if nargin_temp==2
     for iCalibParam = 1:nCalibParams
         found=0;
         for iField=1:nFields
             if strcmp(ParamNames{iCalibParam},FullParamNames{iField})
-                VectorOfParamValues(iCalibParam)=cast2precision(gather(Parameters.(FullParamNames{iField})));
+                VectorOfParamValues(iCalibParam)=gather(Parameters.(FullParamNames{iField}));
                 found=1;
                 break
             end
@@ -59,7 +58,7 @@ elseif nargin_temp==3
         found=0;
         for iField=1:nFields
             if strcmp(ParamNames{iCalibParam},FullParamNames{iField})
-                temp=cast2precision(gather(Parameters.(FullParamNames{iField})));
+                temp=gather(Parameters.(FullParamNames{iField}));
                 if isscalar(temp) % Some parameters will depend on the index, some will not.
                     VectorOfParamValues(iCalibParam)=temp;
                 else
@@ -78,7 +77,7 @@ elseif nargin_temp==4
         found=0;
         for iField=1:nFields
             if strcmp(ParamNames{iCalibParam},FullParamNames{iField})
-                temp=cast2precision(gather(Parameters.(FullParamNames{iField})));
+                temp=gather(Parameters.(FullParamNames{iField}));
                 if isscalar(temp) % parameter is scalar, so just store it
                     VectorOfParamValues(iCalibParam)=temp;
                 elseif numel(temp)>length(temp) % Some parameters will depend on both index1 and index2
