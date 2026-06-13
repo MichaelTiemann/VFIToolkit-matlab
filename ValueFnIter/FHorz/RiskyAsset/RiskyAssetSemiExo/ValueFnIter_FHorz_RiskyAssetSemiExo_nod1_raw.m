@@ -6,8 +6,8 @@ function [V,Policy]=ValueFnIter_FHorz_RiskyAssetSemiExo_nod1_raw(n_d2,n_d3,n_d4,
 n_bothz=[n_semiz,n_z]; % These are the return function arguments
 
 N_d2=prod(n_d2);
-N_d3=double(prod(n_d3));
-N_d4=double(prod(n_d4));
+N_d3=prod(n_d3);
+N_d4=prod(n_d4);
 N_a1=prod(n_a1);
 N_a2=prod(n_a2);
 N_semiz=prod(n_semiz);

@@ -13,8 +13,8 @@ function Policy=UnKronPolicyIndexes2_semiz_z_e(PolicyKron, n_daprime1, n_daprime
 l_daprime1=length(n_daprime1);
 l_daprime2=length(n_daprime2);
 
-divisors1=cumprod([1,double(n_daprime1(1:end-1))])';   % [l_daprime1,1]
-divisors2=cumprod([1,double(n_daprime2(1:end-1))])';   % [l_daprime2,1]
+divisors1=cumprod([1,n_daprime1(1:end-1)])';   % [l_daprime1,1]
+divisors2=cumprod([1,n_daprime2(1:end-1)])';   % [l_daprime2,1]
 
 if vfoptions.gridinterplayer==1
     Policy=[mod(floor(double(PolicyKron(1,:)-1)./divisors1),n_daprime1(:))+1;

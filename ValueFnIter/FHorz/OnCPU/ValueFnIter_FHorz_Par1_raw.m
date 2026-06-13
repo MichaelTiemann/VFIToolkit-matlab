@@ -1,6 +1,6 @@
 function [V,Policy2]=ValueFnIter_FHorz_Par1_raw(n_d,n_a,n_z,N_j, d_grid, a_grid, z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions)
 
-N_d=double(prod(n_d));
+N_d=prod(n_d);
 N_a=prod(n_a);
 N_z=prod(n_z);
 

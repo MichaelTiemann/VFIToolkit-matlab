@@ -3,7 +3,7 @@ function [V,Policy]=ValueFnIter_FHorz_RiskyAsset_EpsteinZin_nod1_e_raw(n_d2,n_d3
 % d3: both ReturnFn and aprimeFn
 
 N_d2=prod(n_d2);
-N_d3=double(prod(n_d3));
+N_d3=prod(n_d3);
 N_a1=prod(n_a1);
 N_a2=prod(n_a2);
 N_z=prod(n_z);

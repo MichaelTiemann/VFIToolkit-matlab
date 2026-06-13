@@ -7,7 +7,7 @@ function [V,Policy]=ValueFnIter_FHorz_ExpAssetz_DC2A_GI2A_nod1_raw(n_d2, n_a1, n
 % _nod1: only d2 (no d1).
 % Policy is 4-channel: 1=d2, 2=a1prime midpoint, 3=a2prime, 4=a1prime L2; PolicyL2flag concat as 5th.
 
-N_d2=double(prod(n_d2));
+N_d2=prod(n_d2);
 N_a1=prod(n_a1);
 N_a2=prod(n_a2);
 N_a3=prod(n_a3);

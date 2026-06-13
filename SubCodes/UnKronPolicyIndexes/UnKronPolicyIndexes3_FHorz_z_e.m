@@ -13,8 +13,8 @@ l_daprime1=length(n_daprime1);
 l_daprime2=length(n_daprime2);
 l_daprime3=length(n_daprime3);
 
-divisors1=cumprod([1,double(n_daprime1(1:end-1))])';   % [l_daprime1,1]
-divisors2=cumprod([1,double(n_daprime2(1:end-1))])';   % [l_daprime2,1]
+divisors1=cumprod([1,n_daprime1(1:end-1)])';   % [l_daprime1,1]
+divisors2=cumprod([1,n_daprime2(1:end-1)])';   % [l_daprime2,1]
 divisors3=cumprod([1,double(n_daprime3(1:end-1))])';   % [l_daprime3,1]
 
 if vfoptions.gridinterplayer==1
