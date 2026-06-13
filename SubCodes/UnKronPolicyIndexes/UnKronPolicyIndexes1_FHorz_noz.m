@@ -10,15 +10,16 @@ function Policy=UnKronPolicyIndexes1_FHorz_noz(PolicyKron, n_daprime1, n_a, N_j,
 
 l_daprime1=length(n_daprime1);
 
+n_daprime1=double(n_daprime1);
 divisors=cumprod([1,n_daprime1(1:end-1)])';   % [l_daprime1,1]
 
 if vfoptions.gridinterplayer==1
-    Policy=[str2func(vfoptions.precision)(mod(floor(double(PolicyKron(1,:)-1)./divisors),n_daprime1(:)))+1;
+    Policy=[mod(floor(double(PolicyKron(1,:)-1)./divisors),n_daprime1(:))+1;
             PolicyKron(2,:);
             PolicyKron(3,:)];
     Policy=reshape(Policy,[l_daprime1+2,n_a,N_j]);
 else
-    Policy=str2func(vfoptions.precision)(mod(floor(double(PolicyKron-1)./divisors),n_daprime1(:)))+1;
+    Policy=mod(floor(double(PolicyKron-1)./divisors),n_daprime1(:))+1;
     Policy=reshape(Policy,[l_daprime1,n_a,N_j]);
 end
 

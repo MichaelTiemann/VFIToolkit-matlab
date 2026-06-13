@@ -6,8 +6,8 @@ function [V,Policy]=ValueFnIter_FHorz_RiskyAssetSemiExo_nod1_raw(n_d2,n_d3,n_d4,
 n_bothz=[n_semiz,n_z]; % These are the return function arguments
 
 N_d2=prod(n_d2);
-N_d3=prod(n_d3);
-N_d4=prod(n_d4);
+N_d3=double(prod(n_d3));
+N_d4=double(prod(n_d4));
 N_a1=prod(n_a1);
 N_a2=prod(n_a2);
 N_semiz=prod(n_semiz);
@@ -31,8 +31,12 @@ n_d23=[n_d2,n_d3];
 N_d23=prod(n_d23);
 d23_grid=[d2_grid; d3_grid];
 
-V=zeros(N_a,N_semiz*N_z,N_j,'gpuArray');
-Policy=zeros(4,N_a,N_semiz*N_z,N_j,'gpuArray'); % d2, d3, d4 and a1prime
+indexT=vfoptions.indexT;
+cast2index=str2func(indexT);
+index_0=cast2index(0); index_1=cast2index(1);
+
+V=zeros(N_a,N_semiz*N_z,N_j,vfoptions.precision,'gpuArray');
+Policy=zeros(4,N_a,N_semiz*N_z,N_j,indexT,'gpuArray'); % d2, d3, d4 and a1prime
 
 %%
 % d3_grid=gpuArray(d3_grid);
@@ -46,15 +50,15 @@ d3d4a1_gridvals=gpuArray(CreateGridvals([n_d3,n_d4,n_a1],[d3_grid;d4_grid;a1_gri
 a1a2_gridvals=gpuArray(CreateGridvals([n_a1,n_a2],[a1_grid;a2_grid],1));
 
 if vfoptions.lowmemory>0
-    special_n_bothz=ones(1,length(n_semiz)+length(n_z));
+    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision);
 end
 
-bothzind=shiftdim(0:1:N_bothz-1,-1);
+bothzind=shiftdim(index_0:1:N_bothz-1,-1);
 
 % Preallocate
-V_ford4_jj=zeros(N_a,N_semiz*N_z,N_d4,'gpuArray');
-Policy_ford4_jj=zeros(N_a,N_semiz*N_z,N_d4,'gpuArray');
-d2index_ford4_jj=zeros(N_d3*N_a1,N_semiz*N_z,N_d4,'gpuArray'); % Note, different first dimension
+V_ford4_jj=zeros(N_a,N_semiz*N_z,N_d4,indexT,'gpuArray');
+Policy_ford4_jj=zeros(N_a,N_semiz*N_z,N_d4,indexT,'gpuArray');
+d2index_ford4_jj=zeros(N_d3*N_a1,N_semiz*N_z,N_d4,indexT,'gpuArray'); % Note, different first dimension
 
 bothz_gridvals_J=[repmat(semiz_gridvals_J,N_z,1,1),repelem(z_gridvals_J,N_semiz,1,1)];
 
@@ -62,7 +66,7 @@ bothz_gridvals_J=[repmat(semiz_gridvals_J,N_z,1,1),repelem(z_gridvals_J,N_semiz,
 %% j=N_j
 
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0
@@ -96,15 +100,15 @@ else
     % Using V_Jplus1
     V_Jplus1=reshape(vfoptions.V_Jplus1,[N_a,N_z]);    % First, switch V_Jplus1 into Kron form
 
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, [n_d23,n_a1], n_a2, n_u, d23_grid, a2_grid, u_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
     % Note: a2primeIndex is [N_d,N_u], whereas a2primeProbs is [N_d,N_u]
 
-    aprimeIndex=repelem((1:1:N_a1)',N_d23,N_u)+N_a1*repmat(a2primeIndex-1,N_a1,1); % [N_d*N_a1,N_u]
-    aprimeplus1Index=repelem((1:1:N_a1)',N_d23,N_u)+N_a1*repmat(a2primeIndex,N_a1,1); % [N_d*N_a1,N_u]
+    aprimeIndex=repelem((index_1:1:N_a1)',N_d23,N_u)+N_a1*repmat(a2primeIndex-1,N_a1,1); % [N_d*N_a1,N_u]
+    aprimeplus1Index=repelem((index_1:1:N_a1)',N_d23,N_u)+N_a1*repmat(a2primeIndex,N_a1,1); % [N_d*N_a1,N_u]
     % aprimeProbs=repmat(a2primeProbs,N_a1,1);  % [N_d*N_a1,N_u]
     % Note: aprimeIndex corresponds to value of (a1, a2), but has dimension (d,a1)
 
@@ -242,11 +246,11 @@ for reverse_j=1:N_j-1
     end
 
     % Create a vector containing all the return function parameters (in order)
-    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
+    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj,vfoptions.precision);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a2, n_u, d23_grid, a2_grid, u_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
     % Note: aprimeIndex is [N_d*N_u,1], whereas aprimeProbs is [N_d,N_u]
 

@@ -1,15 +1,19 @@
 function [V,Policy2]=ValueFnIter_FHorz_Par1_noz_raw(n_d,n_a,N_j, d_grid, a_grid, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions)
 
-N_d=prod(n_d);
+N_d=double(prod(n_d));
 N_a=prod(n_a);
 
-V=zeros(N_a,N_j);
-Policy=zeros(N_a,N_j); %first dim indexes the optimal choice for d and aprime rest of dimensions a,z
+indexT=vfoptions.indexT;
+cast2index=str2func(indexT);
+index_0=cast2index(0); index_1=cast2index(1);
+
+V=zeros(N_a,N_j,vfoptions.precision);
+Policy=zeros(N_a,N_j,indexT); %first dim indexes the optimal choice for d and aprime rest of dimensions a,z
 
 %% j=N_j
 
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
 
@@ -21,7 +25,7 @@ if ~isfield(vfoptions,'V_Jplus1')
 
 else
 
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
     EV=reshape(vfoptions.V_Jplus1,[N_a,1]); % Using V_Jplus1
@@ -47,8 +51,8 @@ for reverse_j=1:N_j-1
 
 
     % Create a vector containing all the return function parameters (in order)
-    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
+    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj,vfoptions.precision);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
     EV=V(:,jj+1);
@@ -67,6 +71,6 @@ end
 %%
 Policy2=zeros(2,N_a,N_j); %NOTE: this is not actually in Kron form
 Policy2(1,:,:)=shiftdim(rem(Policy-1,N_d)+1,-1);
-Policy2(2,:,:)=shiftdim(ceil(Policy/N_d),-1);
+Policy2(2,:,:)=shiftdim(ceil(double(Policy)/N_d),-1);
 
 end

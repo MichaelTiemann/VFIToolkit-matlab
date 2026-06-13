@@ -31,6 +31,7 @@ if ~exist('vfoptions','var')
     l_aprime=l_a;
     aprime_grid=a_grid;
     n_aprime=n_a;
+    vfoptions.precision='double';
 else
     l_aprime=l_a;
     aprime_grid=a_grid;
@@ -93,6 +94,9 @@ else
             tempsize(1)=tempsize(1)-1; % put last two policies together (lower grid point, and the second layer grid index; get aprime grid index)
             Policy=reshape(Policy(1:end-1,:),tempsize); % get rid of last policy entry
         end
+    end
+    if ~isfield(vfoptions,'precision')
+        vfoptions.precision='double';
     end
 end
 

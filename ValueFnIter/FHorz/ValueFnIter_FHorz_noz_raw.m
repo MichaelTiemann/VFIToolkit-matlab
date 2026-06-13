@@ -3,13 +3,17 @@ function [V,Policy]=ValueFnIter_FHorz_noz_raw(n_d,n_a,N_j, d_gridvals, a_grid, R
 N_d=prod(n_d);
 N_a=prod(n_a);
 
-V=zeros(N_a,N_j,'gpuArray');
-Policy=zeros(1,N_a,N_j,'gpuArray'); %first dim indexes the optimal choice for d and aprime rest of dimensions a,z
+indexT=vfoptions.indexT;
+cast2index=str2func(indexT);
+index_0=cast2index(0); index_1=cast2index(1);
+
+V=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
+Policy=zeros(1,N_a,N_j,indexT,'gpuArray'); %first dim indexes the optimal choice for d and aprime rest of dimensions a,z
 
 %% j=N_j
 
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     ReturnMatrix=CreateReturnFnMatrix_Disc_noz(ReturnFn, n_d, n_a, d_gridvals, a_grid, ReturnFnParamsVec,0);
@@ -20,7 +24,7 @@ if ~isfield(vfoptions,'V_Jplus1')
     Policy(1,:,N_j)=maxindex;
 else
     % Using V_Jplus1
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
     EV=reshape(vfoptions.V_Jplus1,[N_a,1]);    % First, switch V_Jplus1 into Kron form
@@ -45,8 +49,8 @@ for reverse_j=1:N_j-1
     end
 
     % Create a vector containing all the return function parameters (in order)
-    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
+    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj,vfoptions.precision);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
     EV=V(:,jj+1);

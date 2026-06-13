@@ -14,24 +14,24 @@ l_daprime2=length(n_daprime2);
 l_daprime3=length(n_daprime3);
 l_daprime4=length(n_daprime4);
 
-divisors1=cumprod([1,n_daprime1(1:end-1)])';   % [l_daprime1,1]
-divisors2=cumprod([1,n_daprime2(1:end-1)])';   % [l_daprime2,1]
-divisors3=cumprod([1,n_daprime3(1:end-1)])';   % [l_daprime3,1]
-divisors4=cumprod([1,n_daprime4(1:end-1)])';   % [l_daprime4,1]
+divisors1=cumprod([1,double(n_daprime1(1:end-1))])';   % [l_daprime1,1]
+divisors2=cumprod([1,double(n_daprime2(1:end-1))])';   % [l_daprime2,1]
+divisors3=cumprod([1,double(n_daprime3(1:end-1))])';   % [l_daprime3,1]
+divisors4=cumprod([1,double(n_daprime4(1:end-1))])';   % [l_daprime4,1]
 
 if vfoptions.gridinterplayer==1
-    Policy=[mod(floor((PolicyKron(1,:)-1)./divisors1),n_daprime1(:))+1;
-            mod(floor((PolicyKron(2,:)-1)./divisors2),n_daprime2(:))+1;
-            mod(floor((PolicyKron(3,:)-1)./divisors3),n_daprime3(:))+1;
-            mod(floor((PolicyKron(4,:)-1)./divisors4),n_daprime4(:))+1;
+    Policy=[mod(floor(double(PolicyKron(1,:)-1)./divisors1),n_daprime1(:))+1;
+            mod(floor(double(PolicyKron(2,:)-1)./divisors2),n_daprime2(:))+1;
+            mod(floor(double(PolicyKron(3,:)-1)./divisors3),n_daprime3(:))+1;
+            mod(floor(double(PolicyKron(4,:)-1)./divisors4),n_daprime4(:))+1;
             PolicyKron(5,:);
             PolicyKron(6,:)];
     Policy=reshape(Policy,[l_daprime1+l_daprime2+l_daprime3+l_daprime4+2,n_a,n_z]);
 else
-    Policy=[mod(floor((PolicyKron(1,:)-1)./divisors1),n_daprime1(:))+1;
-            mod(floor((PolicyKron(2,:)-1)./divisors2),n_daprime2(:))+1;
-            mod(floor((PolicyKron(3,:)-1)./divisors3),n_daprime3(:))+1;
-            mod(floor((PolicyKron(4,:)-1)./divisors4),n_daprime4(:))+1];
+    Policy=[mod(floor(double(PolicyKron(1,:)-1)./divisors1),n_daprime1(:))+1;
+            mod(floor(double(PolicyKron(2,:)-1)./divisors2),n_daprime2(:))+1;
+            mod(floor(double(PolicyKron(3,:)-1)./divisors3),n_daprime3(:))+1;
+            mod(floor(double(PolicyKron(4,:)-1)./divisors4),n_daprime4(:))+1];
     Policy=reshape(Policy,[l_daprime1+l_daprime2+l_daprime3+l_daprime4,n_a,n_z]);
 end
 

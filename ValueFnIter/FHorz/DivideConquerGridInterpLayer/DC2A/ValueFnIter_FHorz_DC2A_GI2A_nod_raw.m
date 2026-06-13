@@ -5,9 +5,13 @@ function [V,Policy]=ValueFnIter_FHorz_DC2A_GI2A_nod_raw(n_a, n_z, N_j, a_grid, z
 N_a=prod(n_a);
 N_z=prod(n_z);
 
-V=zeros(N_a,N_z,N_j,'gpuArray');
-Policy=zeros(3,N_a,N_z,N_j,'gpuArray'); % first dim is (a1prime midpoint,a2prime,a1prime L2)
-PolicyL2flag=2*ones(1,N_a,N_z,N_j,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
+indexT=vfoptions.indexT;
+cast2index=str2func(indexT);
+index_0=cast2index(0); index_1=cast2index(1);
+
+V=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
+Policy=zeros(3,N_a,N_z,N_j,indexT,'gpuArray'); % first dim is (a1prime midpoint,a2prime,a1prime L2)
+PolicyL2flag=2*ones(1,N_a,N_z,N_j,indexT,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
 
 %%
 n_a1=n_a(1);
@@ -18,32 +22,32 @@ a1_grid=a_grid(1:N_a1);
 a2_grid=a_grid(N_a1+1:end);
 
 % n-Monotonicity
-level1ii=round(linspace(1,N_a1,vfoptions.level1n));
+level1ii=cast2index(round(linspace(1,N_a1,vfoptions.level1n)));
 % level1iidiff=level1ii(2:end)-level1ii(1:end-1)-1;
 
 % Grid interpolation
 % vfoptions.ngridinterp=9;
-n2short=vfoptions.ngridinterp; % number of (evenly spaced) points to put between each grid point (not counting the two points themselves)
+n2short=cast2index(vfoptions.ngridinterp); % number of (evenly spaced) points to put between each grid point (not counting the two points themselves)
 n2long=vfoptions.ngridinterp*2+3; % total number of aprime points we end up looking at in second layer
 a1prime_grid=interp1(1:1:N_a1,a1_grid,linspace(1,N_a1,N_a1+(N_a1-1)*n2short))';
 N_a1fine=length(a1prime_grid);
 % aprime_grid=[a1prime_grid; a2_grid];
 
 % precompute
-a2ind=gpuArray(0:1:N_a2-1); % already includes -1
-a12ind=repmat(gpuArray(0:1:N_a1-1),1,N_a2)+N_a1*repelem(gpuArray(0:1:N_a2-1),1,N_a1);
+a2ind=gpuArray(index_0:1:N_a2-1); % already includes -1
+a12ind=repmat(gpuArray(index_0:1:N_a1-1),1,N_a2)+N_a1*repelem(gpuArray(index_0:1:N_a2-1),1,N_a1);
 if vfoptions.lowmemory==0
-    midpoints_jj=zeros(1,N_a2,N_a1,N_a2,N_z,'gpuArray');
-    zind=shiftdim(gpuArray(0:1:N_z-1),-1); % already includes -1
-    zBind=shiftdim(gpuArray(0:1:N_z-1),-3); % already includes -1
+    midpoints_jj=zeros(1,N_a2,N_a1,N_a2,N_z,indexT,'gpuArray');
+    zind=shiftdim(gpuArray(index_0:1:N_z-1),-1); % already includes -1
+    zBind=shiftdim(gpuArray(index_0:1:N_z-1),-3); % already includes -1
 elseif vfoptions.lowmemory==1
-    midpoints_jj=zeros(1,N_a2,N_a1,N_a2,'gpuArray');
-    special_n_z=ones(1,length(n_z),'gpuArray');
+    midpoints_jj=zeros(1,N_a2,N_a1,N_a2,indexT,'gpuArray');
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 end
 
 %% j=N_j
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j,vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0
@@ -154,7 +158,7 @@ if ~isfield(vfoptions,'V_Jplus1')
     end
 
 else
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
     EV=reshape(vfoptions.V_Jplus1,[N_a,N_z]); % Using V_Jplus1
@@ -299,8 +303,8 @@ for reverse_j=1:N_j-1
     end
 
     % Create a vector containing all the return function parameters (in order)
-    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
+    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj,vfoptions.precision);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
     EV=V(:,:,jj+1);

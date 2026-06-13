@@ -7,43 +7,47 @@ function [V,Policy]=ValueFnIter_FHorz_ExpAssetz_DC2A_GI2A_nod1_raw(n_d2, n_a1, n
 % _nod1: only d2 (no d1).
 % Policy is 4-channel: 1=d2, 2=a1prime midpoint, 3=a2prime, 4=a1prime L2; PolicyL2flag concat as 5th.
 
-N_d2=prod(n_d2);
+N_d2=double(prod(n_d2));
 N_a1=prod(n_a1);
 N_a2=prod(n_a2);
 N_a3=prod(n_a3);
 N_a=N_a1*N_a2*N_a3;
 N_z=prod(n_z);
 
-V=zeros(N_a,N_z,N_j,'gpuArray');
-Policy=zeros(4,N_a,N_z,N_j,'gpuArray');
-PolicyL2flag=2*ones(1,N_a,N_z,N_j,'gpuArray');
+indexT=vfoptions.indexT;
+cast2index=str2func(indexT);
+index_0=cast2index(0); index_1=cast2index(1);
+
+V=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
+Policy=zeros(4,N_a,N_z,N_j,indexT,'gpuArray');
+PolicyL2flag=2*ones(1,N_a,N_z,N_j,indexT,'gpuArray');
 
 if vfoptions.lowmemory>0
-    special_n_z=ones(1,length(n_z));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
 else
-    aind=gpuArray(0:1:N_a-1);
-    zindB=shiftdim(gpuArray(0:1:N_z-1),-1); % at dim 3 of [1,N_a,N_z]
+    aind=gpuArray(index_0:1:N_a-1);
+    zindB=shiftdim(gpuArray(index_0:1:N_z-1),-1); % at dim 3 of [1,N_a,N_z]
 end
 
 % Preallocate midpoint (filled by DC coarse pass, then used for GI fine pass)
 if vfoptions.lowmemory==0
-    midpoint=zeros(N_d2,1,N_a2,N_a1,N_a2,N_a3,N_z,'gpuArray');
+    midpoint=zeros(N_d2,1,N_a2,N_a1,N_a2,N_a3,N_z,indexT,'gpuArray');
 elseif vfoptions.lowmemory==1
-    midpoint=zeros(N_d2,1,N_a2,N_a1,N_a2,N_a3,'gpuArray');
+    midpoint=zeros(N_d2,1,N_a2,N_a1,N_a2,N_a3,indexT,'gpuArray');
 end
 
 % n-Monotonicity over a1
-level1ii=round(linspace(1,n_a1,vfoptions.level1n));
+level1ii=cast2index(round(linspace(1,n_a1,vfoptions.level1n)));
 level1iidiff=level1ii(2:end)-level1ii(1:end-1)-1;
 
 % GI grid
-n2short=vfoptions.ngridinterp;
+n2short=cast2index(vfoptions.ngridinterp);
 n2long=vfoptions.ngridinterp*2+3;
 a1prime_grid=interp1(1:1:N_a1,a1_grid,linspace(1,N_a1,N_a1+(N_a1-1)*n2short))';
 N_a1fine=length(a1prime_grid);
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0
@@ -147,12 +151,12 @@ if ~isfield(vfoptions,'V_Jplus1')
 
 else
     % vfoptions.V_Jplus1 provided
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
     EVpre=reshape(vfoptions.V_Jplus1,[N_a,N_z]);
 
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a3primeIndex,a3primeProbs]=CreateExperienceAssetzFnMatrix(aprimeFn, n_d2, n_a3, n_z, d2_gridvals, a3_grid, z_gridvals_J(:,:,N_j), aprimeFnParamsVec,2);
 
     a1_col=repmat(repelem((1:N_a1)',N_d2,1),N_a2,1);
@@ -293,11 +297,11 @@ for reverse_j=1:N_j-1
         fprintf('Finite horizon: %i of %i \n',jj, N_j)
     end
 
-    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
+    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj,vfoptions.precision);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj,vfoptions.precision);
     [a3primeIndex,a3primeProbs]=CreateExperienceAssetzFnMatrix(aprimeFn, n_d2, n_a3, n_z, d2_gridvals, a3_grid, z_gridvals_J(:,:,jj), aprimeFnParamsVec,2);
 
     a1_col=repmat(repelem((1:N_a1)',N_d2,1),N_a2,1);
