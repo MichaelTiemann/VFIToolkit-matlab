@@ -19,7 +19,7 @@ a2_gridvals=CreateGridvals(n_a2,a2_grid,1);
 pi_u=shiftdim(pi_u,-2); % put it into third dimension
 
 if vfoptions.lowmemory>0
-    special_n_e=ones(1,length(n_e));
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
     midpoint=zeros(N_d,1,N_a1,N_a2,'gpuArray');
 else
     midpoint=zeros(N_d,1,N_a1,N_a2,N_e,'gpuArray');

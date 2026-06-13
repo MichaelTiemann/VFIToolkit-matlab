@@ -30,7 +30,7 @@ N_d=prod([n_d1,n_d2,n_d3]);
 d_gridvals=[repmat(d12_gridvals,N_d3,1),repelem(CreateGridvals(n_d3,d3_grid,1),N_d12,1)];
 
 if vfoptions.lowmemory>0
-    special_n_e=ones(1,length(n_e));
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
 else
     % precompute
     eind=shiftdim((0:1:N_e-1),-2); % already includes -1

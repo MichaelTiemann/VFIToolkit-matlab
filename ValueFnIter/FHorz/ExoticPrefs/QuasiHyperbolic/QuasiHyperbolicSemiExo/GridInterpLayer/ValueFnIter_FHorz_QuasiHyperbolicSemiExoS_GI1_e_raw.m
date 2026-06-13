@@ -24,7 +24,7 @@ d_gridvals=[repmat(d1_gridvals,N_d2,1),repelem(d2_gridvals,N_d1,1)];
 d12_gridvals=permute(reshape(d_gridvals,[N_d1,N_d2,length(n_d1)+length(n_d2)]),[1,3,2]);
 
 if vfoptions.lowmemory==1
-    special_n_e=ones(1,length(n_e));
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
 elseif vfoptions.lowmemory==2
     error('vfoptions.lowmemory=2 not supported with semi-exogenous states');
 end

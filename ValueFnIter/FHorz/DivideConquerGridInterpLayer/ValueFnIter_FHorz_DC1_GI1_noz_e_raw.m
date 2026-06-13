@@ -20,7 +20,7 @@ if vfoptions.lowmemory==0
     midpoints_jj=zeros(N_d,1,N_a,N_e,'gpuArray');
 elseif vfoptions.lowmemory==1 % loops over e
     midpoints_jj=zeros(N_d,1,N_a,1,'gpuArray');
-    special_n_e=ones(1,length(n_e));
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
 end
 
 aind=0:1:N_a-1; % already includes -1

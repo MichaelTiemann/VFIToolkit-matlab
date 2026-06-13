@@ -53,7 +53,7 @@ if vfoptions.lowmemory==0
     midpoints_jj=zeros(1,N_a2,N_a1,N_a2,N_j,N_z,'gpuArray');
 elseif vfoptions.lowmemory==1
     midpoints_jj=zeros(1,N_a2,N_a1,N_a2,N_j,'gpuArray');
-    special_n_z=ones(1,length(n_z));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
 end
 
 %% First, create the big 'next period (of transition path) expected value fn.

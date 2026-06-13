@@ -16,7 +16,7 @@ eval('fieldexists_ExogShockFn=1;vfoptions.ExogShockFn;','fieldexists_ExogShockFn
 eval('fieldexists_ExogShockFnParamNames=1;vfoptions.ExogShockFnParamNames;','fieldexists_ExogShockFnParamNames=0;')
 
 if vfoptions.lowmemory>0
-    special_n_z=ones(1,length(n_z));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
     z_gridvals=CreateGridvals(n_z,z_grid,1);
 end
 %%

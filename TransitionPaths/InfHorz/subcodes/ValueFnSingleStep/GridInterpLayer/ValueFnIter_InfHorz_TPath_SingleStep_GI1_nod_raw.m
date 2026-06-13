@@ -5,7 +5,7 @@ N_z=prod(n_z);
 
 %%
 if vfoptions.lowmemory==1
-    special_n_z=ones(1,length(n_z));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
 elseif vfoptions.lowmemory>=2
     error('vfoptions.lowmemory>=2 not supported for ValueFnIter_InfHorz_TPath_SingleStep_GI1_nod_raw')
 end

@@ -9,7 +9,7 @@ N_a=prod(n_a);
 N_e=prod(n_e);
 
 if vfoptions.lowmemory==1
-    special_n_e=ones(1,length(n_e));
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
 elseif vfoptions.lowmemory>=2
     error('vfoptions.lowmemory>=2 not supported')
 end

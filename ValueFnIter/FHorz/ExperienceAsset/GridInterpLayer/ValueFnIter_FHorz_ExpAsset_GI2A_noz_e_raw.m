@@ -25,7 +25,7 @@ aind=gpuArray(0:1:N_a-1);
 if vfoptions.lowmemory==0
     eindB=shiftdim(gpuArray(0:1:N_e-1),-1);
 else
-    special_n_e=ones(1,length(n_e));
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
 end
 
 %% j=N_j

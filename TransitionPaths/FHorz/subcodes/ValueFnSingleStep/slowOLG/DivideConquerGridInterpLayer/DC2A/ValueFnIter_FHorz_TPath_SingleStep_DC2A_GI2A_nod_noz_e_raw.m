@@ -40,7 +40,7 @@ if vfoptions.lowmemory==0
     eind=shiftdim(gpuArray(0:1:N_e-1),-1); % already includes -1
 elseif vfoptions.lowmemory==1
     midpoints_jj=zeros(1,N_a2,N_a1,N_a2,'gpuArray');
-    special_n_e=ones(1,length(n_e),'gpuArray');
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 
 %% j=N_j: terminal age has no continuation in TPath

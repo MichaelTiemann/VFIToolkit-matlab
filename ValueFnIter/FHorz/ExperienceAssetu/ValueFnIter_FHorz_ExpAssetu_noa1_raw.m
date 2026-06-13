@@ -17,7 +17,7 @@ a2_grid=gpuArray(a2_grid);
 pi_u=shiftdim(pi_u,-2); % put it into third dimension
 
 if vfoptions.lowmemory==1
-    special_n_z=ones(1,length(n_z));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
 end
 
 %% j=N_j

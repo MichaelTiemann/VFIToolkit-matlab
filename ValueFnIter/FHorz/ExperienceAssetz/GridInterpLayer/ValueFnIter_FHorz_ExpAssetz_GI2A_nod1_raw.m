@@ -25,7 +25,7 @@ a1prime_grid=interp1(1:1:N_a1,a1_grid,linspace(1,N_a1,N_a1+(N_a1-1)*n2short))';
 N_a1fine=length(a1prime_grid);
 
 if vfoptions.lowmemory>0
-    special_n_z=ones(1,length(n_z));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
 else
     aind=gpuArray(0:1:N_a-1);                       % flat a-axis
     zindB=shiftdim(gpuArray(0:1:N_z-1),-1);         % at dim 3 of [1,N_a,N_z]

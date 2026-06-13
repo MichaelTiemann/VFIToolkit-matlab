@@ -18,7 +18,7 @@ Policy=zeros(N_a,N_e,N_j,'gpuArray'); % indexes the optimal choice for d and apr
 
 %%
 if vfoptions.lowmemory>0
-    special_n_e=ones(1,length(n_e)); % vfoptions.lowmemory>0
+    special_n_e=ones(1,length(n_e),vfoptions.precision); % vfoptions.lowmemory>0
 end
 pi_e_J=shiftdim(pi_e_J,-1); % Move to second dimension as no_z
 

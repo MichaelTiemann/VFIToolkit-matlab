@@ -14,7 +14,7 @@ d2_gridvals=gpuArray(d2_gridvals);
 a2_grid=gpuArray(a2_grid);
 
 if vfoptions.lowmemory==1
-    special_n_z=ones(1,length(n_z));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
 end
 
 %% j=N_j

@@ -29,7 +29,7 @@ a2Bind=shiftdim(gpuArray(0:1:N_a2-1),-1); % already includes -1
 if vfoptions.lowmemory==0
     eind=shiftdim(gpuArray(0:1:N_e-1),-1); % already includes -1
 elseif vfoptions.lowmemory>=1
-    special_n_e=ones(1,length(n_e),'gpuArray');
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 
 %% j=N_j

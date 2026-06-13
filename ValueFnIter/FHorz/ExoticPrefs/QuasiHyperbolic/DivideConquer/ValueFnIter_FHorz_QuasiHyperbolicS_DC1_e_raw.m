@@ -15,12 +15,12 @@ Vunderbar=zeros(N_a,N_z,N_e,N_j,'gpuArray');
 Policy=zeros(N_a,N_z,N_e,N_j,'gpuArray');
 
 if vfoptions.lowmemory>=1
-    special_n_e=ones(1,length(n_e));
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
 else
     eind=shiftdim(gpuArray(0:1:N_e-1),-2);
 end
 if vfoptions.lowmemory==2
-    special_n_z=ones(1,length(n_z));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
 else
     zind=shiftdim(gpuArray(0:1:N_z-1),-1);
 end

@@ -32,10 +32,10 @@ if vfoptions.lowmemory==0
 elseif vfoptions.lowmemory==1
     zind=shiftdim(gpuArray(0:1:N_z-1),-1); % already includes -1
     zBind=shiftdim(gpuArray(0:1:N_z-1),-3); % already includes -1
-    special_n_e=ones(1,length(n_e),'gpuArray');
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 elseif vfoptions.lowmemory==2
-    special_n_z=ones(1,length(n_z),'gpuArray');
-    special_n_e=ones(1,length(n_e),'gpuArray');
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 elseif vfoptions.lowmemory>=3
     error('vfoptions.lowmemory>=3 not supported for ValueFnIter_FHorz_TPath_SingleStep_DC2A_nod_e_raw')
 end

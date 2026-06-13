@@ -26,7 +26,7 @@ if vfoptions.lowmemory==0
     zind=shiftdim(gpuArray(0:1:N_z-1),-1); % already includes -1
     zBind=shiftdim(gpuArray(0:1:N_z-1),-3); % already includes -1
 elseif vfoptions.lowmemory==1
-    special_n_z=ones(1,length(n_z),'gpuArray');
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 elseif vfoptions.lowmemory>=2
     error('vfoptions.lowmemory>=2 not supported for ValueFnIter_FHorz_TPath_SingleStep_DC2A_nod_raw')
 end

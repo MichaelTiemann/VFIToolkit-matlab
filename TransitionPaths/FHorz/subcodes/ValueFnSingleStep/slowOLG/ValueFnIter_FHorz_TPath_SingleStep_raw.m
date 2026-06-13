@@ -7,7 +7,7 @@ N_z=prod(n_z);
 Policy=zeros(N_a,N_z,N_j,'gpuArray'); %first dim indexes the optimal choice for d and aprime rest of dimensions a,z
 
 if vfoptions.lowmemory==1
-    special_n_z=ones(1,length(n_z));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
 elseif vfoptions.lowmemory>=2
     error('vfoptions.lowmemory=K not supported for ValueFnIter_FHorz_TPath_SingleStep_raw')
 end

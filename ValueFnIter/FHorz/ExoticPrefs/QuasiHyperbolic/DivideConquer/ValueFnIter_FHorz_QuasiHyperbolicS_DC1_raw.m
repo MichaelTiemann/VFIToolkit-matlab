@@ -22,7 +22,7 @@ level1ii=round(linspace(1,n_a,vfoptions.level1n));
 level1iidiff=level1ii(2:end)-level1ii(1:end-1)-1;
 
 if vfoptions.lowmemory==1
-    special_n_z=ones(1,length(n_z));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
 else
     zind=shiftdim((0:1:N_z-1),-1);  % 1-by-1-by-N_z (for Policy indexing)
 end

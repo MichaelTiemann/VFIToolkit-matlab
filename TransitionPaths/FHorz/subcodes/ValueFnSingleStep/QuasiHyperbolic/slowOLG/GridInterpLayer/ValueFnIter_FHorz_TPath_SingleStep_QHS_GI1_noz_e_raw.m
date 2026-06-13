@@ -13,7 +13,7 @@ Vhat=zeros(N_a,N_e,N_j,'gpuArray');
 
 %%
 if vfoptions.lowmemory==1
-    special_n_e=ones(1,length(n_e));
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
 elseif vfoptions.lowmemory>=2
     error('vfoptions.lowmemory>=2 not supported for ValueFnIter_FHorz_TPath_SingleStep_QHS_GI1_noz_e_raw')
 end

@@ -85,7 +85,7 @@ if vfoptions.lowmemory==0
 
 elseif vfoptions.lowmemory==1
     %% Loop over all e
-    special_n_e=ones(1,length(n_e));
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
 
     %% N_j
     % Create a vector containing all the return function parameters (in order)

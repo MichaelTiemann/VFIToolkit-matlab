@@ -47,11 +47,11 @@ elseif vfoptions.lowmemory==1
     midpoints_jj=zeros(N_d,1,N_a2,N_a1,N_a2,N_z,'gpuArray');
     zind=shiftdim(gpuArray(0:1:N_z-1),-1); % already includes -1
     zBind=shiftdim(gpuArray(0:1:N_z-1),-4); % already includes -1
-    special_n_e=ones(1,length(n_e),'gpuArray');
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 elseif vfoptions.lowmemory==2
     midpoints_jj=zeros(N_d,1,N_a2,N_a1,N_a2,'gpuArray');
-    special_n_z=ones(1,length(n_z),'gpuArray');
-    special_n_e=ones(1,length(n_e),'gpuArray');
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 
 %% j=N_j: terminal age has no continuation in TPath

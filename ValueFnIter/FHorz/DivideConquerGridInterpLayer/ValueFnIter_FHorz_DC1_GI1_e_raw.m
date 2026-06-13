@@ -17,11 +17,11 @@ if vfoptions.lowmemory==0
     midpoints_jj=zeros(N_d,1,N_a,N_z,N_e,'gpuArray');
 elseif vfoptions.lowmemory==1 % loops over e
     midpoints_jj=zeros(N_d,1,N_a,N_z,'gpuArray');
-    special_n_e=ones(1,length(n_e));
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
 elseif vfoptions.lowmemory==2 % loops over z,e
     midpoints_jj=zeros(N_d,1,N_a,1,'gpuArray');
-    special_n_z=ones(1,length(n_z));
-    special_n_e=ones(1,length(n_e));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
 end
 
 aind=gpuArray(0:1:N_a-1);

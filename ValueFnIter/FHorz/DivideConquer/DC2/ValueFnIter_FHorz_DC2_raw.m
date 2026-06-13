@@ -26,7 +26,7 @@ level12kk=round(linspace(1,n_a(2),vfoptions.level1n(2)));
 if vfoptions.lowmemory==0
     zind=shiftdim(0:1:N_z-1,-2); % already includes -1
 elseif vfoptions.lowmemory==1
-    special_n_z=ones(1,length(n_z),'gpuArray');
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 end
 
 %% j=N_j

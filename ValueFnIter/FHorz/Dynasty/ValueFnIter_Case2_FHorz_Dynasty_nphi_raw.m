@@ -10,7 +10,7 @@ Policy=zeros(N_a,N_z,N_j,'gpuArray'); %indexes the optimal choice for d given re
 
 %%
 if vfoptions.lowmemory>0
-    special_n_z=ones(1,length(n_z));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
 
     z_gridvals=zeros(N_z,length(n_z),'gpuArray');
     for i1=1:N_z

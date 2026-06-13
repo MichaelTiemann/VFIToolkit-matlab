@@ -38,7 +38,7 @@ if vfoptions.lowmemory==0
     midpoint_jj=zeros(N_d13,1,N_a1,N_a2,N_z,N_e,'gpuArray');
 elseif vfoptions.lowmemory>=1
     midpoint_jj=zeros(N_d13,1,N_a1,N_a2,N_z,'gpuArray');
-    special_n_e=ones(1,length(n_e));
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
 end
 
 % Setup for DC

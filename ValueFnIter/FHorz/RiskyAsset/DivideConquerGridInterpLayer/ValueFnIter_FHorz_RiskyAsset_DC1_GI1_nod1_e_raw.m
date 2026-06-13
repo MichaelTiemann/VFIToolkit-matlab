@@ -31,7 +31,7 @@ d3_gridvals=CreateGridvals(n_d3,d3_grid,1);
 if vfoptions.lowmemory==0
     midpoint_jj=zeros(N_d3,1,N_a1,N_a2,N_z,N_e,'gpuArray');
 else
-    special_n_e=ones(1,length(n_e));
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
     midpoint_jj=zeros(N_d3,1,N_a1,N_a2,N_z,'gpuArray');
 end
 

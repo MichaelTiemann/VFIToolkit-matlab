@@ -44,7 +44,7 @@ n2short = vfoptions.ngridinterp; % number of (evenly spaced) points to put betwe
 n2long  = vfoptions.ngridinterp*2+3; % total number of aprime points we end up looking at in second layer
 aprime_grid=interp1(1:1:N_a,a_grid,linspace(1,N_a,N_a+(N_a-1)*n2short));
 
-special_n_z=ones(1,length(n_z),'gpuArray'); % as lowmemory=1
+special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray'); % as lowmemory=1
 
 aind=gpuArray(0:1:N_a-1);
 

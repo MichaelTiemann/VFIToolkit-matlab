@@ -8,7 +8,7 @@ Policy=zeros(N_a,N_z,'gpuArray'); %first dim indexes the optimal choice for apri
 
 %%
 if vfoptions.lowmemory>0
-    special_n_z=ones(1,length(n_z));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
 end
 
 % Create a vector containing all the return function parameters (in order)

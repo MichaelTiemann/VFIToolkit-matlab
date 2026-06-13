@@ -30,7 +30,7 @@ if vfoptions.lowmemory==0
     zBind=shiftdim(gpuArray(0:1:N_z-1),-1);
     eBind=shiftdim(gpuArray(0:1:N_e-1),-2);
 elseif vfoptions.lowmemory>=1
-    special_n_e=ones(1,length(n_e));
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
     zBind=shiftdim(gpuArray(0:1:N_z-1),-1);
 end
 

@@ -8,7 +8,7 @@ Policy=zeros(N_a,N_z,N_j,'gpuArray'); %first dim indexes the optimal choice for 
 Vhat=zeros(N_a,N_z,N_j,'gpuArray'); % agent's-perspective value at QH-optimal policy under beta0beta
 
 if vfoptions.lowmemory==1
-    special_n_z=ones(1,length(n_z));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
 elseif vfoptions.lowmemory>=2
     error('vfoptions.lowmemory=K not supported for ValueFnIter_FHorz_TPath_SingleStep_QHS_raw')
 end

@@ -15,7 +15,7 @@ if vfoptions.lowmemory==0
     midpoints_jj=zeros(1,N_a,N_z,'gpuArray');
 elseif vfoptions.lowmemory==1
     midpoints_jj=zeros(1,N_a,'gpuArray');
-    special_n_z=ones(1,length(n_z));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
 elseif vfoptions.lowmemory>=2
     error('vfoptions.lowmemory>=2 not supported')
 end

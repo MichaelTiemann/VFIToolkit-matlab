@@ -14,7 +14,7 @@ Policy=zeros(3,N_a,N_z,N_j,'gpuArray'); % [d_ind; midpoint; aprimeL2ind]
 PolicyL2flag=2*ones(1,N_a,N_z,N_j,'gpuArray'); % 1=all weight to lower coarse pt, 2=usual linear weights, 3=all weight to upper coarse pt
 
 if vfoptions.lowmemory>0
-    special_n_z=ones(1,length(n_z));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
 end
 
 aind=gpuArray(0:1:N_a-1);                 % 1-by-N_a

@@ -21,10 +21,10 @@ eind=shiftdim((0:1:N_e-1),-2);
 d2ind_vec=repelem((1:1:N_d2)',N_d1,1);
 
 if vfoptions.lowmemory==1
-    special_n_z=ones(1,length(n_z));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
 elseif vfoptions.lowmemory==2
-    special_n_z=ones(1,length(n_z));
-    special_n_e=ones(1,length(n_e));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
 end
 
 level1ii=round(linspace(1,n_a1,vfoptions.level1n));

@@ -14,7 +14,7 @@ if vfoptions.lowmemory==0
     midpoints_jj=zeros(1,N_a,N_z,'gpuArray');
 elseif vfoptions.lowmemory==1 % loops over z
     midpoints_jj=zeros(1,N_a,'gpuArray');
-    special_n_z=ones(1,length(n_z));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
 end
 
 zind=shiftdim(gpuArray(0:1:N_z-1),-1);

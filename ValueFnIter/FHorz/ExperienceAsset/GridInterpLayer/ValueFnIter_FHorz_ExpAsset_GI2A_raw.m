@@ -25,7 +25,7 @@ N_a1fine=length(a1prime_grid);
 d2ind_vec=repelem((1:1:N_d2)',N_d1,1); % [N_d, 1]
 
 if vfoptions.lowmemory>0
-    special_n_z=ones(1,length(n_z));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
 else
     aind=gpuArray(0:1:N_a-1);
     zindB=shiftdim(gpuArray(0:1:N_z-1),-1);

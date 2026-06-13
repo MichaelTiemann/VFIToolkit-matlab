@@ -40,7 +40,7 @@ if vfoptions.lowmemory==0
     zBind=shiftdim(gpuArray(0:1:N_z-1),-4); % already includes -1
 elseif vfoptions.lowmemory==1
     midpoints_jj=zeros(N_d,1,N_a2,N_a1,N_a2,'gpuArray');
-    special_n_z=ones(1,length(n_z),'gpuArray');
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 end
 
 %% j=N_j

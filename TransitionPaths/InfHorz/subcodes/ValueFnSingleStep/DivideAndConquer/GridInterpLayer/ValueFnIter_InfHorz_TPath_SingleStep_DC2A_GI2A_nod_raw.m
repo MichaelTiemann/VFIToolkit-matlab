@@ -16,7 +16,7 @@ if vfoptions.lowmemory==0
     midpoints=zeros(1,N_a2,N_a1,N_a2,N_z,'gpuArray');
 elseif vfoptions.lowmemory==1 % loops over z
     midpoints=zeros(1,N_a2,N_a1,N_a2,'gpuArray');
-    special_n_z=ones(1,length(n_z));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
 end
 
 

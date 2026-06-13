@@ -22,7 +22,7 @@ if vfoptions.lowmemory==0
     % precompute
     eind=shiftdim((0:1:N_e-1),-1); % already includes -1
 else
-    special_n_e=ones(1,length(n_e));
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
 end
 
 % n-Monotonicity

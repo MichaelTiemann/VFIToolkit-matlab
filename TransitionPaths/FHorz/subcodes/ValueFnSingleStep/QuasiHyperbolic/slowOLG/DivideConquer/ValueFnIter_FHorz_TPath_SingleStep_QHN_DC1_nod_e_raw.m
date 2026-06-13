@@ -17,10 +17,10 @@ if vfoptions.lowmemory==0
     loweredgesize=[1,1,N_z,N_e];
 elseif vfoptions.lowmemory==1
     loweredgesize=[1,1,N_z];
-    special_n_e=ones(1,length(n_e));
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
 elseif vfoptions.lowmemory==2
-    special_n_e=ones(1,length(n_e));
-    special_n_z=ones(1,length(n_z));
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
 elseif vfoptions.lowmemory>=3
     error('vfoptions.lowmemory>=3 not supported for ValueFnIter_FHorz_TPath_SingleStep_QHN_DC1_nod_e_raw')
 end

@@ -50,7 +50,7 @@ if vfoptions.lowmemory==0
 
 elseif vfoptions.lowmemory==1
 
-    special_n_e=ones(1,length(n_e));
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
     V=zeros(N_a*N_j,N_z,N_e,vfoptions.precision,'gpuArray');
     Policy=zeros(N_a,N_j,N_z,N_e,'gpuArray');
     Vhat=zeros(N_a*N_j,N_z,N_e,'gpuArray');
@@ -73,8 +73,8 @@ elseif vfoptions.lowmemory==1
     end
 elseif vfoptions.lowmemory==2
 
-    special_n_e=ones(1,length(n_e));
-    special_n_z=ones(1,length(n_z));
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
     V=zeros(N_a*N_j,N_z,N_e,vfoptions.precision,'gpuArray');
     Policy=zeros(N_a,N_j,N_z,N_e,'gpuArray');
     Vhat=zeros(N_a*N_j,N_z,N_e,'gpuArray');

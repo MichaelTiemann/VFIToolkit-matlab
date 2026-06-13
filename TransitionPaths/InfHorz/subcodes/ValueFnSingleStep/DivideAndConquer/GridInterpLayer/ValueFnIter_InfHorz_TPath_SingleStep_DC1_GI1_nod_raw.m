@@ -8,7 +8,7 @@ if vfoptions.lowmemory==0
     midpoints=zeros(1,N_a,N_z,'gpuArray');
 elseif vfoptions.lowmemory==1 % loops over z
     midpoints=zeros(1,N_a,'gpuArray');
-    special_n_z=ones(1,length(n_z));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
 end
 
 % n-Monotonicity

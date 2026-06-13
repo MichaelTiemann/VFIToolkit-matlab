@@ -28,7 +28,7 @@ d3_gridvals=CreateGridvals(n_d3,d3_grid,1);
 a_gridvals=CreateGridvals(n_a,a_grid,1);
 
 if vfoptions.lowmemory>0
-    special_n_e=ones(1,length(n_e));
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
 end
 if vfoptions.lowmemory>1
     l_z=length(n_z);

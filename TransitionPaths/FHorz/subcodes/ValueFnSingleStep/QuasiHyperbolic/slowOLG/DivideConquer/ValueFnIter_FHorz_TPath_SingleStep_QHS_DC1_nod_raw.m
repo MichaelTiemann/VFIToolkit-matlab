@@ -12,7 +12,7 @@ Vhat=zeros(N_a,N_z,N_j,'gpuArray'); % agent's-perspective value (beta0*beta-disc
 if vfoptions.lowmemory==0
     loweredgesize=[1,1,N_z];
 elseif vfoptions.lowmemory==1
-    special_n_z=ones(1,length(n_z));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
 elseif vfoptions.lowmemory>=2
     error('vfoptions.lowmemory>=2 not supported')
 end

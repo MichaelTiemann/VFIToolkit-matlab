@@ -17,7 +17,7 @@ a2_gridvals=CreateGridvals(n_a2,a2_grid,1);
 % a1prime_gridvals=a1_gridvals;
 
 if vfoptions.lowmemory>0
-    special_n_z=ones(1,length(n_z));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
 end
 
 % Create a vector containing all the return function parameters (in order)

@@ -22,7 +22,7 @@ if vfoptions.lowmemory==0
     zind=shiftdim((0:1:N_z-1),-3); % already includes -1
     zBind=shiftdim((0:1:N_z-1),-1); % already includes -1
 else
-    special_n_z=ones(1,length(n_z));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
 end
 
 % n-Monotonicity

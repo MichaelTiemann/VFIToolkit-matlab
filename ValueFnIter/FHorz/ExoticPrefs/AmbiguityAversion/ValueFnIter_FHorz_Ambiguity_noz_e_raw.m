@@ -10,7 +10,7 @@ Policy=zeros(N_a,N_e,N_j,'gpuArray'); %first dim indexes the optimal choice for 
 %%
 
 if vfoptions.lowmemory==1
-    special_n_e=ones(1,length(n_e));
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
 end
 
 ambiguity_pi_e_J=shiftdim(ambiguity_pi_e_J,-1); % Move to second dimensionfor e_c=1:n_e (normally -2, but no z so -1)

@@ -36,7 +36,7 @@ a1_gridvals=a1_grid; % already a column vector
 d13_gridvals=CreateGridvals(n_d13,d13_grid,1);
 
 if vfoptions.lowmemory==1
-    special_n_z=ones(1,length(n_z));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
 end
 
 % Grid interpolation

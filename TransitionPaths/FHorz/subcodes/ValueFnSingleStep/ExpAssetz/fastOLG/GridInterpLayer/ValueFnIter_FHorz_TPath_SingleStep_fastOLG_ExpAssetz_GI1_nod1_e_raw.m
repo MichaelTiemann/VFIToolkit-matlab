@@ -144,7 +144,7 @@ if vfoptions.lowmemory==0
 
 elseif vfoptions.lowmemory==1
     V=zeros(N_a,N_j,N_z,N_e,vfoptions.precision,'gpuArray');
-    special_n_e=ones(1,length(n_e),'gpuArray');
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 
     for e_c=1:N_e
         e_val=e_gridvals_J(1,1,1,1,1,:,e_c,:);
@@ -183,8 +183,8 @@ elseif vfoptions.lowmemory==1
     end
 elseif vfoptions.lowmemory==2
     V=zeros(N_a,N_j,N_z,N_e,vfoptions.precision,'gpuArray');
-    special_n_z=ones(1,length(n_z),'gpuArray');
-    special_n_e=ones(1,length(n_e),'gpuArray');
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 
     for z_c=1:N_z
         z_val=z_gridvals_J(1,1,1,1,:,z_c,:);

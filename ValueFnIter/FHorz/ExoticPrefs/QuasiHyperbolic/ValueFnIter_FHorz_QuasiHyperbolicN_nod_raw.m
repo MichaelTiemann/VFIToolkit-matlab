@@ -18,7 +18,7 @@ Policyalt=zeros(N_a,N_z,N_j,'gpuArray'); % exponential discounter optimal choice
 
 %%
 if vfoptions.lowmemory>0
-    special_n_z=ones(1,length(n_z));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
 end
 
 %% j=N_j

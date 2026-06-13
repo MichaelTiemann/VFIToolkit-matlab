@@ -65,7 +65,7 @@ DiscountedEV=reshape(DiscountFactor_J,[1,1,1,1,N_j]).*EV; % [N_a1,N_a2,1,1,N_j,N
 
 
 %% Loop over e (lowmemory-style; z stays vectorized inside)
-special_n_e=ones(1,length(n_e));
+special_n_e=ones(1,length(n_e),vfoptions.precision);
 for e_c=1:N_e
     e_vals=e_gridvals_J(1,1,1,1,:,1,e_c,:); % [1,1,1,1,N_j,1,1,l_e]
 

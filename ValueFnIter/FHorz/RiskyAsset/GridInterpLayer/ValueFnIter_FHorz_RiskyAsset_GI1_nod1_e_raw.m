@@ -28,10 +28,10 @@ a1_gridvals=a1_grid;
 d3_gridvals=CreateGridvals(n_d3,d3_grid,1);
 
 if vfoptions.lowmemory>=1
-    special_n_e=ones(1,length(n_e),'gpuArray');
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 if vfoptions.lowmemory==2
-    special_n_z=ones(1,length(n_z));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
 end
 
 % Setup for GI
@@ -226,7 +226,7 @@ else % V_Jplus1
         Policy(1,:,:,:,N_j)=d2index_resh(lin);
 
     elseif vfoptions.lowmemory>=1
-        special_n_e=ones(1,length(n_e));
+        special_n_e=ones(1,length(n_e),vfoptions.precision);
         for e_c=1:N_e
             e_val=e_gridvals_J(e_c,:,N_j);
             % Layer 1: full ReturnMatrix max for initial midpoint
@@ -350,7 +350,7 @@ for reverse_j=1:N_j-1
         Policy(1,:,:,:,jj)=d2index_resh(lin);
 
     elseif vfoptions.lowmemory>=1
-        special_n_e=ones(1,length(n_e));
+        special_n_e=ones(1,length(n_e),vfoptions.precision);
         for e_c=1:N_e
             e_val=e_gridvals_J(e_c,:,jj);
             % Layer 1: full ReturnMatrix max for initial midpoint

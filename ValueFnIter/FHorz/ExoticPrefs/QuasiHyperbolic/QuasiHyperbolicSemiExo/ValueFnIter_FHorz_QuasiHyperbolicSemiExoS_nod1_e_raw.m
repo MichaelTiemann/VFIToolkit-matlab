@@ -19,7 +19,7 @@ Policy=zeros(2,N_a,N_semiz*N_z,N_e,N_j,'gpuArray'); % d2, aprime
 special_n_d2=ones(1,length(n_d2));
 
 if vfoptions.lowmemory==1
-    special_n_e=ones(1,length(n_e));
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
 elseif vfoptions.lowmemory==2
     error('vfoptions.lowmemory=2 not supported with semi-exogenous states');
 end

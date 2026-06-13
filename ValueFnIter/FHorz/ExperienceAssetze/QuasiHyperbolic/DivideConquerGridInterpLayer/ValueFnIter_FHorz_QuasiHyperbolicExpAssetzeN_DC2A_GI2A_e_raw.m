@@ -28,12 +28,12 @@ if vfoptions.lowmemory==0
     midpoint    =zeros(N_d,1,N_a2,N_a1,N_a2,N_a3,N_z,N_e,'gpuArray');
     midpoint_alt=zeros(N_d,1,N_a2,N_a1,N_a2,N_a3,N_z,N_e,'gpuArray');
 elseif vfoptions.lowmemory==1
-    special_n_z=ones(1,length(n_z));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
     midpoint_z    =zeros(N_d,1,N_a2,N_a1,N_a2,N_a3,1,N_e,'gpuArray');
     midpoint_alt_z=zeros(N_d,1,N_a2,N_a1,N_a2,N_a3,1,N_e,'gpuArray');
 elseif vfoptions.lowmemory==2
-    special_n_z=ones(1,length(n_z));
-    special_n_e=ones(1,length(n_e));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
     midpoint_ze    =zeros(N_d,1,N_a2,N_a1,N_a2,N_a3,'gpuArray');
     midpoint_alt_ze=zeros(N_d,1,N_a2,N_a1,N_a2,N_a3,'gpuArray');
 end

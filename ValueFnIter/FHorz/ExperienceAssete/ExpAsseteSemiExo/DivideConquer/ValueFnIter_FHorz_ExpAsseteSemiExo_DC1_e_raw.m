@@ -36,7 +36,7 @@ if vfoptions.lowmemory==0
     eBind=shiftdim((0:1:N_e-1),-2); % for allind
     eind=shiftdim((0:1:N_e-1),-4); % for d2aprimez stride into 6D DiscountedEV
 else
-    special_n_e=ones(1,length(n_e));
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
 end
 
 if vfoptions.lowmemory>1
