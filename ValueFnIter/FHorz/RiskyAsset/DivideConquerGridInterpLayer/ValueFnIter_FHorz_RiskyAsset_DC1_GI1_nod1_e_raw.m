@@ -493,7 +493,7 @@ end
 
 
 %% Switch Policy(3,:) from 'midpoint' to 'lower grid index'
-adjust=(Policy(4,:,:,:,)<1+n2short+1);
+adjust=cast2index(Policy(4,:,:,:,)<1+n2short+1);
 Policy(3,:,:,:,)=Policy(3,:,:,:,)-adjust;
 Policy(4,:,:,:,)=adjust.*Policy(4,:,:,:,)+(1-adjust).*(Policy(4,:,:,:,)-n2short-1);
 

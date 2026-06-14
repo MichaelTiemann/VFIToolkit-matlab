@@ -271,7 +271,7 @@ end
 
 
 %% Convert Policy(2) from midpoint to lower grid point, Policy(4) from -n2short-1:1+n2short to 1:n2short+2
-adjust=(Policy(4,:,:,:)<1+n2short+1);
+adjust=cast2index(Policy(4,:,:,:)<1+n2short+1);
 Policy(2,:,:,:)=Policy(2,:,:,:)-adjust;
 Policy(4,:,:,:)=adjust.*Policy(4,:,:,:)+(1-adjust).*(Policy(4,:,:,:)-n2short-1);
 

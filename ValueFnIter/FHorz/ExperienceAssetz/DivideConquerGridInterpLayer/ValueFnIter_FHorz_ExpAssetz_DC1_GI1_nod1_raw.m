@@ -6,6 +6,7 @@ N_a2=prod(n_a2);
 N_a=N_a1*N_a2;
 N_z=prod(n_z);
 
+cast2index=str2func(vfoptions.indexT);
 V=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(3,N_a,N_z,N_j,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for d and a1prime rest of dimensions a,z
 PolicyL2flag=2*ones(1,N_a,N_z,N_j,vfoptions.indexT,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
@@ -487,7 +488,7 @@ end
 % (which ranges -n2short-1:1:1+n2short). It is much easier to use later if
 % we switch Policy(2,:) to 'lower grid point' and then have Policy(3,:)
 % counting 0:nshort+1 up from this.
-adjust=(Policy(3,:,:,:)<1+n2short+1); % if second layer is choosing below midpoint
+adjust=cast2index(Policy(3,:,:,:)<1+n2short+1); % if second layer is choosing below midpoint
 Policy(2,:,:,:)=Policy(2,:,:,:)-adjust; % lower grid point
 Policy(3,:,:,:)=adjust.*Policy(3,:,:,:)+(1-adjust).*(Policy(3,:,:,:)-n2short-1); % from 1 (lower grid point) to 1+n2short+1 (upper grid point)
 

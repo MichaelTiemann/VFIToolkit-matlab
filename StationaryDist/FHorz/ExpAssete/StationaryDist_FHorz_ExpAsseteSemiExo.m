@@ -81,8 +81,8 @@ Policy=reshape(Policy,[size(Policy,1),N_a,N_bothze,N_j]);
 %% expassete transitions
 % Policy is currently about d and a1prime. Convert it to being about aprime
 % as that is what we need for simulation, and we can then just send it to standard Case1 commands.
-Policy_aprime=zeros(N_a,N_bothze,2,N_j,'gpuArray'); % the lower grid point
-PolicyProbs=zeros(N_a,N_bothze,2,N_j,'gpuArray'); % The third dimension is lower/upper grid point
+Policy_aprime=zeros(N_a,N_bothze,2,N_j,simoptions.indexT,'gpuArray'); % the lower grid point
+PolicyProbs=zeros(N_a,N_bothze,2,N_j,simoptions.precision,'gpuArray'); % The third dimension is lower/upper grid point
 whichisdforexpassete=length(n_d)-simoptions.l_dexperienceassete-simoptions.l_dsemiz+1:length(n_d)-simoptions.l_dsemiz;  % is just saying which is the decision variable that influences the experience asset (it is the 'second last' decision variable)
 for jj=1:N_j
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);
@@ -138,7 +138,7 @@ elseif simoptions.gridinterplayer==1
     % Policy_aprime(:,:,1:2,:) lower grid point for a1 is unchanged
     Policy_aprime(:,:,3:4,:)=Policy_aprime(:,:,3:4,:)+1; % add one to a1, to get upper grid point
 
-    aprimeProbs_upper=reshape(shiftdim((Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),1),[N_a,N_bothze,1,N_j]); % probability of upper grid point (from L2 index; end-1 because end is now L2flag)
+    aprimeProbs_upper=reshape(shiftdim(double(Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),1),[N_a,N_bothze,1,N_j]); % probability of upper grid point (from L2 index; end-1 because end is now L2flag)
     PolicyProbs(:,:,1:2,:)=PolicyProbs(:,:,1:2,:).*(1-aprimeProbs_upper); % lower a1
     PolicyProbs(:,:,3:4,:)=PolicyProbs(:,:,3:4,:).*aprimeProbs_upper; % upper a1
 

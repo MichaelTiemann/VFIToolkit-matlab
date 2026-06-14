@@ -195,7 +195,8 @@ a2primeProbs=1-aprime_residual./a2_griddiff(a2primeIndexes);
 a2primeProbs(offBottomOfGrid)=1;
 a2primeProbs(offTopOfGrid)=0;
 
-a2primeIndexes=reshape(a2primeIndexes,[N_a,N_semizze]); % Index of lower grid point
+cast2index=str2func(underlyingType(Policy));
+a2primeIndexes=cast2index(reshape(a2primeIndexes,[N_a,N_semizze])); % Index of lower grid point
 a2primeProbs=reshape(a2primeProbs,[N_a,N_semizze]); % Probability of lower grid point
 
 

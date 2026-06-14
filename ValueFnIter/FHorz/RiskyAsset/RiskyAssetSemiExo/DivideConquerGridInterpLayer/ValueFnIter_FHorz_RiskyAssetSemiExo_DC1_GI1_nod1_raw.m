@@ -22,7 +22,7 @@ N_d23=N_d2*N_d3;
 d23_grid=[d2_grid; d3_grid];
 
 V=zeros(N_a,N_bothz,N_j,vfoptions.precision,'gpuArray');
-Policy3=zeros(3,N_a,N_bothz,N_j,'gpuArray'); % (1)=d3, (2)=a1prime midpoint, (3)=L2ind
+Policy3=zeros(3,N_a,N_bothz,N_j,vfoptions.indexT,'gpuArray'); % (1)=d3, (2)=a1prime midpoint, (3)=L2ind
 PolicyL2flag=2*ones(1,N_a,N_bothz,N_j,vfoptions.indexT,'gpuArray');
 d2Policy=ones(1,N_a,N_bothz,N_j,'gpuArray');
 d4Policy=ones(1,N_a,N_bothz,N_j,'gpuArray');
@@ -124,7 +124,7 @@ end
 
 
 %% Switch Policy3(2,:) from 'midpoint' to 'lower grid index'
-adjust=(Policy3(3,:,:,:)<1+n2short+1);
+adjust=cast2index(Policy3(3,:,:,:)<1+n2short+1);
 Policy3(2,:,:,:)=Policy3(2,:,:,:)-adjust;
 Policy3(3,:,:,:)=adjust.*Policy3(3,:,:,:)+(1-adjust).*(Policy3(3,:,:,:)-n2short-1);
 

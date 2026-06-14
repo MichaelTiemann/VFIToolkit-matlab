@@ -16,7 +16,7 @@ N_bothz=prod(n_bothz);
 N_e=prod(n_e);
 
 V=zeros(N_a,N_bothz,N_e,N_j,vfoptions.precision,'gpuArray');
-Policy3=zeros(3,N_a,N_bothz,N_e,N_j,'gpuArray');
+Policy3=zeros(3,N_a,N_bothz,N_e,N_j,vfoptions.indexT,'gpuArray');
 
 %%
 bothz_gridvals_J=[repmat(semiz_gridvals_J,N_z,1,1),repelem(z_gridvals_J,N_semiz,1,1)];

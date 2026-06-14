@@ -36,8 +36,8 @@ jequaloneDistKron=gpuArray(jequaloneDistKron); % make sure it is on gpu
 % Policy is currently about d and a1prime. Convert to aprime (= a1prime kron a2prime corners).
 Policy=reshape(Policy,[size(Policy,1),N_a,N_j]);
 Kaprimepts=2^l_a2; % 2 points (upper and lower indexes) per dimension of a2
-Policy_aprime=zeros(N_a,Kaprimepts,N_j,'gpuArray');
-PolicyProbs=zeros(N_a,Kaprimepts,N_j,'gpuArray');
+Policy_aprime=zeros(N_a,Kaprimepts,N_j,simoptions.indexT,'gpuArray');
+PolicyProbs=zeros(N_a,Kaprimepts,N_j,simoptions.precision,'gpuArray');
 whichisdforexpasset=length(n_d);  % the d variable that influences the experience asset (last d)
 for jj=1:N_j
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);
@@ -103,7 +103,7 @@ elseif simoptions.gridinterplayer==1
     % Policy_aprime(:,1:2,:) lower grid point for a1 is unchanged
     Policy_aprime(:,3:4,:)=Policy_aprime(:,3:4,:)+1; % add one to a1, to get upper grid point
 
-    aprimeProbs_upper=reshape(shiftdim((Policy(end-1,:,:)-1)/(simoptions.ngridinterp+1),1),[N_a,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
+    aprimeProbs_upper=reshape(shiftdim(double(Policy(end-1,:,:)-1)/(simoptions.ngridinterp+1),1),[N_a,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
     PolicyProbs(:,1:2,:)=PolicyProbs(:,1:2,:).*(1-aprimeProbs_upper); % lower a1
     PolicyProbs(:,3:4,:)=PolicyProbs(:,3:4,:).*aprimeProbs_upper; % upper a1
 

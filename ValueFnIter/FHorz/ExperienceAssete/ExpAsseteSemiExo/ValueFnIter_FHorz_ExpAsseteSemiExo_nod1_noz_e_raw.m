@@ -13,7 +13,7 @@ N_semiz=prod(n_semiz);
 N_e=prod(n_e);
 
 V=zeros(N_a,N_semiz,N_e,N_j,vfoptions.precision,'gpuArray');
-Policy3=zeros(3,N_a,N_semiz,N_e,N_j,'gpuArray');
+Policy3=zeros(3,N_a,N_semiz,N_e,N_j,vfoptions.indexT,'gpuArray');
 
 %%
 a2_gridvals=CreateGridvals(n_a2,a2_grid,1);

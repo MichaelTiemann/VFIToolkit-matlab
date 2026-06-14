@@ -60,9 +60,9 @@ else
         Policy=reshape(Policy, [size(Policy,1),N_a,N_j]);
 
         if simoptions.gridinterplayer==0
-            Policy_aprime=zeros(N_a,1,N_j,'gpuArray');
+            Policy_aprime=zeros(N_a,1,N_j,simoptions.indexT,'gpuArray');
         elseif simoptions.gridinterplayer==1
-            Policy_aprime=zeros(N_a,2,N_j,'gpuArray'); % Policy_aprime has an additional dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
+            Policy_aprime=zeros(N_a,2,N_j,simoptions.indexT,'gpuArray'); % Policy_aprime has an additional dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
         end
 
         if l_a==1
@@ -92,9 +92,9 @@ else
             Policy_aprime(:,2,:)=Policy_aprime(:,1,:)+1; % upper index, add one to index for a1
 
             % First, get Gamma
-            PolicyProbs=zeros(N_a,2,N_j,'gpuArray');% PolicyProbs are the corresponding probabilities of each of these two.
+            PolicyProbs=zeros(N_a,2,N_j,simoptions.precision,'gpuArray');% PolicyProbs are the corresponding probabilities of each of these two.
 
-            PolicyProbs(:,2,:)=reshape((Policy(end-1,:,:)-1)/(simoptions.ngridinterp+1),[N_a,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
+            PolicyProbs(:,2,:)=reshape(double(Policy(end-1,:,:)-1)/(simoptions.ngridinterp+1),[N_a,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
             PolicyProbs(:,1,:)=1-PolicyProbs(:,2,:); % probability of lower grid point
 
             % Policy_aprime and PolicyProbs are currently [N_a,2,N_j]
@@ -115,9 +115,9 @@ else
         Policy=reshape(Policy, [size(Policy,1),N_a,N_e,N_j]);
 
         if simoptions.gridinterplayer==0
-            Policy_aprime=zeros(N_a,N_e,1,N_j,'gpuArray');
+            Policy_aprime=zeros(N_a,N_e,1,N_j,simoptions.indexT,'gpuArray');
         elseif simoptions.gridinterplayer==1
-            Policy_aprime=zeros(N_a,N_e,2,N_j,'gpuArray'); % Policy_aprime has an additional dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
+            Policy_aprime=zeros(N_a,N_e,2,N_j,simoptions.indexT,'gpuArray'); % Policy_aprime has an additional dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
         end
 
         if l_a==1
@@ -151,9 +151,9 @@ else
             Policy_aprime(:,:,2,:)=Policy_aprime(:,:,1,:)+1; % upper index, add one to index for a1
 
             % First, get Gamma
-            PolicyProbs=zeros(N_a,N_e,2,N_j,'gpuArray');% PolicyProbs are the corresponding probabilities of each of these two.
+            PolicyProbs=zeros(N_a,N_e,2,N_j,simoptions.precision,'gpuArray');% PolicyProbs are the corresponding probabilities of each of these two.
 
-            PolicyProbs(:,:,2,:)=reshape((Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),[N_a,N_e,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
+            PolicyProbs(:,:,2,:)=reshape(double(Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),[N_a,N_e,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
             PolicyProbs(:,:,1,:)=1-PolicyProbs(:,:,2,:); % probability of lower grid point
 
             % Policy_aprime and PolicyProbs are currently [N_a,N_e,2,N_j]
@@ -175,9 +175,9 @@ else
         Policy=reshape(Policy, [size(Policy,1),N_a,N_z,N_j]);
 
         if simoptions.gridinterplayer==0
-            Policy_aprime=zeros(N_a,N_z,1,N_j,'gpuArray');
+            Policy_aprime=zeros(N_a,N_z,1,N_j,simoptions.indexT,'gpuArray');
         elseif simoptions.gridinterplayer==1
-            Policy_aprime=zeros(N_a,N_z,2,N_j,'gpuArray'); % Policy_aprime has an additional dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
+            Policy_aprime=zeros(N_a,N_z,2,N_j,simoptions.indexT,'gpuArray'); % Policy_aprime has an additional dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
         end
 
         if l_a==1
@@ -208,9 +208,9 @@ else
             Policy_aprime(:,:,2,:)=Policy_aprime(:,:,1,:)+1; % upper index, add one to index for a1
 
             % First, get Gamma
-            PolicyProbs=zeros(N_a,N_z,2,N_j,'gpuArray');% PolicyProbs are the corresponding probabilities of each of these two.
+            PolicyProbs=zeros(N_a,N_z,2,N_j,simoptions.precision,'gpuArray');% PolicyProbs are the corresponding probabilities of each of these two.
 
-            PolicyProbs(:,:,2,:)=reshape((Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),[N_a,N_z,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
+            PolicyProbs(:,:,2,:)=reshape(double(Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),[N_a,N_z,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
             PolicyProbs(:,:,1,:)=1-PolicyProbs(:,:,2,:); % probability of lower grid point
 
             % Policy_aprime and PolicyProbs are currently [N_a,N_z,2,N_j]
@@ -232,9 +232,9 @@ else
         Policy=reshape(Policy, [size(Policy,1),N_a,N_z*N_e,N_j]);
 
         if simoptions.gridinterplayer==0
-            Policy_aprime=zeros(N_a,N_z*N_e,1,N_j,'gpuArray');
+            Policy_aprime=zeros(N_a,N_z*N_e,1,N_j,simoptions.indexT,'gpuArray');
         elseif simoptions.gridinterplayer==1
-            Policy_aprime=zeros(N_a,N_z*N_e,2,N_j,'gpuArray'); % Policy_aprime has an additional dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
+            Policy_aprime=zeros(N_a,N_z*N_e,2,N_j,simoptions.indexT,'gpuArray'); % Policy_aprime has an additional dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
         end
 
         if l_a==1
@@ -268,9 +268,9 @@ else
             Policy_aprime(:,:,2,:)=Policy_aprime(:,:,1,:)+1; % upper index, add one to index for a1
 
             % First, get Gamma
-            PolicyProbs=zeros(N_a,N_z*N_e,2,N_j,'gpuArray');% PolicyProbs are the corresponding probabilities of each of these two.
+            PolicyProbs=zeros(N_a,N_z*N_e,2,N_j,simoptions.precision,'gpuArray');% PolicyProbs are the corresponding probabilities of each of these two.
 
-            PolicyProbs(:,:,2,:)=reshape((Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),[N_a,N_z*N_e,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
+            PolicyProbs(:,:,2,:)=reshape(double(Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),[N_a,N_z*N_e,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
             PolicyProbs(:,:,1,:)=1-PolicyProbs(:,:,2,:); % probability of lower grid point
 
             % Policy_aprime and PolicyProbs are currently [N_a,N_z*N_e,2,N_j]
@@ -295,9 +295,9 @@ else
         N_dsemiz=size(pi_semiz_J,3);
 
         if simoptions.gridinterplayer==0
-            Policy_aprime=zeros(N_a,N_semiz,1,N_j,'gpuArray');
+            Policy_aprime=zeros(N_a,N_semiz,1,N_j,simoptions.indexT,'gpuArray');
         elseif simoptions.gridinterplayer==1
-            Policy_aprime=zeros(N_a,N_semiz,2,N_j,'gpuArray'); % Policy_aprime has an additional dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
+            Policy_aprime=zeros(N_a,N_semiz,2,N_j,simoptions.indexT,'gpuArray'); % Policy_aprime has an additional dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
         end
 
         Policy_dsemiexo=shiftdim(Policy(l_d-simoptions.l_dsemiz+1:l_d,:,:,:),1);
@@ -351,7 +351,7 @@ else
             % First, get Gamma
             PolicyProbs=zeros(N_a,N_semiz,2,N_j,'gpuArray'); % PolicyProbs are the corresponding probabilities of each of these two.
 
-            PolicyProbs(:,:,2,:)=reshape((Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),[N_a,N_semiz,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
+            PolicyProbs(:,:,2,:)=reshape(double(Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),[N_a,N_semiz,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
             PolicyProbs(:,:,1,:)=1-PolicyProbs(:,:,2,:); % probability of lower grid point
 
             N_semizshort=max(max(max(sum((pi_semiz_J>0),2))));
@@ -390,9 +390,9 @@ else
         N_dsemiz=size(pi_semiz_J,3);
 
         if simoptions.gridinterplayer==0
-            Policy_aprime=zeros(N_a,N_semiz*N_e,1,N_j,'gpuArray');
+            Policy_aprime=zeros(N_a,N_semiz*N_e,1,N_j,simoptions.indexT,'gpuArray');
         elseif simoptions.gridinterplayer==1
-            Policy_aprime=zeros(N_a,N_semiz*N_e,2,N_j,'gpuArray'); % Policy_aprime has an additional dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
+            Policy_aprime=zeros(N_a,N_semiz*N_e,2,N_j,simoptions.indexT,'gpuArray'); % Policy_aprime has an additional dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
         end
 
         Policy_dsemiexo=shiftdim(Policy(l_d-simoptions.l_dsemiz+1:l_d,:,:,:),1);
@@ -446,9 +446,9 @@ else
             Policy_aprime(:,:,2,:)=Policy_aprime(:,:,1,:)+1; % upper index, add one to index for a1
 
             % First, get Gamma
-            PolicyProbs=zeros(N_a,N_semiz*N_e,2,N_j,'gpuArray'); % PolicyProbs are the corresponding probabilities of each of these two.
+            PolicyProbs=zeros(N_a,N_semiz*N_e,2,N_j,simoptions.precision,'gpuArray'); % PolicyProbs are the corresponding probabilities of each of these two.
 
-            PolicyProbs(:,:,2,:)=reshape((Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),[N_a,N_semiz*N_e,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
+            PolicyProbs(:,:,2,:)=reshape(double(Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),[N_a,N_semiz*N_e,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
             PolicyProbs(:,:,1,:)=1-PolicyProbs(:,:,2,:); % probability of lower grid point
 
             N_semizshort=max(max(max(sum((pi_semiz_J>0),2))));
@@ -489,9 +489,9 @@ else
         N_dsemiz=size(pi_semiz_J,3);
 
         if simoptions.gridinterplayer==0
-            Policy_aprime=zeros(N_a,N_semiz*N_z,1,N_j,'gpuArray');
+            Policy_aprime=zeros(N_a,N_semiz*N_z,1,N_j,simoptions.indexT,'gpuArray');
         elseif simoptions.gridinterplayer==1
-            Policy_aprime=zeros(N_a,N_semiz*N_z,2,N_j,'gpuArray'); % Policy_aprime has an additional dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
+            Policy_aprime=zeros(N_a,N_semiz*N_z,2,N_j,simoptions.indexT,'gpuArray'); % Policy_aprime has an additional dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
         end
 
         Policy_dsemiexo=shiftdim(Policy(l_d-simoptions.l_dsemiz+1:l_d,:,:,:),1);
@@ -543,9 +543,9 @@ else
             Policy_aprime(:,:,2,:)=Policy_aprime(:,:,1,:)+1; % upper index, add one to index for a1
 
             % First, get Gamma
-            PolicyProbs=zeros(N_a,N_semiz*N_z,2,N_j,'gpuArray'); % PolicyProbs are the corresponding probabilities of each of these two.
+            PolicyProbs=zeros(N_a,N_semiz*N_z,2,N_j,simoptions.precision,'gpuArray'); % PolicyProbs are the corresponding probabilities of each of these two.
 
-            PolicyProbs(:,:,2,:)=reshape((Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),[N_a,N_semiz*N_z,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
+            PolicyProbs(:,:,2,:)=reshape(double(Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),[N_a,N_semiz*N_z,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
             PolicyProbs(:,:,1,:)=1-PolicyProbs(:,:,2,:); % probability of lower grid point
 
             N_semizshort=max(max(max(sum((pi_semiz_J>0),2))));
@@ -588,9 +588,9 @@ else
         N_dsemiz=size(pi_semiz_J,3);
 
         if simoptions.gridinterplayer==0
-            Policy_aprime=zeros(N_a,N_semiz*N_z*N_e,1,N_j,'gpuArray');
+            Policy_aprime=zeros(N_a,N_semiz*N_z*N_e,1,N_j,simoptions.indexT,'gpuArray');
         elseif simoptions.gridinterplayer==1
-            Policy_aprime=zeros(N_a,N_semiz*N_z*N_e,2,N_j,'gpuArray'); % Policy_aprime has an additional dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
+            Policy_aprime=zeros(N_a,N_semiz*N_z*N_e,2,N_j,simoptions.indexT,'gpuArray'); % Policy_aprime has an additional dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
         end
 
         Policy_dsemiexo=shiftdim(Policy(l_d-simoptions.l_dsemiz+1:l_d,:,:,:),1);
@@ -643,9 +643,9 @@ else
             Policy_aprime(:,:,2,:)=Policy_aprime(:,:,1,:)+1; % upper index, add one to index for a1
 
             % First, get Gamma
-            PolicyProbs=zeros(N_a,N_semiz*N_z*N_e,2,N_j,'gpuArray'); % PolicyProbs are the corresponding probabilities of each of these two.
+            PolicyProbs=zeros(N_a,N_semiz*N_z*N_e,2,N_j,simoptions.precision,'gpuArray'); % PolicyProbs are the corresponding probabilities of each of these two.
 
-            PolicyProbs(:,:,2,:)=reshape((Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),[N_a,N_semiz*N_z*N_e,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
+            PolicyProbs(:,:,2,:)=reshape(double(Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),[N_a,N_semiz*N_z*N_e,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
             PolicyProbs(:,:,1,:)=1-PolicyProbs(:,:,2,:); % probability of lower grid point
 
             N_semizshort=max(max(max(sum((pi_semiz_J>0),2))));

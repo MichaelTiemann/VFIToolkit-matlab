@@ -657,7 +657,7 @@ end
 % (which ranges -n2short-1:1:1+n2short). It is much easier to use later if
 % we switch Policy(1,:) to 'lower grid point' and then have Policy(2,:)
 % counting 0:nshort+1 up from this.
-adjust=(Policy(2,:,:,:,:)<1+n2short+1);
+adjust=cast2index(Policy(2,:,:,:,:)<1+n2short+1);
 Policy(1,:,:,:,:)=Policy(1,:,:,:,:)-adjust;
 Policy(2,:,:,:,:)=adjust.*Policy(2,:,:,:,:)+(1-adjust).*(Policy(2,:,:,:,:)-n2short-1);
 

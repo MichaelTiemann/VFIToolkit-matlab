@@ -377,7 +377,7 @@ for reverse_j=1:N_j-1
 end
 
 %% Post-process Policy (no d1: index encoding drops d1 slot)
-adjust=(Policy(3,:,:,:)<1+n2short+1);
+adjust=cast2index(Policy(3,:,:,:)<1+n2short+1);
 Policy(2,:,:,:)=Policy(2,:,:,:)-adjust;
 Policy(3,:,:,:)=adjust.*Policy(3,:,:,:)+(1-adjust).*(Policy(3,:,:,:)-n2short-1);
 

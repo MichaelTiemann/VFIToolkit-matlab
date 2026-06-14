@@ -132,9 +132,9 @@ elseif simoptions.experienceasset>=1
     PolicyPath=reshape(PolicyPath,[size(PolicyPath,1),N_a,N_z,T]);
 
     % Precompute
-    Policy_a2prime=zeros(N_a,N_z,2,'gpuArray'); % the lower grid point
-    PolicyProbs=zeros(N_a,N_z,2,'gpuArray'); % preallocate
-    Policy_aprime=zeros(N_a,N_z,2,'gpuArray'); % preallocate
+    Policy_a2prime=zeros(N_a,N_z,2,simoptions.indexT,simoptions.indexT,'gpuArray'); % the lower grid point
+    PolicyProbs=zeros(N_a,N_z,2,simoptions.precision,'gpuArray'); % preallocate
+    Policy_aprime=zeros(N_a,N_z,2,simoptions.indexT,'gpuArray'); % preallocate
     II2=([1:1:N_a*N_z; 1:1:N_a*N_z]'); % Index for this period (a,z), note the 2 copies
 
     if simoptions.gridinterplayer==0
@@ -152,7 +152,7 @@ elseif simoptions.experienceasset>=1
             end
 
             whichisdforexpasset=length(n_d);  % is just saying which is the decision variable that influences the experience asset (it is the 'last' decision variable)
-            aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames);
+            aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,simoptions.precision);
             [a2primeIndexes, a2primeProbs]=CreateaprimePolicyExperienceAsset(Policy,simoptions.aprimeFn, whichisdforexpasset, n_d, n_a1,n_a2, N_z, d_grid, a2_grid, aprimeFnParamsVec);
             % Note: aprimeIndexes and aprimeProbs are both [N_a,N_z]
             % Note: aprimeIndexes is always the 'lower' point (the upper points are just aprimeIndexes+1), and the aprimeProbs are the probability of this lower point (prob of upper point is just 1 minus this).

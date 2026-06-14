@@ -33,7 +33,7 @@ d23_grid=[d2_grid; d3_grid];
 
 V=zeros(N_a,N_bothz,N_j,vfoptions.precision,'gpuArray');
 % Stores (d13, a1prime midpoint, L2ind) packed; d2 and d4 added after cross-d4 max
-Policy3=zeros(3,N_a,N_bothz,N_j,'gpuArray');
+Policy3=zeros(3,N_a,N_bothz,N_j,vfoptions.indexT,'gpuArray');
 PolicyL2flag=2*ones(1,N_a,N_bothz,N_j,vfoptions.indexT,'gpuArray');
 d2Policy=ones(1,N_a,N_bothz,N_j,'gpuArray');
 d4Policy=ones(1,N_a,N_bothz,N_j,'gpuArray');
@@ -146,7 +146,7 @@ end
 
 
 %% With grid interpolation, switch Policy3(2,:) from 'midpoint' to 'lower grid index'
-adjust=(Policy3(3,:,:,:)<1+n2short+1);
+adjust=cast2index(Policy3(3,:,:,:)<1+n2short+1);
 Policy3(2,:,:,:)=Policy3(2,:,:,:)-adjust;
 Policy3(3,:,:,:)=adjust.*Policy3(3,:,:,:)+(1-adjust).*(Policy3(3,:,:,:)-n2short-1);
 

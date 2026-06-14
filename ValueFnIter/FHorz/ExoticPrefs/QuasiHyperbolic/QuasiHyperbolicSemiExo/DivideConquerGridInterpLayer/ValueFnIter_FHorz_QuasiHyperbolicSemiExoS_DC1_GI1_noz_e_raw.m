@@ -434,7 +434,7 @@ for reverse_j=1:N_j-1
 end
 
 %% Post-process Policy
-adjust=(Policy(4,:,:,:,:)<1+n2short+1);
+adjust=cast2index(Policy(4,:,:,:,:)<1+n2short+1);
 Policy(3,:,:,:,:)=Policy(3,:,:,:,:)-adjust;
 Policy(4,:,:,:,:)=adjust.*Policy(4,:,:,:,:)+(1-adjust).*(Policy(4,:,:,:,:)-n2short-1);
 

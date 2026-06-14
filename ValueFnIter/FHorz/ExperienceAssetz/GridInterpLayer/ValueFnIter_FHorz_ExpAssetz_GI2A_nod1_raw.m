@@ -312,7 +312,7 @@ end
 %% Post-process: convert "midpoint + L2 offset" into "lower coarse point + L2 ratio"
 % Currently Policy(2,:) is the midpoint, Policy(4,:) is the L2 index (ranges -n2short-1:1:1+n2short).
 % Switch Policy(2,:) to 'lower grid point', and Policy(4,:) to a 1..(n2short+2) offset.
-adjust=(Policy(4,:,:,:)<1+n2short+1); % is the L2 index below midpoint?
+adjust=cast2index(Policy(4,:,:,:)<1+n2short+1); % is the L2 index below midpoint?
 Policy(2,:,:,:)=Policy(2,:,:,:)-adjust;
 Policy(4,:,:,:)=adjust.*Policy(4,:,:,:)+(1-adjust).*(Policy(4,:,:,:)-n2short-1);
 

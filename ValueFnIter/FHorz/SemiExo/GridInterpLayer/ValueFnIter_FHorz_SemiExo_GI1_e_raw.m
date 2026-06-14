@@ -405,7 +405,7 @@ end
 % (which ranges -n2short-1:1:1+n2short). It is much easier to use later if
 % we switch Policy(3,:) to 'lower grid point' and then have Policy(4,:)
 % counting 0:nshort+1 up from this.
-adjust=(Policy(4,:,:,:,:)<1+n2short+1); % if second layer is choosing below midpoint
+adjust=cast2index(Policy(4,:,:,:,:)<1+n2short+1); % if second layer is choosing below midpoint
 Policy(3,:,:,:,:)=Policy(3,:,:,:,:)-adjust; % lower grid point
 Policy(4,:,:,:,:)=adjust.*Policy(4,:,:,:,:)+(1-adjust).*(Policy(4,:,:,:,:)-n2short-1); % from 1 (lower grid point) to 1+n2short+1 (upper grid point)
 

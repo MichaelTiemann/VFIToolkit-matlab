@@ -577,7 +577,7 @@ end
 
 
 %% Post-process
-adjust=(Policy(4,:,:,:)<1+n2short+1);
+adjust=cast2index(Policy(4,:,:,:)<1+n2short+1);
 Policy(2,:,:,:)=Policy(2,:,:,:)-adjust;
 Policy(4,:,:,:)=adjust.*Policy(4,:,:,:)+(1-adjust).*(Policy(4,:,:,:)-n2short-1);
 Policy=[Policy;PolicyL2flag];

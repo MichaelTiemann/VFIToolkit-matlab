@@ -393,7 +393,7 @@ for reverse_j=1:N_j-1
 end
 
 %% Switch Policy(3,:) from 'midpoint' to 'lower grid index' (using L2ind side)
-adjust=(Policy(4,:,:,:,:)<1+n2short+1);                                                  % L2ind strictly < n2short+2
+adjust=cast2index(Policy(4,:,:,:,:)<1+n2short+1);                                                  % L2ind strictly < n2short+2
 Policy(3,:,:,:,:)=Policy(3,:,:,:,:)-adjust;                                              % decrement midpoint when chosen-below
 Policy(4,:,:,:,:)=adjust.*Policy(4,:,:,:,:)+(1-adjust).*(Policy(4,:,:,:,:)-n2short-1);   % rebase L2ind to [1..n2short+2]
 

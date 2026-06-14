@@ -38,7 +38,7 @@ jequaloneDist=reshape(jequaloneDist,[N_a*N_bothze,1]);
 Policy=reshape(Policy,[size(Policy,1),N_a,N_bothze,N_j]);
 
 %% Policy_aprime
-% Policy_aprime=zeros(N_a,N_bothze,N_j,'gpuArray'); % the lower grid point
+% Policy_aprime=zeros(N_a,N_bothze,N_j,simoptions.indexT,'gpuArray'); % the lower grid point
 if l_a==1 % one endo state
     Policy_aprime=Policy(l_d+1,:,:,:);
 elseif l_a==2 % two endo states
@@ -87,7 +87,7 @@ elseif simoptions.gridinterplayer==1
     % Policy_aprime(:,:,1,:) lower grid point for a1 is unchanged
     Policy_aprime(:,:,2,:)=Policy_aprime(:,:,2,:)+1; % add one to a1, to get upper grid point
 
-    aprimeProbs_upper=reshape(shiftdim((Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),1),[N_a,N_bothze,1,N_j]); % probability of upper grid point (from L2 index; end-1 because end is now L2flag)
+    aprimeProbs_upper=reshape(shiftdim(double(Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),1),[N_a,N_bothze,1,N_j]); % probability of upper grid point (from L2 index; end-1 because end is now L2flag)
     PolicyProbs(:,:,1,:)=PolicyProbs(:,:,1,:).*(1-aprimeProbs_upper); % lower a1
     PolicyProbs(:,:,2,:)=PolicyProbs(:,:,2,:).*aprimeProbs_upper; % upper a1
 
