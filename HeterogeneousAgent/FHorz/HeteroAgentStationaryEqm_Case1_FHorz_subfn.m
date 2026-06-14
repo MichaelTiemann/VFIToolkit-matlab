@@ -64,7 +64,7 @@ end
 if heteroagentoptions.useintermediateEqns==1
     % Note: intermediateEqns just take in things from the Parameters structure, as do GeneralEqmEqns (AggVars get put into structure), hence just use the GeneralEqmConditions_Case1_v3g().
     intEqnnames=fieldnames(heteroagentoptions.intermediateEqns);
-    intermediateEqnsVec=zeros(1,length(intEqnnames));
+    intermediateEqnsVec=zeros(length(intEqnnames),1);
     % Do the intermediateEqns, in order
     for gg=1:length(intEqnnames)
         intermediateEqnsVec(gg)=real(GeneralEqmConditions_Case1_v3g(heteroagentoptions.intermediateEqnsCell{gg}, heteroagentoptions.intermediateEqnParamNames(gg).Names, Parameters));
@@ -74,7 +74,7 @@ end
 
 %% Evaluate General Eqm Eqns
 % use of real() is a hack that could disguise errors, but I couldn't find why matlab was treating output as complex
-GeneralEqmConditionsVec=zeros(1,length(GEeqnNames));
+GeneralEqmConditionsVec=zeros(length(GEeqnNames),1);
 for gg=1:length(GEeqnNames)
     GeneralEqmConditionsVec(gg)=real(GeneralEqmConditions_Case1_v3g(GeneralEqmEqnsCell{gg}, GeneralEqmEqnParamNames(gg).Names, Parameters));
 end

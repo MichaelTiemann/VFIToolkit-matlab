@@ -65,8 +65,8 @@ if ~isfield(options,'GEptype') % For models without permanent type
         end
     end
 
-    options.GEnewprice3.add=[options.GEnewprice3.howtoupdate{:,3}];
-    options.GEnewprice3.factor=[options.GEnewprice3.howtoupdate{:,4}];
+    options.GEnewprice3.add=[options.GEnewprice3.howtoupdate{:,3}]';
+    options.GEnewprice3.factor=[options.GEnewprice3.howtoupdate{:,4}]';
     options.GEnewprice3.keepold=ones(size(options.GEnewprice3.factor));
     tempweight=options.oldpathweight;
     options.oldpathweight=zeros(size(options.GEnewprice3.factor));
@@ -138,8 +138,8 @@ else
     end
     % Note: options.GEnewprice3.howtoupdate will have extra repeated rows whenever options.GEptype(gg)=1
     
-    options.GEnewprice3.add=[options.GEnewprice3.howtoupdate{:,3}];
-    options.GEnewprice3.factor=[options.GEnewprice3.howtoupdate{:,4}];
+    options.GEnewprice3.add=[options.GEnewprice3.howtoupdate{:,3}]';
+    options.GEnewprice3.factor=[options.GEnewprice3.howtoupdate{:,4}]';
     options.GEnewprice3.keepold=ones(size(options.GEnewprice3.factor));
     tempweight=options.oldpathweight;
     options.oldpathweight=zeros(size(options.GEnewprice3.factor));

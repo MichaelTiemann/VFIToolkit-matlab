@@ -470,6 +470,11 @@ for ii=1:PTypeStructure.N_i
     PTypeStructure.(iistr).ReturnFnParamNames=ReturnFnParamNames;
 
 
+    % To make all the reshaping easier
+    N_a=PTypeStructure.(iistr).N_a;
+    N_z=PTypeStructure.(iistr).N_z;
+    N_e=PTypeStructure.(iistr).N_e;
+
     %% Figure out which functions are actually relevant to the present PType. And then change to FnsToEvaluate as cell so that it is not being recomputed all the time
     % Only the relevant ones need to be evaluated.
     % The dependence of FnsToEvaluateFn and FnsToEvaluateFnParamNames are necessarily the same.
@@ -538,7 +543,7 @@ for ii=1:PTypeStructure.N_i
     end
 
     %% Organise V_final and AgentDist_initial
-    % Reshape V_final
+    % Reshape V_final; N_j_temp is not the `N_j` passed in at the start
     N_j_temp=PTypeStructure.(iistr).N_j;
     if ~isfinite(N_j_temp)
         % If no z, then N_z=1 here

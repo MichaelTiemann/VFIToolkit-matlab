@@ -179,7 +179,7 @@ end
 
 %% Evaluate General Eqm Eqns
 % use of real() is a hack that could disguise errors, but I couldn't find why matlab was treating output as complex
-GeneralEqmConditionsVec=zeros(1,length(GEeqnNames));
+GeneralEqmConditionsVec=zeros(length(GEeqnNames),1);
 for gg=1:length(GEeqnNames)
     GeneralEqmConditionsVec(gg)=real(GeneralEqmConditions_Case1_v3g(GeneralEqmEqnsCell{gg}, GeneralEqmEqnParamNames(gg).Names, Parameters));
 end
