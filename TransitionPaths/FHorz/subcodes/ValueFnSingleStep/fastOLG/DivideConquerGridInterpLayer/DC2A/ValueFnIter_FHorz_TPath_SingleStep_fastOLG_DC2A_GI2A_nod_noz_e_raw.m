@@ -58,7 +58,7 @@ eind  =shiftdim(gpuArray(0:1:N_e-1),-2); % [1,1,1,N_e]
 
 DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j),2);
 
-ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 % V is (N_a*N_j, N_e); e is i.i.d., integrate it out using pi_e_J.
 if vfoptions.EVpre==0

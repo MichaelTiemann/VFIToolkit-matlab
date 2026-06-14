@@ -56,7 +56,7 @@ Vtemp_j=V(:,:,N_j);
 %% j=N_j
 
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 
 midpoints_Nj=zeros(N_d2,1,N_a,N_semiz*N_z,'gpuArray');
@@ -117,8 +117,8 @@ for reverse_j=1:N_j-1
     jj=N_j-reverse_j;
 
     % Create a vector containing all the return function parameters (in order)
-    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
+    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj,vfoptions.precision);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
     VKronNext_j=Vtemp_j; % Has been presaved before it was replaced

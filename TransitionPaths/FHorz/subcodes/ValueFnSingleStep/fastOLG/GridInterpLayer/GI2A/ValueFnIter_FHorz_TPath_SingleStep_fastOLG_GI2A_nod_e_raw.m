@@ -63,7 +63,7 @@ eind =shiftdim(gpuArray(0:1:N_e-1),-3);   % (1,1,1,1,N_e)
 %% Age-matrix params and discount
 DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j),2);
 
-ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 %% Build next-period expected value (V-shift trick, no reverse_j loop)
 % V is (N_a*N_j, N_z, N_e). First integrate over e' using pi_e_J (i.i.d.), then

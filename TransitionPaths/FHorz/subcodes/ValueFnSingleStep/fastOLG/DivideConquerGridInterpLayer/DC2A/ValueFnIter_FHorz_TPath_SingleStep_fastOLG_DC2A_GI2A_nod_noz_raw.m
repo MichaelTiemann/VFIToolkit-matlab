@@ -44,7 +44,7 @@ midpoints_jj=zeros(1,N_a2,N_a1,N_a2,N_j,'gpuArray');
 
 DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j),2);
 
-ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 if vfoptions.EVpre==0
     EV=zeros(N_a,N_j,vfoptions.precision,'gpuArray');

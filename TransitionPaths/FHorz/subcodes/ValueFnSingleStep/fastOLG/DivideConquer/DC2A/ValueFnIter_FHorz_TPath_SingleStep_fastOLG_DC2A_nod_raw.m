@@ -43,7 +43,7 @@ zBind=shiftdim(gpuArray(0:1:N_z-1),-4); % sits at dim 6 (N_z) of aprimeindexes, 
 DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j),2);
 
 % Create a matrix containing all the return function parameters (in order).
-ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 if vfoptions.EVpre==0
     EVpre=zeros(N_a1,N_a2,1,1,N_j,N_z);

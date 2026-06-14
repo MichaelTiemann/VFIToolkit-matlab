@@ -59,7 +59,7 @@ Vnext=sum(V.*pi_e_J(1,1,:,[1,1:end-1]),3); % Take expectations over e: Vnext(:,:
 %% j=N_j
 
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 if vfoptions.lowmemory==0
     midpoints_Nj=zeros(N_d2,1,N_a,N_semiz,N_e,'gpuArray');
@@ -176,8 +176,8 @@ for reverse_j=1:N_j-1
     jj=N_j-reverse_j;
 
     % Create a vector containing all the return function parameters (in order)
-    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
+    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj,vfoptions.precision);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
     EV=Vnext(:,:,1,jj+1); % e expectations already taken (from the next time-period V)

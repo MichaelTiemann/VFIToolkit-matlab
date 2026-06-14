@@ -38,7 +38,7 @@ jBind=shiftdim(gpuArray(0:1:N_j-1),-3); % [1,1,1,1,N_j] age offset in aprimej (d
 %% Create the big 'next period (of transition path) expected value fn',
 % integrating out the i.i.d. e shock.
 
-ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j),2);
 

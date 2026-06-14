@@ -48,7 +48,7 @@ zBind =shiftdim(gpuArray(0:1:N_z-1),-5);  % [1,1,1,1,1,1,N_z] z offset in aprime
 
 DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j),2);
 
-ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 if vfoptions.EVpre==0
     EVpre=[sum(V(N_a+1:end,:,:).*pi_e_J(1:end-N_a,:,:),3); zeros(N_a,N_z,'gpuArray')]; % (N_a*N_j, N_z); zeros at j=N_j (terminal)

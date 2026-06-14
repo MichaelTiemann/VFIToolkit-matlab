@@ -53,7 +53,7 @@ zind =shiftdim(gpuArray(0:1:N_z-1),-2);   % (1,1,1,N_z)
 %% Age-matrix params and discount
 DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j),2);
 
-ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 %% Build next-period expected value (V-shift trick, no reverse_j loop)
 if vfoptions.EVpre==0

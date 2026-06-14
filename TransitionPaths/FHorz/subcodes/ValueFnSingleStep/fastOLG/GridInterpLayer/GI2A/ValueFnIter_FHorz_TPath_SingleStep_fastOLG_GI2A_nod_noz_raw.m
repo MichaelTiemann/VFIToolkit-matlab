@@ -39,7 +39,7 @@ jBind=shiftdim(gpuArray(0:1:N_j-1),-1);   % (1,1,N_j)
 %% Age-matrix params and discount
 DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j),2);
 
-ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 %% Build next-period expected value (V-shift trick, no reverse_j loop)
 EV=zeros(N_a1,N_a2,1,1,N_j,vfoptions.precision,'gpuArray');
