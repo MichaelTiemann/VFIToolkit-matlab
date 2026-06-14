@@ -15,7 +15,7 @@ if length(temp)>(l_d2+2*l_z)
 else
     aprimeFnParamNames={};
 end
-aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames);
+aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,vfoptions.precision);
 
 N_d1=prod(n_d1);
 N_a1=prod(n_a1);

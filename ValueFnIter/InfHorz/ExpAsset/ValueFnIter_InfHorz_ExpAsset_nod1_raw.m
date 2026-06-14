@@ -18,7 +18,7 @@ V=reshape(V0,[N_a,N_z]);
 Policy=zeros(N_a,N_z,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for d and a1prime rest of dimensions a,z
 
 % for Howards, preallocate
-Ftemp=zeros(N_a,N_z,'gpuArray');
+Ftemp=zeros(N_a,N_z,vfoptions.precision,'gpuArray');
 % and we need [because of experienceasset, this is very different to usual]
 aaa=repelem(pi_z,N_a,1); % pi_z in the form we need to compute expectations in Howards (a1a2z,zprime)
 
@@ -29,7 +29,7 @@ Epi_z=shiftdim(pi_z',-2); % pi_z in the form we need it to compute the expectati
 distvstolstr=['ValueFnIter: after %i iterations the dist is %4.',num2str(-round(log10(vfoptions.tolerance))),'f \n'];
 
 %% Precompute some aspects of experienceasset
-aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames);
+aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames, vfoptions.precision);
 [a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix(aprimeFn, n_d2, n_a2, d2_grid, a2_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
 % Note: aprimeIndex is [N_d2,N_a2], whereas aprimeProbs is [N_d2,N_a2]
 
@@ -125,7 +125,8 @@ while currdist>vfoptions.tolerance && tempcounter<=vfoptions.maxiter
     tempcounter=tempcounter+1;
 end
 
-
+V=shiftdim(V,-1);
+Policy=shiftdim(Policy,-1);
 
 
 end

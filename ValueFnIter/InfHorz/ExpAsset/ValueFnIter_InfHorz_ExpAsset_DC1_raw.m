@@ -40,7 +40,7 @@ Epi_z=shiftdim(pi_z',-2); % pi_z in the form we need it to compute the expectati
 distvstolstr=['ValueFnIter: after %i iterations the dist is %4.',num2str(-round(log10(vfoptions.tolerance))),'f \n'];
 
 %% Precompute some aspects of experienceasset
-aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames);
+aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,vfoptions.precision);
 [a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix(aprimeFn, n_d2, n_a2, d2_grid, a2_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
 % Note: aprimeIndex is [N_d2,N_a2], whereas aprimeProbs is [N_d2,N_a2]
 
