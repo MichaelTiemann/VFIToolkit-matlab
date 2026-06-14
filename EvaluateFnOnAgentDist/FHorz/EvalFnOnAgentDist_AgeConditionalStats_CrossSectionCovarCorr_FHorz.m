@@ -151,7 +151,7 @@ for kk=1:ngroups
         for ff=1:numFnsToEvaluate
             Values=nan(N_a,jspan,'gpuArray');
             for jj=j1:jend
-                FnToEvaluateParamsCell=CreateCellFromParams(Parameters,FnsToEvaluateParamNames(ff).Names,jj);
+                FnToEvaluateParamsCell=CreateCellFromParams(Parameters,FnsToEvaluateParamNames(ff).Names,jj,simoptions.precision);
                 Values(:,jj-j1+1)=EvalFnOnAgentDist_Grid(FnsToEvaluate{ff}, FnToEvaluateParamsCell,PolicyValuesPermuteJ(:,:,jj),l_daprime,n_a,0,a_gridvals,[]);
             end
             ValuesCell{ff}=reshape(Values,[N_total_kk,1]);
@@ -160,7 +160,7 @@ for kk=1:ngroups
         for ff=1:numFnsToEvaluate
             Values=nan(N_a,N_z,jspan,'gpuArray');
             for jj=j1:jend
-                FnToEvaluateParamsCell=CreateCellFromParams(Parameters,FnsToEvaluateParamNames(ff).Names,jj);
+                FnToEvaluateParamsCell=CreateCellFromParams(Parameters,FnsToEvaluateParamNames(ff).Names,jj,simoptions.precision);
                 Values(:,:,jj-j1+1)=EvalFnOnAgentDist_Grid(FnsToEvaluate{ff}, FnToEvaluateParamsCell,PolicyValuesPermuteJ(:,:,:,jj),l_daprime,n_a,n_z,a_gridvals,z_gridvals_J(:,:,jj));
             end
             ValuesCell{ff}=reshape(Values,[N_total_kk,1]);

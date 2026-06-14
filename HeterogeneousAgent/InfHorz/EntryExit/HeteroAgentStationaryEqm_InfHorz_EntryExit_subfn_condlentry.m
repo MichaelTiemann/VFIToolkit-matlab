@@ -104,7 +104,7 @@ end
 % Evaluate the conditional equilibrium condition on the (potential entrants) grid,
 % and where it is >=0 use this to set new values for the
 % EntryExitParamNames.CondlEntryDecisions parameter.
-CondlEntryCondnEqnParamsVec=CreateVectorFromParams(Parameters, CondlEntryCondnEqnParamNames);
+CondlEntryCondnEqnParamsVec=CreateVectorFromParams(Parameters, CondlEntryCondnEqnParamNames,simoptions.precision);
 CondlEntryCondnEqnParamsCell=cell(length(CondlEntryCondnEqnParamsVec),1);
 for jj=1:length(CondlEntryCondnEqnParamsVec)
     CondlEntryCondnEqnParamsCell(jj,1)={CondlEntryCondnEqnParamsVec(jj)};

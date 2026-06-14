@@ -25,6 +25,13 @@ if isfield(simoptions,'d_grid')
 else
     error('To use an experience asset you must define simoptions.d_grid')
 end
+if ~isfield(simoptions,'precision')
+    simoptions.precision='double';
+end
+if ~isfield(simoptions,'indexT')
+    simoptions.indexT='double';
+end
+cast2index=str2func(simoptions.indexT);
 
 % aprimeFnParamNames in same fashion
 l_d2=length(n_d2);
@@ -99,10 +106,10 @@ for jj=1:N_j
     if l_a2==1
         for c=1:Kaprimepts
             if c==1
-                a2Kron=aprimeIndexes;
+                a2Kron=cast2index(aprimeIndexes);
                 pcorner=aprimeProbs;
             else
-                a2Kron=aprimeIndexes+1;
+                a2Kron=cast2index(aprimeIndexes+1);
                 pcorner=1-aprimeProbs;
             end
             if l_a1==0

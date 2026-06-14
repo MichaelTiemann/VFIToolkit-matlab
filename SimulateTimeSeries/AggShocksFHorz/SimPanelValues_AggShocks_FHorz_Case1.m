@@ -295,7 +295,7 @@ for tt=1:simoptions.timeperiods
                     if isempty(FnsToEvaluateParamNames(vv).Names)  % check for 'FnsToEvaluateParamNames={}'
                         ParamCell={};
                     else
-                        ValuesFnParamsVec=CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(vv).Names,jj);
+                        ValuesFnParamsVec=CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(vv).Names,jj,simoptions.precision);
                         ParamCell=num2cell(ValuesFnParamsVec);
                     end
                     daprime_val=daprimePolicy_gridvals(az_ind,:,jj);
@@ -332,7 +332,7 @@ for tt=1:simoptions.timeperiods
                     if isempty(FnsToEvaluateParamNames(vv).Names)  % check for 'FnsToEvaluateParamNames={}'
                         ParamCell={};
                     else
-                        ValuesFnParamsVec=CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(vv).Names,jj);
+                        ValuesFnParamsVec=CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(vv).Names,jj,simoptions.precision);
                         ParamCell=num2cell(ValuesFnParamsVec);
                     end
                     daprime_val=daprimePolicy_gridvals(az_ind,:,jj);

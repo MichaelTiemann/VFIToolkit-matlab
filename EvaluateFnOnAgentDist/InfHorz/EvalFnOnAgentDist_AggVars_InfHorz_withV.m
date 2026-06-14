@@ -52,7 +52,7 @@ if Parallel==2
         if isempty(FnsToEvaluateParamNames(i).Names)  % check for 'FnsToEvaluateParamNames={}'
             FnToEvaluateParamsVec=[];
         else
-            FnToEvaluateParamsVec=gpuArray(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(i).Names));
+            FnToEvaluateParamsVec=gpuArray(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(i).Names,simoptions.precision));
         end
         Values=EvalFnOnAgentDist_Grid_InfHorz_withV(V,FnsToEvaluate{i}, FnToEvaluateParamsVec,PolicyValuesPermute,n_d,n_a,n_z,a_grid,z_grid,Parallel);
         Values=reshape(Values,[N_a*N_z,1]);
@@ -93,7 +93,7 @@ else
                 temp=Values.*StationaryDistVec;
                 AggVars(i)=sum(temp(~isnan(temp)));
             else
-                FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(i).Names));
+                FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(i).Names,simoptions.precision));
                 Values=zeros(N_a*N_z,1);
                 for ii=1:N_a*N_z
                     %        j1j2=ind2sub_homemade([N_a,N_z],ii); % Following two lines just do manual implementation of this.
@@ -127,7 +127,7 @@ else
                 temp=Values.*StationaryDistVec;
                 AggVars(i)=sum(temp(~isnan(temp)));
             else
-                FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(i).Names));
+                FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(i).Names,simoptions.precision));
                 Values=zeros(N_a*N_z,1);
                 for ii=1:N_a*N_z
                     %        j1j2=ind2sub_homemade([N_a,N_z],ii); % Following two lines just do manual implementation of this.
@@ -240,7 +240,7 @@ if isfield(simoptions,'conditionalrestrictions')
             else
                 Values=zeros(N_a*N_z,1);
                 if l_d==0
-                    FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(kk).Names));
+                    FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(kk).Names,simoptions.precision));
                     Values=zeros(N_a*N_z,1);
                     for ii=1:N_a*N_z
                         j1=rem(ii-1,N_a)+1;
@@ -248,7 +248,7 @@ if isfield(simoptions,'conditionalrestrictions')
                         Values(ii)=FnsToEvaluate{kk}(aprime_gridvals{j1+(j2-1)*N_a,:},a_gridvals{j1,:},z_gridvals{j2,:},FnToEvaluateParamsCell{:});
                     end
                 else % l_d>0
-                    FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(kk).Names));
+                    FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(kk).Names,simoptions.precision));
                     for ii=1:N_a*N_z
                         j1=rem(ii-1,N_a)+1;
                         j2=ceil(ii/N_a);

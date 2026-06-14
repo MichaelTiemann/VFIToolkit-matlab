@@ -76,7 +76,7 @@ else
         pi_z=[];
         % Now just do z_gridvals
         if isfield(options,'ExogShockFn')
-            ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames);
+            ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames,options.precision);
             ExogShockFnParamsCell=cell(length(ExogShockFnParamsVec),1);
             for ii=1:length(ExogShockFnParamsVec)
                 ExogShockFnParamsCell(ii,1)={ExogShockFnParamsVec(ii)};
@@ -95,7 +95,7 @@ else
         z_gridvals=[];
         % Now just do pi_z_J
         if isfield(options,'ExogShockFn')
-            ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames);
+            ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames,options.precision);
             ExogShockFnParamsCell=cell(length(ExogShockFnParamsVec),1);
             for ii=1:length(ExogShockFnParamsVec)
                 ExogShockFnParamsCell(ii,1)={ExogShockFnParamsVec(ii)};
@@ -106,7 +106,7 @@ else
     elseif gridpiboth==3
         % For value fn, both z_gridvals_J and pi_z_J
         if isfield(options,'ExogShockFn')
-            ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames);
+            ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames,options.precision);
             ExogShockFnParamsCell=cell(length(ExogShockFnParamsVec),1);
             for ii=1:length(ExogShockFnParamsVec)
                 ExogShockFnParamsCell(ii,1)={ExogShockFnParamsVec(ii)};
@@ -142,7 +142,7 @@ else
         options.pi_e=[];
         % Now just do e_gridvals_J
         if isfield(options,'EiidShockFn')
-            EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames);
+            EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames,options.precision);
             EiidShockFnParamsCell=cell(length(EiidShockFnParamsVec),1);
             for ii=1:length(EiidShockFnParamsVec)
                 EiidShockFnParamsCell(ii,1)={EiidShockFnParamsVec(ii)};
@@ -161,7 +161,7 @@ else
         options.e_gridvals=[];
         % Now just do pi_e_J
         if isfield(options,'EiidShockFn')
-            EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames);
+            EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames,options.precision);
             EiidShockFnParamsCell=cell(length(EiidShockFnParamsVec),1);
             for ii=1:length(EiidShockFnParamsVec)
                 EiidShockFnParamsCell(ii,1)={EiidShockFnParamsVec(ii)};
@@ -172,7 +172,7 @@ else
     elseif gridpiboth==3
         % For value fn, both e_gridvals_J and pi_e_J
         if isfield(options,'EiidShockFn')
-            EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames);
+            EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames,options.precision);
             EiidShockFnParamsCell=cell(length(EiidShockFnParamsVec),1);
             for ii=1:length(EiidShockFnParamsVec)
                 EiidShockFnParamsCell(ii,1)={EiidShockFnParamsVec(ii)};

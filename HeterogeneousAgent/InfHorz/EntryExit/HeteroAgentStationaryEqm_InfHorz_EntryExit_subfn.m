@@ -111,7 +111,7 @@ if specialgeneqmcondnsused==1
             % Evaluate the conditional equilibrium condition on the (potential entrants) grid,
             % and where it is >=0 use this to set new values for the
             % EntryExitParamNames.CondlEntryDecisions parameter.
-            CondlEntryCondnEqnParamsVec=CreateVectorFromParams(Parameters, CondlEntryCondnEqnParamNames(2:end)); % The first entry of CondlEntryCondnEqnParamNames must be the value function
+            CondlEntryCondnEqnParamsVec=CreateVectorFromParams(Parameters, CondlEntryCondnEqnParamNames(2:end),simoptions.precision); % The first entry of CondlEntryCondnEqnParamNames must be the value function
             CondlEntryCondnEqnParamsCell=num2cell(CondlEntryCondnEqnParamsVec);
             Parameters.(EntryExitParamNames.CondlEntryDecisions{1})=(CondlEntryCondnEqn(V,CondlEntryCondnEqnParamsCell{:}) >=0);
         else
@@ -119,7 +119,7 @@ if specialgeneqmcondnsused==1
             % Evaluate the conditional equilibrium condition on the (potential entrants) grid,
             % and where it is >=0 use this to set new values for the
             % EntryExitParamNames.CondlEntryDecisions parameter.
-            CondlEntryCondnEqnParamsVec=CreateVectorFromParams(Parameters, CondlEntryCondnEqnParamNames(1).Names);
+            CondlEntryCondnEqnParamsVec=CreateVectorFromParams(Parameters, CondlEntryCondnEqnParamNames(1).Names,simoptions.precision);
             CondlEntryCondnEqnParamsCell=cell(length(CondlEntryCondnEqnParamsVec),1);
             for jj=1:length(CondlEntryCondnEqnParamsVec)
                 CondlEntryCondnEqnParamsCell(jj,1)={CondlEntryCondnEqnParamsVec(jj)};

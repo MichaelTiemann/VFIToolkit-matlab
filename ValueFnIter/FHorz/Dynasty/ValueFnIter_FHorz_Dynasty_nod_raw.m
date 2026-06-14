@@ -28,8 +28,8 @@ while currdist>vfoptions.tolerance
 
 
         % Create a vector containing all the return function parameters (in order)
-        ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
-        DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
+        ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj,vfoptions.precision);
+        DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj,vfoptions.precision);
         DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
         if reverse_j==0 % So j==N_j

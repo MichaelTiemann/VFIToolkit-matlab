@@ -152,7 +152,7 @@ if zdependsonptype==0
             z_gridvals_J=zeros(prod(n_z),length(n_z),N_j,'gpuArray');
             if isfield(options,'ExogShockFn')
                 for jj=1:N_j
-                    ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames,jj);
+                    ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames,jj,options.precision);
                     ExogShockFnParamsCell=cell(length(ExogShockFnParamsVec),1);
                     for ii=1:length(ExogShockFnParamsVec)
                         ExogShockFnParamsCell(ii,1)={ExogShockFnParamsVec(ii)};
@@ -187,7 +187,7 @@ if zdependsonptype==0
             pi_z_J=zeros(prod(n_z),prod(n_z),N_j,'gpuArray');
             if isfield(options,'ExogShockFn')
                 for jj=1:N_j
-                    ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames,jj);
+                    ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames,jj,options.precision);
                     ExogShockFnParamsCell=cell(length(ExogShockFnParamsVec),1);
                     for ii=1:length(ExogShockFnParamsVec)
                         ExogShockFnParamsCell(ii,1)={ExogShockFnParamsVec(ii)};
@@ -206,7 +206,7 @@ if zdependsonptype==0
             pi_z_J=zeros(prod(n_z),prod(n_z),N_j,'gpuArray');
             if isfield(options,'ExogShockFn')
                 for jj=1:N_j
-                    ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames,jj);
+                    ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames,jj,options.precision);
                     ExogShockFnParamsCell=cell(length(ExogShockFnParamsVec),1);
                     for ii=1:length(ExogShockFnParamsVec)
                         ExogShockFnParamsCell(ii,1)={ExogShockFnParamsVec(ii)};
@@ -288,7 +288,7 @@ elseif zdependsonptype==1
                 z_gridvals_J_temp=zeros(prod(n_z_temp),length(n_z_temp),N_j_temp,'gpuArray');
                 if isfield(options,'ExogShockFn')
                     for jj=1:N_j_temp
-                        ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames.(Names_i{ii}),jj);
+                        ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames.(Names_i{ii}),jj,options.precision);
                         ExogShockFnParamsCell=cell(length(ExogShockFnParamsVec),1);
                         for pp=1:length(ExogShockFnParamsVec)
                             ExogShockFnParamsCell(pp,1)={ExogShockFnParamsVec(pp)};
@@ -325,7 +325,7 @@ elseif zdependsonptype==1
                 pi_z_J_temp=zeros(prod(n_z_temp),prod(n_z_temp),N_j_temp,'gpuArray');
                 if isfield(options,'ExogShockFn')
                     for jj=1:N_j_temp
-                        ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames.(Names_i{ii}),jj);
+                        ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames.(Names_i{ii}),jj,options.precision);
                         ExogShockFnParamsCell=cell(length(ExogShockFnParamsVec),1);
                         for pp=1:length(ExogShockFnParamsVec)
                             ExogShockFnParamsCell(pp,1)={ExogShockFnParamsVec(pp)};
@@ -345,7 +345,7 @@ elseif zdependsonptype==1
                 pi_z_J_temp=zeros(prod(n_z_temp),prod(n_z_temp),N_j_temp,'gpuArray');
                 if isfield(options,'ExogShockFn')
                     for jj=1:N_j_temp
-                        ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames.(Names_i{ii}),jj);
+                        ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames.(Names_i{ii}),jj,options.precision);
                         ExogShockFnParamsCell=cell(length(ExogShockFnParamsVec),1);
                         for pp=1:length(ExogShockFnParamsVec)
                             ExogShockFnParamsCell(pp,1)={ExogShockFnParamsVec(pp)};
@@ -421,7 +421,7 @@ elseif zdependsonptype==2 % dependence of ptype via last dimension of matrix for
                 z_gridvals_J_temp=zeros(prod(n_z_temp),length(n_z_temp),N_j_temp,'gpuArray');
                 if isfield(options,'ExogShockFn')
                     for jj=1:N_j_temp
-                        ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames.(Names_i{ii}),jj);
+                        ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames.(Names_i{ii}),jj,options.precision);
                         ExogShockFnParamsCell=cell(length(ExogShockFnParamsVec),1);
                         for pp=1:length(ExogShockFnParamsVec)
                             ExogShockFnParamsCell(pp,1)={ExogShockFnParamsVec(pp)};
@@ -476,7 +476,7 @@ elseif zdependsonptype==2 % dependence of ptype via last dimension of matrix for
                 pi_z_J_temp=zeros(prod(n_z_temp),prod(n_z_temp),N_j_temp,'gpuArray');
                 if isfield(options,'ExogShockFn')
                     for jj=1:N_j_temp
-                        ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames.(Names_i{ii}),jj);
+                        ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames.(Names_i{ii}),jj,options.precision);
                         ExogShockFnParamsCell=cell(length(ExogShockFnParamsVec),1);
                         for pp=1:length(ExogShockFnParamsVec)
                             ExogShockFnParamsCell(pp,1)={ExogShockFnParamsVec(pp)};
@@ -499,7 +499,7 @@ elseif zdependsonptype==2 % dependence of ptype via last dimension of matrix for
                 pi_z_J_temp=zeros(prod(n_z_temp),prod(n_z_temp),N_j_temp,'gpuArray');
                 if isfield(options,'ExogShockFn')
                     for jj=1:N_j_temp
-                        ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames.(Names_i{ii}),jj);
+                        ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames.(Names_i{ii}),jj,options.precision);
                         ExogShockFnParamsCell=cell(length(ExogShockFnParamsVec),1);
                         for pp=1:length(ExogShockFnParamsVec)
                             ExogShockFnParamsCell(pp,1)={ExogShockFnParamsVec(pp)};
@@ -577,7 +577,7 @@ if edependsonptype==0
             options.e_gridvals_J=zeros(prod(options.n_e),length(options.n_e),N_j,'gpuArray');
             if isfield(options,'EiidShockFn')
                 for jj=1:N_j
-                    EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames,jj);
+                    EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames,jj,options.precision);
                     EiidShockFnParamsCell=cell(length(EiidShockFnParamsVec),1);
                     for ii=1:length(EiidShockFnParamsVec)
                         EiidShockFnParamsCell(ii,1)={EiidShockFnParamsVec(ii)};
@@ -612,7 +612,7 @@ if edependsonptype==0
             options.pi_e_J=zeros(prod(options.n_e),N_j,'gpuArray');
             if isfield(options,'EiidShockFn')
                 for jj=1:N_j
-                    EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames,jj);
+                    EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames,jj,options.precision);
                     EiidShockFnParamsCell=cell(length(EiidShockFnParamsVec),1);
                     for ii=1:length(EiidShockFnParamsVec)
                         EiidShockFnParamsCell(ii,1)={EiidShockFnParamsVec(ii)};
@@ -630,7 +630,7 @@ if edependsonptype==0
             options.pi_e_J=zeros(prod(options.n_e),N_j,'gpuArray');
             if isfield(options,'EiidShockFn')
                 for jj=1:N_j
-                    EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames,jj);
+                    EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames,jj,options.precision);
                     EiidShockFnParamsCell=cell(length(EiidShockFnParamsVec),1);
                     for ii=1:length(EiidShockFnParamsVec)
                         EiidShockFnParamsCell(ii,1)={EiidShockFnParamsVec(ii)};
@@ -708,7 +708,7 @@ elseif edependsonptype==1
                 e_gridvals_J_temp=zeros(prod(n_e_temp),length(n_e_temp),N_j_temp,'gpuArray');
                 if isfield(options,'EiidShockFn')
                     for jj=1:N_j_temp
-                        EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames.(Names_i{ii}),jj);
+                        EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames.(Names_i{ii}),jj,options.precision);
                         EiidShockFnParamsCell=cell(length(EiidShockFnParamsVec),1);
                         for pp=1:length(EiidShockFnParamsVec)
                             EiidShockFnParamsCell(pp,1)={EiidShockFnParamsVec(pp)};
@@ -745,7 +745,7 @@ elseif edependsonptype==1
                 pi_e_J_temp=zeros(prod(n_e_temp),N_j_temp,'gpuArray');
                 if isfield(options,'EiidShockFn')
                     for jj=1:N_j_temp
-                        EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames.(Names_i{ii}),jj);
+                        EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames.(Names_i{ii}),jj,options.precision);
                         EiidShockFnParamsCell=cell(length(EiidShockFnParamsVec),1);
                         for pp=1:length(EiidShockFnParamsVec)
                             EiidShockFnParamsCell(pp,1)={EiidShockFnParamsVec(pp)};
@@ -765,7 +765,7 @@ elseif edependsonptype==1
 
                 if isfield(options,'EiidShockFn')
                     for jj=1:N_j_temp
-                        EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames.(Names_i{ii}),jj);
+                        EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames.(Names_i{ii}),jj,options.precision);
                         EiidShockFnParamsCell=cell(length(EiidShockFnParamsVec),1);
                         for pp=1:length(EiidShockFnParamsVec)
                             EiidShockFnParamsCell(pp,1)={EiidShockFnParamsVec(pp)};
@@ -837,7 +837,7 @@ elseif edependsonptype==2 % dependence of ptype via last dimension of matrix for
                 e_gridvals_J_temp=zeros(prod(n_e_temp),length(n_e_temp),N_j_temp,'gpuArray');
                 if isfield(options,'EiidShockFn')
                     for jj=1:N_j_temp
-                        EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames.(Names_i{ii}),jj);
+                        EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames.(Names_i{ii}),jj,options.precision);
                         EiidShockFnParamsCell=cell(length(EiidShockFnParamsVec),1);
                         for pp=1:length(EiidShockFnParamsVec)
                             EiidShockFnParamsCell(pp,1)={EiidShockFnParamsVec(pp)};
@@ -891,7 +891,7 @@ elseif edependsonptype==2 % dependence of ptype via last dimension of matrix for
                 pi_e_J_temp=zeros(prod(n_e_temp),N_j_temp,'gpuArray');
                 if isfield(options,'EiidShockFn')
                     for jj=1:N_j_temp
-                        EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames.(Names_i{ii}),jj);
+                        EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames.(Names_i{ii}),jj,options.precision);
                         EiidShockFnParamsCell=cell(length(EiidShockFnParamsVec),1);
                         for pp=1:length(EiidShockFnParamsVec)
                             EiidShockFnParamsCell(pp,1)={EiidShockFnParamsVec(pp)};
@@ -912,7 +912,7 @@ elseif edependsonptype==2 % dependence of ptype via last dimension of matrix for
                 pi_e_J_temp=zeros(prod(n_e_temp),N_j_temp,'gpuArray');
                 if isfield(options,'EiidShockFn')
                     for jj=1:N_j_temp
-                        EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames.(Names_i{ii}),jj);
+                        EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames.(Names_i{ii}),jj,options.precision);
                         EiidShockFnParamsCell=cell(length(EiidShockFnParamsVec),1);
                         for pp=1:length(EiidShockFnParamsVec)
                             EiidShockFnParamsCell(pp,1)={EiidShockFnParamsVec(pp)};

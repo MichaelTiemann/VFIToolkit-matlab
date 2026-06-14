@@ -157,7 +157,7 @@ for kk=1:length(simoptions.agegroupings)
                         Values(ll,jj-j1+1)=FnsToEvaluate{ii}(d_gridvals{l1+(l2-1)*N_a,:},aprime_gridvals{l1+(l2-1)*N_a,:},a_gridvals{l1,:},z_gridvals{l2,:});
                     end
                 else
-                    FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(ii).Names,jj));
+                    FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(ii).Names,jj,simoptions.precision));
                     for ll=1:N_a*N_ze
                         %        j1j2=ind2sub_homemade([N_a,N_z],ii); % Following two lines just do manual implementation of this.
                         l1=rem(ll-1,N_a)+1;
@@ -178,7 +178,7 @@ for kk=1:length(simoptions.agegroupings)
                         Values(ll,jj-j1+1)=FnsToEvaluate{ii}(aprime_gridvals{l1+(l2-1)*N_a,:},a_gridvals{l1,:},z_gridvals{l2,:});
                     end
                 else
-                    FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(ii).Names,jj));
+                    FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(ii).Names,jj,simoptions.precision));
                     for ll=1:N_a*N_ze
                         l1=rem(ll-1,N_a)+1;
                         l2=ceil(ll/N_a);

@@ -64,7 +64,7 @@ Policy_aprime=zeros(N_a,N_ze,2,N_j,simoptions.indexT,'gpuArray'); % the lower gr
 PolicyProbs=zeros(N_a,N_ze,2,N_j,simoptions.precision,'gpuArray'); % The third dimension is lower/upper grid point
 whichisdforexpassete=length(n_d)-simoptions.l_dexperienceassete+1:length(n_d);  % is just saying which is the decision variable that influences the experience asset (it is the 'last' decision variable)
 for jj=1:N_j
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj,simoptions.precision);
     [aprimeIndexes, aprimeProbs]=CreateaprimePolicyExperienceAssete(Policy(:,:,:,jj),simoptions.aprimeFn, whichisdforexpassete, n_d, n_a1,n_a2, simoptions.n_e, 0,N_z,N_e, d_grid, a2_grid, simoptions.e_gridvals_J(:,:,jj), aprimeFnParamsVec);
     % Note: aprimeIndexes and aprimeProbs are both [N_a,N_ze] with z varying fastest -- matches N_ze=[n_z,n_e] ordering.
     % Note: aprimeIndexes is always the 'lower' point (the upper points are just aprimeIndexes+1), and the aprimeProbs are the probability of this lower point (prob of upper point is just 1 minus this).

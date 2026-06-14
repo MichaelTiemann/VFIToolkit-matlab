@@ -80,7 +80,7 @@ elseif fieldexists_ExogShockFn==1
     z_grid_J=zeros(sum(n_z),N_j);
     for jj=1:N_j
         if fieldexists_ExogShockFnParamNames==1
-            ExogShockFnParamsVec=CreateVectorFromParams(Parameters, simoptions.ExogShockFnParamNames,jj);
+            ExogShockFnParamsVec=CreateVectorFromParams(Parameters, simoptions.ExogShockFnParamNames,jj,simoptions.precision);
             ExogShockFnParamsCell=num2cell(ExogShockFnParamsVec);
             [z_grid,~]=simoptions.ExogShockFn(ExogShockFnParamsCell{:});
         else
@@ -120,7 +120,7 @@ if prod(simoptions.n_e)>0
         e_grid_J=zeros(sum(simoptions.n_e),N_j);
         for jj=1:N_j
             if fieldexists_EiidShockFnParamNames==1
-                EiidShockFnParamsVec=CreateVectorFromParams(Parameters, simoptions.EiidShockFnParamNames,jj);
+                EiidShockFnParamsVec=CreateVectorFromParams(Parameters, simoptions.EiidShockFnParamNames,jj,simoptions.precision);
                 EiidShockFnParamsCell=cell(length(EiidShockFnParamsVec),1);
                 for ii=1:length(EiidShockFnParamsVec)
                     EiidShockFnParamsCell(ii,1)={EiidShockFnParamsVec(ii)};
@@ -269,7 +269,7 @@ if N_e>0 && simoptions.lowmemory==1
                     if isempty(FnsToEvaluateParamNames(ii).Names) % || strcmp(FnsToEvaluateParamNames(1),'')) % check for 'FnsToEvaluateParamNames={}'
                         FnToEvaluateParamsVec=[];
                     else
-                        FnToEvaluateParamsVec=gpuArray(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(ii).Names,jj));
+                        FnToEvaluateParamsVec=gpuArray(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(ii).Names,jj,simoptions.precision));
                     end
                     Values(:,j_p,tt)=reshape(EvalFnOnAgentDist_Grid_InfHorz(FnsToEvaluate{ii}, [FnToEvaluateParamsVec,e_val],PolicyValuesPermuteVec_temp,n_d,n_a,n_z,a_grid,z_grid,Parallel),[N_a*N_z,1]);
                 end
@@ -322,7 +322,7 @@ else % either no e vars, or just lowmemory=0
                 if isempty(FnsToEvaluateParamNames(ii).Names) % || strcmp(FnsToEvaluateParamNames(1),'')) % check for 'FnsToEvaluateParamNames={}'
                     FnToEvaluateParamsVec=[];
                 else
-                    FnToEvaluateParamsVec=gpuArray(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(ii).Names,jj));
+                    FnToEvaluateParamsVec=gpuArray(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(ii).Names,jj,simoptions.precision));
                 end
                 Values(:,j_p,tt)=reshape(EvalFnOnAgentDist_Grid_InfHorz(FnsToEvaluate{ii}, FnToEvaluateParamsVec,PolicyValuesPermuteVec_temp,n_d,n_a,n_z,a_grid,z_grid,Parallel),[N_a*N_z,1]);
             end

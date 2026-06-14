@@ -33,7 +33,7 @@ if vfoptions.lowmemory==0
         % Using V_Jplus1
         V_Jplus1=reshape(vfoptions.V_Jplus1,[N_a,N_e]);    % First, switch V_Jplus1 into Kron form
 
-        DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+        DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
         DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
         V_Jplus1=sum(V_Jplus1.*pi_e_J(1,:,N_j),2);
@@ -61,9 +61,9 @@ if vfoptions.lowmemory==0
         end
 
         % Create a vector containing all the return function parameters (in order)
-        ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
+        ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj,vfoptions.precision);
         TemptationFnParamsVec=CreateVectorFromParams(Parameters, TemptationFnParamNames,jj);
-        DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
+        DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj,vfoptions.precision);
         DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
         EV=V(:,:,jj+1);
@@ -112,7 +112,7 @@ elseif vfoptions.lowmemory==1
         % Using V_Jplus1
         V_Jplus1=reshape(vfoptions.V_Jplus1,[N_a,N_e]);    % First, switch V_Jplus1 into Kron form
 
-        DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+        DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
         DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
         V_Jplus1=sum(V_Jplus1.*pi_e_J(1,:,N_j),2);
@@ -141,9 +141,9 @@ elseif vfoptions.lowmemory==1
         end
 
         % Create a vector containing all the return function parameters (in order)
-        ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
+        ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj,vfoptions.precision);
         TemptationFnParamsVec=CreateVectorFromParams(Parameters, TemptationFnParamNames,jj);
-        DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
+        DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj,vfoptions.precision);
         DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
         EV=V(:,:,jj+1);

@@ -80,7 +80,7 @@ d2index_ford4_jj=ones(N_a,N_bothz,N_d4,'gpuArray');
 
 %% j=N_j
 
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     % Terminal: only ReturnFn matters; d2 meaningless (set to 1). Run GI search on ReturnMatrix alone, looping over d4 to mirror SemiExo baseline.
@@ -145,7 +145,7 @@ if ~isfield(vfoptions,'V_Jplus1')
     % Cross-d4 max
     [V(:,:,N_j),Policy(:,:,N_j),~]=combine_across_d4(V_ford4_jj,Policy_ford4_jj,d2index_ford4_jj,flag_ford4_jj,N_a,N_bothz,N_d4,N_d1,N_d2,N_d3,N_d13,N_d,N_a1,n2short);
 else
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
     EVpre=reshape(vfoptions.V_Jplus1,[N_a,N_bothz]);
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
@@ -172,11 +172,11 @@ for reverse_j=1:N_j-1
         fprintf('Finite horizon: %i of %i \n',jj, N_j)
     end
 
-    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
+    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj,vfoptions.precision);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a2, n_u, d23_grid, a2_grid, u_grid, aprimeFnParamsVec,2);
 
     EVnext=V(:,:,jj+1);

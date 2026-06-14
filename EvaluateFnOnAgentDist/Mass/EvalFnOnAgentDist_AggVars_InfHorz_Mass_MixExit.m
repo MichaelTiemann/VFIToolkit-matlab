@@ -150,7 +150,7 @@ else
                     end
                 end
             else
-                FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(ff).Names));
+                FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(ff).Names,simoptions.precision));
 
                 for ii=1:N_a*N_z
                     j1=rem(ii-1,N_a)+1;
@@ -214,7 +214,7 @@ else
                     end
                 end
             else
-                FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(ff).Names));
+                FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(ff).Names,simoptions.precision));
 
                 for ii=1:N_a*N_z
                     j1=rem(ii-1,N_a)+1;

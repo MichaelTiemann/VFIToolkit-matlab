@@ -216,7 +216,7 @@ for ii=1:N_i
         z_grid_J=zeros(sum(n_z_temp),N_j_temp);
         for jj=1:N_j_temp
             if isfield(simoptions_temp,'ExogShockFnParamNames')
-                ExogShockFnParamsVec=CreateVectorFromParams(Parameters_temp, simoptions_temp.ExogShockFnParamNames,jj);
+                ExogShockFnParamsVec=CreateVectorFromParams(Parameters_temp, simoptions_temp.ExogShockFnParamNames,jj,simoptions.precision);
                 ExogShockFnParamsCell=cell(length(ExogShockFnParamsVec),1);
                 for xx=1:length(ExogShockFnParamsVec)
                     ExogShockFnParamsCell(xx,1)={ExogShockFnParamsVec(xx)};
@@ -250,7 +250,7 @@ for ii=1:N_i
             e_grid_J=zeros(sum(n_e_temp),N_j_temp);
             for jj=1:N_j_temp
                 if isfield(simoptions_temp,'EiidShockFnParamNames')
-                    EiidShockFnParamsVec=CreateVectorFromParams(Parameters_temp, simoptions_temp.EiidShockFnParamNames,jj);
+                    EiidShockFnParamsVec=CreateVectorFromParams(Parameters_temp, simoptions_temp.EiidShockFnParamNames,jj,simoptions.precision);
                     EiidShockFnParamsCell=cell(length(EiidShockFnParamsVec),1);
                     for xx=1:length(EiidShockFnParamsVec)
                         EiidShockFnParamsCell(xx,1)={EiidShockFnParamsVec(xx)};

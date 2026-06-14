@@ -134,7 +134,7 @@ if zdependsonptype==0
         if gridpiboth==1 % for most FnsToEvaluate, we don't use pi_z
             pi_z=[];
             if isfield(options,'ExogShockFn')
-                ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames);
+                ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames,options.precision);
                 ExogShockFnParamsCell=cell(length(ExogShockFnParamsVec),1);
                 for ii=1:length(ExogShockFnParamsVec)
                     ExogShockFnParamsCell(ii,1)={ExogShockFnParamsVec(ii)};
@@ -152,7 +152,7 @@ if zdependsonptype==0
         elseif gridpiboth==2 % For agent dist, we don't use grid
             z_gridvals=[];
             if isfield(options,'ExogShockFn')
-                ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames);
+                ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames,options.precision);
                 ExogShockFnParamsCell=cell(length(ExogShockFnParamsVec),1);
                 for ii=1:length(ExogShockFnParamsVec)
                     ExogShockFnParamsCell(ii,1)={ExogShockFnParamsVec(ii)};
@@ -163,7 +163,7 @@ if zdependsonptype==0
         elseif gridpiboth==3
             % For value fn, both z_gridvals and pi_z
             if isfield(options,'ExogShockFn')
-                ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames);
+                ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames,options.precision);
                 ExogShockFnParamsCell=cell(length(ExogShockFnParamsVec),1);
                 for ii=1:length(ExogShockFnParamsVec)
                     ExogShockFnParamsCell(ii,1)={ExogShockFnParamsVec(ii)};
@@ -218,7 +218,7 @@ elseif zdependsonptype==1
             if gridpiboth==1 % for most FnsToEvaluate, we don't use pi_z
                 pi_z_out.(Names_i{ii})=[];
                 if isfield(options,'ExogShockFn')
-                    ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames.(Names_i{ii}));
+                    ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames.(Names_i{ii}),options.precision);
                     ExogShockFnParamsCell=cell(length(ExogShockFnParamsVec),1);
                     for pp=1:length(ExogShockFnParamsVec)
                         ExogShockFnParamsCell(pp,1)={ExogShockFnParamsVec(pp)};
@@ -237,7 +237,7 @@ elseif zdependsonptype==1
             elseif gridpiboth==2 % For agent dist, we don't use grid
                 z_gridvals_out.(Names_i{ii})=[];
                 if isfield(options,'ExogShockFn')
-                    ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames.(Names_i{ii}));
+                    ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames.(Names_i{ii}),options.precision);
                     ExogShockFnParamsCell=cell(length(ExogShockFnParamsVec),1);
                     for pp=1:length(ExogShockFnParamsVec)
                         ExogShockFnParamsCell(pp,1)={ExogShockFnParamsVec(pp)};
@@ -248,7 +248,7 @@ elseif zdependsonptype==1
                 pi_z_out.(Names_i{ii})=gather(pi_z_temp); % Agent distribution iteration is performed on cpu
             elseif gridpiboth==3
                 if isfield(options,'ExogShockFn')
-                    ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames.(Names_i{ii}));
+                    ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames.(Names_i{ii}),options.precision);
                     ExogShockFnParamsCell=cell(length(ExogShockFnParamsVec),1);
                     for pp=1:length(ExogShockFnParamsVec)
                         ExogShockFnParamsCell(pp,1)={ExogShockFnParamsVec(pp)};
@@ -297,7 +297,7 @@ elseif zdependsonptype==2 % dependence of ptype via last dimension of matrix for
             if gridpiboth==1 % for most FnsToEvaluate, we don't use pi_z
                 pi_z_out.(Names_i{ii})=[];
                 if isfield(options,'ExogShockFn')
-                    ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames.(Names_i{ii}));
+                    ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames.(Names_i{ii}),options.precision);
                     ExogShockFnParamsCell=cell(length(ExogShockFnParamsVec),1);
                     for pp=1:length(ExogShockFnParamsVec)
                         ExogShockFnParamsCell(pp,1)={ExogShockFnParamsVec(pp)};
@@ -332,7 +332,7 @@ elseif zdependsonptype==2 % dependence of ptype via last dimension of matrix for
             elseif gridpiboth==2 % For agent dist, we don't use grid
                 z_gridvals_out.(Names_i{ii})=[];
                 if isfield(options,'ExogShockFn')
-                    ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames.(Names_i{ii}));
+                    ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames.(Names_i{ii}),options.precision);
                     ExogShockFnParamsCell=cell(length(ExogShockFnParamsVec),1);
                     for pp=1:length(ExogShockFnParamsVec)
                         ExogShockFnParamsCell(pp,1)={ExogShockFnParamsVec(pp)};
@@ -346,7 +346,7 @@ elseif zdependsonptype==2 % dependence of ptype via last dimension of matrix for
                 pi_z_out.(Names_i{ii})=gather(pi_z_temp); % Agent distribution iteration is performed on cpu
             elseif gridpiboth==3
                 if isfield(options,'ExogShockFn')
-                    ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames.(Names_i{ii}));
+                    ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames.(Names_i{ii}),options.precision);
                     ExogShockFnParamsCell=cell(length(ExogShockFnParamsVec),1);
                     for pp=1:length(ExogShockFnParamsVec)
                         ExogShockFnParamsCell(pp,1)={ExogShockFnParamsVec(pp)};
@@ -402,7 +402,7 @@ if edependsonptype==0
         if gridpiboth==1 % for most FnsToEvaluate, we don't use pi_e
             options.pi_e=[];
             if isfield(options,'EiidShockFn')
-                EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames);
+                EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames,options.precision);
                 EiidShockFnParamsCell=cell(length(EiidShockFnParamsVec),1);
                 for ii=1:length(EiidShockFnParamsVec)
                     EiidShockFnParamsCell(ii,1)={EiidShockFnParamsVec(ii)};
@@ -420,7 +420,7 @@ if edependsonptype==0
         elseif gridpiboth==2 % For agent dist, we don't use grid
             options.e_gridvals=[];
             if isfield(options,'EiidShockFn')
-                EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames);
+                EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames,options.precision);
                 EiidShockFnParamsCell=cell(length(EiidShockFnParamsVec),1);
                 for ii=1:length(EiidShockFnParamsVec)
                     EiidShockFnParamsCell(ii,1)={EiidShockFnParamsVec(ii)};
@@ -430,7 +430,7 @@ if edependsonptype==0
             options.pi_e=gather(options.pi_e); % Agent distribution iteration is performed on cpu
         elseif gridpiboth==3
             if isfield(options,'EiidShockFn')
-                EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames);
+                EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames,options.precision);
                 EiidShockFnParamsCell=cell(length(EiidShockFnParamsVec),1);
                 for ii=1:length(EiidShockFnParamsVec)
                     EiidShockFnParamsCell(ii,1)={EiidShockFnParamsVec(ii)};
@@ -484,7 +484,7 @@ elseif edependsonptype==1
             if gridpiboth==1 % for most FnsToEvaluate, we don't use pi_e
                 pi_e_out.(Names_i{ii})=[];
                 if isfield(options,'EiidShockFn')
-                    EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames.(Names_i{ii}));
+                    EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames.(Names_i{ii}),options.precision);
                     EiidShockFnParamsCell=cell(length(EiidShockFnParamsVec),1);
                     for pp=1:length(EiidShockFnParamsVec)
                         EiidShockFnParamsCell(pp,1)={EiidShockFnParamsVec(pp)};
@@ -503,7 +503,7 @@ elseif edependsonptype==1
             elseif gridpiboth==2 % For agent dist, we don't use grid
                 e_gridvals_out.(Names_i{ii})=[];
                 if isfield(options,'EiidShockFn')
-                    EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames.(Names_i{ii}));
+                    EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames.(Names_i{ii}),options.precision);
                     EiidShockFnParamsCell=cell(length(EiidShockFnParamsVec),1);
                     for pp=1:length(EiidShockFnParamsVec)
                         EiidShockFnParamsCell(pp,1)={EiidShockFnParamsVec(pp)};
@@ -514,7 +514,7 @@ elseif edependsonptype==1
                 pi_e_out.(Names_i{ii})=gather(pi_e_temp); % Agent distribution iteration is performed on cpu
             elseif gridpiboth==3
                 if isfield(options,'EiidShockFn')
-                    EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames.(Names_i{ii}));
+                    EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames.(Names_i{ii}),options.precision);
                     EiidShockFnParamsCell=cell(length(EiidShockFnParamsVec),1);
                     for pp=1:length(EiidShockFnParamsVec)
                         EiidShockFnParamsCell(pp,1)={EiidShockFnParamsVec(pp)};
@@ -563,7 +563,7 @@ elseif edependsonptype==2 % dependence of ptype via last dimension of matrix for
             if gridpiboth==1 % for most FnsToEvaluate, we don't use pi_e
                 pi_e_out.(Names_i{ii})=[];
                 if isfield(options,'EiidShockFn')
-                    EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames.(Names_i{ii}));
+                    EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames.(Names_i{ii}),options.precision);
                     EiidShockFnParamsCell=cell(length(EiidShockFnParamsVec),1);
                     for pp=1:length(EiidShockFnParamsVec)
                         EiidShockFnParamsCell(pp,1)={EiidShockFnParamsVec(pp)};
@@ -598,7 +598,7 @@ elseif edependsonptype==2 % dependence of ptype via last dimension of matrix for
             elseif gridpiboth==2 % For agent dist, we don't use grid
                 e_gridvals_out.(Names_i{ii})=[];
                 if isfield(options,'EiidShockFn')
-                    EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames.(Names_i{ii}));
+                    EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames.(Names_i{ii}),options.precision);
                     EiidShockFnParamsCell=cell(length(EiidShockFnParamsVec),1);
                     for pp=1:length(EiidShockFnParamsVec)
                         EiidShockFnParamsCell(pp,1)={EiidShockFnParamsVec(pp)};
@@ -612,7 +612,7 @@ elseif edependsonptype==2 % dependence of ptype via last dimension of matrix for
                 pi_e_out.(Names_i{ii})=gather(pi_e_temp); % Agent distribution iteration is performed on cpu
             elseif gridpiboth==3
                 if isfield(options,'EiidShockFn')
-                    EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames.(Names_i{ii}));
+                    EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames.(Names_i{ii}),options.precision);
                     EiidShockFnParamsCell=cell(length(EiidShockFnParamsVec),1);
                     for pp=1:length(EiidShockFnParamsVec)
                         EiidShockFnParamsCell(pp,1)={EiidShockFnParamsVec(pp)};

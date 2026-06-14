@@ -190,7 +190,7 @@ if N_z>0
                 pi_z_J=zeros(N_z,N_z,N_j,'gpuArray');
                 z_grid_J=zeros(N_z,N_j,'gpuArray');
                 for jj=1:N_j
-                    ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames,jj);
+                    ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames,jj,options.precision);
                     ExogShockFnParamsCell=cell(length(ExogShockFnParamsVec),1);
                     for ii=1:length(ExogShockFnParamsVec)
                         ExogShockFnParamsCell(ii,1)={ExogShockFnParamsVec(ii)};
@@ -211,7 +211,7 @@ if N_z>0
                     end
                     % Note, we know the PricePath is irrelevant for the current purpose
                     for jj=1:N_j
-                        ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames,jj);
+                        ExogShockFnParamsVec=CreateVectorFromParams(Parameters, options.ExogShockFnParamNames,jj,options.precision);
                         ExogShockFnParamsCell=cell(length(ExogShockFnParamsVec),1);
                         for ii=1:length(ExogShockFnParamsVec)
                             ExogShockFnParamsCell(ii,1)={ExogShockFnParamsVec(ii)};
@@ -538,7 +538,7 @@ if N_e>0
                 pi_e_J=zeros(N_e,N_j,'gpuArray');
                 e_grid_J=zeros(N_e,N_j,'gpuArray');
                 for jj=1:N_j
-                    EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames,jj);
+                    EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames,jj,options.precision);
                     EiidShockFnParamsCell=cell(length(EiidShockFnParamsVec),1);
                     for ii=1:length(EiidShockFnParamsVec)
                         EiidShockFnParamsCell(ii,1)={EiidShockFnParamsVec(ii)};
@@ -559,7 +559,7 @@ if N_e>0
                     end
                     % Note, we know the PricePath is irrelevant for the current purpose
                     for jj=1:N_j
-                        EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames,jj);
+                        EiidShockFnParamsVec=CreateVectorFromParams(Parameters, options.EiidShockFnParamNames,jj,options.precision);
                         EiidShockFnParamsCell=cell(length(EiidShockFnParamsVec),1);
                         for ii=1:length(EiidShockFnParamsVec)
                             EiidShockFnParamsCell(ii,1)={EiidShockFnParamsVec(ii)};

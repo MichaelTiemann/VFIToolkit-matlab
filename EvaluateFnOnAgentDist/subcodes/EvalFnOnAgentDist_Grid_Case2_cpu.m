@@ -27,7 +27,7 @@ if isempty(FnToEvaluateParamNames.Names) % check for 'FnsToEvaluateParamNames={}
     end
 else
     Values=zeros(N_a*N_z,1);
-    FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnToEvaluateParamNames.Names));
+    FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnToEvaluateParamNames.Names,simoptions.precision));
     for ii=1:N_a*N_z
         %                 j1j2=ind2sub_homemade([N_a,N_z],ii); % Following two lines just do manual implementation of this.
         j1=rem(ii-1,N_a)+1;

@@ -122,7 +122,7 @@ elseif Parallel==1
                 end
                 ValuesOnGrid.(AggVarNames{ff})=reshape(Values,[n_a,n_z]);
             else
-                FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(ff).Names));
+                FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(ff).Names,simoptions.precision));
                 Values=zeros(N_a*N_z,1);
                 for ii=1:N_a*N_z
                     j1=rem(ii-1,N_a)+1;
@@ -148,7 +148,7 @@ elseif Parallel==1
                 % 0) we get 'NaN'. Use temp as intermediate variable just eliminate those.
                 ValuesOnGrid.(AggVarNames{ff})=reshape(Values,[n_a,n_z]);
             else
-                FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(ff).Names));
+                FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(ff).Names,simoptions.precision));
                 Values=zeros(N_a*N_z,1);
                 for ii=1:N_a*N_z
                     j1=rem(ii-1,N_a)+1;

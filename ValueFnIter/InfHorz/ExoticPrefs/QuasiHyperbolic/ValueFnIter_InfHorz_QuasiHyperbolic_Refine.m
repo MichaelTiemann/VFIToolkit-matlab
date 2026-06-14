@@ -35,13 +35,13 @@ else
 end
 
 %% Recover dstar at chosen aprime, packing (d_idx, aprime_idx) into (2,N_a,N_z) Policy
-PolicyKron=zeros(2, N_a, N_z, 'gpuArray');
+PolicyKron=zeros(2,N_a,N_z,vfoptions.indexT,'gpuArray');
 PolicyKron(2,:,:)=shiftdim(Policy_a, -1);
 temppolicyindex=reshape(Policy_a, [1, N_a*N_z])+(0:1:N_a*N_z-1)*N_a;
 PolicyKron(1,:,:)=reshape(dstar(temppolicyindex), [N_a, N_z]);
 
 if isNaive
-    PolicyaltKron=zeros(2, N_a, N_z, 'gpuArray');
+    PolicyaltKron=zeros(2,N_a,N_z,vfoptions.indexT,'gpuArray');
     PolicyaltKron(2,:,:)=shiftdim(Policyalt_a, -1);
     temppolicyaltindex=reshape(Policyalt_a, [1, N_a*N_z])+(0:1:N_a*N_z-1)*N_a;
     PolicyaltKron(1,:,:)=reshape(dstar(temppolicyaltindex), [N_a, N_z]);

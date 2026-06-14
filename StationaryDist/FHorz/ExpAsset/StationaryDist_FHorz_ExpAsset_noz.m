@@ -40,7 +40,7 @@ Policy_aprime=zeros(N_a,Kaprimepts,N_j,simoptions.indexT,'gpuArray');
 PolicyProbs=zeros(N_a,Kaprimepts,N_j,simoptions.precision,'gpuArray');
 whichisdforexpasset=length(n_d);  % the d variable that influences the experience asset (last d)
 for jj=1:N_j
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj,simoptions.precision);
     [aprimeIndexes, aprimeProbs]=CreateaprimePolicyExperienceAsset(Policy(:,:,jj),simoptions.aprimeFn, whichisdforexpasset, n_d, n_a1, n_a2, 0, d_grid, a2_grid, aprimeFnParamsVec);
     % l_a2==1: aprimeIndexes/aprimeProbs are [N_a, 1] (legacy lower-corner; upper = lower+1)
     % l_a2>1 : aprimeIndexes/aprimeProbs are [N_a, Kaprimepts] (Kron fold; index in N_a2 product space)

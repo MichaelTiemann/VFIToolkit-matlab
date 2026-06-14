@@ -39,8 +39,8 @@ while currdist>vfoptions.tolerance
             jj=N_j-reverse_j;
 
             % Create a vector containing all the return function parameters (in order)
-            ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
-            DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
+            ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj,vfoptions.precision);
+            DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj,vfoptions.precision);
 
             if fieldexists_pi_z_J==1
                 z_grid=vfoptions.z_grid_J(:,jj);

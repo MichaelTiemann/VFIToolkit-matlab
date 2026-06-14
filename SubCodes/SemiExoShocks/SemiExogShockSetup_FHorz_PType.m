@@ -163,7 +163,7 @@ for ii=1:N_i
                     % Create pi_semiz_J
                     pi_semiz_J=zeros(N_semiz,N_semiz,N_dsemiz,N_j,'gpuArray');
                     for jj=1:N_j
-                        SemiExoStateFnParamValues=CreateVectorFromParams(Parameters,SemiExoStateFnParamNames,jj);
+                        SemiExoStateFnParamValues=CreateVectorFromParams(Parameters,SemiExoStateFnParamNames,jj,options.precision);
                         pi_semiz_J(:,:,:,jj)=gpuArray(CreatePiSemiZ(n_dsemiz,n_semiz_ii,dsemiz_grid,semiz_gridvals_J(:,:,jj),SemiExoStateFn_ii,SemiExoStateFnParamValues));
                     end
                 else

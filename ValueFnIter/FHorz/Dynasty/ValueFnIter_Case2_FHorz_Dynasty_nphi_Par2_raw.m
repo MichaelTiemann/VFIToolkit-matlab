@@ -51,8 +51,8 @@ while currdist>vfoptions.tolerance
             end
 
             % Create a vector containing all the return function parameters (in order)
-            ReturnFnParamsVec=[jj;CreateVectorFromParams(Parameters, ReturnFnParamNames,jj)];
-            DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
+            ReturnFnParamsVec=[jj;CreateVectorFromParams(Parameters, ReturnFnParamNames,jj,vfoptions.precision)];
+            DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj,vfoptions.precision);
 
             if reverse_j==0 % So j==N_j
                 EVpre=V(:,:,1);
@@ -129,8 +129,8 @@ while currdist>vfoptions.tolerance
             end
 
             % Create a vector containing all the return function parameters (in order)
-            ReturnFnParamsVec=[jj;CreateVectorFromParams(Parameters, ReturnFnParamNames,jj)];
-            DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
+            ReturnFnParamsVec=[jj;CreateVectorFromParams(Parameters, ReturnFnParamNames,jj,vfoptions.precision)];
+            DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj,vfoptions.precision);
 
 
             if reverse_j==0 % So j==N_j
@@ -212,8 +212,8 @@ while currdist>vfoptions.tolerance
             end
 
             % Create a vector containing all the return function parameters (in order)
-            ReturnFnParamsVec=[jj;CreateVectorFromParams(Parameters, ReturnFnParamNames,jj)];
-            DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
+            ReturnFnParamsVec=[jj;CreateVectorFromParams(Parameters, ReturnFnParamNames,jj,vfoptions.precision)];
+            DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj,vfoptions.precision);
 
             if reverse_j==0 % So j==N_j
                 EVpre=V(:,:,1);
@@ -313,8 +313,8 @@ while currdist>vfoptions.tolerance
             jj=N_j-reverse_j;
 
             % Create a vector containing all the return function parameters (in order)
-            ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
-            DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
+            ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj,vfoptions.precision);
+            DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj,vfoptions.precision);
             if vfoptions.phiaprimedependsonage==1
                 PhiaprimeParamsVec=[jj;CreateVectorFromParams(Parameters, PhiaprimeParamNames,jj)];
                 Phi_aprimeMatrix_Alt=CreatePhiaprimeMatrix_Case2_Disc_nphi_Par2(Phi_aprime, Case2_Type, n_d, n_a, n_z, d_grid, a_grid, z_grid,PhiaprimeParamsVec);

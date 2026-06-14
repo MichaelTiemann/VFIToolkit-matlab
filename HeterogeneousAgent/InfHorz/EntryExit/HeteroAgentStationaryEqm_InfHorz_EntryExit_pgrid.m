@@ -114,7 +114,7 @@ for p_c=1:N_p
             % and where it is >=0 use this to set new values for the
             % EntryExitParamNames.CondlEntryDecisions parameter.
 %             PotentialEntrantDist=Parameters.(EntryExitParamNames.DistOfNewAgents{1});
-            CondlEntryCondnEqnParamsVec=CreateVectorFromParams(Parameters, CondlEntryCondnEqnParamNames(1).Names);
+            CondlEntryCondnEqnParamsVec=CreateVectorFromParams(Parameters, CondlEntryCondnEqnParamNames(1).Names,simoptions.precision);
             CondlEntryCondnEqnParamsCell=cell(length(CondlEntryCondnEqnParamsVec),1);
             for jj=1:length(CondlEntryCondnEqnParamsVec)
                 CondlEntryCondnEqnParamsCell(jj,1)={CondlEntryCondnEqnParamsVec(jj)};

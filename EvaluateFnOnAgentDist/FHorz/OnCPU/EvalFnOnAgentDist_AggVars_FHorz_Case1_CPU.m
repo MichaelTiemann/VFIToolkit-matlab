@@ -61,7 +61,7 @@ for ii=1:length(FnsToEvaluate)
 
             [~, aprime_gridvals]=CreateGridvals_Policy(Policy(:,:,:,jj),n_d,n_a,n_a,n_z,d_grid,a_grid,1, 2);
             if ~isempty(FnsToEvaluateParamNames(ii).Names)
-                FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(ii).Names,jj));
+                FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(ii).Names,jj,simoptions.precision));
             end
             for a_c=1:N_a
                 for z_c=1:N_z
@@ -79,7 +79,7 @@ for ii=1:length(FnsToEvaluate)
 
             [d_gridvals, aprime_gridvals]=CreateGridvals_Policy(Policy(:,:,:,jj),n_d,n_a,n_a,n_z,d_grid,a_grid,1, 2);
             if ~isempty(FnsToEvaluateParamNames(ii).Names)
-                FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(ii).Names,jj));
+                FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(ii).Names,jj,simoptions.precision));
             end
             for a_c=1:N_a
                 for z_c=1:N_z

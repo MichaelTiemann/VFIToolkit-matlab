@@ -12,7 +12,7 @@ Vhat=zeros(N_a,N_j,vfoptions.precision,'gpuArray'); % agent's-perspective value 
 Vtemp_j=V(:,N_j);
 
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 ReturnMatrix=CreateReturnFnMatrix_Disc_noz(ReturnFn, n_d, n_a, d_gridvals, a_grid, ReturnFnParamsVec,0);
 % Calc the max and it's index

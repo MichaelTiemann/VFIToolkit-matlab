@@ -111,7 +111,7 @@ if N_bothze==0
     PolicyProbs=zeros(N_a,N_u,2,N_j,'gpuArray'); % probabilities of grid points
     whichisdforriskyasset=(simoptions.refine_d(1)+1):1:length(n_d);  % is just saying which is the decision variable that influences the risky asset (namely, d2 and d3 both do)
     for jj=1:N_j
-        aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);
+        aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj,simoptions.precision);
         [aprimeIndexes, aprimeProbs]=CreateaprimePolicyRiskyAsset(Policy(1:l_d,:,jj),simoptions.aprimeFn, whichisdforriskyasset, n_d, n_a1,n_a2, N_bothze, n_u, d_grid, a2_grid, u_grid, aprimeFnParamsVec);
         % Note: aprimeIndexes and aprimeProbs are both [N_a,N_u]
         % Note: aprimeIndexes is always the 'lower' point (the upper points are just aprimeIndexes+1), and the aprimeProbs are the probability of this lower point (prob of upper point is just 1 minus this).
@@ -157,7 +157,7 @@ else
     PolicyProbs=zeros(N_a,N_bothze,N_u,2,N_j,'gpuArray'); % probabilities of grid points
     whichisdforriskyasset=(simoptions.refine_d(1)+1):1:length(n_d);  % is just saying which is the decision variable that influences the risky asset (namely, d2 and d3 both do)
     for jj=1:N_j
-        aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);
+        aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj,simoptions.precision);
         [aprimeIndexes, aprimeProbs]=CreateaprimePolicyRiskyAsset(Policy(1:l_d,:,:,jj),simoptions.aprimeFn, whichisdforriskyasset, n_d, n_a1,n_a2, N_bothze, n_u, d_grid, a2_grid, u_grid, aprimeFnParamsVec);
         % Note: aprimeIndexes and aprimeProbs are both [N_a,N_bothze,N_u]
         % Note: aprimeIndexes is always the 'lower' point (the upper points are just aprimeIndexes+1), and the aprimeProbs are the probability of this lower point (prob of upper point is just 1 minus this).

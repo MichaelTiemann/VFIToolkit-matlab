@@ -29,20 +29,20 @@ if N_j==0
             else %l_a>1
                 temp=ones(l_a,1,'gpuArray')-eye(l_a,1,'gpuArray');
                 temp2=gpuArray(cumprod(n_a')); % column vector
-                PolicyTemp=(reshape(Policy,[l_a,N_a*N_z])-temp*ones(1,N_a*N_z,'gpuArray')).*([1;temp2(1:end-1)]*ones(1,N_a*N_z,'gpuArray'));
+                PolicyTemp=(reshape(Policy,[l_a,N_a*N_z])-temp*ones(1,N_a*N_z,vfoptions.indexT,'gpuArray')).*([1;temp2(1:end-1)]*ones(1,N_a*N_z,vfoptions.indexT,'gpuArray'));
                 PolicyKron=reshape(sum(PolicyTemp,1),[1,N_a,N_z]);
             end
         else
             l_d=length(n_d);
 
-            PolicyKron=zeros(2,N_a,N_z,'gpuArray');
+            PolicyKron=zeros(2,N_a,N_z,vfoptions.indexT,'gpuArray');
 
             if l_d==1
                 PolicyKron(1,:,:)=Policy(1,:,:);
             else
                 temp=ones(l_d,1,'gpuArray')-eye(l_d,1,'gpuArray');
                 temp2=gpuArray(cumprod(n_d')); % column vector
-                PolicyTemp=(reshape(Policy(1:l_d,:,:),[l_d,N_a*N_z])-temp*ones(1,N_a*N_z,'gpuArray')).*([1;temp2(1:end-1)]*ones(1,N_a*N_z,'gpuArray'));
+                PolicyTemp=(reshape(Policy(1:l_d,:,:),[l_d,N_a*N_z])-temp*ones(1,N_a*N_z,vfoptions.indexT,'gpuArray')).*([1;temp2(1:end-1)]*ones(1,N_a*N_z,vfoptions.indexT,'gpuArray'));
                 PolicyKron(1,:,:)=reshape(sum(PolicyTemp,1),[N_a,N_z]);
             end
             % Then, a
@@ -51,7 +51,7 @@ if N_j==0
             else
                 temp=ones(l_a,1,'gpuArray')-eye(l_a,1,'gpuArray');
                 temp2=gpuArray(cumprod(n_a')); % column vector
-                PolicyTemp=(reshape(Policy(l_d+1:l_d+l_a,:,:),[l_a,N_a*N_z])-temp*ones(1,N_a*N_z,'gpuArray')).*([1;temp2(1:end-1)]*ones(1,N_a*N_z,'gpuArray'));
+                PolicyTemp=(reshape(Policy(l_d+1:l_d+l_a,:,:),[l_a,N_a*N_z])-temp*ones(1,N_a*N_z,vfoptions.indexT,'gpuArray')).*([1;temp2(1:end-1)]*ones(1,N_a*N_z,vfoptions.indexT,'gpuArray'));
                 PolicyKron(2,:,:)=reshape(sum(PolicyTemp,1),[1,N_a,N_z]);
             end
         end
@@ -65,7 +65,7 @@ if N_j==0
             if l_a==1 || l_a==2
                 PolicyKron=Policy(1:end-1,:,:); % a1, possibly a2, L2 (drops trailing L2flag)
             else %l_a>2
-                PolicyKron=zeros(3,N_a,N_z,'gpuArray');
+                PolicyKron=zeros(3,N_a,N_z,vfoptions.indexT,'gpuArray');
                 PolicyKron(1,:,:)=Policy(1,:,:); % a1
                 temp=[0; ones(l_a-2,1,'gpuArray')];
                 temp2=gpuArray(cumprod(n_a(2:end)')); % column vector
@@ -76,9 +76,9 @@ if N_j==0
         else
             l_d=length(n_d);
             if l_a==1
-                PolicyKron=zeros(3,N_a,N_z,'gpuArray');
+                PolicyKron=zeros(3,N_a,N_z,vfoptions.indexT,'gpuArray');
             else
-                PolicyKron=zeros(4,N_a,N_z,'gpuArray');
+                PolicyKron=zeros(4,N_a,N_z,vfoptions.indexT,'gpuArray');
             end
 
             if l_d==1
@@ -126,20 +126,20 @@ else % N_j>0: fold N_j into the trailing z-dim, run body, split back
             else %l_a>1
                 temp=ones(l_a,1,'gpuArray')-eye(l_a,1,'gpuArray');
                 temp2=gpuArray(cumprod(n_a')); % column vector
-                PolicyTemp=(reshape(Policy,[l_a,N_a*N_z])-temp*ones(1,N_a*N_z,'gpuArray')).*([1;temp2(1:end-1)]*ones(1,N_a*N_z,'gpuArray'));
+                PolicyTemp=(reshape(Policy,[l_a,N_a*N_z])-temp*ones(1,N_a*N_z,vfoptions.indexT,'gpuArray')).*([1;temp2(1:end-1)]*ones(1,N_a*N_z,vfoptions.indexT,'gpuArray'));
                 PolicyKron=reshape(sum(PolicyTemp,1),[1,N_a,N_z]);
             end
         else
             l_d=length(n_d);
 
-            PolicyKron=zeros(2,N_a,N_z,'gpuArray');
+            PolicyKron=zeros(2,N_a,N_z,vfoptions.indexT,'gpuArray');
 
             if l_d==1
                 PolicyKron(1,:,:)=Policy(1,:,:);
             else
                 temp=ones(l_d,1,'gpuArray')-eye(l_d,1,'gpuArray');
                 temp2=gpuArray(cumprod(n_d')); % column vector
-                PolicyTemp=(reshape(Policy(1:l_d,:,:),[l_d,N_a*N_z])-temp*ones(1,N_a*N_z,'gpuArray')).*([1;temp2(1:end-1)]*ones(1,N_a*N_z,'gpuArray'));
+                PolicyTemp=(reshape(Policy(1:l_d,:,:),[l_d,N_a*N_z])-temp*ones(1,N_a*N_z,vfoptions.indexT,'gpuArray')).*([1;temp2(1:end-1)]*ones(1,N_a*N_z,vfoptions.indexT,'gpuArray'));
                 PolicyKron(1,:,:)=reshape(sum(PolicyTemp,1),[N_a,N_z]);
             end
             % Then, a
@@ -148,7 +148,7 @@ else % N_j>0: fold N_j into the trailing z-dim, run body, split back
             else
                 temp=ones(l_a,1,'gpuArray')-eye(l_a,1,'gpuArray');
                 temp2=gpuArray(cumprod(n_a')); % column vector
-                PolicyTemp=(reshape(Policy(l_d+1:l_d+l_a,:,:),[l_a,N_a*N_z])-temp*ones(1,N_a*N_z,'gpuArray')).*([1;temp2(1:end-1)]*ones(1,N_a*N_z,'gpuArray'));
+                PolicyTemp=(reshape(Policy(l_d+1:l_d+l_a,:,:),[l_a,N_a*N_z])-temp*ones(1,N_a*N_z,vfoptions.indexT,'gpuArray')).*([1;temp2(1:end-1)]*ones(1,N_a*N_z,vfoptions.indexT,'gpuArray'));
                 PolicyKron(2,:,:)=reshape(sum(PolicyTemp,1),[1,N_a,N_z]);
             end
         end
@@ -162,7 +162,7 @@ else % N_j>0: fold N_j into the trailing z-dim, run body, split back
             if l_a==1 || l_a==2
                 PolicyKron=Policy(1:end-1,:,:); % a1, possibly a2, L2 (drops trailing L2flag)
             else %l_a>2
-                PolicyKron=zeros(3,N_a,N_z,'gpuArray');
+                PolicyKron=zeros(3,N_a,N_z,vfoptions.indexT,'gpuArray');
                 PolicyKron(1,:,:)=Policy(1,:,:); % a1
                 temp=[0; ones(l_a-2,1,'gpuArray')];
                 temp2=gpuArray(cumprod(n_a(2:end)')); % column vector
@@ -173,9 +173,9 @@ else % N_j>0: fold N_j into the trailing z-dim, run body, split back
         else
             l_d=length(n_d);
             if l_a==1
-                PolicyKron=zeros(3,N_a,N_z,'gpuArray');
+                PolicyKron=zeros(3,N_a,N_z,vfoptions.indexT,'gpuArray');
             else
-                PolicyKron=zeros(4,N_a,N_z,'gpuArray');
+                PolicyKron=zeros(4,N_a,N_z,vfoptions.indexT,'gpuArray');
             end
 
             if l_d==1

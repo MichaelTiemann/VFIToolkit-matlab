@@ -132,10 +132,10 @@ else
                     if isscalar(FnsToEvaluateParamNames(ff).Names)
                         FnToEvaluateParamsVec=StationaryDistmass;
                     else
-                        FnToEvaluateParamsVec=[StationaryDistmass,CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(ff).Names(2:end))];
+                        FnToEvaluateParamsVec=[StationaryDistmass,CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(ff).Names(2:end),simoptions.precision)];
                     end
                 else
-                    FnToEvaluateParamsVec=CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(ff).Names);
+                    FnToEvaluateParamsVec=CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(ff).Names,simoptions.precision);
                 end
                 FnToEvaluateParamsVec=num2cell(FnToEvaluateParamsVec);
             end
@@ -160,10 +160,10 @@ else
                     if isscalar(FnsToEvaluateParamNames(ff).Names)
                         FnToEvaluateParamsVec=StationaryDistmass;
                     else
-                        FnToEvaluateParamsVec=[StationaryDistmass,CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(ff).Names(2:end))];
+                        FnToEvaluateParamsVec=[StationaryDistmass,CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(ff).Names(2:end),simoptions.precision)];
                     end
                 else
-                    FnToEvaluateParamsVec=CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(ff).Names);
+                    FnToEvaluateParamsVec=CreateVectorFromParams(Parameters,FnsToEvaluateParamNames(ff).Names,simoptions.precision);
                 end
                 FnToEvaluateParamsVec=num2cell(FnToEvaluateParamsVec);
             end

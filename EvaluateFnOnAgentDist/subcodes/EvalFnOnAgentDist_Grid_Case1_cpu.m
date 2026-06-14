@@ -44,7 +44,7 @@ if isempty(FnToEvaluateParamNames.Names) % check for 'FnToEvaluateParamNames={}'
 else
     Values=zeros(N_a*N_z,1);
     if l_d==0
-        FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnToEvaluateParamNames.Names));
+        FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnToEvaluateParamNames.Names,simoptions.precision));
         Values=zeros(N_a*N_z,1);
         for ii=1:N_a*N_z
             %        j1j2=ind2sub_homemade([N_a,N_z],ii); % Following two lines just do manual implementation of this.
@@ -53,7 +53,7 @@ else
             Values(ii)=FnToEvaluate(aprime_gridvals{j1+(j2-1)*N_a,:},a_gridvals{j1,:},z_gridvals{j2,:},FnToEvaluateParamsCell{:});
         end
     else % l_d>0
-        FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnToEvaluateParamNames.Names));
+        FnToEvaluateParamsCell=num2cell(CreateVectorFromParams(Parameters,FnToEvaluateParamNames.Names,simoptions.precision));
         for ii=1:N_a*N_z
             %        j1j2=ind2sub_homemade([N_a,N_z],ii); % Following two lines just do manual implementation of this.
             j1=rem(ii-1,N_a)+1;

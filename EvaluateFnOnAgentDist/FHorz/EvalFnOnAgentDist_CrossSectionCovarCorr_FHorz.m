@@ -100,7 +100,7 @@ for ff1=1:length(FnsToEvaluate)
     if isempty(FnsToEvaluateParamNames(ff1).Names)
         ParamCell1=cell(0,1);
     else
-        FnToEvaluateParamsAgeMatrix1=CreateAgeMatrixFromParams(Parameters, FnsToEvaluateParamNames(ff1).Names,N_j);
+        FnToEvaluateParamsAgeMatrix1=CreateAgeMatrixFromParams(Parameters, FnsToEvaluateParamNames(ff1).Names,N_j,simoptions.precision);
         nFnToEvaluateParams1=size(FnToEvaluateParamsAgeMatrix1,2);
         ParamCell1=cell(nFnToEvaluateParams1,1);
         if N_z==0
@@ -133,7 +133,7 @@ for ff1=1:length(FnsToEvaluate)
             if isempty(FnsToEvaluateParamNames(ff2).Names)
                 ParamCell2=cell(0,1);
             else
-                FnToEvaluateParamsAgeMatrix2=CreateAgeMatrixFromParams(Parameters, FnsToEvaluateParamNames(ff2).Names,N_j);
+                FnToEvaluateParamsAgeMatrix2=CreateAgeMatrixFromParams(Parameters, FnsToEvaluateParamNames(ff2).Names,N_j,simoptions.precision);
                 nFnToEvaluateParams2=size(FnToEvaluateParamsAgeMatrix2,2);
                 ParamCell2=cell(nFnToEvaluateParams2,1);
                 if N_z==0
