@@ -114,7 +114,12 @@ for ii=1:N_i
         if isfield(jequaloneDist,Names_i{ii})
             jequaloneDist_temp=jequaloneDist.(iistr);
             % jequaloneDist_temp must be of mass one for the codes to work.
-            if abs(sum(jequaloneDist_temp(:))-1)>10^(-15) % jequaloneDist_temp(:))~=1, but allowing for small numerical errors
+            if strcmp(simoptions.precision,'single')
+                SD_tolerance=1e-7;
+            else
+                SD_tolerance=1e-15;
+            end
+            if abs(sum(jequaloneDist_temp(:))-1)>SD_tolerance % jequaloneDist_temp(:))~=1, but allowing for small numerical errors
                 fprintf('Info for following error: sum(jequaloneDist_temp(:))-1=%8.16f (should be zero) \n', sum(jequaloneDist_temp(:))-1)
                 error(['The jequaloneDist must be of mass one for each type i (it is not for type ',Names_i{ii}])
             end
