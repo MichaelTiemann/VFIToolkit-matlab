@@ -132,7 +132,7 @@ elseif simoptions.experienceasset>=1
     PolicyPath=reshape(PolicyPath,[size(PolicyPath,1),N_a,N_z,T]);
 
     % Precompute
-    Policy_a2prime=zeros(N_a,N_z,2,simoptions.indexT,simoptions.indexT,'gpuArray'); % the lower grid point
+    Policy_a2prime=zeros(N_a,N_z,2,simoptions.indexT,'gpuArray'); % the lower grid point
     PolicyProbs=zeros(N_a,N_z,2,simoptions.precision,'gpuArray'); % preallocate
     Policy_aprime=zeros(N_a,N_z,2,simoptions.indexT,'gpuArray'); % preallocate
     II2=([1:1:N_a*N_z; 1:1:N_a*N_z]'); % Index for this period (a,z), note the 2 copies
