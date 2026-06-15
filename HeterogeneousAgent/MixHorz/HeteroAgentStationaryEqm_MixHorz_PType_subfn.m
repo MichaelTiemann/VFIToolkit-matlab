@@ -4,7 +4,7 @@ heteroagentparamsvecindex=0:1:length(GEpricesvec);
 [GEpricesvec,penalty]=ParameterConstraints_TransformParamsToOriginal(GEpricesvec,heteroagentparamsvecindex,GEPriceParamNames,heteroagentoptions);
 
 if heteroagentoptions.verbose>0
-    GEpricesvec_tminus1=zeros(nGEprices,1);
+    GEpricesvec_tminus1=zeros(1,nGEprices);
     AggVars_tminus1=NaN(length(AggVarNames),1);
 
     for pp=1:nGEprices
@@ -179,7 +179,7 @@ end
 
 %% Evaluate General Eqm Eqns
 % use of real() is a hack that could disguise errors, but I couldn't find why matlab was treating output as complex
-GeneralEqmConditionsVec=zeros(length(GEeqnNames),1);
+GeneralEqmConditionsVec=zeros(1,length(GEeqnNames));
 for gg=1:length(GEeqnNames)
     GeneralEqmConditionsVec(gg)=real(GeneralEqmConditions_Case1_v3g(GeneralEqmEqnsCell{gg}, GeneralEqmEqnParamNames(gg).Names, Parameters));
 end
