@@ -1,5 +1,7 @@
 function StationaryDist=StationaryDist_FHorz_ExpAsset(jequaloneDist,AgeWeightParamNames,Policy,n_d,n_a,n_z,N_j,pi_z_J,Parameters,simoptions)
 
+cast2index=str2func(simoptions.indexT);
+
 %% Setup related to experience asset
 n_d2=n_d(end-simoptions.l_dexperienceasset+1:end);
 % Split endogenous assets into the standard ones and the experience asset
@@ -79,6 +81,7 @@ whichisdforexpasset=length(n_d)-simoptions.l_dexperienceasset+1:length(n_d);  % 
 for jj=1:N_j
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj,simoptions.precision);
     [aprimeIndexes, aprimeProbs]=CreateaprimePolicyExperienceAsset(Policy(:,:,:,jj),simoptions.aprimeFn, whichisdforexpasset, n_d, n_a1,n_a2, N_ze, d_grid, a2_grid, aprimeFnParamsVec);
+    aprimeIndexes=cast2index(aprimeIndexes);
     % Note: aprimeIndexes and aprimeProbs are both [N_a,N_z]
     % Note: aprimeIndexes is always the 'lower' point (the upper points are just aprimeIndexes+1), and the aprimeProbs are the probability of this lower point (prob of upper point is just 1 minus this).
 
