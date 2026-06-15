@@ -52,7 +52,7 @@ isNaive=strcmp(vfoptions.quasi_hyperbolic,'Naive');
 %%
 
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,vfoptions.precision);
 DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames);
 beta0=Parameters.(vfoptions.QHadditionaldiscount{1});
 

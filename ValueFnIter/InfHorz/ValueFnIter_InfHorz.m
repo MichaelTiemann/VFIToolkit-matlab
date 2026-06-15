@@ -306,7 +306,7 @@ elseif vfoptions.endogenousexit==2 % Mixture of endogenous and exogenous exit.
 end
 
 %% Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,vfoptions.precision);
 if isfield(vfoptions,'exoticpreferences')
     if vfoptions.exoticpreferences~=3
         DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames);

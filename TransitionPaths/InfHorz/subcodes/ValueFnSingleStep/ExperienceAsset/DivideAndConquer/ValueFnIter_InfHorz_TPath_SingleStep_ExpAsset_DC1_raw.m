@@ -29,7 +29,7 @@ level1iidiff=level1ii(2:end)-level1ii(1:end-1)-1;
 
 
 %% Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,vfoptions.precision);
 DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames);
 DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 

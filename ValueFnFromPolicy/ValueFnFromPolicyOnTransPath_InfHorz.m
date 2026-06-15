@@ -92,7 +92,7 @@ for ttr=1:T-1
     PolicyValues=PolicyInd2Val_InfHorz(PolicyPath(:,:,:,tt),n_d,n_a,n_z,d_grid,a_grid, vfoptions);
     PolicyValuesPermute=permute(reshape(PolicyValues,[size(PolicyValues,1),N_a,N_z]),[2,3,1]); %[N_a,N_z,l_d+l_a]
 
-    ReturnFnParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames);
+    ReturnFnParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,vfoptions.precision);
     FofPolicy=EvalFnOnAgentDist_Grid(ReturnFn, ReturnFnParamsCell,PolicyValuesPermute,l_daprime,n_a,n_z,a_gridvals,z_gridvals);
 
     %% Now that we have FofPolicy, calculate V.

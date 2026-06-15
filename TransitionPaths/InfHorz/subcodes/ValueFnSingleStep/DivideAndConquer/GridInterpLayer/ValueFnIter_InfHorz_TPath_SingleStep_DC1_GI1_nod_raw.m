@@ -33,7 +33,7 @@ Policy=zeros(3,N_a,N_z,vfoptions.indexT,'gpuArray'); %first dim indexes the opti
 %%
 
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,vfoptions.precision);
 
 DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames);
 DiscountFactorParamsVec=prod(DiscountFactorParamsVec);

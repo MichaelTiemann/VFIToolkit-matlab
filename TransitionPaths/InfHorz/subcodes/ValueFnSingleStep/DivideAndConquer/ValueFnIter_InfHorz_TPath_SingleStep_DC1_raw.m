@@ -15,7 +15,7 @@ level1ii=round(linspace(1,n_a,vfoptions.level1n));
 
 %%
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,vfoptions.precision);
 DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames);
 DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 

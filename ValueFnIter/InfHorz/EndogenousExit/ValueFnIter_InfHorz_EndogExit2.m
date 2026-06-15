@@ -37,7 +37,7 @@ end
 %%
 DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames);
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,vfoptions.precision);
 % The 'return to exit function' parameters (in order)
 % The 'return to exit function' parameters (in order)
 temp=getAnonymousFnInputNames(vfoptions.ReturnToExitFn);
