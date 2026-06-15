@@ -17,7 +17,6 @@ Policy=zeros(N_a,N_j,N_z,N_e,'gpuArray'); % first dim indexes the optimal choice
 %%
 
 % n-Monotonicity
-% vfoptions.level1n=5;
 level1ii=round(linspace(1,n_a,vfoptions.level1n));
 level1iidiff=level1ii(2:end)-level1ii(1:end-1)-1;
 
@@ -43,14 +42,14 @@ if vfoptions.EVpre==0
     EVpre=[sum(V(N_a+1:end,:,:).*pi_e_J(N_a+1:end,:,:),3); zeros(N_a,N_z,'gpuArray')]; % I use zeros in j=N_j so that can just use pi_z_J to create expectations
     EVpre=reshape(EVpre,[N_a,1,N_j,N_z]);
     EV=EVpre.*shiftdim(pi_z_J,-2);
-    EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilites)
+    EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
     EV=reshape(sum(EV,4),[N_a,1,N_j,N_z]); % (aprime,1,j,z), 2nd dim will be autofilled with a
 elseif vfoptions.EVpre==1
     % This is used for 'Matched Expecations Path'
     EVpre=[reshape(V,[N_a*N_j,N_z,N_e].*pi_e_J,3)];  % input V is already of size [N_a,N_j] and we want to use the whole thing
     EVpre=reshape(EVpre,[N_a,1,N_j,N_z]);
     EV=EVpre.*shiftdim(pi_z_J,-2);
-    EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilites)
+    EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
     EV=reshape(sum(EV,4),[N_a,1,N_j,N_z]); % (aprime,1,j,z), 2nd dim will be autofilled with a
 end
 V=zeros(N_a,N_j,N_z,N_e,'gpuArray'); % V is over (a,j)
@@ -60,14 +59,14 @@ DiscountedEV=repelem(shiftdim(DiscountFactorParamsVec.*EV,-1),N_d,1,1,1); % [N_d
 if vfoptions.lowmemory==0
 
     % n-Monotonicity
-    ReturnMatrix_ii=CreateReturnFnMatrix_Case1_Disc_fastOLG_DC1_Par2e(ReturnFn, n_d, n_z, n_e, N_j, d_gridvals, a_grid, a_grid(level1ii), z_gridvals_J, e_gridvals_J, ReturnFnParamsAgeMatrix,1);
+    ReturnMatrix_ii=CreateReturnFnMatrix_fastOLG_Disc_DC1_e(ReturnFn, n_d, n_z, n_e, N_j, d_gridvals, a_grid, a_grid(level1ii), z_gridvals_J, e_gridvals_J, ReturnFnParamsAgeMatrix,1);
 
     entireRHS_ii=ReturnMatrix_ii+DiscountedEV; % (d,aprime,a and j,z,e), autofills a and e for expectation term
-     
+
     % First, we want aprime conditional on (d,1,a,j,z,e)
     [RMtemp_ii,maxindex1]=max(entireRHS_ii,[],2);
     % Now, we get the d and we store the (d,aprime) and the
-    
+
     %Calc the max and it's index
     [Vtempii,maxindex2]=max(RMtemp_ii,[],1);
     maxindex2=shiftdim(maxindex2,2); % d
@@ -85,7 +84,7 @@ if vfoptions.lowmemory==0
             % loweredge is n_d-by-1
             aprimeindexes=loweredge+(0:1:maxgap(ii));
             % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-N_j-by-N_z-by-N_e
-            ReturnMatrix_ii=CreateReturnFnMatrix_Case1_Disc_fastOLG_DC1_Par2e(ReturnFn, n_d, n_z, n_e, N_j, d_gridvals, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_gridvals_J, e_gridvals_J, ReturnFnParamsAgeMatrix,2);
+            ReturnMatrix_ii=CreateReturnFnMatrix_fastOLG_Disc_DC1_e(ReturnFn, n_d, n_z, n_e, N_j, d_gridvals, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_gridvals_J, e_gridvals_J, ReturnFnParamsAgeMatrix,2);
             daprimejz=(1:1:N_d)'+N_d*repelem(aprimeindexes-1,1,1,level1iidiff(ii),1,1)+N_d*N_a*jind+N_d*N_a*N_j*zind; % all the d, with the current aprimeii(ii):aprimeii(ii+1)
             entireRHS_ii=ReturnMatrix_ii+reshape(DiscountedEV(daprimejz(:)),[N_d*(maxgap(ii)+1),level1iidiff(ii),N_j,N_z,N_e]); % autofill e for the expectations
             [Vtempii,maxindex]=max(entireRHS_ii,[],1);
@@ -96,7 +95,7 @@ if vfoptions.lowmemory==0
         else
             loweredge=maxindex1(:,1,ii,:,:,:);
             % Just use aprime(ii) for everything
-            ReturnMatrix_ii=CreateReturnFnMatrix_Case1_Disc_fastOLG_DC1_Par2e(ReturnFn, n_d, n_z, n_e, N_j, d_gridvals, a_grid(loweredge), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_gridvals_J, e_gridvals_J, ReturnFnParamsAgeMatrix,2);
+            ReturnMatrix_ii=CreateReturnFnMatrix_fastOLG_Disc_DC1_e(ReturnFn, n_d, n_z, n_e, N_j, d_gridvals, a_grid(loweredge), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_gridvals_J, e_gridvals_J, ReturnFnParamsAgeMatrix,2);
             daprimejz=(1:1:N_d)'+N_d*repelem(loweredge-1,1,1,level1iidiff(ii),1,1)+N_d*N_a*jind+N_d*N_a*N_j*zind; % all the d, with the current aprimeii(ii):aprimeii(ii+1)
             entireRHS_ii=ReturnMatrix_ii+reshape(DiscountedEV(daprimejz(:)),[N_d,level1iidiff(ii),N_j,N_z,N_e]); % autofill e for the expectations
             [Vtempii,maxindex]=max(entireRHS_ii,[],1);
@@ -115,7 +114,7 @@ elseif vfoptions.lowmemory==1
         e_vals=e_gridvals_J(1,1,1,:,1,e_c,:); % e_gridvals_J has shape (1,1,1,j,1,prod(n_e),l_e)
 
         % n-Monotonicity
-        ReturnMatrix_ii_e=CreateReturnFnMatrix_Case1_Disc_fastOLG_DC1_Par2e(ReturnFn, n_d, n_z, special_n_e, N_j, d_gridvals, a_grid, a_grid(level1ii), z_gridvals_J, e_vals, ReturnFnParamsAgeMatrix,1);
+        ReturnMatrix_ii_e=CreateReturnFnMatrix_fastOLG_Disc_DC1_e(ReturnFn, n_d, n_z, special_n_e, N_j, d_gridvals, a_grid, a_grid(level1ii), z_gridvals_J, e_vals, ReturnFnParamsAgeMatrix,1);
 
         entireRHS_ii=ReturnMatrix_ii_e+DiscountedEV; % (d,aprime,a and j,z), autofills a for expectation term
 
@@ -140,7 +139,7 @@ elseif vfoptions.lowmemory==1
                 % loweredge is n_d-by-1
                 aprimeindexes=loweredge+(0:1:maxgap(ii));
                 % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-N_j-by-N_z
-                ReturnMatrix_ii_e=CreateReturnFnMatrix_Case1_Disc_fastOLG_DC1_Par2e(ReturnFn, n_d, n_z, special_n_e, N_j, d_gridvals, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_gridvals_J, e_vals, ReturnFnParamsAgeMatrix,2);
+                ReturnMatrix_ii_e=CreateReturnFnMatrix_fastOLG_Disc_DC1_e(ReturnFn, n_d, n_z, special_n_e, N_j, d_gridvals, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_gridvals_J, e_vals, ReturnFnParamsAgeMatrix,2);
                 daprimejz=(1:1:N_d)'+N_d*repelem(aprimeindexes-1,1,1,level1iidiff(ii),1,1)+N_d*N_a*jind+N_d*N_a*N_j*zind; % all the d, with the current aprimeii(ii):aprimeii(ii+1)
                 entireRHS_ii=ReturnMatrix_ii_e+reshape(DiscountedEV(daprimejz(:)),[N_d*(maxgap(ii)+1),level1iidiff(ii),N_j,N_z]);
                 [Vtempii,maxindex]=max(entireRHS_ii,[],1);
@@ -151,7 +150,7 @@ elseif vfoptions.lowmemory==1
             else
                 loweredge=maxindex1(:,1,ii,:,:);
                 % Just use aprime(ii) for everything
-                ReturnMatrix_ii_e=CreateReturnFnMatrix_Case1_Disc_fastOLG_DC1_Par2e(ReturnFn, n_d, n_z, special_n_e, N_j, d_gridvals, a_grid(loweredge), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_gridvals_J, e_vals, ReturnFnParamsAgeMatrix,2);
+                ReturnMatrix_ii_e=CreateReturnFnMatrix_fastOLG_Disc_DC1_e(ReturnFn, n_d, n_z, special_n_e, N_j, d_gridvals, a_grid(loweredge), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_gridvals_J, e_vals, ReturnFnParamsAgeMatrix,2);
                 daprimejz=(1:1:N_d)'+N_d*repelem(loweredge-1,1,1,level1iidiff(ii),1,1)+N_d*N_a*jind+N_d*N_a*N_j*zind; % all the d, with the current aprimeii(ii):aprimeii(ii+1)
                 entireRHS_ii=ReturnMatrix_ii_e+reshape(DiscountedEV(daprimejz(:)),[N_d,level1iidiff(ii),N_j,N_z]);
                 [Vtempii,maxindex]=max(entireRHS_ii,[],1);
@@ -174,7 +173,7 @@ elseif vfoptions.lowmemory==2
             e_vals=e_gridvals_J(1,1,1,:,1,e_c,:); % e_gridvals_J has shape (1,1,1,j,1,prod(n_e),l_e)
 
             % n-Monotonicity
-            ReturnMatrix_ii=CreateReturnFnMatrix_Case1_Disc_fastOLG_DC1_Par2e(ReturnFn, n_d, special_n_z, special_n_e, N_j, d_gridvals, a_grid, a_grid(level1ii), z_vals, e_vals, ReturnFnParamsAgeMatrix,1);
+            ReturnMatrix_ii=CreateReturnFnMatrix_fastOLG_Disc_DC1_e(ReturnFn, n_d, special_n_z, special_n_e, N_j, d_gridvals, a_grid, a_grid(level1ii), z_vals, e_vals, ReturnFnParamsAgeMatrix,1);
 
             entireRHS_ii=ReturnMatrix_ii+DiscountedEV_z; % (d,aprime,a and j,z), autofills j for expectation term
 
@@ -199,7 +198,7 @@ elseif vfoptions.lowmemory==2
                     % loweredge is n_d-by-1
                     aprimeindexes=loweredge+(0:1:maxgap(ii));
                     % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-N_j
-                    ReturnMatrix_ii=CreateReturnFnMatrix_Case1_Disc_fastOLG_DC1_Par2e(ReturnFn, n_d, special_n_z, special_n_e, N_j, d_gridvals, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_vals, e_vals, ReturnFnParamsAgeMatrix,2);
+                    ReturnMatrix_ii=CreateReturnFnMatrix_fastOLG_Disc_DC1_e(ReturnFn, n_d, special_n_z, special_n_e, N_j, d_gridvals, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_vals, e_vals, ReturnFnParamsAgeMatrix,2);
                     daprimej=(1:1:N_d)'+N_d*repelem(aprimeindexes-1,1,1,level1iidiff(ii),1)+N_d*N_a*jind; % all the d, with the current aprimeii(ii):aprimeii(ii+1)
                     entireRHS_ii=ReturnMatrix_ii+reshape(DiscountedEV_z(daprimej(:)),[N_d*(maxgap(ii)+1),level1iidiff(ii),N_j]);
                     [Vtempii,maxindex]=max(entireRHS_ii,[],1);
@@ -210,7 +209,7 @@ elseif vfoptions.lowmemory==2
                 else
                     loweredge=maxindex1(:,1,ii,:);
                     % Just use aprime(ii) for everything
-                    ReturnMatrix_ii=CreateReturnFnMatrix_Case1_Disc_fastOLG_DC1_Par2e(ReturnFn, n_d, special_n_z, special_n_e, N_j, d_gridvals, a_grid(loweredge), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_vals, e_vals, ReturnFnParamsAgeMatrix,2);
+                    ReturnMatrix_ii=CreateReturnFnMatrix_fastOLG_Disc_DC1_e(ReturnFn, n_d, special_n_z, special_n_e, N_j, d_gridvals, a_grid(loweredge), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_vals, e_vals, ReturnFnParamsAgeMatrix,2);
                     daprimej=(1:1:N_d)'+N_d*repelem(loweredge-1,1,1,level1iidiff(ii),1)+N_d*N_a*jind; % all the d, with the current aprimeii(ii):aprimeii(ii+1)
                     entireRHS_ii=ReturnMatrix_ii+reshape(DiscountedEV_z(daprimej(:)),[N_d,level1iidiff(ii),N_j]);
                     [Vtempii,maxindex]=max(entireRHS_ii,[],1);

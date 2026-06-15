@@ -7,7 +7,7 @@ if vfoptions.experienceasset==1
         vfoptions.l_dexperienceasset=1; % by default, only one decision variable influences the experienceasset
     end
     vfoptions.l_d2=vfoptions.l_dexperienceasset;
-    
+
     % Split decision variables into the standard ones and the one relevant to the experience asset
     if length(n_d)>vfoptions.l_d2
         n_d1=n_d(1:end-vfoptions.l_d2);
@@ -50,7 +50,7 @@ if vfoptions.experienceasset==1
     if N_a1>0 % set up for divide-and-conquer
         if vfoptions.divideandconquer==1
             if ~isfield(vfoptions,'level1n')
-                vfoptions.level1n=max(ceil(n_a1(1)/50),5); % minimum of 5
+                vfoptions.level1n=round(sqrt(n_a1(1)));
                 if n_a1(1)<5
                     error('cannot use vfoptions.divideandconquer=1 with less than 5 points in the a variable (you need to turn off divide-and-conquer, or put more points into the a variable)')
                 end

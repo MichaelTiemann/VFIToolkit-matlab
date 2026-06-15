@@ -46,8 +46,8 @@ ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
 if ~isfield(vfoptions,'V_Jplus1')
 
     if vfoptions.lowmemory==0
-        
-        ReturnMatrix=CreateReturnFnMatrix_Case1_Disc_Par2e(ReturnFn, n_d2, n_a, n_bothz, n_e, d2_gridvals, a_grid, bothz_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec);
+
+        ReturnMatrix=CreateReturnFnMatrix_Disc_e(ReturnFn, n_d2, n_a, n_bothz, n_e, d2_gridvals, a_grid, bothz_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,0);
         %Calc the max and it's index
         [Vtemp,maxindex]=max(ReturnMatrix,[],1);
         V(:,:,:,N_j)=Vtemp;
@@ -59,7 +59,7 @@ if ~isfield(vfoptions,'V_Jplus1')
 
         for e_c=1:N_e
             e_val=e_gridvals_J(e_c,:,N_j);
-            ReturnMatrix_e=CreateReturnFnMatrix_Case1_Disc_Par2e(ReturnFn, n_d2, n_a, n_bothz, special_n_e, d2_gridvals, a_grid, bothz_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec);
+            ReturnMatrix_e=CreateReturnFnMatrix_Disc_e(ReturnFn, n_d2, n_a, n_bothz, special_n_e, d2_gridvals, a_grid, bothz_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec,0);
             % Calc the max and it's index
             [Vtemp,maxindex]=max(ReturnMatrix_e,[],1);
             V(:,:,e_c,N_j)=Vtemp;
@@ -72,7 +72,7 @@ else
     % Using V_Jplus1
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
-    
+
     EV=reshape(vfoptions.V_Jplus1,[N_a,N_semiz*N_z,N_e]);    % First, switch V_Jplus1 into Kron form
     EV=sum(EV.*pi_e_J(1,1,:,N_j),3);
 
@@ -81,11 +81,11 @@ else
             d2_val=d2_gridvals(d2_c,:);
             pi_bothz=kron(pi_z_J(:,:,N_j),pi_semiz_J(:,:,d2_c,N_j));
 
-            ReturnMatrix_d2=CreateReturnFnMatrix_Case1_Disc_Par2e(ReturnFn, special_n_d2, n_a, n_bothz, n_e, d2_val, a_grid, bothz_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec);
+            ReturnMatrix_d2=CreateReturnFnMatrix_Disc_e(ReturnFn, special_n_d2, n_a, n_bothz, n_e, d2_val, a_grid, bothz_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,0);
             % (d,aprime,a,z,e)
 
             EV_d2=EV.*shiftdim(pi_bothz',-1);
-            EV_d2(isnan(EV_d2))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilites)
+            EV_d2(isnan(EV_d2))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
             EV_d2=sum(EV_d2,2); % sum over z', leaving a singular second dimension
 
             entireRHS=ReturnMatrix_d2+DiscountFactorParamsVec*EV_d2; %*repmat(entireEV,1,N_a,1,N_e);
@@ -109,12 +109,12 @@ else
             pi_bothz=kron(pi_z_J(:,:,N_j),pi_semiz_J(:,:,d2_c,N_j));
 
             EV_d2=EV.*shiftdim(pi_bothz',-1);
-            EV_d2(isnan(EV_d2))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilites)
+            EV_d2(isnan(EV_d2))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
             EV_d2=sum(EV_d2,2); % sum over z', leaving a singular second dimension
 
             for e_c=1:N_e
                 e_val=e_gridvals_J(e_c,:,N_j);
-                ReturnMatrix_d2e=CreateReturnFnMatrix_Case1_Disc_Par2e(ReturnFn, special_n_d2, n_a, n_bothz, special_n_e, d2_val, a_grid, bothz_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec);
+                ReturnMatrix_d2e=CreateReturnFnMatrix_Disc_e(ReturnFn, special_n_d2, n_a, n_bothz, special_n_e, d2_val, a_grid, bothz_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec,0);
                 % (d,aprime,a,z)
 
                 entireRHS_d2e=ReturnMatrix_d2e+DiscountFactorParamsVec*EV_d2; %.*ones(1,N_a,1);
@@ -142,13 +142,13 @@ for reverse_j=1:N_j-1
     if vfoptions.verbose==1
         fprintf('Finite horizon: %i of %i \n',jj, N_j)
     end
-    
-    
+
+
     % Create a vector containing all the return function parameters (in order)
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
-    
+
     EV=V(:,:,:,jj+1);
     EV=sum(EV.*pi_e_J(1,1,:,jj),3);
 
@@ -157,11 +157,11 @@ for reverse_j=1:N_j-1
             d2_val=d2_gridvals(d2_c,:);
             pi_bothz=kron(pi_z_J(:,:,jj), pi_semiz_J(:,:,d2_c,jj));
 
-            ReturnMatrix_d2=CreateReturnFnMatrix_Case1_Disc_Par2e(ReturnFn, special_n_d2, n_a, n_bothz, n_e, d2_val, a_grid, bothz_gridvals_J(:,:,jj), e_gridvals_J(:,:,jj), ReturnFnParamsVec);
+            ReturnMatrix_d2=CreateReturnFnMatrix_Disc_e(ReturnFn, special_n_d2, n_a, n_bothz, n_e, d2_val, a_grid, bothz_gridvals_J(:,:,jj), e_gridvals_J(:,:,jj), ReturnFnParamsVec,0);
             % (d,aprime,a,z,e)
 
             EV_d2=EV.*shiftdim(pi_bothz',-1);
-            EV_d2(isnan(EV_d2))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilites)
+            EV_d2(isnan(EV_d2))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
             EV_d2=sum(EV_d2,2); % sum over z', leaving a singular second dimension
 
             entireRHS=ReturnMatrix_d2+DiscountFactorParamsVec*EV_d2; %repmat(entireEV,1,N_a,1,N_e);
@@ -185,12 +185,12 @@ for reverse_j=1:N_j-1
             pi_bothz=kron(pi_z_J(:,:,jj),pi_semiz_J(:,:,d2_c,jj));
 
             EV_d2=EV.*shiftdim(pi_bothz',-1);
-            EV_d2(isnan(EV_d2))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilites)
+            EV_d2(isnan(EV_d2))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
             EV_d2=sum(EV_d2,2); % sum over z', leaving a singular second dimension
 
             for e_c=1:N_e
                 e_val=e_gridvals_J(e_c,:,jj);
-                ReturnMatrix_e=CreateReturnFnMatrix_Case1_Disc_Par2e(ReturnFn, special_n_d2, n_a, n_bothz, special_n_e, d2_val, a_grid, bothz_gridvals_J(:,:,jj), e_val, ReturnFnParamsVec);
+                ReturnMatrix_e=CreateReturnFnMatrix_Disc_e(ReturnFn, special_n_d2, n_a, n_bothz, special_n_e, d2_val, a_grid, bothz_gridvals_J(:,:,jj), e_val, ReturnFnParamsVec,0);
                 % (d,aprime,a,z)
 
                 entireRHS_e=ReturnMatrix_e+DiscountFactorParamsVec*EV_d2; %.*ones(1,N_a,1);

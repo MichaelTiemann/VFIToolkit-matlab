@@ -46,11 +46,8 @@ a2_grid=simoptions.a_grid(sum(n_a1)+1:end);
 
 
 %%
-if isfield(simoptions,'n_e')
-    N_e=prod(simoptions.n_e);
-else
-    N_e=0;
-end
+N_e=prod(simoptions.n_e);
+N_z=prod(n_z);
 if ~isfield(simoptions,'n_u')
     error('To use an risky asset you must define simoptions.n_u')
 end
@@ -79,7 +76,7 @@ end
 
 
 %%
-if n_z(1)==0
+if N_z==0
     error('Have not yet impelmented N_z=0 in StationaryDist_FHorz_Case1_RiskyAssetSemiExo (contact me)')
 end
 
@@ -93,7 +90,6 @@ l_a=length(n_a);
 N_a=prod(n_a);
 N_a1=prod(n_a1);
 N_semiz=prod(n_semiz);
-N_z=prod(n_z);
 N_u=prod(simoptions.n_u);
 
 if N_a1==0
@@ -132,7 +128,7 @@ PolicyProbs=zeros(N_a,N_bothze,N_u,2,N_j,'gpuArray'); % probabilities of grid po
 whichisdforriskyasset=(simoptions.refine_d(1)+1):1:sum(simoptions.refine_d(1:3));  % is just saying which is the decision variable that influences the risky asset (it is all the decision variables)
 for jj=1:N_j
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);
-    [aprimeIndexes,aprimeProbs]=CreateaprimePolicyRiskyAsset_Case1(Policy(1:l_d,:,:,jj),simoptions.aprimeFn, whichisdforriskyasset, n_d, n_a1,n_a2, N_bothze, simoptions.n_u, simoptions.d_grid, a2_grid, u_grid, aprimeFnParamsVec);
+    [aprimeIndexes,aprimeProbs]=CreateaprimePolicyRiskyAsset(Policy(1:l_d,:,:,jj),simoptions.aprimeFn, whichisdforriskyasset, n_d, n_a1,n_a2, N_bothze, simoptions.n_u, simoptions.d_grid, a2_grid, u_grid, aprimeFnParamsVec);
     % Note: aprimeIndexes and aprimeProbs are both [N_a,N_z,N_u]
     % Note: aprimeIndexes is always the 'lower' point (the upper points are just aprimeIndexes+1), and the aprimeProbs are the probability of this lower point (prob of upper point is just 1 minus this).
 
@@ -160,13 +156,13 @@ PolicyProbs=reshape(PolicyProbs,[N_a,N_bothze,N_u*2,N_j]);
 
 %% Policy_dsemiexo
 
-% d4 is the variable relevant for the semi-exogenous asset. 
+% d4 is the variable relevant for the semi-exogenous asset.
 if l_d4==1
     Policy_dsemiexo=Policy(l_d123+1,:,:,:);
 elseif l_d4==2
     Policy_dsemiexo=Policy(l_d123+1,:,:,:)+n_d(l_d123+1)*(Policy(l_d123+2,:,:,:)-1);
 elseif l_d4==3
-    Policy_dsemiexo=Policy(l_d123+1,:,:,:)+n_d(l_d123+1)*(Policy(l_d123+2,:,:,:)-1)+n_d(l_d123+1)*n_d(l_d123+2)*(Policy(l_d123+3,:,:,:)-1); 
+    Policy_dsemiexo=Policy(l_d123+1,:,:,:)+n_d(l_d123+1)*(Policy(l_d123+2,:,:,:)-1)+n_d(l_d123+1)*n_d(l_d123+2)*(Policy(l_d123+3,:,:,:)-1);
 elseif l_d4==4
     Policy_dsemiexo=Policy(l_d123+1,:,:,:)+n_d(l_d123+1)*(Policy(l_d123+2,:,:,:)-1)+n_d(l_d123+1)*n_d(l_d123+2)*(Policy(l_d123+3,:,:,:)-1)+n_d(l_d123+1)*n_d(l_d123+2)*n_d(l_d123+3)*(Policy(l_d123+4,:,:,:)-1);
 end
@@ -188,7 +184,7 @@ elseif simoptions.gridinterplayer==1
     % (a,z,2,j)
     Policy_aprime=repmat(Policy_aprime,1,1,2,1);
     PolicyProbs=repmat(PolicyProbs,1,1,2,1);
-    % Policy_aprime(:,:,:,1:2*N_u,:) lower grid point for a1 is unchanged 
+    % Policy_aprime(:,:,:,1:2*N_u,:) lower grid point for a1 is unchanged
     Policy_aprime(:,:,2*N_u+1:end,:)=Policy_aprime(:,:,2*N_u+1:end,:)+1; % add one to a1, to get upper grid point
 
     aprimeProbs_upper=reshape(shiftdim((Policy(end,:,:,:)-1)/(simoptions.ngridinterp+1),1),[N_a,N_bothze,1,N_j]); % probability of upper grid point (from L2 index)
@@ -196,7 +192,7 @@ elseif simoptions.gridinterplayer==1
     PolicyProbs(:,:,2*N_u+1:end,:)=PolicyProbs(:,:,2*N_u+1:end,:).*aprimeProbs_upper; % upper a1
 
     if N_z==0 && N_e==0
-        StationaryDist=StationaryDist_FHorz_Iteration_SemiExo_nProbs_noz_raw(jequaloneDist,AgeWeightParamNames,Policy_dsemiexo,Policy_aprime,PolicyProbs,2*N_u*2,N_dsemiz,N_a,N_semiz,N_j,pi_semiz_J,Parameters);    
+        StationaryDist=StationaryDist_FHorz_Iteration_SemiExo_nProbs_noz_raw(jequaloneDist,AgeWeightParamNames,Policy_dsemiexo,Policy_aprime,PolicyProbs,2*N_u*2,N_dsemiz,N_a,N_semiz,N_j,pi_semiz_J,Parameters);
     elseif N_e==0 % just z
         StationaryDist=StationaryDist_FHorz_Iteration_SemiExo_nProbs_raw(jequaloneDist,AgeWeightParamNames,Policy_dsemiexo,Policy_aprime,PolicyProbs,2*N_u*2,N_dsemiz,N_a,N_semiz,N_z,N_j,pi_semiz_J,pi_z_J,Parameters);
     elseif N_z==0 % just e

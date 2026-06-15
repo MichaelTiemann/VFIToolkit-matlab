@@ -1,13 +1,13 @@
 function SimPanelValues=SimPanelValues_AggShocks_FHorz_Case1(InitialDist,jequaloneDist,Policy,FnsToEvaluate,Parameters,FnsToEvaluateParamNames,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid,pi_z, simoptions)
 % Simulates a panel based on PolicyIndexes of 'numbersims' agents of length
-% 'simperiods' beginning from randomly drawn InitialDist and with new agents 
+% 'simperiods' beginning from randomly drawn InitialDist and with new agents
 % each time period based on jequaloneDist.
 %
 % SimPanelValues is a 3-dimensional matrix with first dimension being the
 % number of 'variables' to be simulated, second dimension is T, and
 % third dimension is the individual-simulations
 %
-% InitialDist can be inputed as over the finite time-horizon (j), or
+% InitialDist can be inputted as over the finite time-horizon (j), or
 % without a age-horizon in which case it is assumed to be an InitialDist
 % for age j=1. (So InitialDist is either n_a-by-n_z-by-n_j, or n_a-by-n_z)
 %
@@ -15,7 +15,7 @@ function SimPanelValues=SimPanelValues_AggShocks_FHorz_Case1(InitialDist,jequalo
 % of it. (So jequaloneDist is either n_a-by-n_z-by-n_aggshocks or
 % n_a-by-n_z)
 
-%% Check which simoptions have been declared, set all others to defaults 
+%% Check which simoptions have been declared, set all others to defaults
 if ~exist('simoptions','var')
     %If simoptions is not given, just use all the defaults
     simoptions.parallel=1+(gpuDeviceCount>0); % GPU where available, otherwise parallel CPU.
@@ -23,6 +23,9 @@ if ~exist('simoptions','var')
     simoptions.simperiods=100;
     simoptions.numbersims=10^3;
     simoptions.lowmemory=0; % setting to 1 slows the simulations, but reduces memory
+    % Exogenous shocks
+    simoptions.n_e=0;
+    simoptions.n_semiz=0;
 else
     %Check simoptions for missing fields, if there are some fill them with the defaults
     if ~isfield(simoptions,'parallel')
@@ -36,12 +39,19 @@ else
     end
     if ~isfield(simoptions,'numbersims')
         simoptions.numbersims=10^3;
-    end 
+    end
     if isfield(simoptions,'ExogShockFn') % If using ExogShockFn then figure out the parameter names
         simoptions.ExogShockFnParamNames=getAnonymousFnInputNames(simoptions.ExogShockFn);
     end
     if ~isfield(simoptions,'lowmemory')
         simoptions.lowmemory=0; % setting to 1 slows the simulations, but reduces memory
+    end
+    % Exogenous shocks
+    if ~isfield(simoptions,'n_e')
+        simoptions.n_e=0;
+    end
+    if ~isfield(simoptions,'n_semiz')
+        simoptions.n_semiz=0;
     end
 end
 
@@ -61,6 +71,8 @@ end
 
 l_a=length(n_a);
 N_z=prod(n_z);
+N_e=prod(simoptions.n_e);
+N_semiz=prod(simoptions.n_semiz);
 if N_z>0
     l_z=length(n_z);
 else
@@ -74,133 +86,18 @@ l_daprime=l_d+l_a; % Does not yet handle anything but basics
 
 % Internally, only ever use age-dependent joint-grids (makes all the code much easier to write)
 % Gradually rolling these out so that all the commands build off of these
-z_gridvals_J=zeros(prod(n_z),length(n_z),'gpuArray');
-pi_z_J=zeros(prod(n_z),prod(n_z),'gpuArray');
-if prod(n_z)==0 % no z
-    z_gridvals_J=[];
-elseif ndims(z_grid)==3 % already an age-dependent joint-grid
-    if all(size(z_grid)==[prod(n_z),length(n_z),N_j])
-        z_gridvals_J=z_grid;
-    end
-    pi_z_J=pi_z;
-elseif all(size(z_grid)==[sum(n_z),N_j]) % age-dependent grid
-    for jj=1:N_j
-        z_gridvals_J(:,:,jj)=CreateGridvals(n_z,z_grid(:,jj),1);
-    end
-    pi_z_J=pi_z;
-elseif all(size(z_grid)==[prod(n_z),length(n_z)]) % joint grid
-    z_gridvals_J=z_grid.*ones(1,1,N_j,'gpuArray');
-    pi_z_J=pi_z.*ones(1,1,N_j,'gpuArray');
-elseif all(size(z_grid)==[sum(n_z),1]) % basic grid
-    z_gridvals_J=CreateGridvals(n_z,z_grid,1).*ones(1,1,N_j,'gpuArray');
-    pi_z_J=pi_z.*ones(1,1,N_j,'gpuArray');
-end
-if isfield(simoptions,'ExogShockFn')
-    if isfield(simoptions,'ExogShockFnParamNames')
-        for jj=1:N_j
-            ExogShockFnParamsVec=CreateVectorFromParams(Parameters, simoptions.ExogShockFnParamNames,jj);
-            ExogShockFnParamsCell=cell(length(ExogShockFnParamsVec),1);
-            for ii=1:length(ExogShockFnParamsVec)
-                ExogShockFnParamsCell(ii,1)={ExogShockFnParamsVec(ii)};
-            end
-            [z_grid,pi_z]=simoptions.ExogShockFn(ExogShockFnParamsCell{:});
-            pi_z_J(:,jj)=gpuArray(pi_z);
-            if all(size(z_grid)==[sum(n_z),1])
-                z_gridvals_J(:,:,jj)=gpuArray(CreateGridvals(n_z,z_grid,1));
-            else % already joint-grid
-                z_gridvals_J(:,:,jj)=gpuArray(z_grid,1);
-            end
-        end
-    else
-        for jj=1:N_j
-            [z_grid,pi_z]=simoptions.ExogShockFn(N_j);
-            pi_z_J(:,jj)=gpuArray(pi_z);
-            if all(size(z_grid)==[sum(n_z),1])
-                z_gridvals_J(:,:,jj)=gpuArray(CreateGridvals(n_z,z_grid,1));
-            else % already joint-grid
-                z_gridvals_J(:,:,jj)=gpuArray(z_grid,1);
-            end
-        end
-    end
-end
+% gridpiboth=3: build both z_gridvals_J and pi_z_J (and e analogues if N_e>0)
+[z_gridvals_J,pi_z_J,simoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,simoptions,3);
 
-% If using e variable, do same for this
-if isfield(simoptions,'n_e')
-    n_e=simoptions.n_e;
-    N_e=prod(n_e);
-    if isfield(simoptions,'n_e')
-        if prod(simoptions.n_e)==0
-            simoptions=rmfield(simoptions,'n_e');
-        else
-            if isfield(simoptions,'e_grid_J')
-                error('No longer use simoptions.e_grid_J, instead just put the age-dependent grid in simoptions.e_grid (functionality of VFI Toolkit has changed to make it easier to use)')
-            end
-            if ~isfield(simoptions,'e_grid') % && ~isfield(simoptions,'e_grid_J')
-                error('You are using an e (iid) variable, and so need to declare simoptions.e_grid')
-            elseif ~isfield(simoptions,'pi_e')
-                error('You are using an e (iid) variable, and so need to declare simoptions.pi_e')
-            end
-
-            e_gridvals_J=zeros(prod(simoptions.n_e),length(simoptions.n_e),'gpuArray');
-            simoptions.pi_e_J=zeros(prod(simoptions.n_e),prod(simoptions.n_e),'gpuArray');
-            if ndims(simoptions.e_grid)==3 % already an age-dependent joint-grid
-                if all(size(simoptions.e_grid)==[prod(simoptions.n_e),length(simoptions.n_e),N_j])
-                    e_gridvals_J=simoptions.e_grid;
-                end
-                simoptions.pi_e_J=simoptions.pi_e;
-            elseif all(size(simoptions.e_grid)==[sum(simoptions.n_e),N_j]) % age-dependent stacked-grid
-                for jj=1:N_j
-                    e_gridvals_J(:,:,jj)=CreateGridvals(simoptions.n_e,simoptions.e_grid(:,jj),1);
-                end
-                simoptions.pi_e_J=simoptions.pi_e;
-            elseif all(size(simoptions.e_grid)==[prod(simoptions.n_e),length(simoptions.n_e)]) % joint grid
-                e_gridvals_J=simoptions.e_grid.*ones(1,1,N_j,'gpuArray');
-                simoptions.pi_e_J=simoptions.pi_e.*ones(1,N_j,'gpuArray');
-            elseif all(size(simoptions.e_grid)==[sum(simoptions.n_e),1]) % basic grid
-                e_gridvals_J=CreateGridvals(simoptions.n_e,simoptions.e_grid,1).*ones(1,1,N_j,'gpuArray');
-                simoptions.pi_e_J=simoptions.pi_e.*ones(1,N_j,'gpuArray');
-            end
-            if isfield(simoptions,'ExogShockFn')
-                if isfield(simoptions,'ExogShockFnParamNames')
-                    for jj=1:N_j
-                        ExogShockFnParamsVec=CreateVectorFromParams(Parameters, simoptions.ExogShockFnParamNames,jj);
-                        ExogShockFnParamsCell=cell(length(ExogShockFnParamsVec),1);
-                        for ii=1:length(ExogShockFnParamsVec)
-                            ExogShockFnParamsCell(ii,1)={ExogShockFnParamsVec(ii)};
-                        end
-                        [simoptions.e_grid,simoptions.pi_e]=simoptions.ExogShockFn(ExogShockFnParamsCell{:});
-                        simoptions.pi_e_J(:,jj)=gpuArray(simoptions.pi_e);
-                        if all(size(simoptions.e_grid)==[sum(simoptions.n_e),1])
-                            e_gridvals_J(:,:,jj)=gpuArray(CreateGridvals(simoptions.n_e,simoptions.e_grid,1));
-                        else % already joint-grid
-                            e_gridvals_J(:,:,jj)=gpuArray(simoptions.e_grid,1);
-                        end
-                    end
-                else
-                    for jj=1:N_j
-                        [simoptions.e_grid,simoptions.pi_e]=simoptions.ExogShockFn(N_j);
-                        simoptions.pi_e_J(:,jj)=gpuArray(simoptions.pi_e);
-                        if all(size(simoptions.e_grid)==[sum(simoptions.n_e),1])
-                            e_gridvals_J(:,:,jj)=gpuArray(CreateGridvals(simoptions.n_e,simoptions.e_grid,1));
-                        else % already joint-grid
-                            e_gridvals_J(:,:,jj)=gpuArray(simoptions.e_grid,1);
-                        end
-                    end
-                end
-            end
-        end
-    end
-end
-
-if isfield(simoptions,'n_e') % Note: N_z==0 is dealt with elsewhere
-    if N_e>0
-        n_ze=[n_z,n_e];
-        l_ze=length(n_ze);
-        N_ze=prod(n_ze);
-    else
+if N_e>0 % Note: N_z==0 is dealt with elsewhere
+    if N_e==0
         n_ze=n_z;
         l_ze=l_z;
         N_ze=N_z;
+    else
+        n_ze=[n_z,n_e];
+        l_ze=length(n_ze);
+        N_ze=prod(n_ze);
     end
 else
     n_ze=n_z;
@@ -212,23 +109,23 @@ end
 d_grid=gather(d_grid);
 a_grid=gather(a_grid);
 
-if isfield(simoptions,'n_semiz')
+if N_semiz>0
     simoptions.Parameters=Parameters; % Need to be able to pass a copy of this to SimPanelIndexes
     if N_z>0
-        if isfield(simoptions,'n_e')
+        if N_e>0
             PolicyIndexesKron=KronPolicyIndexes_FHorz_Case1(Policy, n_d, n_a, [simoptions.n_semiz,n_z], N_j,simoptions.n_e); % Create it here as want it both here and inside SimPanelIndexes_FHorz_Case1 (which will recognise that it is already in this form)
         else
             PolicyIndexesKron=KronPolicyIndexes_FHorz_Case1(Policy, n_d, n_a, [simoptions.n_semiz,n_z], N_j); % Create it here as want it both here and inside SimPanelIndexes_FHorz_Case1 (which will recognise that it is already in this form)
         end
     else
-        if isfield(simoptions,'n_e')
+        if N_e>0
             PolicyIndexesKron=KronPolicyIndexes_FHorz_Case1(Policy, n_d, n_a, simoptions.n_semiz, N_j,simoptions.n_e); % Create it here as want it both here and inside SimPanelIndexes_FHorz_Case1 (which will recognise that it is already in this form)
         else
             PolicyIndexesKron=KronPolicyIndexes_FHorz_Case1(Policy, n_d, n_a, simoptions.n_semiz, N_j); % Create it here as want it both here and inside SimPanelIndexes_FHorz_Case1 (which will recognise that it is already in this form)
         end
     end
 else
-    if isfield(simoptions,'n_e')
+    if N_e>0
         PolicyIndexesKron=KronPolicyIndexes_FHorz_Case1(Policy, n_d, n_a, n_z, N_j,simoptions.n_e); % Create it here as want it both here and inside SimPanelIndexes_FHorz_Case1 (which will recognise that it is already in this form)
     else
         PolicyIndexesKron=KronPolicyIndexes_FHorz_Case1(Policy, n_d, n_a, n_z, N_j); % Create it here as want it both here and inside SimPanelIndexes_FHorz_Case1 (which will recognise that it is already in this form)
@@ -240,9 +137,8 @@ PolicyIndexesKron=gather(PolicyIndexesKron);
 simoptions.simpanelindexkron=1; % Keep the output as kron form as will want this later anyway for assigning the values
 
 %%
-if isfield(simoptions,'n_semiz')
+if N_semiz>0
     semiz_gridvals_J=CreateGridvals(simoptions.n_semiz,simoptions.semiz_grid,1).*ones(1,1,N_j);
-    N_semiz=prod(simoptions.n_semiz);
     % From here on, can just treat semiz as another z
     if N_ze>0
         n_ze=[n_ze,simoptions.n_semiz];
@@ -299,12 +195,12 @@ else
     daprimePolicy_gridvals=zeros(N_a*N_ze,l_d+l_a,N_j); % Note: N_e=1 if no e variables
 end
 
-for jj=1:N_j    
-    if ~isfield(simoptions,'n_e')
+for jj=1:N_j
+    if N_e==0
         if n_d(1)==0
             [dPolicy_gridvals_j,aprimePolicy_gridvals_j]=CreateGridvals_PolicyKron(PolicyIndexesKron(:,:,jj),n_d,n_a,n_a,n_ze,d_grid,a_grid,1, 1);
         else
-            [dPolicy_gridvals_j,aprimePolicy_gridvals_j]=CreateGridvals_PolicyKron(PolicyIndexesKron(:,:,:,jj),n_d,n_a,n_a,n_ze,d_grid,a_grid,1, 1);            
+            [dPolicy_gridvals_j,aprimePolicy_gridvals_j]=CreateGridvals_PolicyKron(PolicyIndexesKron(:,:,:,jj),n_d,n_a,n_a,n_ze,d_grid,a_grid,1, 1);
         end
     else
         if n_d(1)==0
@@ -348,7 +244,7 @@ end
 
 %% For this version, I just loop over the N_j horizon simulations for each of the time periods, then put them together appropriately later
 for tt=1:simoptions.timeperiods
-    
+
     if simoptions.verbose==1
         fprintf('Simulating time period %i of %i \n', tt, simoptions.timeperiods)
     end
@@ -358,8 +254,8 @@ for tt=1:simoptions.timeperiods
     else
         simoptions.numbersims=nsims;
     end
-    
-    % If we are getting near the end, make the simulations shorter 
+
+    % If we are getting near the end, make the simulations shorter
     simoptions.simperiods=min(simoptions.timeperiods-tt+1,N_j);
 
     % Get the relevant sequence out of agg shocks
@@ -381,7 +277,7 @@ for tt=1:simoptions.timeperiods
     % Note, having the whole N_j at this stage makes assigning the values based on the indexes vastly faster
 
     %% For sure the following could be made faster by improving how I do it
-    if ~isfield(simoptions,'n_e')
+    if N_e==0
         for jj=1:size(SimPanelIndexes_tt,2)
             SimPanelIndexes_jj=SimPanelIndexes_tt(:,jj,:);
 
@@ -396,7 +292,7 @@ for tt=1:simoptions.timeperiods
                 % a_ind=currentPanelIndexes_jj(1,1,:);
                 % z_ind=currentPanelIndexes_jj(2,1,:);
                 % j_ind=currentPanelIndexes_jj(3,1,:);
-                
+
                 a_val=a_gridvals(currentPanelIndexes_jj(1,1,:),:); % a_grid does depend on age
                 z_val=z_gridvals_J(currentPanelIndexes_jj(2,1,:),:,jj);
 
@@ -435,7 +331,7 @@ for tt=1:simoptions.timeperiods
 
                 a_val=a_gridvals(currentPanelIndexes_jj(1,1,:),:); % a_grid does depend on age
                 z_val=z_gridvals_J(currentPanelIndexes_jj(2,1,:),:,jj);
-                e_val=e_gridvals_J(currentPanelIndexes_jj(3,1,:),:,jj);
+                e_val=simoptions.e_gridvals_J(currentPanelIndexes_jj(3,1,:),:,jj);
 
                 for vv=1:numFnsToEvalute
                     if isempty(FnsToEvaluateParamNames(vv).Names)  % check for 'FnsToEvaluateParamNames={}'

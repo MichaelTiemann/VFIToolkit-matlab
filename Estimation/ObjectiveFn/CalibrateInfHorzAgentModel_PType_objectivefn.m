@@ -55,8 +55,8 @@ end
 %% Do grids if those depend on parameters being calibrated (otherwise they are already done)
 if caliboptions.calibrateshocks==1
     % Internally, only ever use joint-grids (makes all the code much easier to write)
-    [z_gridvals, pi_z, vfoptions]=ExogShockSetup(n_z,z_gridvals,pi_z,Parameters,vfoptions,3);
-    % output: z_gridvals, pi_z, vfoptions.e_gridvals, vfoptions.pi_e
+    [z_gridvals, pi_z, vfoptions]=ExogShockSetup_InfHorz_PType(n_z,z_gridvals,pi_z,Names_i,Parameters,vfoptions,3);
+    % output: z_gridvals (struct keyed by Names_i), pi_z (struct), vfoptions.e_gridvals (struct), vfoptions.pi_e (struct)
     simoptions.e_gridvals=vfoptions.e_gridvals;
     simoptions.pi_e=vfoptions.pi_e;
 end
@@ -97,7 +97,7 @@ if usingallstats==1
         if isempty(allstatmomentnames{1,4})
             currentmomentvec(1:allstatcummomentsizes(1))=AllStats.(allstatmomentnames{1,1}).(allstatmomentnames{1,2}).(allstatmomentnames{1,3});
         else
-            currentmomentvec(1:allstatcummomentsizes(1))=AllStats.(allstatmomentnames{1,1}).(allstatmomentnames{1,2}).(allstatmomentnames{1,3}).(allstatmomentnames{1,4});        
+            currentmomentvec(1:allstatcummomentsizes(1))=AllStats.(allstatmomentnames{1,1}).(allstatmomentnames{1,2}).(allstatmomentnames{1,3}).(allstatmomentnames{1,4});
         end
     end
     for cc=2:size(allstatmomentnames,1)

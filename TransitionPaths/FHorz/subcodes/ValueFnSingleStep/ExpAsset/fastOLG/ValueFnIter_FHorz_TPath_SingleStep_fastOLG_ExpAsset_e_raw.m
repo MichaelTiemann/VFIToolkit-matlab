@@ -17,7 +17,8 @@ N_z=prod(n_z);
 N_e=prod(n_e);
 
 z_gridvals_J=shiftdim(z_gridvals_J,-4); % [1,1,1,1,N_j,N_z,l_z]
-e_gridvals_J=shiftdim(e_gridvals_J,-5); % [1,1,1,1,1,N_j,N_e,l_e]
+% e_gridvals_J=shiftdim(e_gridvals_J,-5); % [1,1,1,1,1,N_j,N_e,l_e]
+e_gridvals_J=shiftdim(reshape(e_gridvals_J,[N_j,1,1,N_e,[]]),-4); % Make room for N_z,l_z, but align N_j with z_gridvals_J
 
 %% First, create the big 'next period (of transition path) expected value fn.
 % fastOLG will be N_d*N_aprime by N_a*N_j*N_z (note: N_aprime is just equal to N_a)
@@ -33,13 +34,13 @@ ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames
 if vfoptions.EVpre==0
     aprimeFnParamsVec=CreateAgeMatrixFromParams(Parameters, aprimeFnParamNames,N_j);
     [a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix_J(aprimeFn, n_d2, n_a2, N_j, d2_gridvals, a2_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
-    % Note: aprimeIndex is [N_d2,N_a2,N_j], whereas aprimeProbs is [N_d2,N_a2,N_j]
+    % Note: a2primeIndex is [N_d2,N_a2,N_j], whereas a2primeProbs is [N_d2,N_a2,N_j]
 
     aprimeIndex=repelem((1:1:N_a1)',N_d2,1,1)+N_a1*repmat((a2primeIndex-1),N_a1,1,1); % [N_d2*N_a1,N_a2,N_j], autofill the [1,N_a1,N_j] dimensions for the first part
     aprimeplus1Index=repelem((1:1:N_a1)',N_d2,1,1)+N_a1*repmat(a2primeIndex,N_a1,1,1); % [N_d2*N_a1,N_a2,N_j], autofill the [1,N_a1,N_j] dimensions for the first part
     aprimeProbs=repmat(a2primeProbs,N_a1,1,1,N_z);  % [N_d2*N_a1,N_a2,N_j,N_z]
 
-    EVpre=[sum(V(N_a+1:end,:).*replem(reshape(pi_e_J,[N_j,1,N_e]),N_a-1,1,1),3); zeros(N_a,N_z,'gpuArray')]; % I use zeros in j=N_j so that can just use pi_z_J to create expectations
+    EVpre=[sum(V(N_a+1:end,:,:).*pi_e_J(N_a+1:end,:,:),3); zeros(N_a,N_z,'gpuArray')]; % I use zeros in j=N_j so that can just use pi_z_J to create expectations
 
     % Need to add the indexes for j to the aprimeIndex, remember fastOLG so V is (a,j)-by-z
     Vlower=reshape(EVpre(aprimeIndex+shiftdim(N_a*gpuArray(0:1:N_j-1),-1),:),[N_d2*N_a1,N_a2,N_j,N_z]);
@@ -48,18 +49,18 @@ if vfoptions.EVpre==0
     skipinterp=(Vlower==Vupper);
     aprimeProbs(skipinterp)=0; % effectively skips interpolation
 
-    % Switch EV from being in terps of a2prime to being in terms of d2 and a2
+    % Switch EV from being in terms of a2prime to being in terms of d2 and a2
     EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper; % (d2,a1prime,a2,N_j,zprime)
     % Already applied the probabilities from interpolating onto grid
-    
+
     EV=EV.*shiftdim(pi_z_J,-2);
-    EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilites)
-    EV=reshape(sum(EV,4),[N_d2*N_a1,N_a2,N_j,N_z]); % (aprime,1,j,z), 2nd dim will be autofilled with a
+    EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+    EV=reshape(sum(EV,4),[N_d2*N_a1,N_a2,N_j,N_z]); % (aprime,1,j,z), 2nd dim will be autofilled with a2
 elseif vfoptions.EVpre==1
-    % This is used for 'Matched Expecations Path'
+    % This is used for 'Matched Expectations Path'
     aprimeFnParamsVec=CreateAgeMatrixFromParams(Parameters, aprimeFnParamNames,N_j);
     [a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix_J(aprimeFn, n_d2, n_a2, N_j, d2_gridvals, a2_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
-    % Note: aprimeIndex is [N_d2,N_a2,N_j], whereas aprimeProbs is [N_d2,N_a2,N_j]
+    % Note: a2primeIndex is [N_d2,N_a2,N_j], whereas a2primeProbs is [N_d2,N_a2,N_j]
 
     aprimeIndex=repelem((1:1:N_a1)',N_d2,1,1)+N_a1*repmat((a2primeIndex-1),N_a1,1,1); % [N_d2*N_a1,N_a2,N_j], autofill the [1,N_a1,N_j] dimensions for the first part
     aprimeplus1Index=repelem((1:1:N_a1)',N_d2,1,1)+N_a1*repmat(a2primeIndex,N_a1,1,1); % [N_d2*N_a1,N_a2,N_j], autofill the [1,N_a1,N_j] dimensions for the first part
@@ -74,21 +75,19 @@ elseif vfoptions.EVpre==1
     skipinterp=(Vlower==Vupper);
     aprimeProbs(skipinterp)=0; % effectively skips interpolation
 
-    % Switch EV from being in terps of a2prime to being in terms of d2 and a2
+    % Switch EV from being in terms of a2prime to being in terms of d2 and a2
     EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper; % (d2,a1prime,a2,N_j,zprime)
     % Already applied the probabilities from interpolating onto grid
-    
+
     EV=EV.*shiftdim(pi_z_J,-2);
-    EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilites)
-    EV=reshape(sum(EV,4),[N_d2*N_a1,N_a2,N_j,N_z]); % (aprime,1,j,z), 2nd dim will be autofilled with a
+    EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+    EV=reshape(sum(EV,4),[N_d2*N_a1,N_a2,N_j,N_z]); % (aprime,1,j,z), 2nd dim will be autofilled with a2
 end
 
-DiscountedEV=DiscountFactorParamsVec.*repelem(EV,N_d1,N_a1,1,1);
-
 if vfoptions.lowmemory==0
-    ReturnMatrix=CreateReturnFnMatrix_Case1_fastOLG_ExpAsset_Disc_Par2e(ReturnFn, n_d1, n_d2, n_a1, n_a1,n_a2, n_z,n_e,N_j, d_gridvals, a1_gridvals, a1_gridvals, a2_grid, z_gridvals_J, e_gridvals_J, ReturnFnParamsAgeMatrix,0,0);
+    ReturnMatrix=CreateReturnFnMatrix_fastOLG_ExpAsset_Disc_e(ReturnFn, n_d1, n_d2, n_a1, n_a1,n_a2, n_z,n_e,N_j, d_gridvals, a1_gridvals, a1_gridvals, a2_grid, z_gridvals_J, e_gridvals_J, ReturnFnParamsAgeMatrix,0,0); % Level=0, Refine=0
 
-    entireRHS=ReturnMatrix+DiscountedEV;
+    entireRHS=ReturnMatrix+DiscountFactorParamsVec.*repelem(EV,N_d1,N_a1,1,1);
 
     % Calc the max and it's index
     [Vtemp,maxindex]=max(entireRHS,[],1);
@@ -100,18 +99,19 @@ elseif vfoptions.lowmemory==1
     special_n_e=ones(1,length(n_e),'gpuArray');
     V=zeros(N_a*N_j,N_z,N_e,'gpuArray');
     Policy=zeros(N_a*N_j,N_z,N_e,'gpuArray');
+    DiscountedEV=DiscountFactorParamsVec.*repelem(EV,N_d1,N_a1,1,1);
 
     for e_c=1:N_e
-        e_val=e_gridvals_J(:,e_c,:);
+        e_val=e_gridvals_J(:,:,:,:,:,:,:,e_c,:);
 
-        ReturnMatrix_e=CreateReturnFnMatrix_Case1_fastOLG_ExpAsset_Disc_Par2e(ReturnFn, n_d1, n_d2, n_a1, n_a1,n_a2, n_z,special_n_e,N_j, d_gridvals, a1_gridvals, a1_gridvals, a2_grid, z_gridvals_J, e_val, ReturnFnParamsAgeMatrix,0,0);
+        ReturnMatrix_e=CreateReturnFnMatrix_fastOLG_ExpAsset_Disc_e(ReturnFn, n_d1, n_d2, n_a1, n_a1,n_a2, n_z,special_n_e,N_j, d_gridvals, a1_gridvals, a1_gridvals, a2_grid, z_gridvals_J, e_val, ReturnFnParamsAgeMatrix,0,0); % Level=0, Refine=0
 
         entireRHS_e=ReturnMatrix_e+DiscountedEV;
 
         % Calc the max and it's index
         [Vtemp,maxindex]=max(entireRHS_e,[],1);
-        V(:,:,e_c)=Vtemp;
-        Policy(:,:,e_c)=maxindex;
+        V(:,:,e_c)=reshape(Vtemp,[N_a*N_j,N_z]);
+        Policy(:,:,e_c)=reshape(maxindex,[N_a*N_j,N_z]);
     end
 elseif vfoptions.lowmemory==2
     special_n_z=ones(1,length(n_z),'gpuArray');
@@ -120,30 +120,57 @@ elseif vfoptions.lowmemory==2
     Policy=zeros(N_a*N_j,N_z,N_e,'gpuArray');
 
     for z_c=1:N_z
-        z_val=z_gridvals_J(:,z_c,:);
-        DiscountedEV_z=DiscountedEV(:,:,:,z_c);
+        z_val=z_gridvals_J(:,:,:,:,:,z_c,:);
+        DiscountedEV_z=DiscountFactorParamsVec.*repelem(EV(:,:,:,z_c),N_d1,N_a1,1,1);
 
         for e_c=1:N_e
-            e_val=e_gridvals_J(:,e_c,:);
+            e_val=e_gridvals_J(:,:,:,:,:,:,:,e_c,:);
 
-            ReturnMatrix_ze=CreateReturnFnMatrix_Case1_fastOLG_ExpAsset_Disc_Par2e(ReturnFn, n_d1, n_d2, n_a1, n_a1,n_a2, special_n_z,special_n_e,N_j, d_gridvals, a1_gridvals, a1_gridvals, a2_grid, z_val, e_val, ReturnFnParamsAgeMatrix,0,0);
+            ReturnMatrix_ze=CreateReturnFnMatrix_fastOLG_ExpAsset_Disc_e(ReturnFn, n_d1, n_d2, n_a1, n_a1,n_a2, special_n_z,special_n_e,N_j, d_gridvals, a1_gridvals, a1_gridvals, a2_grid, z_val, e_val, ReturnFnParamsAgeMatrix,0,0); % Level=0, Refine=0
 
             entireRHS_ze=ReturnMatrix_ze+DiscountedEV_z;
 
             % Calc the max and it's index
             [Vtemp,maxindex]=max(entireRHS_ze,[],1);
-            V(:,z_c,e_c)=Vtemp;
-            Policy(:,z_c,e_c)=maxindex;
+            V(:,z_c,e_c)=Vtemp(:);
+            Policy(:,z_c,e_c)=maxindex(:);
+        end
+    end
+elseif vfoptions.lowmemory==3
+    special_n_ea=ones(1,length(n_a2),'gpuArray');
+    special_n_z=ones(1,length(n_z),'gpuArray');
+    special_n_e=ones(1,length(n_e),'gpuArray');
+    V=zeros(N_a1,N_a2,N_j,N_z,N_e,'gpuArray');
+    Policy=zeros(N_a1,N_a2,N_j,N_z,N_e,'gpuArray');
+
+    for ea_c=1:N_a2
+        ea_val=a2_grid(ea_c);
+        for z_c=1:N_z
+            z_val=z_gridvals_J(:,:,:,:,:,z_c,:);
+            DiscountedEV_ea_z=DiscountFactorParamsVec.*repelem(EV(:,ea_c,:,z_c),N_d1,N_a1,1,1);
+    
+            for e_c=1:N_e
+                e_val=e_gridvals_J(:,:,:,:,:,:,:,e_c,:);
+    
+                ReturnMatrix_ea_ze=CreateReturnFnMatrix_fastOLG_ExpAsset_Disc_e(ReturnFn, n_d1, n_d2, n_a1, n_a1,special_n_ea, special_n_z,special_n_e,N_j, d_gridvals, a1_gridvals, a1_gridvals, ea_val, z_val, e_val, ReturnFnParamsAgeMatrix,0,0); % Level=0, Refine=0
+    
+                entireRHS_ea_ze=ReturnMatrix_ea_ze+DiscountedEV_ea_z;
+    
+                % Calc the max and it's index
+                [Vtemp,maxindex]=max(entireRHS_ea_ze,[],1);
+                V(:,ea_c,:,z_c,e_c)=shiftdim(Vtemp,1);
+                Policy(:,ea_c,:,z_c,e_c)=shiftdim(maxindex,1);
+            end
         end
     end
 end
 
 
 %% fastOLG with z, so need to output to take certain shapes
-% V=reshape(V,[N_a*N_j,N_z,N_e]);
-% Policy=reshape(Policy,[N_a,N_j,N_z,N_e]);
+V=reshape(V,[N_a*N_j,N_z,N_e]);
+Policy=reshape(Policy,[N_a,N_j,N_z,N_e]);
 
-%% Output shape for policy
+%% For experience asset, just output Policy as single index and then use Case2 to UnKron
 Policy=shiftdim(Policy,-1); % so first dim is just one point
 
 

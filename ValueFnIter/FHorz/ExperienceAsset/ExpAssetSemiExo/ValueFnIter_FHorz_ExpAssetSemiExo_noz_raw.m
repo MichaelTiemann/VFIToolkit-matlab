@@ -42,7 +42,7 @@ ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0
 
-        ReturnMatrix=CreateReturnFnMatrix_Case1_ExpAsset_Disc_Par2(ReturnFn, n_d1,n_d23,n_a1,n_a1,n_a2,n_semiz, d123_gridvals, a1_gridvals, a1_gridvals, a2_gridvals, semiz_gridvals_J(:,:,N_j), ReturnFnParamsVec,0,0); % [N_d*N_a1,N_a1*N_a2,N_z]
+        ReturnMatrix=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d23,n_a1,n_a1,n_a2,n_semiz, d123_gridvals, a1_gridvals, a1_gridvals, a2_gridvals, semiz_gridvals_J(:,:,N_j), ReturnFnParamsVec,0,0); % [N_d*N_a1,N_a1*N_a2,N_z]; Level=0, Refine=0
         %Calc the max and it's index
         [Vtemp,maxindex]=max(ReturnMatrix,[],1);
         V(:,:,N_j)=Vtemp;
@@ -58,7 +58,7 @@ if ~isfield(vfoptions,'V_Jplus1')
 
         for z_c=1:N_semiz
             z_val=semiz_gridvals_J(z_c,:,N_j);
-            ReturnMatrix_z=CreateReturnFnMatrix_Case1_ExpAsset_Disc_Par2(ReturnFn, n_d1,n_d23,n_a1,n_a1,n_a2,special_n_semiz, d123_gridvals, a1_gridvals, a1_gridvals, a2_gridvals, z_val, ReturnFnParamsVec,0,0);
+            ReturnMatrix_z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d23,n_a1,n_a1,n_a2,special_n_semiz, d123_gridvals, a1_gridvals, a1_gridvals, a2_gridvals, z_val, ReturnFnParamsVec,0,0); % Level=0, Refine=0
             %Calc the max and it's index
             [Vtemp,maxindex]=max(ReturnMatrix_z,[],1);
             V(:,z_c,N_j)=Vtemp;
@@ -72,7 +72,7 @@ if ~isfield(vfoptions,'V_Jplus1')
     end
 else
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
-    [a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix_Case1(aprimeFn, n_d2, n_a2, d2_gridvals, a2_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
+    [a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix(aprimeFn, n_d2, n_a2, d2_gridvals, a2_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
     % Note: aprimeIndex is [N_d2,N_a2], whereas aprimeProbs is [N_d2,N_a2]
 
     aprimeIndex=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat((a2primeIndex-1),N_a1,1); % [N_d2*N_a1,N_a2]
@@ -88,7 +88,7 @@ else
 
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
-    
+
     if vfoptions.lowmemory==0
         for d3_c=1:N_d3
             % d3_val=d3_grid(d3_c);
@@ -96,11 +96,11 @@ else
             % Note: By definition V_Jplus1 does not depend on d (only aprime)
             pi_semi_d3=pi_semiz_J(:,:,d3_c,N_j);
 
-            ReturnMatrix_d3=CreateReturnFnMatrix_Case1_ExpAsset_Disc_Par2(ReturnFn, n_d1,[n_d2,1],n_a1,n_a1,n_a2,n_semiz, d123_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, semiz_gridvals_J(:,:,N_j), ReturnFnParamsVec,0,0);
+            ReturnMatrix_d3=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,[n_d2,1],n_a1,n_a1,n_a2,n_semiz, d123_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, semiz_gridvals_J(:,:,N_j), ReturnFnParamsVec,0,0); % Level=0, Refine=0
             % (d,aprime,a,z)
 
             EV=V_Jplus1.*shiftdim(pi_semi_d3',-1);
-            EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilites)
+            EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
             EV=sum(EV,2); % sum over z', leaving a singular second dimension
 
             % Switch EV from being in terms of aprime to being in terms of d and a
@@ -124,7 +124,7 @@ else
             Policy_ford3_jj(:,:,d3_c)=shiftdim(maxindex,1);
 
         end
-        
+
     elseif vfoptions.lowmemory==1
         for d3_c=1:N_d3
             % d3_val=d3_grid(d3_c);
@@ -134,11 +134,11 @@ else
 
             for z_c=1:N_semiz
                 z_val=semiz_gridvals_J(z_c,:,N_j);
-                ReturnMatrix_d3z=CreateReturnFnMatrix_Case1_ExpAsset_Disc_Par2(ReturnFn, n_d1,[n_d2,1],n_a1,n_a1,n_a2,special_n_semiz, d123_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, z_val, ReturnFnParamsVec,0,0);
+                ReturnMatrix_d3z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,[n_d2,1],n_a1,n_a1,n_a2,special_n_semiz, d123_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, z_val, ReturnFnParamsVec,0,0); % Level=0, Refine=0
 
                 %Calc the condl expectation term (except beta), which depends on z but not on control variables
                 EV_z=V_Jplus1.*(ones(N_a,1,'gpuArray')*pi_semi_d3(z_c,:));
-                EV_z(isnan(EV_z))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilites)
+                EV_z(isnan(EV_z))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
                 EV_z=sum(EV_z,2);
 
                 % Switch EV_z from being in terms of aprime to being in terms of d and a
@@ -182,15 +182,15 @@ for reverse_j=1:N_j-1
     if vfoptions.verbose==1
         fprintf('Finite horizon: %i of %i \n',jj, N_j)
     end
-    
-    
+
+
     % Create a vector containing all the return function parameters (in order)
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);
-    [a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix_Case1(aprimeFn, n_d2, n_a2, d2_gridvals, a2_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
+    [a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix(aprimeFn, n_d2, n_a2, d2_gridvals, a2_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
     % Note: aprimeIndex is [N_d2,N_a2], whereas aprimeProbs is [N_d2,N_a2]
 
     aprimeIndex=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat((a2primeIndex-1),N_a1,1); % [N_d2*N_a1,N_a2]
@@ -201,7 +201,7 @@ for reverse_j=1:N_j-1
         aprimeProbs=repmat(a2primeProbs,N_a1,1,N_semiz);  % [N_d2*N_a1,N_a2,N_semiz]
     end
 
-    VKronNext_j=V(:,:,jj+1);
+    EVpre=V(:,:,jj+1);
 
     if vfoptions.lowmemory==0
         for d3_c=1:N_d3
@@ -210,11 +210,11 @@ for reverse_j=1:N_j-1
             % Note: By definition V_Jplus1 does not depend on d (only aprime)
             pi_semi_d3=pi_semiz_J(:,:,d3_c,jj);
 
-            ReturnMatrix_d3=CreateReturnFnMatrix_Case1_ExpAsset_Disc_Par2(ReturnFn, n_d1,[n_d2,1],n_a1,n_a1,n_a2,n_semiz, d123_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, semiz_gridvals_J(:,:,jj), ReturnFnParamsVec,0,0);
+            ReturnMatrix_d3=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,[n_d2,1],n_a1,n_a1,n_a2,n_semiz, d123_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, semiz_gridvals_J(:,:,jj), ReturnFnParamsVec,0,0); % Level=0, Refine=0
             % (d,aprime,a,z)
 
-            EV=VKronNext_j.*shiftdim(pi_semi_d3',-1);
-            EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilites)
+            EV=EVpre.*shiftdim(pi_semi_d3',-1);
+            EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
             EV=sum(EV,2); % sum over z', leaving a singular second dimension
 
             % Switch EV from being in terms of aprime to being in terms of d and a
@@ -247,11 +247,11 @@ for reverse_j=1:N_j-1
 
             for z_c=1:N_semiz
                 z_val=semiz_gridvals_J(z_c,:,jj);
-                ReturnMatrix_d3z=CreateReturnFnMatrix_Case1_ExpAsset_Disc_Par2(ReturnFn, n_d1,[n_d2,1],n_a1,n_a1,n_a2,special_n_semiz, d123_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, z_val, ReturnFnParamsVec,0,0);
+                ReturnMatrix_d3z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,[n_d2,1],n_a1,n_a1,n_a2,special_n_semiz, d123_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, z_val, ReturnFnParamsVec,0,0); % Level=0, Refine=0
 
                 %Calc the condl expectation term (except beta), which depends on z but not on control variables
-                EV_z=VKronNext_j.*(ones(N_a,1,'gpuArray')*pi_semi_d3(z_c,:));
-                EV_z(isnan(EV_z))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilites)
+                EV_z=EVpre.*(ones(N_a,1,'gpuArray')*pi_semi_d3(z_c,:));
+                EV_z(isnan(EV_z))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
                 EV_z=sum(EV_z,2);
 
                 % Switch EV_z from being in terms of aprime to being in terms of d and a

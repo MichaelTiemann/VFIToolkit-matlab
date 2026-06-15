@@ -1,6 +1,6 @@
 function SimPanel=SimPanelIndexes_FHorz(InitialDist,Policy,n_d,n_a,n_z,N_j,pi_z_J, simoptions)
 % Inputs should already be on cpu, output is on cpu
-% 
+%
 % Intended to be called from SimPanelValues_FHorz_Case1()
 
 N_d=prod(n_d);
@@ -21,11 +21,11 @@ else
     l_z=0;
 end
 N_e=prod(simoptions.n_e);
-if N_e>0
+if N_e==0
+    l_e=0;
+else
     l_e=length(simoptions.n_e);
     cumsumpi_e_J=gather(cumsum(simoptions.pi_e_J,1));
-else
-    l_e=0;
 end
 
 cumsumInitialDistVec=cumsum(InitialDist(:))/sum(InitialDist(:)); % Note: by using (:) I can ignore what the original dimensions were
@@ -102,7 +102,7 @@ if N_z==0
             seedpoints=[ind2sub_vec_homemade([N_a,N_j],seedpointind')]; %,ones(simoptions.numbersims,1)];
         end
         seedpoints=gather(floor(seedpoints)); % For some reason seedpoints had heaps of '.0000' decimal places and were not being treated as integers, this solves that.
-        
+
         % simoptions.simpanelindexkron==1 % Create the simulated data in kron form
         SimPanel=nan(2,N_j,simoptions.numbersims); % (a,j)
         if simoptions.gridinterplayer==0
@@ -265,7 +265,7 @@ else % N_z>0
             seedpoints=[ind2sub_vec_homemade([N_a,N_z,N_e,N_j],seedpointind'),ones(simoptions.numbersims,1)];
         end
         seedpoints=gather(floor(seedpoints)); % For some reason seedpoints had heaps of '.0000' decimal places and were not being treated as integers, this solves that.
-        
+
         % simoptions.simpanelindexkron==1 % Create the simulated data in kron form
         SimPanel=nan(4,N_j,simoptions.numbersims); % (a,z,e,j)
         if simoptions.gridinterplayer==0

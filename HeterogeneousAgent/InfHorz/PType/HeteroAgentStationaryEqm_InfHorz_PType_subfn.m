@@ -3,6 +3,31 @@ function GeneralEqmConditions=HeteroAgentStationaryEqm_InfHorz_PType_subfn(GEpri
 heteroagentparamsvecindex=0:1:length(GEpricesvec);
 [GEpricesvec,penalty]=ParameterConstraints_TransformParamsToOriginal(GEpricesvec,heteroagentparamsvecindex,GEPriceParamNames,heteroagentoptions);
 
+if heteroagentoptions.verbose>0
+    GEpricesvec_tminus1=zeros(nGEprices,1);
+    AggVars_tminus1=NaN(length(AggVarNames),1);
+
+    for pp=1:nGEprices
+        GEpricesvec_tminus1(pp)=Parameters.(GEPriceParamNames{pp});
+    end
+    GEpricesvec_delta=GEpricesvec-GEpricesvec_tminus1;
+    for aa=1:length(AggVarNames)
+        if isfield(Parameters,AggVarNames{aa})
+            AggVars_tminus1(aa)=Parameters.(AggVarNames{aa});
+        end
+    end
+    if heteroagentoptions.useintermediateEqns==1
+        intEqnnames=fieldnames(heteroagentoptions.intermediateEqns);
+        intermediateEqns_tminus1=zeros(length(intEqnnames),1);
+        for aa=1:length(intEqnnames)
+            if isfield(Parameters,intEqnnames{aa})
+                intEqns_tminus1(aa)=Parameters.(intEqnnames{aa});
+            end
+        end
+    end
+    % We don't do anything special for CustomModelStats, which are not as easily done as others above.
+end
+
 if heteroagentoptions.verbose==2
     fprintf(' \n')
     fprintf('Current GE prices: \n')
@@ -11,7 +36,7 @@ if heteroagentoptions.verbose==2
     end
 end
 
-%% 
+%%
 for pp=1:nGEprices
     Parameters.(GEPriceParamNames{pp})=GEpricesvec(pp);
 end
@@ -36,7 +61,7 @@ AggVars_ConditionalOnPType=zeros(PTypeStructure.numFnsToEvaluate,PTypeStructure.
 AggVars=zeros(PTypeStructure.numFnsToEvaluate,1,'gpuArray'); % numFnsToEvaluate is independent of the ptype
 
 for ii=1:PTypeStructure.N_i
-    
+
     iistr=PTypeStructure.iistr{ii};
     for pp=1:length(GEPriceParamNames)
         PTypeStructure.(iistr).Parameters.(GEPriceParamNames{pp})=GEpricesvec(pp);
@@ -51,7 +76,7 @@ for ii=1:PTypeStructure.N_i
         PTypeStructure.(iistr).simoptions.pi_e=PTypeStructure.(iistr).vfoptions.pi_e;
     end
 
-    
+
     [V_ii, Policy_ii]=ValueFnIter_InfHorz(PTypeStructure.(iistr).n_d,PTypeStructure.(iistr).n_a,PTypeStructure.(iistr).n_z,PTypeStructure.(iistr).d_grid, PTypeStructure.(iistr).a_grid, PTypeStructure.(iistr).z_grid, PTypeStructure.(iistr).pi_z, PTypeStructure.(iistr).ReturnFn, PTypeStructure.(iistr).Parameters, PTypeStructure.(iistr).DiscountFactorParamNames, PTypeStructure.(iistr).ReturnFnParamNames, PTypeStructure.(iistr).vfoptions);
     StationaryDist_ii=StationaryDist_InfHorz(Policy_ii,PTypeStructure.(iistr).n_d,PTypeStructure.(iistr).n_a,PTypeStructure.(iistr).n_z,PTypeStructure.(iistr).pi_z,PTypeStructure.(iistr).simoptions,PTypeStructure.(iistr).Parameters);
     % PTypeStructure.(iistr).simoptions.outputasstructure=0; % Want AggVars_ii as matrix to make it easier to add them across the PTypes (is set outside this script)
@@ -75,7 +100,6 @@ end
 AggVars=sum(AggVars_ConditionalOnPType.*PTypeStructure.ptweights',2);
 % Note: AggVars is a vector
 
-
 %% Put GE parameters  and AggVars in structure, so they can be used for intermediateEqns and GeneralEqmEqns
 % already did the basic GE params
 % for pp=1:nGEprices
@@ -90,6 +114,10 @@ end
 %% Custom Model Stats
 if heteroagentoptions.useCustomModelStats==1
     StationaryDist.ptweights=PTypeStructure.ptweights;
+    if heteroagentoptions.gridsinGE==1
+        heteroagentoptions.CustomModelStatsInputs.z_grid=z_gridvals;
+        heteroagentoptions.CustomModelStatsInputs.pi_z=pi_z;
+    end
     % A bunch of the inputs are stashed in heteroagentoptions.CustomModelStatsInputs
     % Note: CustomStats deliberately does not get AgeWeightParamNames and PTypeDistParamNames, user will anyway know them
     CustomStats=heteroagentoptions.CustomModelStats(V,Policy,StationaryDist,Parameters,heteroagentoptions.CustomModelStatsInputs.FnsToEvaluate,heteroagentoptions.CustomModelStatsInputs.n_d,heteroagentoptions.CustomModelStatsInputs.n_a,heteroagentoptions.CustomModelStatsInputs.n_z,PTypeStructure.Names_i,heteroagentoptions.CustomModelStatsInputs.d_grid,heteroagentoptions.CustomModelStatsInputs.a_grid,heteroagentoptions.CustomModelStatsInputs.z_grid,heteroagentoptions.CustomModelStatsInputs.pi_z,heteroagentoptions,heteroagentoptions.CustomModelStatsInputs.vfoptions,heteroagentoptions.CustomModelStatsInputs.simoptions);

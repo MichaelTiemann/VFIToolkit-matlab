@@ -20,12 +20,13 @@ aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames);
 N_d1=prod(n_d1);
 N_a1=prod(n_a1);
 N_z=prod(n_z);
+N_e=prod(vfoptions.n_e);
 
 % Note: divide-and-conquer is only possible with a1
 if N_a1>0 % set up for divide-and-conquer
     if vfoptions.divideandconquer==1
         if ~isfield(vfoptions,'level1n')
-            vfoptions.level1n=max(ceil(n_a1(1)/50),5); % minimum of 5
+            vfoptions.level1n=round(sqrt(n_a1(1)));
             if n_a1(1)<5
                 error('cannot use vfoptions.divideandconquer=1 with less than 5 points in the a variable (you need to turn off divide-and-conquer, or put more points into the a variable)')
             end
@@ -46,25 +47,7 @@ else
     d_gridvals=CreateGridvals([n_d1,n_d2],[d1_grid; d2_grid],1);
 end
 
-if isfield(vfoptions,'n_e')
-    if N_a1==0
-        if N_d1==0
-            if N_z==0
-                error('Have not yet implemented: InfHorz, inheritanceasset, no d1, no a1, no z, e,')
-            else
-                error('Have not yet implemented: InfHorz, inheritanceasset, no d1, no a1, z, e')
-            end
-        else
-            if N_z==0
-                error('Have not yet implemented: InfHorz, inheritanceasset, d1, no a1, no z, e')
-            else
-                error('Have not yet implemented: InfHorz, inheritanceasset, d1, no a1, z, e')
-            end
-        end
-    else 
-        error('Have not yet implemented: InfHorz, inheritanceasset, a1')
-    end
-else % no e variable
+if N_e==0
     if N_a1==0
         if N_d1==0
             if N_z==0
@@ -82,6 +65,24 @@ else % no e variable
     else % N_a1
         error('Have not yet implemented: InfHorz, inheritanceasset, a1')
     end
+else % e variable
+    if N_a1==0
+        if N_d1==0
+            if N_z==0
+                error('Have not yet implemented: InfHorz, inheritanceasset, no d1, no a1, no z, e,')
+            else
+                error('Have not yet implemented: InfHorz, inheritanceasset, no d1, no a1, z, e')
+            end
+        else
+            if N_z==0
+                error('Have not yet implemented: InfHorz, inheritanceasset, d1, no a1, no z, e')
+            else
+                error('Have not yet implemented: InfHorz, inheritanceasset, d1, no a1, z, e')
+            end
+        end
+    else
+        error('Have not yet implemented: InfHorz, inheritanceasset, a1')
+    end
 end
 
 
@@ -89,7 +90,7 @@ end
 if vfoptions.outputkron==0
     if n_d1>0
         n_d=[n_d1,n_d2];
-    else 
+    else
         n_d=n_d2;
     end
     if n_a1>0
@@ -99,21 +100,21 @@ if vfoptions.outputkron==0
         n_a=n_a2;
     end
     %Transforming Value Fn and Optimal Policy Indexes matrices back out of Kronecker Form
-    if isfield(vfoptions,'n_e')
-        if N_z==0
-            V=reshape(VKron,[n_a,vfoptions.n_e]);
-            Policy=UnKronPolicyIndexes_Case2(PolicyKron, n_d, n_a, vfoptions.n_e, vfoptions); % Treat e as z (because no z)
-        else
-            V=reshape(VKron,[n_a,n_z,vfoptions.n_e]);
-            Policy=UnKronPolicyIndexes_Case2_e(PolicyKron, n_d, n_a, n_z, vfoptions.n_e, vfoptions);
-        end
-    else
+    if N_e==0
         if N_z==0
             V=reshape(VKron,[n_a,1]);
             Policy=UnKronPolicyIndexes_Case2_noz(PolicyKron, n_d, n_a, vfoptions);
         else
             V=reshape(VKron,[n_a,n_z]);
             Policy=UnKronPolicyIndexes_Case2(PolicyKron, n_d, n_a, n_z, vfoptions);
+        end
+    else
+        if N_z==0
+            V=reshape(VKron,[n_a,vfoptions.n_e]);
+            Policy=UnKronPolicyIndexes_Case2(PolicyKron, n_d, n_a, vfoptions.n_e, vfoptions); % Treat e as z (because no z)
+        else
+            V=reshape(VKron,[n_a,n_z,vfoptions.n_e]);
+            Policy=UnKronPolicyIndexes_Case2_e(PolicyKron, n_d, n_a, n_z, vfoptions.n_e, vfoptions);
         end
     end
 else

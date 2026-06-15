@@ -29,19 +29,20 @@ if ~exist('simoptions','var')
     simoptions.n_semiz=0;
     % Internal options
     simoptions.alreadygridvals=0;
+    simoptions.alreadygridvals_semiexo=0;
 else
     % Check simoptions for missing fields, if there are some fill them with the defaults
-    if ~isfield(simoptions, 'transprobs')
+    if ~isfield(simoptions,'transprobs')
         simoptions.transprobs=zeros(length(fieldnames(FnsToEvaluate)),1); % which variables to calculate transition probabilities for (input as cell of FnsToEval names)
     end
-    if ~isfield(simoptions, 'timehorizons')
+    if ~isfield(simoptions,'timehorizons')
         simoptions.timehorizons=[]; % calculate the correlation and trans prob at these time horizons in addition to the one-period ones (can be a vector, e.g. [5,10] calculates the 1, 5 and 10 period correlations and transition probabilities; the 1 period is always calculated regardless)
     end
-    if ~isfield(simoptions, 'transprobquantiles')
+    if ~isfield(simoptions,'transprobquantiles')
         simoptions.transprobquantiles=[]; % e.g., =5 will calculate the transition probabilities for quintiles
     end
     % Model solution
-    if ~isfield(simoptions, 'gridinterplayer')
+    if ~isfield(simoptions,'gridinterplayer')
         simoptions.gridinterplayer=0;
     end
     % Model setup
@@ -58,8 +59,11 @@ else
         simoptions.n_semiz=0;
     end
     % Internal options
-    if ~isfield(simoptions, 'alreadygridvals')
+    if ~isfield(simoptions,'alreadygridvals')
         simoptions.alreadygridvals=0;
+    end
+    if ~isfield(simoptions,'alreadygridvals_semiexo')
+        simoptions.alreadygridvals_semiexo=0;
     end
 end
 
@@ -84,12 +88,11 @@ if simoptions.gridinterplayer==1
     l_daprime=l_daprime-1;
 end
 a_gridvals=CreateGridvals(n_a,a_grid,1);
-% Switch to z_gridvals
-if simoptions.alreadygridvals==0
-    [z_gridvals, ~, simoptions]=ExogShockSetup_InfHorz(n_z,z_grid,[],Parameters,simoptions,1);
-elseif simoptions.alreadygridvals==1
-    z_gridvals=z_grid;
+if prod(simoptions.n_semiz)>0
+    error('Have not yet implemented semiz variables for InfHorz AutoCorrTransProbs, ask on forum if you need this')
 end
+% Switch to z_gridvals (folding e and semiz into z if appropriate)
+[n_z,z_gridvals,N_z,l_z,simoptions]=CreateGridvals_FnsToEvaluate_InfHorz(n_z,z_grid,simoptions,Parameters);
 
 CorrTransProbs=struct();
 
@@ -107,7 +110,7 @@ if isstruct(FnsToEvaluate)
             FnsToEvaluateParamNames(ff).Names={};
         end
         FnsToEvaluate2{ff}=FnsToEvaluate.(FnsToEvalNames{ff});
-    end    
+    end
     FnsToEvaluate=FnsToEvaluate2;
 else
     FnsToEvaluateStruct=0;
@@ -162,8 +165,8 @@ for ff=1:length(FnsToEvalNames)
     CorrTransProbs.(FnsToEvalNames{ff}).StdDeviation=stddevV;
     CorrTransProbs.(FnsToEvalNames{ff}).AutoCovariance=Covar;
     CorrTransProbs.(FnsToEvalNames{ff}).AutoCorrelation=Corr;
-    
-    %% Calculate transition probabilties
+
+    %% Calculate transition probabilities
     if simoptions.transprobs(ff)==1
         if isempty(simoptions.transprobquantiles)
             [vv,~,indexes]=unique(Values);
@@ -200,7 +203,7 @@ for ff=1:length(FnsToEvalNames)
         for kk=1:n_fvals
             P_v(:,kk)=accumarray(indexes,Pintermediate(:,kk))./accumarray(indexes,StationaryDist);
         end
-        
+
         CorrTransProbs.(FnsToEvalNames{ff}).TransitionProbs=P_v;
     end
 
@@ -218,9 +221,9 @@ for ff=1:length(FnsToEvalNames)
             CorrTransProbs.(FnsToEvalNames{ff}).(['tperiods',num2str(tt)]).AutoCovariance=Covar;
             CorrTransProbs.(FnsToEvalNames{ff}).(['tperiods',num2str(tt)]).AutoCorrelation=Corr;
 
-            % Calculate transition probabilties
+            % Calculate transition probabilities
             if simoptions.transprobs(ff)==1
-                % n_fvals & indexes were already created when we did the 1-period transition probabilites, so can just reuse them [because still on same ff]
+                % n_fvals & indexes were already created when we did the 1-period transition probabilities, so can just reuse them [because still on same ff]
 
                 % Pintermediate: sum transition probabilities for next period based accumulating the unique values
                 Pintermediate=zeros(N_a*N_z,n_fvals);

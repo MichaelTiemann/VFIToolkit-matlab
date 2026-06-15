@@ -2,32 +2,7 @@ function AgentDistPath=AgentDistOnTransPath_Case1_FHorz(AgentDist_initial, jequa
 % Note: PricePath is not used, it is just there for legacy compatibility
 % jequalOneDist can be a jequalOneDistPath
 
-N_d=prod(n_d);
-N_a=prod(n_a);
-N_z=prod(n_z);
-if isfield(simoptions,'n_e')
-    n_e=simoptions.n_e;
-else
-    n_e=0;
-end
-N_e=prod(n_e);
-
-if N_z==0
-    if N_e==0
-        N_ze=0;
-    else
-        N_ze=N_e;
-    end
-else
-    if N_e==0
-        N_ze=N_z;
-    else
-        N_ze=N_z*N_e;
-    end
-end
-
-
-%% Check which transpathoptions have been used, set all others to defaults 
+%% Check which transpathoptions have been used, set all others to defaults
 if exist('transpathoptions','var')==0
     disp('No transpathoptions given, using defaults')
     %If transpathoptions is not given, just use all the defaults
@@ -39,13 +14,16 @@ else
     end
 end
 
-%% Check which simoptions have been used, set all others to defaults 
+%% Check which simoptions have been used, set all others to defaults
 if exist('simoptions','var')==0
     simoptions.verbose=0;
     simoptions.fastOLG=1; % parallel over j, faster but uses more memory
     simoptions.gridinterplayer=0;
     % Model setup
     simoptions.experienceasset=0;
+    % Exogenous shocks
+    simoptions.n_e=0;
+    simoptions.n_semiz=0;
 else
     % Check simoptions for missing fields, if there are some fill them with the defaults
     if ~isfield(simoptions,'verbose')
@@ -69,10 +47,36 @@ else
     if ~isfield(simoptions,'experienceasset')
         simoptions.experienceasset=0;
     end
+    % Exogenous shocks
+    if ~isfield(simoptions,'n_e')
+        simoptions.n_e=0;
+    end
+    if ~isfield(simoptions,'n_semiz')
+        simoptions.n_semiz=0;
+    end
+end
+
+N_d=prod(n_d);
+N_a=prod(n_a);
+N_z=prod(n_z);
+N_e=prod(simoptions.n_e);
+
+if N_z==0
+    if N_e==0
+        N_ze=0;
+    else
+        N_ze=N_e;
+    end
+else
+    if N_e==0
+        N_ze=N_z;
+    else
+        N_ze=N_z*N_e;
+    end
 end
 
 %% Internally PricePath is matrix of size T-by-'number of prices'.
-% ParamPath is matrix of size T-by-'number of parameters that change over the transition path'. 
+% ParamPath is matrix of size T-by-'number of parameters that change over the transition path'.
 [PricePath,ParamPath,PricePathNames,ParamPathNames,PricePathSizeVec,ParamPathSizeVec]=PricePathParamPath_FHorz_StructToMatrix(PricePath,ParamPath,N_j,T);
 
 %%
@@ -81,7 +85,7 @@ AgentDist_initial=gpuArray(AgentDist_initial);
 
 
 %% Set up exogenous shock processes
-[~, pi_z_J, pi_z_J_sim, ~, pi_e_J, pi_e_J_sim, ~, transpathoptions, simoptions]=ExogShockSetup_TPath_FHorz(n_z,[],pi_z,N_a,N_j,Parameters,PricePathNames,ParamPathNames,transpathoptions,simoptions,2);
+[~, pi_z_J, pi_z_J_sim, ~, pi_e_J, pi_e_J_sim, ~, transpathoptions, simoptions]=ExogShockSetup_FHorz_TPath(n_z,[],pi_z,N_a,N_j,Parameters,PricePathNames,ParamPathNames,transpathoptions,simoptions,2);
 % Convert z and e to age-dependent joint-grids and transtion matrix
 % output: z_gridvals_J, pi_z_J, e_gridvals_J, pi_e_J, transpathoptions,vfoptions,simoptions
 
@@ -226,7 +230,7 @@ if simoptions.experienceasset==1
     if ~isfield(simoptions,'aprimeFn')
         error('To use an experience asset you must define simoptions.aprimeFn')
     end
-    
+
     % aprimeFnParamNames in same fashion
     l_d2=length(n_d2);
     l_a2=length(n_a2);
@@ -236,8 +240,8 @@ if simoptions.experienceasset==1
     else
         aprimeFnParamNames={};
     end
-    
-    
+
+
     whichisdforexpasset=length(n_d)-simoptions.l_dexperienceasset+1:length(n_d);  % is just saying which is the decision variable that influences the experience asset (it is the 'last' decision variable)
     if N_e==0 && N_z==0
         a2primeIndexesPath=zeros(N_a,N_j-1,T,'gpuArray');
@@ -258,7 +262,7 @@ if simoptions.experienceasset==1
         for tt=1:T
             aprimeFnParamsVec=CreateAgeMatrixFromParams(Parameters,aprimeFnParamNames,N_j);
             % [N_j,number of params]
-            
+
             [a2primeIndexes, a2primeProbs]=CreateaprimePolicyExperienceAsset_J(PolicyPath(:,:,:,:,tt),simoptions.aprimeFn, whichisdforexpasset, n_d, n_a1,n_a2, N_ze, N_j, simoptions.d_grid, a2_grid, aprimeFnParamsVec,0);
             % Note: a2primeIndexes and a2primeProbs are both [N_a,N_z,N_j]
             % Note: a2primeIndexes is always the 'lower' point (the upper points are just aprimeIndexes+1), and the a2primeProbs are the probability of this lower point (prob of upper point is just 1 minus this).
@@ -266,7 +270,7 @@ if simoptions.experienceasset==1
             a2primeProbsPath(:,:,:,tt)=a2primeProbs(:,:,1:end-1);
         end
     end
-    
+
     if N_e==0 && N_z==0
         a2primeIndexesPath=reshape(a2primeIndexesPath,[N_a,N_j-1,1,T]);
         a2primeIndexesPath=repmat(a2primeIndexesPath,1,1,2,1);
@@ -368,8 +372,12 @@ if N_e==0
                 PolicyaprimezPath=reshape(PolicyaprimezPath,[N_a*N_z,(N_j-1),1,T])+N_a1*(a2primeIndexesPath-1);
                 PolicyProbsPath=a2primeProbsPath;
             elseif simoptions.fastOLG==1
-                PolicyaprimejzPath=repmat(PolicyaprimejzPath,1,2,1)+repelem(N_a1*(a2primeIndexesPath-1),1,2,1);
-                PolicyProbsPath=repmat(PolicyProbsPath,1,2,1).*repelem(a2primeProbsPath,1,2,1);
+                PolicyaprimejzPath=repmat(permute(PolicyaprimejzPath,[1,3,2]),1,2,1)+N_a1*(a2primeIndexesPath-1);
+                if exist('PolicyProbsPath','var')
+                    PolicyProbsPath=repmat(PolicyProbsPath,1,2,1).*repelem(a2primeProbsPath,1,2,1);
+                else
+                    PolicyProbsPath=a2primeProbsPath;
+                end
             end
         end
     end
@@ -408,8 +416,12 @@ else
                 PolicyaprimePath=reshape(PolicyaprimePath,[N_a*N_e,(N_j-1),1,T])+N_a1*(a2primeIndexesPath-1);
                 PolicyProbsPath=a2primeProbsPath;
             elseif simoptions.fastOLG==1
-                PolicyaprimejPath=repmat(PolicyaprimejPath,1,2,1)+repelem(N_a1*(a2primeIndexesPath-1),1,2,1);
-                PolicyProbsPath=repmat(PolicyProbsPath,1,2,1).*repelem(a2primeProbsPath,1,2,1);
+                PolicyaprimejzPath=repmat(permute(PolicyaprimejzPath,[1,3,2]),1,2,1)+N_a1*(a2primeIndexesPath-1);
+                if exist('PolicyProbsPath','var')
+                    PolicyProbsPath=repmat(PolicyProbsPath,1,2,1).*repelem(a2primeProbsPath,1,2,1);
+                else
+                    PolicyProbsPath=a2primeProbsPath;
+                end
             end
         end
     else % z, e
@@ -446,8 +458,12 @@ else
                 PolicyaprimezPath=reshape(PolicyaprimezPath,[N_a*N_z*N_e,(N_j-1),1,T])+N_a1*(a2primeIndexesPath-1);
                 PolicyProbsPath=a2primeProbsPath;
             elseif simoptions.fastOLG==1
-                PolicyaprimejzPath=repmat(PolicyaprimejzPath,1,2,1)+repelem(N_a1*(a2primeIndexesPath-1),1,2,1);
-                PolicyProbsPath=repmat(PolicyProbsPath,1,2,1).*repelem(a2primeProbsPath,1,2,1);
+                PolicyaprimejzPath=repmat(permute(PolicyaprimejzPath,[1,3,2]),1,2,1)+N_a1*(a2primeIndexesPath-1);
+                if exist('PolicyProbsPath','var')
+                    PolicyProbsPath=repmat(PolicyProbsPath,1,2,1).*repelem(a2primeProbsPath,1,2,1);
+                else
+                    PolicyProbsPath=a2primeProbsPath;
+                end
             end
         end
     end
@@ -833,7 +849,7 @@ else
                     AgentDist=AgentDist_FHorz_TPath_SingleStep_Iteration_nProbs_e_raw(AgentDist,Policy_aprimez,PolicyProbs,N_a,N_z,N_e,N_j,pi_z_J,pi_e_J,II1,jequaloneDist);
                     AgentDistPath(:,:,tt+1)=AgentDist;
                 end
-                AgentDistPath=AgentDistPath.*shiftdim(AgeWeights_T,-1); % put in the age weights 
+                AgentDistPath=AgentDistPath.*shiftdim(AgeWeights_T,-1); % put in the age weights
             else
                 %% fastOLG=1, z, e, N_probs
                 II=repelem((1:1:N_a*(N_j-1)*N_z*N_e)',1,N_probs);
@@ -869,24 +885,24 @@ end
 %%
 if N_e==0
     if N_z==0
-        AgentDistPath=reshape(AgentDistPath,[n_a,N_j,T]);
+        AgentDistPath=reshape(AgentDistPath,[N_a,N_j,T]);
     else
         if simoptions.fastOLG==1
             AgentDistPath=permute(reshape(AgentDistPath,[N_a,N_j,N_z,T]),[1,3,2,4]);
         end
-        AgentDistPath=reshape(AgentDistPath,[n_a,n_z,N_j,T]);
+        AgentDistPath=reshape(AgentDistPath,[N_a,N_z,N_j,T]);
     end
 else
     if N_z==0
         if simoptions.fastOLG==1
             AgentDistPath=permute(reshape(AgentDistPath,[N_a,N_j,N_e,T]),[1,3,2,4]);
         end
-        AgentDistPath=reshape(AgentDistPath,[n_a,n_e,N_j,T]);
+        AgentDistPath=reshape(AgentDistPath,[N_a,N_e,N_j,T]);
     else
         if simoptions.fastOLG==1
             AgentDistPath=permute(reshape(AgentDistPath,[N_a,N_j,N_z,N_e,T]),[1,3,4,2,5]);
         end
-        AgentDistPath=reshape(AgentDistPath,[n_a,n_z,n_e,N_j,T]);
+        AgentDistPath=reshape(AgentDistPath,[N_a,N_z,N_e,N_j,T]);
     end
 end
 

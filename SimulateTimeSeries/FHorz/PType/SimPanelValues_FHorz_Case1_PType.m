@@ -12,7 +12,7 @@ function SimPanelValues=SimPanelValues_FHorz_Case1_PType(jequaloneDist,PTypeDist
 % AgeWeightParamNames is either same for all permanent types, or must be passed as a structure.
 %
 % The stationary distribution be a structure and will contain both the
-% weights/distribution across the permenant types, as well as a pdf for the
+% weights/distribution across the permanent types, as well as a pdf for the
 % stationary distribution of each specific permanent type.
 %
 % How exactly to handle these differences between permanent (fixed) types
@@ -100,8 +100,8 @@ PType_numbersims=floor(Parameters.(PTypeDistParamNames{1})*simoptions.numbersims
 % This will not perfectly add up to the right number of sims (floor means it will be a slightly to few)
 ExtraSims=simoptions.numbersims-sum(PType_numbersims);
 % I just arbitrarily add them to the first PTypes. Your simulation should
-% anyway be big enough for this to be irrelavant. (I should probably add
-% them randomly, but cant be bothered right now. But otherwise if I don't 
+% anyway be big enough for this to be irrelevant. (I should probably add
+% them randomly, but cant be bothered right now. But otherwise if I don't
 % make this random the sample won't satisfy properties of arandom sample)
 PType_numbersims(1:ExtraSims)=PType_numbersims(1:ExtraSims)+1;
 
@@ -112,24 +112,25 @@ PType_numbersims(1:ExtraSims)=PType_numbersims(1:ExtraSims)+1;
 %%
 SimPanelValues=nan(length(FnsToEvaluate),simoptions.simperiods,simoptions.numbersims);
 for ii=1:N_i
+    iistr=Names_i{ii};
     % First set up simoptions
     simoptions_temp=PType_Options(simoptions,Names_i,ii); % Note: already check for existence of simoptions and created it if it was not inputted
-    
+
     if simoptions_temp.verbose==1
         fprintf('Permanent type: %i of %i \n',ii, N_i)
     end
-    
+
     simoptions_temp.numbersims=PType_numbersims(ii); % How many simulations to do for each PType
-        
-    Policy_temp=Policy.(Names_i{ii});
-    
+
+    Policy_temp=Policy.(iistr);
+
     % Go through everything which might be dependent on permanent type (PType)
     % Notice that the way this is coded the grids (etc.) could be either
     % fixed, or a function (that depends on age, and possibly on permanent
     % type), or they could be a structure. Only in the case where they are
     % a structure is there a need to take just a specific part and send
     % only that to the 'non-PType' version of the command.
-    
+
     % Start with those that determine whether the current permanent type is finite or
     % infinite horizon, and whether it is Case 1 or Case 2
     % Figure out which case is relevant to the current PType. This is done
@@ -137,34 +138,34 @@ for ii=1:N_i
     % infinite horizon and a finite number for any other finite horizon.
     % First, check if it is a structure, and otherwise just get the
     % relevant value.
-       
+
     if isstruct(n_d)
-        n_d_temp=n_d.(Names_i{ii});
+        n_d_temp=n_d.(iistr);
     else
         n_d_temp=n_d;
     end
     if isstruct(n_a)
-        n_a_temp=n_a.(Names_i{ii});
+        n_a_temp=n_a.(iistr);
     else
         n_a_temp=n_a;
     end
     if isstruct(n_z)
-        n_z_temp=n_z.(Names_i{ii});
+        n_z_temp=n_z.(iistr);
     else
         n_z_temp=n_z;
     end
     if isstruct(N_j)
-        N_j_temp=N_j.(Names_i{ii});
+        N_j_temp=N_j.(iistr);
     else
         N_j_temp=N_j;
     end
     if isstruct(d_grid)
-        d_grid_temp=d_grid.(Names_i{ii});
+        d_grid_temp=d_grid.(iistr);
     else
         d_grid_temp=d_grid;
     end
     if isstruct(a_grid)
-        a_grid_temp=a_grid.(Names_i{ii});
+        a_grid_temp=a_grid.(iistr);
     else
         a_grid_temp=a_grid;
     end
@@ -172,7 +173,7 @@ for ii=1:N_i
 
     %% Exogenous shocks
     if isstruct(z_grid)
-        z_grid_temp=z_grid.(Names_i{ii});
+        z_grid_temp=z_grid.(iistr);
     else
         nn=size(z_grid,ndims(z_grid));
         if nn==N_i
@@ -183,7 +184,7 @@ for ii=1:N_i
         end
     end
     if isstruct(pi_z)
-        pi_z_temp=pi_z.(Names_i{ii});
+        pi_z_temp=pi_z.(iistr);
     else
         nn=size(pi_z,ndims(pi_z));
         if nn==N_i
@@ -240,8 +241,8 @@ for ii=1:N_i
             end
         end
     end
-    
-    
+
+
     %% Parameters
     % Parameters are allowed to be given as structure, or as vector/matrix
     % (in terms of their dependence on permanent type). So go through each of
@@ -277,7 +278,7 @@ for ii=1:N_i
     %% jequaloneDist
     if isa(jequaloneDist,'struct')
         if isfield(jequaloneDist,Names_i{ii})
-            jequaloneDist_temp=jequaloneDist.(Names_i{ii});
+            jequaloneDist_temp=jequaloneDist.(iistr);
             % jequaloneDist_temp must be of mass one for the codes to work.
             if abs(sum(jequaloneDist_temp(:))-1)>10^(-15) % jequaloneDist_temp(:))~=1, but allowing for small numerical errors
                 fprintf('Info for following error: sum(jequaloneDist_temp(:))-1=%8.16f (should be zero) \n', sum(jequaloneDist_temp(:))-1)
@@ -308,7 +309,7 @@ for ii=1:N_i
             error(['The jequaloneDist must be of mass one for each type i (it is not for type ',Names_i{ii}, ' \n'])
         end
     end
-    
+
     %%
     % Figure out which functions are actually relevant to the present PType. Only the relevant ones need to be evaluated.
     % The dependence of FnsToEvaluate and FnsToEvaluateFnParamNames are necessarily the same.
@@ -319,11 +320,11 @@ for ii=1:N_i
         l_d_temp=1;
     end
     l_a_temp=length(n_a_temp);
-    l_z_temp=length(n_z_temp);  
+    l_z_temp=length(n_z_temp);
     [FnsToEvaluate_temp,FnsToEvaluateParamNames_temp, WhichFnsForCurrentPType,FnsAndPTypeIndicator_ii]=PType_FnsToEvaluate(FnsToEvaluate,Names_i,ii,l_d_temp,l_a_temp,l_z_temp,0);
     FnsAndPTypeIndicator(:,ii)=FnsAndPTypeIndicator_ii;
-    
-    
+
+
     simoptions_temp.keepoutputasmatrix=1;
     if simoptions_temp.numbersims>0
         SimPanelValues_ii=SimPanelValues_FHorz_Case1(jequaloneDist_temp,Policy_temp,FnsToEvaluate_temp,Parameters_temp,FnsToEvaluateParamNames_temp,n_d_temp,n_a_temp,n_z_temp,N_j_temp,d_grid_temp,a_grid_temp,z_grid_temp,pi_z_temp, simoptions_temp);
@@ -331,7 +332,7 @@ for ii=1:N_i
     else
         SimPanelValues_ii=[];
     end
-        
+
     if ii==1
         SimPanelValues(WhichFnsForCurrentPType,:,1:sum(PType_numbersims(1:ii)))=SimPanelValues_ii;
         % I decided to get rid of giving the PType as part of the panel as you can always ask for this using FnsToEvaluate anyway if you actually want it.
@@ -339,7 +340,7 @@ for ii=1:N_i
         SimPanelValues(WhichFnsForCurrentPType,:,(1+sum(PType_numbersims(1:(ii-1)))):sum(PType_numbersims(1:ii)))=SimPanelValues_ii;
         % I decided to get rid of giving the PType as part of the panel as you can always ask for this using FnsToEvaluate anyway if you actually want it.
     end
-    
+
 end
 
 %% Change the output into a structure

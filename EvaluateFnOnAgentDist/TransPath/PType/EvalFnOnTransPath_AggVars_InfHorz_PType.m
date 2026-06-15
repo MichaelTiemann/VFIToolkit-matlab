@@ -1,5 +1,5 @@
-function AggVarsPath=EvalFnOnTransPath_AggVars_InfHorz_PType(FnsToEvaluate, PricePath, ParamPath, Parameters, T, PolicyPath, AgentDistPath, n_d, n_a, n_z, Names_i, pi_z, d_grid, a_grid,z_grid, simoptions)
-% AggVars is simple in the sense we can just solve to get AggVars for each ptype and then take the weigthed sum over them
+function AggVarsPath=EvalFnOnTransPath_AggVars_InfHorz_PType(FnsToEvaluate, PricePath, ParamPath, Parameters, T, PolicyPath, AgentDistPath, n_d,n_a,n_z, Names_i, d_grid,a_grid,z_grid, simoptions)
+% AggVars is simple in the sense we can just solve to get AggVars for each ptype and then take the weighted sum over them
 % This only works because we are just after the mean
 
 
@@ -28,13 +28,10 @@ for ff=1:length(FnNames)
     AggVarsPath.(FnNames{ff}).Mean=0;
 end
 
-n_a
-
-Names_i
-
 
 %% Loop over permanent types
 for ii=1:N_i
+    iistr=Names_i{ii};
 
     % First set up simoptions
     if exist('simoptions','var')
@@ -52,16 +49,16 @@ for ii=1:N_i
         simoptions_temp.verbose=0;
         simoptions_temp.verboseparams=0;
         simoptions_temp.ptypestorecpu=1; % GPU memory is limited, so switch solutions to the cpu
-    end 
-    
+    end
+
     if simoptions_temp.verbose==1
         fprintf('Permanent type: %i of %i \n',ii, N_i)
     end
-           
-    PolicyPath_temp=PolicyPath.(Names_i{ii});
-    AgentDistPath_temp=AgentDistPath.(Names_i{ii});
 
-    
+    PolicyPath_temp=PolicyPath.(iistr);
+    AgentDistPath_temp=AgentDistPath.(iistr);
+
+
     % Go through everything which might be dependent on permanent type (PType)
     % Notice that the way this is coded the grids (etc.) could be either
     % fixed, or a function (that depends on age, and possibly on permanent
@@ -69,41 +66,36 @@ for ii=1:N_i
     % a structure is there a need to take just a specific part and send
     % only that to the 'non-PType' version of the command.
     if isa(n_d,'struct')
-        n_d_temp=n_d.(Names_i{ii});
+        n_d_temp=n_d.(iistr);
     else
         n_d_temp=n_d;
     end
     if isa(n_a,'struct')
-        n_a_temp=n_a.(Names_i{ii});
+        n_a_temp=n_a.(iistr);
     else
         n_a_temp=n_a;
     end
     if isa(n_z,'struct')
-        n_z_temp=n_z.(Names_i{ii});
+        n_z_temp=n_z.(iistr);
     else
         n_z_temp=n_z;
     end
     if isa(d_grid,'struct')
-        d_grid_temp=d_grid.(Names_i{ii});
+        d_grid_temp=d_grid.(iistr);
     else
         d_grid_temp=d_grid;
     end
     if isa(a_grid,'struct')
-        a_grid_temp=a_grid.(Names_i{ii});
+        a_grid_temp=a_grid.(iistr);
     else
         a_grid_temp=a_grid;
     end
     if isa(z_grid,'struct')
-        z_grid_temp=z_grid.(Names_i{ii});
+        z_grid_temp=z_grid.(iistr);
     else
         z_grid_temp=z_grid;
     end
-    if isa(pi_z,'struct')
-        pi_z_temp=pi_z.(Names_i{ii});
-    else
-        pi_z_temp=pi_z;
-    end
-    
+
     % Parameters are allowed to be given as structure, or as vector/matrix
     % (in terms of their dependence on fixed type). So go through each of
     % these in term.
@@ -128,18 +120,18 @@ for ii=1:N_i
             end
         end
     end
-    
+
     if simoptions_temp.verboseparams==1
         sprintf('Parameter values for the current permanent type')
         Parameters_temp
     end
-    
+
     % ParamPath can include parameters that differ by ptype
     ParamPath_temp=ParamPath;
     ParamPathNames=fieldnames(ParamPath);
     for nn=1:length(ParamPathNames)
         if isstruct(ParamPath_temp.(ParamPathNames{nn}))
-            ParamPath_temp.(ParamPathNames{nn})=ParamPath.(ParamPathNames{nn}).(Names_i{ii});
+            ParamPath_temp.(ParamPathNames{nn})=ParamPath.(ParamPathNames{nn}).(iistr);
         end
     end
 
@@ -154,10 +146,10 @@ for ii=1:N_i
     end
     [FnsToEvaluate_temp,~, ~,~]=PType_FnsToEvaluate(FnsToEvaluate,Names_i,ii,l_d_temp,l_a_temp,l_z_temp,0);
 
-    AggVarsPath_ii=EvalFnOnTransPath_AggVars_InfHorz(FnsToEvaluate_temp, AgentDistPath_temp, PolicyPath_temp, PricePath, ParamPath_temp, Parameters_temp, T, n_d_temp, n_a_temp, n_z_temp, pi_z_temp, d_grid_temp, a_grid_temp,z_grid_temp, simoptions_temp);
+    AggVarsPath_ii=EvalFnOnTransPath_AggVars_InfHorz(FnsToEvaluate_temp, AgentDistPath_temp, PolicyPath_temp, PricePath, ParamPath_temp, Parameters_temp, T, n_d_temp, n_a_temp, n_z_temp, d_grid_temp, a_grid_temp,z_grid_temp, simoptions_temp);
 
     % Keep the ptype-conditional values
-    AggVarsPath.(Names_i{ii})=AggVarsPath_ii;
+    AggVarsPath.(iistr)=AggVarsPath_ii;
     % And also create the actual aggregate values
     FnNames_temp=fieldnames(FnsToEvaluate_temp);
     for ff=1:length(FnNames_temp)

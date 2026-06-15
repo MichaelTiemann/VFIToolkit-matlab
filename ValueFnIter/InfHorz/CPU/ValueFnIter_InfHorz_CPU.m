@@ -15,7 +15,7 @@ if strcmp(vfoptions.solnmethod,'purediscretization') || strcmp(vfoptions.solnmet
         error('d_grid is not the correct shape (should be of size sum(n_d)-by-1)')
     elseif ~all(size(a_grid)==[sum(n_a), 1])
         error('a_grid is not the correct shape (should be of size sum(n_a)-by-1)')
-        
+
         % Check z_grid inputs
     elseif isfield(vfoptions,'ExogShockFn')
             % okay
@@ -34,7 +34,7 @@ if strcmp(vfoptions.solnmethod,'purediscretization') || strcmp(vfoptions.solnmet
             if ~all(size(V0)==[n_a,n_z]) % Allow for input to be already transformed into Kronecker form
                 error('Starting choice for ValueFn is not of size [n_a,n_z]')
             end
-        elseif ~all(size(V0)==[N_a,N_z]) % Allows for possiblity that V0 is already in kronecker form
+        elseif ~all(size(V0)==[N_a,N_z]) % Allows for possibility that V0 is already in kronecker form
             error('Starting choice for ValueFn is not of size [n_a,n_z]')
         end
     end
@@ -67,7 +67,7 @@ if isfield(vfoptions,'V0')
     vfoptions.actualV0=1;
 else
     V0=zeros([N_a,N_z]);
-    vfoptions.actualV0=0; % DC2 has different way of creating inital guess so this will be ignored
+    vfoptions.actualV0=0; % DC2 has different way of creating initial guess so this will be ignored
 end
 
 
@@ -91,14 +91,14 @@ end
 %% Entry and Exit
 if vfoptions.endogenousexit==1
     % ExitPolicy is binary decision to exit (1 is exit, 0 is 'not exit').
-    [V, Policy,ExitPolicy]=ValueFnIter_Case1_EndogExit(V0, n_d,n_a,n_z,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+    [V, Policy,ExitPolicy]=ValueFnIter_InfHorz_EndogExit(V0, n_d,n_a,n_z,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
     varargout={V,Policy,ExitPolicy};
     return
 elseif vfoptions.endogenousexit==2 % Mixture of endogenous and exogenous exit.
     % ExitPolicy is binary decision to exit (1 is exit, 0 is 'not exit').
     % Policy is for those who remain.
     % PolicyWhenExit is current period decisions of those who will exit at end of period.
-    [V, Policy, PolicyWhenExit, ExitPolicy]=ValueFnIter_Case1_EndogExit2(V0, n_d,n_a,n_z,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+    [V, Policy, PolicyWhenExit, ExitPolicy]=ValueFnIter_InfHorz_EndogExit2(V0, n_d,n_a,n_z,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
     varargout={V,Policy, PolicyWhenExit,ExitPolicy};
     return
 end
@@ -121,35 +121,35 @@ if strcmp(vfoptions.solnmethod,'purediscretization')
     N_d=prod(n_d);
 
     if vfoptions.lowmemory==0
-        
-        %% CreateReturnFnMatrix_Case1_Disc creates a matrix of dimension (d and aprime)-by-a-by-z.
+
+        %% CreateReturnFnMatrix_Disc_CPU creates a matrix of dimension (d and aprime)-by-a-by-z.
         % Since the return function is independent of time creating it once and
         % then using it every iteration is good for speed, but it does use a lot of memory.
-        
+
         if vfoptions.verbose==1
             disp('Creating return fn matrix')
         end
 
-        ReturnMatrix=CreateReturnFnMatrix_Case1_Disc(ReturnFn, n_d, n_a, n_z, d_gridvals, a_grid, z_gridvals, ReturnFnParamsVec);
-        
+        ReturnMatrix=CreateReturnFnMatrix_Disc_CPU(ReturnFn, n_d, n_a, n_z, d_gridvals, a_grid, z_gridvals, ReturnFnParamsVec,0);
+
         if vfoptions.verbose==1
             fprintf('Starting Value Function \n')
         end
-        
+
         if N_d==0
             if vfoptions.parallel==0 % On CPU
-                [VKron,Policy]=ValueFnIter_nod_Par0_raw(V0, N_a, N_z, pi_z, DiscountFactorParamsVec, ReturnMatrix, vfoptions.howards, vfoptions.maxhowards, vfoptions.tolerance, vfoptions.maxiter);
+                [VKron,Policy]=ValueFnIter_InfHorz_nod_Par0_raw(V0, N_a, N_z, pi_z, DiscountFactorParamsVec, ReturnMatrix, vfoptions.howards, vfoptions.maxhowards, vfoptions.tolerance, vfoptions.maxiter);
             elseif vfoptions.parallel==1 % On Parallel CPU
-                [VKron,Policy]=ValueFnIter_nod_Par1_raw(V0, N_a, N_z, pi_z, DiscountFactorParamsVec, ReturnMatrix, vfoptions.howards, vfoptions.maxhowards, vfoptions.tolerance, vfoptions.maxiter);
+                [VKron,Policy]=ValueFnIter_InfHorz_nod_Par1_raw(V0, N_a, N_z, pi_z, DiscountFactorParamsVec, ReturnMatrix, vfoptions.howards, vfoptions.maxhowards, vfoptions.tolerance, vfoptions.maxiter);
             end
         else
             if vfoptions.parallel==0  % On CPU
-                [VKron, Policy]=ValueFnIter_Par0_raw(V0, N_d,N_a,N_z, pi_z, DiscountFactorParamsVec, ReturnMatrix,vfoptions.howards, vfoptions.maxhowards,vfoptions.tolerance, vfoptions.maxiter);
+                [VKron, Policy]=ValueFnIter_InfHorz_Par0_raw(V0, N_d,N_a,N_z, pi_z, DiscountFactorParamsVec, ReturnMatrix,vfoptions.howards, vfoptions.maxhowards,vfoptions.tolerance, vfoptions.maxiter);
             elseif vfoptions.parallel==1 % On Parallel CPU
-                [VKron, Policy]=ValueFnIter_Par1_raw(V0, N_d,N_a,N_z, pi_z, DiscountFactorParamsVec, ReturnMatrix,vfoptions.howards, vfoptions.maxhowards,vfoptions.tolerance, vfoptions.maxiter);
+                [VKron, Policy]=ValueFnIter_InfHorz_Par1_raw(V0, N_d,N_a,N_z, pi_z, DiscountFactorParamsVec, ReturnMatrix,vfoptions.howards, vfoptions.maxhowards,vfoptions.tolerance, vfoptions.maxiter);
             end
         end
-        
+
     elseif vfoptions.lowmemory==1
         error('Can only use lowmemory on GPU')
     end
@@ -170,15 +170,6 @@ else
     Policy=reshape(Policy,[1,N_a,N_z]);
     varargout={VKron,Policy};
     return
-end
-
-% Sometimes numerical rounding errors (of the order of 10^(-16) can mean
-% that Policy is not integer valued. The following corrects this by converting to int64 and then
-% makes the output back into double as Matlab otherwise cannot use it in
-% any arithmetical expressions.
-if vfoptions.policy_forceintegertype==1
-    Policy=uint64(Policy);
-    Policy=double(Policy);
 end
 
 varargout={V,Policy};

@@ -1,10 +1,10 @@
-function options=SemiExogShockSetup_FHorz(n_d,N_j,d_grid,Parameters,options,Parallel,gridpiboth)
+function options=SemiExogShockSetup_FHorz(n_d,N_j,d_grid,Parameters,options,gridpiboth)
 % Convert semiz to age-dependent joint-grids and transtion matrix
 % options will either be options or simoptions
 % output: options.semiz_gridvals_J, options.pi_semiz_J
 
-% gridpiboth=3: sometimes (value fn iter) we want both grid and transition probabilties
-% gridpiboth=2: sometimes (agent dist)    we want just transition probabilties
+% gridpiboth=3: sometimes (value fn iter) we want both grid and transition probabilities
+% gridpiboth=2: sometimes (agent dist)    we want just transition probabilities
 % gridpiboth=1: sometimes (FnsToEvaluate) we want just grid
 
 %% Check basic setup
@@ -30,8 +30,8 @@ if gridpiboth==3 || gridpiboth==1
 end
 
 %% Create semiz_gridvals_J (joint grid on semiz)
-if gridpiboth==3 || gridpiboth==1 || isfield(options,'SemiExoStateFn') 
-    % Regardless of whether we output semiz_gridvals_J, we sometimes have to create it as it is needed for evaluting SemiExogShockFn
+if gridpiboth==3 || gridpiboth==1 || isfield(options,'SemiExoStateFn')
+    % Regardless of whether we output semiz_gridvals_J, we sometimes have to create it as it is needed for evaluating SemiExogShockFn
     if ndims(options.semiz_grid)==3
         if all(size(options.semiz_grid)==[prod(options.n_semiz),length(options.n_semiz),N_j])
             % already age-dependent joint-grid
@@ -134,24 +134,13 @@ end
 
 
 %% Clean up output
-if Parallel==2 % gpu, for value fn and FnsToEvaluate
-    if gridpiboth==3
-        options.pi_semiz_J=pi_semiz_J;
-        options.semiz_gridvals_J=semiz_gridvals_J;
-    elseif gridpiboth==2
-        options.pi_semiz_J=pi_semiz_J;
-    elseif gridpiboth==1
-        options.semiz_gridvals_J=semiz_gridvals_J;
-    end
-else % cpu, for agent dist
-    if gridpiboth==3
-        options.semiz_gridvals_J=gather(semiz_gridvals_J);
-        options.pi_semiz_J=gather(pi_semiz_J);
-    elseif gridpiboth==2
-        options.pi_semiz_J=gather(pi_semiz_J);    
-    elseif gridpiboth==1
-        options.semiz_gridvals_J=gather(semiz_gridvals_J);
-    end
+if gridpiboth==3
+    options.pi_semiz_J=pi_semiz_J;
+    options.semiz_gridvals_J=semiz_gridvals_J;
+elseif gridpiboth==2
+    options.pi_semiz_J=gather(pi_semiz_J); % Agent distribution iteration is performed on cpu
+elseif gridpiboth==1
+    options.semiz_gridvals_J=semiz_gridvals_J;
 end
 % clean up options, so we don't accidently reuse these things
 if isfield(options,'SemiExoStateFn')

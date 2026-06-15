@@ -1,9 +1,11 @@
 function [V,Policy]=ValueFnIter_InfHorz_TPath_SingleStep_Refine_raw(Vnext,n_d,n_a,n_z, d_grid, a_grid, z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions)
+warning('ValueFnIter_InfHorz_TPath_SingleStep_Refine_raw is experimental/unfinished — the policy-output line uses an undefined variable (temppolicyindex) and the routine has not been verified against the non-refine path. Do not rely on its results without checking.')
 %% Refinement: calculate ReturnMatrix and 'remove' the d dimension
 
 N_d=prod(n_d);
 N_a=prod(n_a);
 N_z=prod(n_z);
+d_gridvals=CreateGridvals(n_d,d_grid,1);
 
 V=zeros(N_a,N_z,'gpuArray');
 Policy_a=zeros(N_a,N_z,'gpuArray');
@@ -11,9 +13,6 @@ Policy_a=zeros(N_a,N_z,'gpuArray');
 %%
 if vfoptions.lowmemory>0
     z_gridvals=CreateGridvals(n_z,z_grid,1); % The 1 at end indicates want output in form of matrix.
-end
-if vfoptions.lowmemory>1
-    a_gridvals=CreateGridvals(n_z,z_grid,1); % The 1 at end indicates want output in form of matrix.
 end
 
 % Create a vector containing all the return function parameters (in order)
@@ -26,68 +25,57 @@ l_z=length(n_z);
 
 %%
 if vfoptions.lowmemory==0
-    ReturnMatrix=CreateReturnFnMatrix_Case1_Disc_Par2(ReturnFn, n_d, n_a, n_z, d_grid, a_grid, z_grid, ReturnFnParamsVec);
+    ReturnMatrix=CreateReturnFnMatrix_Disc(ReturnFn, n_d, n_a, n_z, d_gridvals, a_grid, z_grid, ReturnFnParamsVec,0);
     [ReturnMatrix,dstar]=max(ReturnMatrix,[],1); % solve for dstar
     ReturnMatrix=shiftdim(ReturnMatrix,1);
     dstar=shiftdim(dstar,1);
-    
-if vfoptions.lowmemory==1
+
+elseif vfoptions.lowmemory==1
     %% Refinement: calculate ReturnMatrix and 'remove' the d dimension
     ReturnMatrix=zeros(N_a,N_a,N_z); % 'refined' return matrix
     dstar=zeros(N_a,N_a,N_z);
     for z_c=1:N_z
         zvals=z_gridvals(z_c,:);
-        ReturnMatrix_z=CreateReturnFnMatrix_Case1_Disc_Par2(ReturnFn,n_d, n_a, ones(l_z,1),d_grid, a_grid, zvals,ReturnFnParams,1); % the 1 at the end if to outpuit for refine
+        ReturnMatrix_z=CreateReturnFnMatrix_Disc(ReturnFn,n_d, n_a, ones(l_z,1),d_grid, a_grid, zvals,ReturnFnParamsVec,1); % the 1 at the end if to output for refine
         [ReturnMatrix_z,dstar_z]=max(ReturnMatrix_z,[],1); % solve for dstar
         ReturnMatrix(:,:,z_c)=shiftdim(ReturnMatrix_z,1);
         dstar(:,:,z_c)=shiftdim(dstar_z,1);
-    end
-    
-elseif vfoptions.lowmemory==2
-    ReturnMatrix=zeros(N_a,N_a,N_z); % 'refined' return matrix
-    dstar=zeros(N_a,N_a,N_z);
-    for a_c=1:N_a
-        avals=a_gridvals(a_c,:);
-        ReturnMatrix_a=CreateReturnFnMatrix_Case1_Disc_Par2_LowMem2(ReturnFn, n_d, n_a, ones(l_a,1),n_z, d_grid, a_grid, avals, z_grid,ReturnFnParams,1); % note: first n_a is n_aprime % the 1 at the end if to outpuit for refine
-        [ReturnMatrix_a,dstar_a]=max(ReturnMatrix_a,[],1); % solve for dstar
-        ReturnMatrix(:,a_c,:)=shiftdim(ReturnMatrix_a,1);
-        dstar(:,a_c,:)=shiftdim(dstar_a,1);
     end
 end
 
 
 %%
 if vfoptions.lowmemory==0
-    
-    for z_c=1:N_z
-        ReturnMatrix_z=ReturnMatrix(:,:,z_c);
-        
-        %Calc the condl expectation term (except beta), which depends on z but
-        %not on control variables
-        EV_z=Vnext.*(ones(N_a,1,'gpuArray')*pi_z(z_c,:));
-        EV_z(isnan(EV_z))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilites)
-        EV_z=sum(EV_z,2);
-        
-        entireRHS_z=ReturnMatrix_z+DiscountFactorParamsVec*EV_z*ones(1,N_a,1);
-        
-        %Calc the max and it's index
-        [Vtemp,maxindex]=max(entireRHS_z,[],1);
-        V(:,z_c)=Vtemp;
-        Policy_a(:,z_c)=maxindex;
-    end
-    
-elseif vfoptions.lowmemory==1 || vfoptions.lowmemory==2
+
     for z_c=1:N_z
         ReturnMatrix_z=ReturnMatrix(:,:,z_c);
 
         %Calc the condl expectation term (except beta), which depends on z but
         %not on control variables
         EV_z=Vnext.*(ones(N_a,1,'gpuArray')*pi_z(z_c,:));
-        EV_z(isnan(EV_z))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilites)
+        EV_z(isnan(EV_z))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
         EV_z=sum(EV_z,2);
-        
+
         entireRHS_z=ReturnMatrix_z+DiscountFactorParamsVec*EV_z*ones(1,N_a,1);
-        
+
+        %Calc the max and it's index
+        [Vtemp,maxindex]=max(entireRHS_z,[],1);
+        V(:,z_c)=Vtemp;
+        Policy_a(:,z_c)=maxindex;
+    end
+
+elseif vfoptions.lowmemory==1
+    for z_c=1:N_z
+        ReturnMatrix_z=ReturnMatrix(:,:,z_c);
+
+        %Calc the condl expectation term (except beta), which depends on z but
+        %not on control variables
+        EV_z=Vnext.*(ones(N_a,1,'gpuArray')*pi_z(z_c,:));
+        EV_z(isnan(EV_z))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+        EV_z=sum(EV_z,2);
+
+        entireRHS_z=ReturnMatrix_z+DiscountFactorParamsVec*EV_z*ones(1,N_a,1);
+
         %Calc the max and it's index
         [Vtemp,maxindex]=max(entireRHS_z,[],1);
         V(:,z_c)=Vtemp;

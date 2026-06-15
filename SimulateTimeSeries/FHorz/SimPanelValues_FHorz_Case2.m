@@ -5,11 +5,11 @@ function SimPanelValues=SimPanelValues_FHorz_Case2(InitialDist,Policy,FnsToEvalu
 % number of 'variables' to be simulated, second dimension is FHorz, and
 % third dimension is the number-of-simulations.
 %
-% InitialDist can be inputed as over the finite time-horizon (j), or
+% InitialDist can be inputted as over the finite time-horizon (j), or
 % without a time-horizon in which case it is assumed to be an InitialDist
 % for time j=1. (So InitialDist is either n_a-by-n_z-by-n_j, or n_a-by-n_z)
 
-%% Check which simoptions have been declared, set all others to defaults 
+%% Check which simoptions have been declared, set all others to defaults
 if exist('simoptions','var')==1
     %Check simoptions for missing fields, if there are some fill them with the defaults
     if ~isfield(simoptions,'parallel')
@@ -23,13 +23,13 @@ if exist('simoptions','var')==1
     end
     if ~isfield(simoptions,'numbersims')
         simoptions.numbersims=10^3;
-    end    
+    end
     if ~isfield(simoptions,'dynasty')
         simoptions.dynasty=0;
-    end 
+    end
     if ~isfield(simoptions,'agedependentgrids')
         simoptions.agedependentgrids=0;
-    end 
+    end
     if isfield(simoptions,'ExogShockFn') % If using ExogShockFn then figure out the parameter names
         simoptions.ExogShockFnParamNames=getAnonymousFnInputNames(simoptions.ExogShockFn);
     end
@@ -50,7 +50,7 @@ if prod(simoptions.agedependentgrids)~=0
     if simoptions.dynasty==0
         SimPanelValues=SimPanelValues_FHorz_Case2_AgeDepGrids(InitialDist,Policy,FnsToEvaluate,FnsToEvaluateParamNames,Parameters,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid,pi_z, Phi_aprimeFn,Case2_Type,PhiaprimeParamNames, simoptions);
     else % if simoptions.dynasty==1
-        SimPanelValues=SimPanelValues_FHorz_Case2_AgeDepGrids_Dynasty(InitialDist,Policy,FnsToEvaluate,FnsToEvaluateParamNames,Parameters,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid,pi_z, Phi_aprimeFn,Case2_Type,PhiaprimeParamNames, simoptions);        
+        SimPanelValues=SimPanelValues_FHorz_Case2_AgeDepGrids_Dynasty(InitialDist,Policy,FnsToEvaluate,FnsToEvaluateParamNames,Parameters,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid,pi_z, Phi_aprimeFn,Case2_Type,PhiaprimeParamNames, simoptions);
     end
     return
 end
@@ -94,37 +94,11 @@ for jj=1:N_j
     fullgridvals(jj).dPolicy_gridvals=dPolicy_gridvals_j;
 end
 
-eval('fieldexists_ExogShockFn=1;simoptions.ExogShockFn;','fieldexists_ExogShockFn=0;')
-eval('fieldexists_ExogShockFnParamNames=1;simoptions.ExogShockFnParamNames;','fieldexists_ExogShockFnParamNames=0;')
-eval('fieldexists_pi_z_J=1;simoptions.pi_z_J;','fieldexists_pi_z_J=0;')
+% gridpiboth=1: we only need z_gridvals_J here (no pi_z_J)
+[z_gridvals_J,~,simoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,simoptions,1);
 
-if fieldexists_pi_z_J
-    for jj=1:N_j
-        fullgridvals(jj).z_gridvals=CreateGridvals(n_z,simoptions.z_grid_J(:,:,jj),1);
-    end
-elseif fieldexists_ExogShockFn==1
-    for jj=1:N_j
-        if fieldexists_ExogShockFnParamNames==1
-            ExogShockFnParamsVec=CreateVectorFromParams(Parameters, simoptions.ExogShockFnParamNames,jj);
-            ExogShockFnParamsCell=cell(length(ExogShockFnParamsVec),1);
-            for kk=1:length(ExogShockFnParamsVec)
-                ExogShockFnParamsCell(kk,1)={ExogShockFnParamsVec(kk)};
-            end
-            [z_grid,~]=simoptions.ExogShockFn(ExogShockFnParamsCell{:});
-        else
-            [z_grid,~]=simoptions.ExogShockFn(jj);
-        end
-        fullgridvals(jj).z_gridvals=CreateGridvals(n_z,z_grid,1);
-    end
-else
-    if all(size(z_grid)==[sum(n_z),1])
-        z_gridvals=CreateGridvals(n_z,z_grid,1); % 1 at end indicates output as matrices.
-    elseif all(size(z_grid)==[prod(n_z),length(n_z)])
-        z_gridvals=z_grid;
-    end
-    for jj=1:N_j
-        fullgridvals(jj).z_gridvals=z_gridvals;
-    end
+for jj=1:N_j
+    fullgridvals(jj).z_gridvals=z_gridvals_J(:,:,jj);
 end
 
 
@@ -137,15 +111,15 @@ parfor ii=1:simoptions.numbersims
     for t=1:simoptions.simperiods
         j_ind=SimPanel_ii(end,t);
         if ~isnan(j_ind) % If the agent is still alive (j_ind=nan once agent dies)
-            
+
             a_sub=SimPanel_ii(1:l_a,t);
             a_ind=sub2ind_homemade(n_a,a_sub);
             a_val=a_gridvals(a_ind,:);
-            
+
             z_sub=SimPanel_ii((l_a+1):(l_a+l_z),t);
             z_ind=sub2ind_homemade(n_z,z_sub);
             z_val=fullgridvals(j_ind).z_gridvals(z_ind,:);
-            
+
             az_ind=sub2ind_homemade([N_a,N_z],[a_ind,z_ind]);
             d_val=fullgridvals(j_ind).dPolicy_gridvals(az_ind,:);
 

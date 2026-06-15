@@ -1,12 +1,24 @@
 function VPath=ValueFnFromPolicyOnTransPath_InfHorz(PolicyPath,V_final,ParamPath,PricePath,T,n_d,n_a,n_z,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions)
 
-if isfield(vfoptions,'exoticpreferences')
-    error('ValueFnFromPolicyOnTransPath_InfHorz() does not yet work with exotic preferences. Please ask on forum if you want/need this feature. \n');
-end
-if isfield(vfoptions,'experienceasset')
-    if vfoptions.experienceasset==1
-        error('ValueFnFromPolicyOnTransPath_InfHorz() does not yet work with experienceasset. Please ask on forum if you want/need this feature. \n');
+if ~exist('vfoptions','var')
+    vfoptions.gridinterplayer=0;
+    % divide-and-conquer is not relevant for ValueFnFromPolicy
+else
+    if gpuDeviceCount==0
+        error('ValueFnFromPolicyOnTransPath_InfHorz is only available on GPU')
     end
+    if ~isfield(vfoptions,'gridinterplayer')
+        vfoptions.gridinterplayer=0;
+    end
+    if isfield(vfoptions,'exoticpreferences')
+        error('ValueFnFromPolicyOnTransPath_InfHorz() does not yet work with exotic preferences. Please ask on forum if you want/need this feature. \n');
+    end
+    if isfield(vfoptions,'experienceasset')
+        if vfoptions.experienceasset==1
+            error('ValueFnFromPolicyOnTransPath_InfHorz() does not yet work with experienceasset. Please ask on forum if you want/need this feature. \n');
+        end
+    end
+    % divide-and-conquer is not relevant for ValueFnFromPolicy
 end
 
 N_d=prod(n_d);
@@ -35,12 +47,12 @@ end
 
 %%
 % Note: Internally PricePath is matrix of size T-by-'number of prices'.
-% ParamPath is matrix of size T-by-'number of parameters that change over the transition path'. 
+% ParamPath is matrix of size T-by-'number of parameters that change over the transition path'.
 [PricePath,ParamPath,PricePathNames,ParamPathNames,PricePathSizeVec,ParamPathSizeVec]=PricePathParamPath_StructToMatrix(PricePath,ParamPath,T);
 
 % This code will work for all transition paths except those that involve at
 % change in the transition matrix pi_z (can handle a change in pi_z, but
-% only if it is a 'surprise', not anticipated changes) 
+% only if it is a 'surprise', not anticipated changes)
 
 % PricePath is matrix of size T-by-'number of prices'
 % ParamPath is matrix of size T-by-'number of parameters that change over path'
@@ -75,20 +87,20 @@ for ttr=1:T-1
     for kk=1:length(ParamPathNames)
         Parameters.(ParamPathNames{kk})=ParamPath(T-ttr,kk);
     end
-    
+
     %% Calculate FofPolicy (the return fn evaluated at the Policy)
     PolicyValues=PolicyInd2Val_InfHorz(PolicyPath(:,:,:,tt),n_d,n_a,n_z,d_grid,a_grid, vfoptions);
     PolicyValuesPermute=permute(reshape(PolicyValues,[size(PolicyValues,1),N_a,N_z]),[2,3,1]); %[N_a,N_z,l_d+l_a]
 
     ReturnFnParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames);
     FofPolicy=EvalFnOnAgentDist_Grid(ReturnFn, ReturnFnParamsCell,PolicyValuesPermute,l_daprime,n_a,n_z,a_gridvals,z_gridvals);
-    
+
     %% Now that we have FofPolicy, calculate V.
     DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames));
-    
+
     Policy=KronPolicyIndexes_Case1(PolicyPath(:,:,:,tt), n_d, n_a, n_z, vfoptions);
     if N_d==0
-        Policy_a=Policy;
+        Policy_a=shiftdim(Policy(1,:,:),1);
     else
         Policy_a=shiftdim(ceil(Policy(2,:,:)),1);
     end

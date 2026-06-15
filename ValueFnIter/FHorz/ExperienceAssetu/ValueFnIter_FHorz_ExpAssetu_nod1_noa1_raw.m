@@ -30,7 +30,7 @@ ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0
-        ReturnMatrix=CreateReturnFnMatrix_Case2_Disc_Par2(ReturnFn,n_d2, n_a2, n_z, d2_gridvals, a2_grid, z_gridvals_J(:,:,N_j), ReturnFnParamsVec); % with only the experience asset, can just use Case2 command
+        ReturnMatrix=CreateReturnFnMatrix_Case2_Disc(ReturnFn,n_d2, n_a2, n_z, d2_gridvals, a2_grid, z_gridvals_J(:,:,N_j), ReturnFnParamsVec); % with only the experience asset, can just use Case2 command
         %Calc the max and it's index
         [Vtemp,maxindex]=max(ReturnMatrix,[],1);
         V(:,:,N_j)=Vtemp;
@@ -38,7 +38,7 @@ if ~isfield(vfoptions,'V_Jplus1')
     elseif vfoptions.lowmemory==1
         for z_c=1:N_z
             z_val=z_gridvals_J(z_c,:,N_j);
-            ReturnMatrix_z=CreateReturnFnMatrix_Case2_Disc_Par2(ReturnFn,n_d2, n_a2, special_n_z, d2_gridvals, a2_grid, z_val, ReturnFnParamsVec); % with only the experience asset, can just use Case2 command
+            ReturnMatrix_z=CreateReturnFnMatrix_Case2_Disc(ReturnFn,n_d2, n_a2, special_n_z, d2_gridvals, a2_grid, z_val, ReturnFnParamsVec); % with only the experience asset, can just use Case2 command
             %Calc the max and it's index
             [Vtemp,maxindex]=max(ReturnMatrix_z,[],1);
             V(:,z_c,N_j)=Vtemp;
@@ -53,7 +53,7 @@ else
     EVpre=reshape(vfoptions.V_Jplus1,[N_a,N_z]); % First, switch V_Jplus1 into Kron form
 
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
-    [a2primeIndex,a2primeProbs]=CreateExperienceAssetuFnMatrix_Case1(aprimeFn, n_d2, n_a2, n_u, d2_gridvals, a2_grid, u_gridvals, aprimeFnParamsVec,1); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
+    [a2primeIndex,a2primeProbs]=CreateExperienceAssetuFnMatrix(aprimeFn, n_d2, n_a2, n_u, d2_gridvals, a2_grid, u_gridvals, aprimeFnParamsVec,1); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
     % Note: aprimeIndex is [N_d2*N_a2*N_u,1], whereas aprimeProbs is [N_d2,N_a2,N_u]
     a2primeProbs=repmat(a2primeProbs,1,1,1,N_z);  % [N_d2,N_a2,N_u,N_z]
 
@@ -63,7 +63,7 @@ else
     skipinterp=(Vlower==Vupper);
     a2primeProbs(skipinterp)=0; % effectively skips interpolation
 
-    % Switch EV from being in terps of a2prime to being in terms of d2 and a2
+    % Switch EV from being in terms of a2prime to being in terms of d2 and a2
     EV=a2primeProbs.*Vlower+(1-a2primeProbs).*Vupper; % (d2,a1prime,a2,u,zprime)
     % Already applied the probabilities from interpolating onto grid
     EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,zprime)
@@ -75,7 +75,7 @@ else
 
     if vfoptions.lowmemory==0
 
-        ReturnMatrix=CreateReturnFnMatrix_Case2_Disc_Par2(ReturnFn,n_d2, n_a2, n_z, d2_gridvals, a2_grid, z_gridvals_J(:,:,N_j), ReturnFnParamsVec); % with only the experience asset, can just use Case2 command
+        ReturnMatrix=CreateReturnFnMatrix_Case2_Disc(ReturnFn,n_d2, n_a2, n_z, d2_gridvals, a2_grid, z_gridvals_J(:,:,N_j), ReturnFnParamsVec); % with only the experience asset, can just use Case2 command
 
         entireRHS=ReturnMatrix+DiscountFactorParamsVec*EV;
 
@@ -90,7 +90,7 @@ else
             EV_z=EV(:,:,z_c);
             % EV is over (d2,a1prime,a2,z)
 
-            ReturnMatrix_z=CreateReturnFnMatrix_Case2_Disc_Par2(ReturnFn,n_d2, n_a2, special_n_z, d2_gridvals, a2_grid, z_val, ReturnFnParamsVec); % with only the experience asset, can just use Case2 command
+            ReturnMatrix_z=CreateReturnFnMatrix_Case2_Disc(ReturnFn,n_d2, n_a2, special_n_z, d2_gridvals, a2_grid, z_val, ReturnFnParamsVec); % with only the experience asset, can just use Case2 command
 
             entireRHS=ReturnMatrix_z+DiscountFactorParamsVec*EV_z;
 
@@ -110,15 +110,15 @@ for reverse_j=1:N_j-1
     if vfoptions.verbose==1
         fprintf('Finite horizon: %i of %i \n',jj, N_j)
     end
-    
-    
+
+
     % Create a vector containing all the return function parameters (in order)
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);
-    [a2primeIndex,a2primeProbs]=CreateExperienceAssetuFnMatrix_Case1(aprimeFn, n_d2, n_a2, n_u, d2_gridvals, a2_grid, u_gridvals, aprimeFnParamsVec,1); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
+    [a2primeIndex,a2primeProbs]=CreateExperienceAssetuFnMatrix(aprimeFn, n_d2, n_a2, n_u, d2_gridvals, a2_grid, u_gridvals, aprimeFnParamsVec,1); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
     % Note: aprimeIndex is  [N_d2*N_a2*N_u,1], whereas aprimeProbs is [N_d2,N_a2,N_u]
     a2primeProbs=repmat(a2primeProbs,1,1,1,N_z);  % [N_d2,N_a2,N_u,N_z]
 
@@ -128,7 +128,7 @@ for reverse_j=1:N_j-1
     skipinterp=(Vlower==Vupper);
     a2primeProbs(skipinterp)=0; % effectively skips interpolation
 
-    % Switch EV from being in terps of a2prime to being in terms of d2 and a2
+    % Switch EV from being in terms of a2prime to being in terms of d2 and a2
     EV=a2primeProbs.*Vlower+(1-a2primeProbs).*Vupper; % (d2,a1prime,a2,u,zprime)
     % Already applied the probabilities from interpolating onto grid
     EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,zprime)
@@ -140,7 +140,7 @@ for reverse_j=1:N_j-1
 
     if vfoptions.lowmemory==0
 
-        ReturnMatrix=CreateReturnFnMatrix_Case2_Disc_Par2(ReturnFn,n_d2, n_a2, n_z, d2_gridvals, a2_grid, z_gridvals_J(:,:,jj), ReturnFnParamsVec); % with only the experience asset, can just use Case2 command
+        ReturnMatrix=CreateReturnFnMatrix_Case2_Disc(ReturnFn,n_d2, n_a2, n_z, d2_gridvals, a2_grid, z_gridvals_J(:,:,jj), ReturnFnParamsVec); % with only the experience asset, can just use Case2 command
 
         entireRHS=ReturnMatrix+DiscountFactorParamsVec*EV;
 
@@ -154,7 +154,7 @@ for reverse_j=1:N_j-1
             z_val=z_gridvals_J(z_c,:,jj);
             EV_z=EV(:,:,z_c);
 
-            ReturnMatrix_z=CreateReturnFnMatrix_Case2_Disc_Par2(ReturnFn,n_d2, n_a2, special_n_z, d2_gridvals, a2_grid, z_val, ReturnFnParamsVec); % with only the experience asset, can just use Case2 command
+            ReturnMatrix_z=CreateReturnFnMatrix_Case2_Disc(ReturnFn,n_d2, n_a2, special_n_z, d2_gridvals, a2_grid, z_val, ReturnFnParamsVec); % with only the experience asset, can just use Case2 command
 
             entireRHS=ReturnMatrix_z+DiscountFactorParamsVec*EV_z;
 

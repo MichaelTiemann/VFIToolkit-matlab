@@ -9,7 +9,6 @@ Policy=zeros(N_a,N_j,'gpuArray'); % first dim indexes the optimal choice for d a
 a_grid=gpuArray(a_grid);
 
 % n-Monotonicity
-% vfoptions.level1n=5;
 level1ii=round(linspace(1,n_a,vfoptions.level1n));
 % level1iidiff=level1ii(2:end)-level1ii(1:end-1)-1;
 
@@ -35,7 +34,7 @@ end
 V=zeros(N_a,N_j,'gpuArray'); % V is over (a,j)
 
 % n-Monotonicity
-ReturnMatrix_ii=CreateReturnFnMatrix_Case1_Disc_fastOLG_DC1_nod_noz_Par2(ReturnFn, N_j, a_grid, a_grid(level1ii), ReturnFnParamsAgeMatrix,1);
+ReturnMatrix_ii=CreateReturnFnMatrix_fastOLG_Disc_DC1_nod_noz(ReturnFn, N_j, a_grid, a_grid(level1ii), ReturnFnParamsAgeMatrix,1);
 
 entireRHS_ii=ReturnMatrix_ii+DiscountFactorParamsVec.*EV; % (aprime,a and j), autofills j for expectation term
 
@@ -52,7 +51,7 @@ for ii=1:(vfoptions.level1n-1)
         loweredge=min(maxindex1(1,ii,:),n_a-maxgap(ii)); % maxindex1(:,ii), but avoid going off top of grid when we add maxgap(ii) points
         aprimeindexes=loweredge+(0:1:maxgap(ii))'; % ' due to no d
         % aprime possibilities are maxgap(ii)+1-by-1-by-N_j
-        ReturnMatrix_ii=CreateReturnFnMatrix_Case1_Disc_fastOLG_DC1_nod_noz_Par2(ReturnFn, N_j, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), ReturnFnParamsAgeMatrix,2);
+        ReturnMatrix_ii=CreateReturnFnMatrix_fastOLG_Disc_DC1_nod_noz(ReturnFn, N_j, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), ReturnFnParamsAgeMatrix,2);
         aprime=aprimeindexes+N_a*shiftdim((0:1:N_j-1),-1); % with the current aprimeii(ii):aprimeii(ii+1)
         entireRHS_ii=ReturnMatrix_ii+DiscountFactorParamsVec.*EV(aprime);
         [Vtempii,maxindex]=max(entireRHS_ii,[],1);
@@ -60,9 +59,9 @@ for ii=1:(vfoptions.level1n-1)
         % temp=loweredge(maxindex+shiftdim((0:1:N_j-1),-1));
         Policy(level1ii(ii)+1:level1ii(ii+1)-1,:)=shiftdim(maxindex+loweredge-1,1); % loweredge
     else
-        loweredge=maxindex1(1,ii,:);        
+        loweredge=maxindex1(1,ii,:);
         % Just use aprime(ii) for everything
-        ReturnMatrix_ii=CreateReturnFnMatrix_Case1_Disc_fastOLG_DC1_nod_noz_Par2(ReturnFn, N_j, a_grid(loweredge), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), ReturnFnParamsAgeMatrix,2);
+        ReturnMatrix_ii=CreateReturnFnMatrix_fastOLG_Disc_DC1_nod_noz(ReturnFn, N_j, a_grid(loweredge), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), ReturnFnParamsAgeMatrix,2);
         aprime=loweredge+N_a*shiftdim((0:1:N_j-1),-1); % with the current aprimeii(ii):aprimeii(ii+1)
         entireRHS_ii=ReturnMatrix_ii+DiscountFactorParamsVec.*EV(aprime);
         [Vtempii,maxindex]=max(entireRHS_ii,[],1);

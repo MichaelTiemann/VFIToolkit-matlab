@@ -2,10 +2,10 @@ function [VPath,PolicyPath]=ValueFnOnTransPath_Case1_FHorz(PricePath, ParamPath,
 % transpathoptions, vfoptions are optional inputs
 
 %%
-% I DONT THINK THAT _tminus1 and/or _tplus1 variables ARE USED WITH Value fn. 
+% I DONT THINK THAT _tminus1 and/or _tplus1 variables ARE USED WITH Value fn.
 % AT LEAST NOT IN ANY EXAMPLES I HAVE COME ACROSS. AS SUCH THEY ARE NOT IMPLEMENTED HERE.
 
-%% Check which transpathoptions have been used, set all others to defaults 
+%% Check which transpathoptions have been used, set all others to defaults
 if exist('transpathoptions','var')==0
     disp('No transpathoptions given, using defaults')
     % If transpathoptions is not given, just use all the defaults
@@ -13,16 +13,16 @@ if exist('transpathoptions','var')==0
     transpathoptions.verbose=0;
 else
     % Check transpathoptions for missing fields, if there are some fill them with the defaults
-    if isfield(transpathoptions,'fastOLG')==0
+    if ~isfield(transpathoptions,'fastOLG')
         transpathoptions.fastOLG=0;
     end
-    if isfield(transpathoptions,'verbose')==0
+    if ~isfield(transpathoptions,'verbose')
         transpathoptions.verbose=0;
     end
 end
 transpathoptions.parallel=2; % transition path requires GPU
 
-%% Check which vfoptions have been used, set all others to defaults 
+%% Check which vfoptions have been used, set all others to defaults
 if exist('vfoptions','var')==0
     disp('No vfoptions given, using defaults')
     %If vfoptions is not given, just use all the defaults
@@ -33,13 +33,19 @@ if exist('vfoptions','var')==0
     % Model setup
     vfoptions.exoticpreferences='None';
     vfoptions.experienceasset=0;
+    % Exogenous shocks
+    vfoptions.n_e=0;
 else
     %Check vfoptions for missing fields, if there are some fill them with the defaults
     if ~isfield(vfoptions,'divideandconquer')
         vfoptions.divideandconquer=0;
     elseif vfoptions.divideandconquer==1
         if ~isfield(vfoptions,'level1n')
-            vfoptions.level1n=11;
+            if isscalar(n_a)
+                vfoptions.level1n=round(sqrt(n_a(1)));
+            elseif length(n_a)==2
+                vfoptions.level1n=[round(sqrt(n_a(1))),n_a(2)]; % default DC2A: level1n(2)==n_a(2) triggers DC2A branch
+            end
         end
     end
     if ~isfield(vfoptions,'gridinterplayer')
@@ -62,13 +68,21 @@ else
     if ~isfield(vfoptions,'experienceasset')
         vfoptions.experienceasset=0;
     end
+    % Exogenous shocks
+    if ~isfield(vfoptions,'n_e')
+        vfoptions.n_e=0;
+    end
 end
 vfoptions.parallel=2; % transition path requires GPU
 vfoptions.EVpre=0; % =1 is used by 'Matched Expecations Path', for TPath we want =0 (this relates to details of fastOLG=1 value fn code)
 
+if transpathoptions.fastOLG==0 && vfoptions.lowmemory>0
+    warning('On transtion paths you can only use vfoptions.lowmemory>0 when using transpathoptions.fastOLG=1, because otherwise the runtimes will anyway be so slow as to be essentially unusable')
+end
+
 
 %% Internally PricePath is matrix of size T-by-'number of prices'.
-% ParamPath is matrix of size T-by-'number of parameters that change over the transition path'. 
+% ParamPath is matrix of size T-by-'number of parameters that change over the transition path'.
 [PricePath,ParamPath,PricePathNames,ParamPathNames,PricePathSizeVec,ParamPathSizeVec]=PricePathParamPath_FHorz_StructToMatrix(PricePath,ParamPath,N_j,T);
 
 %% Make sure all the relevant inputs are GPU arrays (not standard arrays)
@@ -82,11 +96,7 @@ V_final=gpuArray(V_final);
 N_d=prod(n_d);
 N_a=prod(n_a);
 N_z=prod(n_z);
-if isfield(vfoptions, 'n_e')
-    n_e=vfoptions.n_e;
-else
-    n_e=0;
-end
+n_e=vfoptions.n_e;
 N_e=prod(n_e);
 
 if N_d==0
@@ -105,7 +115,7 @@ end
 ReturnFnParamNames=ReturnFnParamNamesFn(ReturnFn,n_d,n_a,n_z,N_j,vfoptions,Parameters);
 
 %% Set up exogenous shock processes
-[z_gridvals_J, pi_z_J, ~, e_gridvals_J, pi_e_J, ~, ~, transpathoptions, vfoptions]=ExogShockSetup_TPath_FHorz(n_z,z_grid,pi_z,N_a,N_j,Parameters,PricePathNames,ParamPathNames,transpathoptions,vfoptions,3);
+[z_gridvals_J, pi_z_J, ~, e_gridvals_J, pi_e_J, ~, ~, transpathoptions, vfoptions]=ExogShockSetup_FHorz_TPath(n_z,z_grid,pi_z,N_a,N_j,Parameters,PricePathNames,ParamPathNames,transpathoptions,vfoptions,3);
 % Convert z and e to age-dependent joint-grids and transtion matrix
 % output: z_gridvals_J, pi_z_J, e_gridvals_J, pi_e_J, transpathoptions,vfoptions,simoptions
 
@@ -168,7 +178,7 @@ end
 
 %%
 if vfoptions.experienceasset==1
-    [VPath,PolicyPath]=ValueFnOnTransPath_Case1_FHorz_ExpAsset(PricePath, PricePathNames, PricePathSizeVec, ParamPath, ParamPathNames, ParamPathSizeVec, T, V_final, Policy_final, Parameters, n_d,n_a,n_z,n_e, N_a,N_z,N_e, N_j, d_grid, a_grid, z_gridvals_J, e_gridvals_J, pi_z_J, pi_e_J, DiscountFactorParamNames, ReturnFn, ReturnFnParamNames, transpathoptions, vfoptions);
+    [VPath,PolicyPath]=ValueFnOnTransPath_FHorz_ExpAsset(PricePath, PricePathNames, PricePathSizeVec, ParamPath, ParamPathNames, ParamPathSizeVec, T, V_final, Policy_final, Parameters, n_d,n_a,n_z,n_e, N_a,N_z,N_e, N_j, d_grid, a_grid, z_gridvals_J, e_gridvals_J, pi_z_J, pi_e_J, DiscountFactorParamNames, ReturnFn, ReturnFnParamNames, transpathoptions, vfoptions);
 else
     %%
     if N_e==0
@@ -202,7 +212,7 @@ else
 
                 VPath=zeros(N_a,N_j,T,'gpuArray');
                 VPath(:,:,T)=V_final;
-                PolicyPath=zeros(l_d+l_aprime+(vfoptions.gridinterplayer>0),N_a,N_j,T-1,'gpuArray'); %Periods 1 to T-1
+                PolicyPath=zeros(l_d+l_aprime+(vfoptions.gridinterplayer>0),N_a,N_j,T,'gpuArray'); %Periods 1 to T
                 PolicyPath(:,:,:,T)=Policy_final;
 
                 % Go from T-1 to 1 calculating the Value function and Optimal policy function at each step.
@@ -235,7 +245,7 @@ else
                 % Go from T-1 to 1 calculating the Value function and Optimal policy function at each step.
                 V=V_final;
                 for ttr=1:T-1 %so t=T-i
-                    
+
                     for kk=1:length(PricePathNames)
                         Parameters.(PricePathNames{kk})=PricePath(T-ttr,PricePathSizeVec(1,kk):PricePathSizeVec(2,kk));
                     end
@@ -355,9 +365,9 @@ else
 
                     [V, Policy]=ValueFnIter_FHorz_TPath_SingleStep_fastOLG_noz_e(V,n_d,n_a,n_e,N_j,d_grid, a_grid, e_gridvals_J, pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
                     % The VKron input is next period value fn, the VKron output is this period.
-                    % Policy in fastOLG is [1,N_a*N_j*N_z] and contains the joint-index for (d,aprime)
+                    % Policy in fastOLG is [1,N_a*N_j*N_e] and contains the joint-index for (d,aprime)
 
-                    PolicyPath(:,:,:,:,T-ttr)=Policy; % fastOLG: so (a,j)-by-z
+                    PolicyPath(:,:,:,:,T-ttr)=Policy; % fastOLG: so (a,j)-by-e
                     VPath(:,:,T-ttr)=V;
                 end
             end
@@ -429,9 +439,9 @@ else
 
                     [V, Policy]=ValueFnIter_FHorz_TPath_SingleStep_fastOLG_e(V,n_d,n_a,n_z,n_e, N_j,d_grid, a_grid, z_gridvals_J, e_gridvals_J, pi_z_J, pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
                     % The VKron input is next period value fn, the VKron output is this period.
-                    % Policy in fastOLG is [1,N_a*N_j*N_z] and contains the joint-index for (d,aprime)
+                    % Policy in fastOLG is [1,N_a*N_j*N_z*N_e] and contains the joint-index for (d,aprime)
 
-                    PolicyPath(:,:,:,:,:,T-ttr)=Policy; % fastOLG: so (a,j)-by-z
+                    PolicyPath(:,:,:,:,:,T-ttr)=Policy; % fastOLG: so (a,j)-by-z-by-e
                     VPath(:,:,:,T-ttr)=V;
                 end
             end
@@ -448,11 +458,11 @@ if transpathoptions.fastOLG==1
         if N_z==0
             % no need to do anything
         else
-            PolicyPath=permute(PolicyPath,[1,2,4,3,5]); % was (daprime,a,j,e,t), now (daprime,a,e,j,t)
+            PolicyPath=permute(PolicyPath,[1,2,4,3,5]); % was (daprime,a,j,z,t), now (daprime,a,z,j,t)
         end
     else
         if N_z==0
-            PolicyPath=permute(PolicyPath,[1,2,4,3,5]); % was (daprime,a,j,z,t), now (daprime,a,z,j,t)
+            PolicyPath=permute(PolicyPath,[1,2,4,3,5]); % was (daprime,a,j,e,t), now (daprime,a,e,j,t)
         else
             PolicyPath=permute(PolicyPath,[1,2,4,5,3,6]); % was (daprime,a,j,z,e,t), now (daprime,a,z,e,j,t)
         end

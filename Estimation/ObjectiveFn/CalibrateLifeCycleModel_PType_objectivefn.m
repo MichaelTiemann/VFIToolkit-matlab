@@ -63,7 +63,7 @@ end
 
 % Same for semi-exogenous shocks
 if caliboptions.calibsemiexo==1
-    vfoptions=SemiExogShockSetup_FHorz_PType(n_d,N_j,Names_i,d_grid,Parameters,vfoptions,2,3);
+    vfoptions=SemiExogShockSetup_FHorz_PType(n_d,N_j,Names_i,d_grid,Parameters,vfoptions,3);
     simoptions.semiz_gridvals_J=vfoptions.semiz_gridvals_J;
     simoptions.pi_semiz_J=vfoptions.pi_semiz_J;
 end
@@ -100,7 +100,7 @@ if usingallstats==1
         if isempty(allstatmomentnames{1,4})
             currentmomentvec(1:allstatcummomentsizes(1))=AllStats.(allstatmomentnames{1,1}).(allstatmomentnames{1,2}).(allstatmomentnames{1,3});
         else
-            currentmomentvec(1:allstatcummomentsizes(1))=AllStats.(allstatmomentnames{1,1}).(allstatmomentnames{1,2}).(allstatmomentnames{1,3}).(allstatmomentnames{1,4});        
+            currentmomentvec(1:allstatcummomentsizes(1))=AllStats.(allstatmomentnames{1,1}).(allstatmomentnames{1,2}).(allstatmomentnames{1,3}).(allstatmomentnames{1,4});
         end
     end
     for cc=2:size(allstatmomentnames,1)

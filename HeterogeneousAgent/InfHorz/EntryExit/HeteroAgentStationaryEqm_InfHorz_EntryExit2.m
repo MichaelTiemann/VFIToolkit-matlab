@@ -14,39 +14,27 @@ l_p=length(n_p);
 
 p_eqm=struct(); p_eqm_index=nan; GeneralEqmConditions=nan;
 
-%% Check which options have been used, set all others to defaults 
-if exist('vfoptions','var')==0
-    %If vfoptions is not given, just use all the defaults
-    vfoptions.parallel=2;
-    %Note that the defaults will be set when we call 'ValueFnIter...'
-    %commands and the like, so no need to set them here except for a few.
-else
-    %Check vfoptions for missing fields, if there are some fill them with the defaults
-    if isfield(vfoptions,'parallel')==0
-        vfoptions.parallel=2;
-    end
-end
-
+%% Check which options have been used, set all others to defaults
 % Can only get to EntryExit2 when simoptions exists.
 % Check simoptions for missing fields, if there are some fill them with the defaults
-if isfield(simoptions,'parallel')==0
+if ~isfield(simoptions,'parallel')
     simoptions.parallel=2;
 end
-if isfield(simoptions,'ncores')==0
-    try 
+if ~isfield(simoptions,'ncores')
+    try
         PoolDetails=gcp;
         simoptions.ncores=PoolDetails.NumWorkers;
     catch
         simoptions.ncores=1;
     end
 end
-if isfield(simoptions, 'maxit')==0
+if ~isfield(simoptions,'maxit')
     simoptions.maxit=5*10^4;
 end
-if isfield(simoptions, 'tolerance')==0
+if ~isfield(simoptions,'tolerance')
     simoptions.tolerance=10^(-9);
 end
-if isfield(simoptions, 'verbose')==0
+if ~isfield(simoptions,'verbose')
     simoptions.verbose=0;
 end
 
@@ -56,21 +44,21 @@ if exist('heteroagentoptions','var')==0
     heteroagentoptions.verbose=0;
     heteroagentoptions.maxiter=1000;
 else
-    if isfield(heteroagentoptions,'multiGEcriterion')==0
+    if ~isfield(heteroagentoptions,'multiGEcriterion')
         heteroagentoptions.multiGEcriterion=1;
     end
     if N_p~=0
-        if isfield(heteroagentoptions,'pgrid')==0
+        if ~isfield(heteroagentoptions,'pgrid')
             disp('VFI Toolkit ERROR: you have set n_p to a non-zero value, but not declared heteroagentoptions.pgrid')
         end
     end
-    if isfield(heteroagentoptions,'verbose')==0
+    if ~isfield(heteroagentoptions,'verbose')
         heteroagentoptions.verbose=0;
     end
-    if isfield(heteroagentoptions,'fminalgo')==0
+    if ~isfield(heteroagentoptions,'fminalgo')
         heteroagentoptions.fminalgo=1; % use fminsearch
     end
-    if isfield(heteroagentoptions,'maxiter')==0
+    if ~isfield(heteroagentoptions,'maxiter')
         heteroagentoptions.maxiter=1000; % use fminsearch
     end
 end
@@ -108,7 +96,7 @@ end
 minoptions = optimset('TolX',heteroagentoptions.toleranceGEprices,'TolFun',heteroagentoptions.toleranceGEcondns);
 if heteroagentoptions.fminalgo==0 % fzero doesn't appear to be a good choice in practice, at least not with it's default settings.
     heteroagentoptions.multimarketcriterion=0;
-    [p_eqm_vec,GeneralEqmConditions]=fzero(GeneralEqmConditionsFnOpt,p0,minoptions);    
+    [p_eqm_vec,GeneralEqmConditions]=fzero(GeneralEqmConditionsFnOpt,p0,minoptions);
 elseif heteroagentoptions.fminalgo==1
     [p_eqm_vec,GeneralEqmConditions]=fminsearch(GeneralEqmConditionsFnOpt,p0,minoptions);
 elseif heteroagentoptions.fminalgo==2
@@ -119,7 +107,7 @@ elseif heteroagentoptions.fminalgo==2
     z0.z=p0;
     [sol,GeneralEqmConditions]=solve(prob,z0);
     p_eqm_vec=sol.z;
-    % Note, doesn't really work as automattic differentiation is only for
+    % Note, doesn't really work as automatic differentiation is only for
     % supported functions, and the objective here is not a supported function
 elseif heteroagentoptions.fminalgo==3
     goal=zeros(length(p0),1);
@@ -138,7 +126,7 @@ elseif heteroagentoptions.fminalgo==4 % CMA-ES algorithm (Covariance-Matrix adap
         % inopts: options struct, see defopts below
         heteroagentoptions.inopts=[];
     end
-    % varargin (unused): arguments passed to objective function 
+    % varargin (unused): arguments passed to objective function
     if heteroagentoptions.verbose==1
         disp('VFI Toolkit is using the CMA-ES algorithm, consider giving a cite to: Hansen, N. and S. Kern (2004). Evaluating the CMA Evolution Strategy on Multimodal Test Functions' )
     end

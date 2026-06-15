@@ -1,14 +1,14 @@
 function StationaryDist_treatment=StationaryDist_FHorz_FieldExp_Treatment(StationaryDist_Control, AgeWeightParamNames, Policy,n_d,n_a,n_z,N_j,pi_z,Parameters, TreatmentAgeRange, TreatmentDuration,simoptions)
-% The agent distribution of the control-group is effectively the 'initial' distribution from which 
+% The agent distribution of the control-group is effectively the 'initial' distribution from which
 % the treatment-group are drawn.
-% The treatment group agent distribution does not include the information about the 'age weights' 
+% The treatment group agent distribution does not include the information about the 'age weights'
 % because these are kept in the control group.
 
 if exist('simoptions','var')==0
     simoptions.nsims=10^4;
     simoptions.parallel=3-(gpuDeviceCount>0); % 3 (sparse) if cpu, 2 if gpu
     simoptions.verbose=0;
-    try 
+    try
         PoolDetails=gcp;
         simoptions.ncores=PoolDetails.NumWorkers;
     catch
@@ -18,22 +18,25 @@ if exist('simoptions','var')==0
     simoptions.tolerance=10^(-9);
     simoptions.outputkron=0; % If 1 then leave output in Kron form
     simoptions.loopovere=0; % default is parallel over e, 1 will loop over e, 2 will parfor loop over e
+    % Exogenous shocks
+    simoptions.n_e=0;
+    simoptions.n_semiz=0;
 else
     %Check simoptions for missing fields, if there are some fill them with
     %the defaults
-    if isfield(simoptions,'tolerance')==0
+    if ~isfield(simoptions,'tolerance')
         simoptions.tolerance=10^(-9);
     end
-    if isfield(simoptions,'nsims')==0
+    if ~isfield(simoptions,'nsims')
         simoptions.nsims=10^4;
     end
-    if isfield(simoptions,'parallel')==0
+    if ~isfield(simoptions,'parallel')
         simoptions.parallel=3-(gpuDeviceCount>0); % 3 (sparse) if cpu, 2 if gpu
     end
-    if isfield(simoptions,'verbose')==0
+    if ~isfield(simoptions,'verbose')
         simoptions.verbose=0;
     end
-    if isfield(simoptions,'ncores')==0
+    if ~isfield(simoptions,'ncores')
         try
             PoolDetails=gcp;
             simoptions.ncores=PoolDetails.NumWorkers;
@@ -41,7 +44,7 @@ else
             simoptions.ncores=1;
         end
     end
-    if isfield(simoptions,'iterate')==0
+    if ~isfield(simoptions,'iterate')
         simoptions.iterate=1;
     end
     if isfield(simoptions,'ExogShockFn') % If using ExogShockFn then figure out the parameter names
@@ -50,11 +53,18 @@ else
     if isfield(simoptions,'EiidShockFn') % If using ExogShockFn then figure out the parameter names
         simoptions.EiidShockFnParamNames=getAnonymousFnInputNames(simoptions.EiidShockFn);
     end
-    if isfield(simoptions,'outputkron')==0
+    if ~isfield(simoptions,'outputkron')
         simoptions.outputkron=0; % If 1 then leave output in Kron form
     end
     if ~isfield(simoptions,'loopovere')
         simoptions.loopovere=0; % default is parallel over e, 1 will loop over e, 2 will parfor loop over e
+    end
+    % Exogenous shocks
+    if ~isfield(simoptions,'n_e')
+        simoptions.n_e=0;
+    end
+    if ~isfield(simoptions,'n_semiz')
+        simoptions.n_semiz=0;
     end
 end
 
@@ -62,10 +72,7 @@ end
 N_d=prod(n_d);
 N_a=prod(n_a);
 N_z=prod(n_z);
-N_e=0;
-if isfield(simoptions,'n_e')
-    N_e=prod(simoptions.n_e);
-end
+N_e=prod(simoptions.n_e);
 if N_z>0 && N_e>0
     N_ze=N_z*N_e;
 else
@@ -87,7 +94,7 @@ end
 
 if simoptions.parallel~=2 && simoptions.parallel~=4
     PolicyKron=gather(PolicyKron);
-    StationaryDist_Control=gather(StationaryDist_Control);    
+    StationaryDist_Control=gather(StationaryDist_Control);
     pi_z=gather(pi_z);
 end
 
@@ -160,7 +167,7 @@ agedepparamnames=fieldnames(AgeDepParams);
 %%
 
 for j_p=TreatmentAgeRange(1):TreatmentAgeRange(2)
-    % Pull the appropraite initial distribution of agents
+    % Pull the appropriate initial distribution of agents
     if N_ze==0
         jequaloneDistKron=reshape(StationaryDist_Control(:,j_p),[N_a,1]);
         PolicyKron_treat=PolicyKron(:,:,j_p:j_p+TreatmentDuration-1);
@@ -176,7 +183,7 @@ for j_p=TreatmentAgeRange(1):TreatmentAgeRange(2)
     end
     % Normalize the mass of this initial distribution to one
     jequaloneDistKron=jequaloneDistKron./sum(jequaloneDistKron(:));
-    
+
     % Replace all age dependent parameters with those required
     for nn=1:length(agedepparamnames)
         temp=AgeDepParams.(agedepparamnames{nn});
@@ -203,7 +210,7 @@ for j_p=TreatmentAgeRange(1):TreatmentAgeRange(2)
             StationaryDist_treatment(:,:,:,j_p)=reshape(StationaryDist_FHorz_Iteration_e_raw(jequaloneDistKron,AgeWeightParamNames,PolicyKron_treat,N_d,N_a,N_z,N_e,TreatmentDuration,pi_z_J,pi_e_J,Parameters,simoptions),[N_a,N_z*N_e,TreatmentDuration]);
         end
     end
-    
+
 end
 
 % UnKron the output

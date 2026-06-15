@@ -1,15 +1,16 @@
 function V=ValueFnFromPolicy_InfHorz(Policy,n_d,n_a,n_z,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions)
 
-if exist('vfoptions','var')
-    vfoptions.parallel=2; % ValueFnFromPolicy only available for GPU
+if ~exist('vfoptions','var')
+    vfoptions.gridinterplayer=0;
     vfoptions.tolerance=10^(-9);
     vfoptions.maxiter=10^4; % Can be used to stop the VFI after a finite number of iterations
-    if isfield(vfoptions,'exoticpreferences')
-        error('ValueFnFromPolicy_InfHorz() does not yet work with exotic preferences. Please ask on forum if you want/need this feature. \n');
-    end
+    % divide-and-conquer is not relevant for ValueFnFromPolicy
 else
-    if ~isfield(vfoptions,'parallel')
-        vfoptions.parallel=2; % ValueFnFromPolicy only available for GPU
+    if gpuDeviceCount==0
+        error('ValueFnFromPolicy_InfHorz is only available on GPU')
+    end
+    if ~isfield(vfoptions,'gridinterplayer')
+        vfoptions.gridinterplayer=0;
     end
     if ~isfield(vfoptions,'tolerance')
         vfoptions.tolerance=10^(-9);
@@ -17,6 +18,10 @@ else
     if ~isfield(vfoptions,'maxiter')
         vfoptions.maxiter=10^4; % Can be used to stop the VFI after a finite number of iterations
     end
+    if isfield(vfoptions,'exoticpreferences')
+        error('ValueFnFromPolicy_InfHorz() does not yet work with exotic preferences. Please ask on forum if you want/need this feature. \n');
+    end
+    % divide-and-conquer is not relevant for ValueFnFromPolicy
 end
 
 N_d=prod(n_d);
@@ -59,7 +64,7 @@ itercount=1;
 VKron=FofPolicy/(1-DiscountFactorParamsVec); % rough guess
 if vfoptions.gridinterplayer==0
     if N_d==0
-        Policy_a=Policy;
+        Policy_a=shiftdim(Policy(1,:,:),1);
     else
         Policy_a=shiftdim(ceil(Policy(2,:,:)),1);
     end
@@ -92,7 +97,7 @@ elseif vfoptions.gridinterplayer==1
         PolicyProbs=(PolicyProbs-1)/(vfoptions.ngridinterp+1); % prob of upper point
         PolicyProbs=[1-PolicyProbs; PolicyProbs]; % [2,N_a*N_z]
     end
-    
+
     while currdist>vfoptions.tolerance && itercount<vfoptions.maxiter
         VKronold=VKron;
 

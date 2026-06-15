@@ -46,12 +46,12 @@ if vfoptions.EVpre==0
     skipinterp=(Vlower==Vupper);
     aprimeProbs(skipinterp)=0; % effectively skips interpolation
 
-    % Switch EV from being in terps of a2prime to being in terms of d2 and a2
+    % Switch EV from being in terms of a2prime to being in terms of d2 and a2
     EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper; % (d2,a1prime,a2,N_j,zprime)
     % Already applied the probabilities from interpolating onto grid
-    
+
     EV=EV.*shiftdim(pi_z_J,-2);
-    EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilites)
+    EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
     EV=reshape(sum(EV,4),[N_d2*N_a1,N_a2,N_j,N_z]); % (aprime,1,j,z), 2nd dim will be autofilled with a
 elseif vfoptions.EVpre==1
     % This is used for 'Matched Expecations Path'
@@ -72,19 +72,19 @@ elseif vfoptions.EVpre==1
     skipinterp=(Vlower==Vupper);
     aprimeProbs(skipinterp)=0; % effectively skips interpolation
 
-    % Switch EV from being in terps of a2prime to being in terms of d2 and a2
+    % Switch EV from being in terms of a2prime to being in terms of d2 and a2
     EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper; % (d2,a1prime,a2,N_j,zprime)
     % Already applied the probabilities from interpolating onto grid
-    
+
     EV=EV.*shiftdim(pi_z_J,-2);
-    EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilites)
+    EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
     EV=reshape(sum(EV,4),[N_d2*N_a1,N_a2,N_j,N_z]); % (aprime,1,j,z), 2nd dim will be autofilled with a
 end
 
 DiscountedEV=DiscountFactorParamsVec.*repelem(EV,1,N_a1,1,1);
 
 if vfoptions.lowmemory==0
-    ReturnMatrix=CreateReturnFnMatrix_Case1_fastOLG_ExpAsset_Disc_Par2e(ReturnFn, 0, n_d2, n_a1, n_a1,n_a2, n_z,n_e,N_j, d2_gridvals, a1_gridvals, a1_gridvals, a2_grid, z_gridvals_J, e_gridvals_J, ReturnFnParamsAgeMatrix,0,0);
+    ReturnMatrix=CreateReturnFnMatrix_fastOLG_ExpAsset_Disc_e(ReturnFn, 0, n_d2, n_a1, n_a1,n_a2, n_z,n_e,N_j, d2_gridvals, a1_gridvals, a1_gridvals, a2_grid, z_gridvals_J, e_gridvals_J, ReturnFnParamsAgeMatrix,0,0); % Level=0, Refine=0
 
     entireRHS=ReturnMatrix+DiscountedEV;
 
@@ -102,7 +102,7 @@ elseif vfoptions.lowmemory==1
     for e_c=1:N_e
         e_val=e_gridvals_J(:,e_c,:);
 
-        ReturnMatrix_e=CreateReturnFnMatrix_Case1_fastOLG_ExpAsset_Disc_Par2e(ReturnFn, 0, n_d2, n_a1, n_a1,n_a2, n_z,special_n_e,N_j, d2_gridvals, a1_gridvals, a1_gridvals, a2_grid, z_gridvals_J, e_val, ReturnFnParamsAgeMatrix,0,0);
+        ReturnMatrix_e=CreateReturnFnMatrix_fastOLG_ExpAsset_Disc_e(ReturnFn, 0, n_d2, n_a1, n_a1,n_a2, n_z,special_n_e,N_j, d2_gridvals, a1_gridvals, a1_gridvals, a2_grid, z_gridvals_J, e_val, ReturnFnParamsAgeMatrix,0,0); % Level=0, Refine=0
 
         entireRHS_e=ReturnMatrix_e+DiscountedEV;
 
@@ -124,7 +124,7 @@ elseif vfoptions.lowmemory==2
         for e_c=1:N_e
             e_val=e_gridvals_J(:,e_c,:);
 
-            ReturnMatrix_ze=CreateReturnFnMatrix_Case1_fastOLG_ExpAsset_Disc_Par2e(ReturnFn, 0, n_d2, n_a1, n_a1,n_a2, special_n_z,special_n_e,N_j, d2_gridvals, a1_gridvals, a1_gridvals, a2_grid, z_val, e_val, ReturnFnParamsAgeMatrix,0,0);
+            ReturnMatrix_ze=CreateReturnFnMatrix_fastOLG_ExpAsset_Disc_e(ReturnFn, 0, n_d2, n_a1, n_a1,n_a2, special_n_z,special_n_e,N_j, d2_gridvals, a1_gridvals, a1_gridvals, a2_grid, z_val, e_val, ReturnFnParamsAgeMatrix,0,0); % Level=0, Refine=0
 
             entireRHS_ze=ReturnMatrix_ze+DiscountedEV_z;
 

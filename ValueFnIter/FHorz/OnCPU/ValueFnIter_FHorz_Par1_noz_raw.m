@@ -13,20 +13,20 @@ ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
 
 if ~isfield(vfoptions,'V_Jplus1')
 
-    ReturnMatrix=CreateReturnFnMatrix_Case1_Disc_noz(ReturnFn, n_d, n_a, d_grid, a_grid, vfoptions.parallel,ReturnFnParamsVec,0);
+    ReturnMatrix=CreateReturnFnMatrix_Disc_CPU_noz(ReturnFn, n_d, n_a, d_grid, a_grid, vfoptions.parallel,ReturnFnParamsVec,0);
     % Calc the max and it's index
     [Vtemp,maxindex]=max(ReturnMatrix,[],1);
     V(:,N_j)=Vtemp;
     Policy(:,N_j)=maxindex;
 
 else
-    
+
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
     EV=reshape(vfoptions.V_Jplus1,[N_a,1]); % Using V_Jplus1
 
-    ReturnMatrix=CreateReturnFnMatrix_Case1_Disc_noz(ReturnFn, n_d, n_a, d_grid, a_grid, vfoptions.parallel, ReturnFnParamsVec,0);
+    ReturnMatrix=CreateReturnFnMatrix_Disc_CPU_noz(ReturnFn, n_d, n_a, d_grid, a_grid, vfoptions.parallel, ReturnFnParamsVec,0);
 
     entireEV=repelem(EV,N_d,1);
     entireRHS=ReturnMatrix+DiscountFactorParamsVec*entireEV; % autoexpand a into the 2nd-dim of entireEV
@@ -44,16 +44,16 @@ for reverse_j=1:N_j-1
     if vfoptions.verbose==1
         fprintf('Finite horizon: %i of %i \n',jj, N_j)
     end
-    
-    
+
+
     % Create a vector containing all the return function parameters (in order)
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
-    
+
     EV=V(:,jj+1);
 
-    ReturnMatrix=CreateReturnFnMatrix_Case1_Disc_noz(ReturnFn, n_d, n_a, d_grid, a_grid, vfoptions.parallel, ReturnFnParamsVec,0);
+    ReturnMatrix=CreateReturnFnMatrix_Disc_CPU_noz(ReturnFn, n_d, n_a, d_grid, a_grid, vfoptions.parallel, ReturnFnParamsVec,0);
 
     entireEV=repelem(EV,N_d,1);
     entireRHS=ReturnMatrix+DiscountFactorParamsVec*entireEV; % autoexpand a into the 2nd-dim of entireEV

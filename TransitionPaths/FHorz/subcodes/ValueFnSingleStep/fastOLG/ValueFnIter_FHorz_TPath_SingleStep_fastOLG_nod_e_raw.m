@@ -25,14 +25,14 @@ ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames
 EVpre=[sum(V(N_a+1:end,:,:).*pi_e_J(N_a+1:end,:,:),3); zeros(N_a,N_z,'gpuArray')]; % I use zeros in j=N_j so that can just use pi_z_J to create expectations
 EVpre=reshape(EVpre,[N_a,1,N_j,N_z]);
 EV=EVpre.*shiftdim(pi_z_J,-2);
-EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilites)
+EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
 EV=reshape(sum(EV,4),[N_a,1,N_j,N_z]); % (aprime,1,j,z), 2nd dim will be autofilled with a
 
 DiscountedEV=DiscountFactorParamsVec.*EV;
 
 if vfoptions.lowmemory==0
 
-    ReturnMatrix=CreateReturnFnMatrix_Case1_Disc_fastOLG_DC1_nod_Par2e(ReturnFn, n_z, n_e, N_j, a_grid, a_grid, z_gridvals_J, e_gridvals_J, ReturnFnParamsAgeMatrix,1);
+    ReturnMatrix=CreateReturnFnMatrix_fastOLG_Disc_DC1_nod_e(ReturnFn, n_z, n_e, N_j, a_grid, a_grid, z_gridvals_J, e_gridvals_J, ReturnFnParamsAgeMatrix,1);
     % fastOLG: ReturnMatrix is [aprime,a,j,z]
 
     entireRHS=ReturnMatrix+DiscountedEV; %(aprime)-by-(a,j)-by-z-by-e
@@ -46,11 +46,11 @@ elseif vfoptions.lowmemory==1
     special_n_e=ones(1,length(n_e));
     V=zeros(N_a*N_j,N_z,N_e,'gpuArray');
     Policy=zeros(N_a,N_j,N_z,N_e,'gpuArray'); %first dim indexes the optimal choice for aprime rest of dimensions a,z
-    
+
     for e_c=1:N_e
         e_vals=e_gridvals_J(1,1,:,1,e_c,:); % e_gridvals_J has shape (1,1,N_j,1,prod(n_e),l_e)
 
-        ReturnMatrix_e=CreateReturnFnMatrix_Case1_Disc_fastOLG_DC1_nod_Par2e(ReturnFn, n_z, special_n_e, N_j, a_grid, a_grid, z_gridvals_J, e_vals, ReturnFnParamsAgeMatrix,1);
+        ReturnMatrix_e=CreateReturnFnMatrix_fastOLG_Disc_DC1_nod_e(ReturnFn, n_z, special_n_e, N_j, a_grid, a_grid, z_gridvals_J, e_vals, ReturnFnParamsAgeMatrix,1);
         % fastOLG: ReturnMatrix is [aprime,a,j,z] (e)
 
         entireRHS_e=ReturnMatrix_e+DiscountedEV; %(aprime)-by-(a,j)-by-z
@@ -75,7 +75,7 @@ elseif vfoptions.lowmemory==2
         for e_c=1:N_e
             e_vals=e_gridvals_J(1,1,:,1,e_c,:); % e_gridvals_J has shape (1,1,N_j,1,prod(n_e),l_e)
 
-            ReturnMatrix_ze=CreateReturnFnMatrix_Case1_Disc_fastOLG_DC1_nod_Par2e(ReturnFn, special_n_z, special_n_e, N_j, a_grid, a_grid, z_vals, e_vals, ReturnFnParamsAgeMatrix,1);
+            ReturnMatrix_ze=CreateReturnFnMatrix_fastOLG_Disc_DC1_nod_e(ReturnFn, special_n_z, special_n_e, N_j, a_grid, a_grid, z_vals, e_vals, ReturnFnParamsAgeMatrix,1);
             % fastOLG: ReturnMatrix is [aprime,a,j] (z,e)
 
             entireRHS_ze=ReturnMatrix_ze+DiscountedEV_z; %(aprime)-by-(a,j)

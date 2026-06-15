@@ -5,7 +5,7 @@ if prod(n_z)>1 && all(size(d_grid)==[prod(n_z),prod(n_z)])
     error('Check input order: pi_z comes after z_grid') % Keep this error message until end of 2027, can remove after that
 end
 
-%% Check which transpathoptions have been used, set all others to defaults 
+%% Check which transpathoptions have been used, set all others to defaults
 if ~exist('transpathoptions','var')
     %If transpathoptions is not given, just use all the defaults
     transpathoptions.parallel=2;
@@ -20,15 +20,13 @@ else
     end
 end
 
-%% Check which vfoptions have been used, set all others to defaults 
+%% Check which vfoptions have been used, set all others to defaults
 vfoptions.parallel=2; % GPU, has to be or transpath will already have thrown an error
 if exist('vfoptions','var')==0
     disp('No vfoptions given, using defaults')
     %If vfoptions is not given, just use all the defaults
     vfoptions.verbose=0;
     vfoptions.lowmemory=0;
-    vfoptions.polindorval=1;
-    vfoptions.policy_forceintegertype=0;
     % Model setup:
     vfoptions.exoticpreferences='None';
     vfoptions.experienceasset=0;
@@ -43,12 +41,6 @@ else
     end
     if ~isfield(vfoptions,'verbose')
         vfoptions.verbose=0;
-    end
-    if ~isfield(vfoptions,'polindorval')
-        vfoptions.polindorval=1;
-    end
-    if ~isfield(vfoptions,'policy_forceintegertype')
-        vfoptions.policy_forceintegertype=0;
     end
     % Model setup:
     if ~isfield(vfoptions,'exoticpreferences')
@@ -85,12 +77,12 @@ end
 if vfoptions.divideandconquer==1
     if ~isfield(vfoptions,'level1n')
         if isscalar(n_a)
-            vfoptions.level1n=max(ceil(n_a(1)/50),5); % minimum of 5
+            vfoptions.level1n=round(sqrt(n_a(1)));
             if n_a(1)<5
                 error('cannot use vfoptions.divideandconquer=1 with less than 5 points in the a variable (you need to turn off divide-and-conquer, or put more points into the a variable)')
             end
         elseif length(n_a)==2
-            vfoptions.level1n=[max(ceil(n_a(1)/50),5),n_a(2)]; % default is DC2B, min of 5 points in level1 for a1
+            vfoptions.level1n=[round(sqrt(n_a(1))),n_a(2)]; % default DC2A: level1n(2)==n_a(2) triggers DC2A branch
             if n_a(1)<5
                 error('cannot use vfoptions.divideandconquer=1 with less than 5 points in the a variable (you need to turn off divide-and-conquer, or put more points into the a variable)')
             end
@@ -105,11 +97,11 @@ end
 
 %%
 % Note: Internally PricePath is matrix of size T-by-'number of prices'.
-% ParamPath is matrix of size T-by-'number of parameters that change over the transition path'. 
+% ParamPath is matrix of size T-by-'number of parameters that change over the transition path'.
 [PricePath,ParamPath,PricePathNames,ParamPathNames,PricePathSizeVec,ParamPathSizeVec]=PricePathParamPath_StructToMatrix(PricePath,ParamPath,T);
 
-%% 
-% The outputted VPath and PolicyPath are T-1 periods long (periods 0 (before the reforms are announced) & T are the initial and final values; they are not created by this command and instead can be used to provide double-checks of the output (the T-1 and the final should be identical if convergence has occoured).
+%%
+% The outputted VPath and PolicyPath are T-1 periods long (periods 0 (before the reforms are announced) & T are the initial and final values; they are not created by this command and instead can be used to provide double-checks of the output (the T-1 and the final should be identical if convergence has occurred).
 % if n_d(1)==0
 %     PolicyPath=zeros([length(n_d),n_a,n_z,N_j,T-1],'gpuArray'); %Periods 1 to T-1
 % else
@@ -119,7 +111,7 @@ end
 
 % This code will work for all transition paths except those that involve at
 % change in the transition matrix pi_z (can handle a change in pi_z, but
-% only if it is a 'surprise', not anticipated changes) 
+% only if it is a 'surprise', not anticipated changes)
 
 % PricePath is matrix of size T-by-'number of prices'
 % ParamPath is matrix of size T-by-'number of parameters that change over path'
@@ -178,9 +170,9 @@ end
 
 %%
 if N_d==0
-    l_daprime=length(n_a);
+    l_daprime=length(n_a)+(vfoptions.gridinterplayer>0);
 else
-    l_daprime=length(n_d)+length(n_a);
+    l_daprime=length(n_d)+length(n_a)+(vfoptions.gridinterplayer>0);
 end
 if vfoptions.experienceasset==1
     l_daprime=l_daprime-1;
@@ -189,9 +181,10 @@ end
 if vfoptions.gridinterplayer==0
     PolicyIndexesPath=zeros(l_daprime,N_a,N_z,T,'gpuArray'); % Periods 1 to T-1
 elseif vfoptions.gridinterplayer==1
-    PolicyIndexesPath=zeros(l_daprime+1,N_a,N_z,T,'gpuArray'); % Periods 1 to T-1
+    PolicyIndexesPath=zeros(l_daprime,N_a,N_z,T,'gpuArray'); % Periods 1 to T-1
 end
 PolicyIndexesPath(:,:,:,T)=reshape(Policy_final, [size(Policy_final,1),N_a,N_z]);
+
 
 %%
 if vfoptions.experienceasset==0
@@ -205,7 +198,7 @@ if vfoptions.experienceasset==0
         for kk=1:length(ParamPathNames)
             Parameters.(ParamPathNames{kk})=ParamPath(T-ttr,kk);
         end
-        
+
         [V, Policy]=ValueFnIter_InfHorz_TPath_SingleStep(Vnext,n_d,n_a,n_z,d_gridvals, a_grid, z_gridvals, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
         % The VKron input is next period value fn, the VKron output is this period. Policy is kept in the form where it is just a single-value in (d,a')
 

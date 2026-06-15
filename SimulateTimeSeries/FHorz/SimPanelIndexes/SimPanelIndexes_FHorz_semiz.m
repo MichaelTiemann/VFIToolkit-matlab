@@ -1,6 +1,6 @@
 function SimPanel=SimPanelIndexes_FHorz_semiz(InitialDist,Policy,n_d,n_a,n_z,N_j,pi_z_J, Parameters,simoptions)
 % Inputs should already be on cpu, output is on cpu
-% 
+%
 % Intended to be called from SimPanelValues_FHorz_Case1()
 
 N_d=prod(n_d);
@@ -21,11 +21,11 @@ else
     l_z=0;
 end
 N_e=prod(simoptions.n_e);
-if N_e>0
+if N_e==0
+    l_e=0;
+else
     l_e=length(simoptions.n_e);
     cumsumpi_e_J=gather(cumsum(simoptions.pi_e_J,1));
-else
-    l_e=0;
 end
 
 cumsumInitialDistVec=cumsum(InitialDist(:))/sum(InitialDist(:)); % Note: by using (:) I can ignore what the original dimensions were
@@ -51,7 +51,7 @@ if length(n_d)>simoptions.l_dsemiz
     d1_grid=simoptions.d_grid(1:sum(n_d1));
     l_d1=length(n_d1);
 else
-    n_d1=0; 
+    n_d1=0;
     d1_grid=[];
     l_d1=0;
 end
@@ -62,7 +62,7 @@ d2_grid=simoptions.d_grid(sum(n_d1)+1:end);
 
 
 % Internally, only ever use age-dependent joint-grids (makes all the code much easier to write)
-simoptions=SemiExogShockSetup_FHorz(n_d,N_j,simoptions.d_grid,Parameters,simoptions,2,3);
+simoptions=SemiExogShockSetup_FHorz(n_d,N_j,simoptions.d_grid,Parameters,simoptions,3);
 % output: vfoptions.semiz_gridvals_J, vfoptions.pi_semiz_J
 % size(semiz_gridvals_J)=[prod(n_z),length(n_z),N_j]
 % size(pi_semiz_J)=[prod(n_semiz),prod(n_semiz),prod(n_dsemiz),N_j]
@@ -111,13 +111,13 @@ end
 
 %% Policy_dsemiexo
 
-% d2 is the variable relevant for the semi-exogenous asset. 
+% d2 is the variable relevant for the semi-exogenous asset.
 if l_d2==1
     Policy_dsemiexo=Policy(l_d1+1,:,:,:);
 elseif l_d2==2
     Policy_dsemiexo=Policy(l_d1+1,:,:,:)+n_d(l_d1+1)*(Policy(l_d1+2,:,:,:)-1);
 elseif l_d2==3
-    Policy_dsemiexo=Policy(l_d1+1,:,:,:)+n_d(l_d1+1)*(Policy(l_d1+2,:,:,:)-1)+n_d(l_d1+1)*n_d(l_d1+2)*(Policy(l_d1+3,:,:,:)-1); 
+    Policy_dsemiexo=Policy(l_d1+1,:,:,:)+n_d(l_d1+1)*(Policy(l_d1+2,:,:,:)-1)+n_d(l_d1+1)*n_d(l_d1+2)*(Policy(l_d1+3,:,:,:)-1);
 elseif l_d2==4
     Policy_dsemiexo=Policy(l_d1+1,:,:,:)+n_d(l_d1+1)*(Policy(l_d1+2,:,:,:)-1)+n_d(l_d1+1)*n_d(l_d1+2)*(Policy(l_d1+3,:,:,:)-1)+n_d(l_d1+1)*n_d(l_d1+2)*n_d(l_d1+3)*(Policy(l_d1+4,:,:,:)-1);
 end
@@ -244,7 +244,7 @@ else % N_z>0
             seedpoints=[ind2sub_vec_homemade([N_a,N_semiz,N_z,N_j],seedpointind'),ones(simoptions.numbersims,1)];
         end
         seedpoints=gather(floor(seedpoints)); % For some reason seedpoints had heaps of '.0000' decimal places and were not being treated as integers, this solves that.
-                
+
         SimPanel=nan(4,N_j,simoptions.numbersims); % (a,semiz,z,j)
         if simoptions.gridinterplayer==0
             parfor ii=1:simoptions.numbersims % This is only change from the simoptions.parallel==0
@@ -276,7 +276,7 @@ else % N_z>0
             SimPanel(3,:,:)=SimPanel(4,:,:); % move j forward
             SimPanel=SimPanel(1:3,:,:);
         end
-        
+
     else % z, e
         if simoptions.gridinterplayer==0
             Policy_aprime=reshape(Policy_aprime,[N_a,N_semiz,N_z,N_e,N_j]);
@@ -309,7 +309,7 @@ else % N_z>0
                 SimPanel(:,:,ii)=SimLifeCycleKron;
             end
         end
-        
+
         if simoptions.simpanelindexkron==0 % Convert results out of kron
             SimPanelKron=reshape(SimPanel,[5,N_j*simoptions.numbersims]);
             SimPanel=nan(l_a+l_semiz+l_z+l_e+1,N_j*simoptions.numbersims); % (a,semiz,z,e,j)

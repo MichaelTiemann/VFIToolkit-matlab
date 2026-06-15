@@ -1,5 +1,5 @@
 function StationaryDist=StationaryDist_InfHorz_PType(PTypeDistParamNames,Policy,n_d,n_a,n_z,Names_i,pi_z,Parameters,simoptions)
-% Allows for different permanent (fixed) types of agent. 
+% Allows for different permanent (fixed) types of agent.
 % See ValueFnIter_InfHorz_PType for general idea.
 %
 % simoptions.verbose=1 will give feedback
@@ -19,7 +19,7 @@ function StationaryDist=StationaryDist_InfHorz_PType(PTypeDistParamNames,Policy,
 
 % Names_i can either be a cell containing the 'names' of the different
 % permanent types, or if there are no structures used (just parameters that
-% depend on permanent type and inputted as vectors or matrices as appropriate) 
+% depend on permanent type and inputted as vectors or matrices as appropriate)
 % then Names_i can just be the number of permanent types (but does not have to be, can still be names).
 if iscell(Names_i)
     N_i=length(Names_i);
@@ -37,33 +37,43 @@ else
     end
 end
 
-for ii=1:N_i
+%%
+if ~exist('simoptions','var')
+    error('You must input simoptions, you can always set simoptions=struct().')
+end
 
+%% Check inputs
+if ~iscell(PTypeDistParamNames)
+    error('PTypeDistParamNames should be a cell, it is not')
+end
+if abs(sum(Parameters.(PTypeDistParamNames{1}))-1)>10^(-15)
+    warning('The permanent type mass weights must sum to one (PTypeDistParamNames points to weights that do not sum to one)')
+end
+
+
+
+%%
+for ii=1:N_i
+    iistr=Names_i{ii};
     % First set up simoptions
-    if exist('simoptions','var')
-        simoptions_temp=PType_Options(simoptions,Names_i,ii);
-        if ~isfield(simoptions_temp,'verbose')
-            simoptions_temp.verbose=0;
-        end
-        if ~isfield(simoptions_temp,'verboseparams')
-            simoptions_temp.verboseparams=0;
-        end
-        if ~isfield(simoptions_temp,'ptypestorecpu')
-            simoptions_temp.ptypestorecpu=0; % GPU memory is limited, so switch solutions to the cpu. Off by default.
-        end
-    else
+    simoptions_temp=PType_Options(simoptions,Names_i,ii);
+    if ~isfield(simoptions_temp,'verbose')
         simoptions_temp.verbose=0;
+    end
+    if ~isfield(simoptions_temp,'verboseparams')
         simoptions_temp.verboseparams=0;
+    end
+    if ~isfield(simoptions_temp,'ptypestorecpu')
         simoptions_temp.ptypestorecpu=0; % GPU memory is limited, so switch solutions to the cpu. Off by default.
-    end 
-    
+    end
+
     if simoptions_temp.verbose==1
         fprintf('Permanent type: %i of %i \n',ii, N_i)
     end
-           
-    
-    Policy_temp=Policy.(Names_i{ii});
-    
+
+
+    Policy_temp=Policy.(iistr);
+
     % Go through everything which might be dependent on permanent type (PType)
     % Notice that the way this is coded the grids (etc.) could be either
     % fixed, or a function (that depends on age, and possibly on permanent
@@ -71,26 +81,26 @@ for ii=1:N_i
     % a structure is there a need to take just a specific part and send
     % only that to the 'non-PType' version of the command.
     if isstruct(n_d)
-        n_d_temp=n_d.(Names_i{ii});
+        n_d_temp=n_d.(iistr);
     else
         n_d_temp=n_d;
     end
     if isstruct(n_a)
-        n_a_temp=n_a.(Names_i{ii});
+        n_a_temp=n_a.(iistr);
     else
         n_a_temp=n_a;
     end
     if isstruct(n_z)
-        n_z_temp=n_z.(Names_i{ii});
+        n_z_temp=n_z.(iistr);
     else
         n_z_temp=n_z;
     end
     if isstruct(pi_z)
-        pi_z_temp=pi_z.(Names_i{ii});
+        pi_z_temp=pi_z.(iistr);
     else
         pi_z_temp=pi_z;
     end
-    
+
     % Parameters are allowed to be given as structure, or as vector/matrix
     % (in terms of their dependence on fixed type). So go through each of
     % these in term.
@@ -111,24 +121,25 @@ for ii=1:N_i
             end
         end
     end
-    
+
     if simoptions_temp.verboseparams==1
         sprintf('Parameter values for the current permanent type')
         Parameters_temp
     end
-    
+
     StationaryDist_ii=StationaryDist_InfHorz(Policy_temp,n_d_temp,n_a_temp,n_z_temp,pi_z_temp,simoptions_temp,Parameters_temp); % EntryExitParams not yet supported (is on my to-do list)
-    
+
     if simoptions_temp.ptypestorecpu==1
-        StationaryDist.(Names_i{ii})=gather(StationaryDist_ii);
+        StationaryDist.(iistr)=gather(StationaryDist_ii);
     else
-        StationaryDist.(Names_i{ii})=StationaryDist_ii;
+        StationaryDist.(iistr)=StationaryDist_ii;
     end
-    
+
 end
 
-if length(Parameters.(PTypeDistParamNames{:}))==N_i
-    StationaryDist.ptweights=reshape(Parameters.(PTypeDistParamNames{:}),[],1); % reshape is to make sure this is a column vector
+
+if length(Parameters.(PTypeDistParamNames{1}))==N_i
+    StationaryDist.ptweights=reshape(Parameters.(PTypeDistParamNames{1}),[],1); % reshape is to make sure this is a column vector
 else
     error('Parameter for PTypeDistParamNames does not have the same number of permanent types as N_i/Names_i \n')
 end

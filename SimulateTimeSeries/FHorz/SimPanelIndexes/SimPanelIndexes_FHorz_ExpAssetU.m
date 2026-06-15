@@ -1,6 +1,6 @@
 function SimPanel=SimPanelIndexes_FHorz_ExpAssetU(InitialDist,Policy,n_d,n_a,n_z,N_j,pi_z_J, Parameters, simoptions)
 % Inputs should already be on cpu, output is on cpu
-% 
+%
 % Intended to be called from SimPanelValues_FHorz_Case1()
 
 N_d=prod(n_d);
@@ -21,11 +21,11 @@ else
     l_z=0;
 end
 N_e=prod(simoptions.n_e);
-if N_e>0
+if N_e==0
+    l_e=0;
+else
     l_e=length(simoptions.n_e);
     cumsumpi_e_J=gather(cumsum(simoptions.pi_e_J,1));
-else
-    l_e=0;
 end
 
 cumsumInitialDistVec=cumsum(InitialDist(:))/sum(InitialDist(:)); % Note: by using (:) I can ignore what the original dimensions were
@@ -121,7 +121,7 @@ PolicyProbs=zeros(N_a,max(1,N_bothze),N_u,2,N_j,'gpuArray'); % probabilities of 
 whichisdforexpasset=length(n_d);  % is just saying which is the decision variable that influences the experience asset (it is the 'last' decision variable)
 for jj=1:N_j
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);
-    [aprimeIndexes, aprimeProbs]=CreateaprimePolicyExperienceAssetu_Case1(Policy(:,:,:,jj),simoptions.aprimeFn, whichisdforexpasset, n_d, n_a1,n_a2, N_bothze,n_u, d_grid, a2_grid,u_grid, aprimeFnParamsVec);
+    [aprimeIndexes, aprimeProbs]=CreateaprimePolicyExperienceAssetu(Policy(:,:,:,jj),simoptions.aprimeFn, whichisdforexpasset, n_d, n_a1,n_a2, N_bothze,n_u, d_grid, a2_grid,u_grid, aprimeFnParamsVec);
     % Note: aprimeIndexes and aprimeProbs are both [N_a,N_z,N_u]
     % Note: aprimeIndexes is always the 'lower' point (the upper points are just aprimeIndexes+1), and the aprimeProbs are the probability of this lower point (prob of upper point is just 1 minus this).
 
@@ -156,7 +156,7 @@ if simoptions.gridinterplayer==1
     % (a,z,2,j)
     Policy_aprime=repmat(Policy_aprime,1,1,2,1);
     PolicyProbs=repmat(PolicyProbs,1,1,2,1);
-    % Policy_aprime(:,:,1:2*N_u,:) lower grid point for a1 is unchanged 
+    % Policy_aprime(:,:,1:2*N_u,:) lower grid point for a1 is unchanged
     Policy_aprime(:,:,2*N_u+1:end,:)=Policy_aprime(:,:,2*N_u+1:end,:)+1; % add one to a1, to get upper grid point
 
     aprimeProbs_upper=reshape(shiftdim((Policy(end,:,:,:)-1)/(simoptions.ngridinterp+1),1),[N_a,max(1,N_bothze),1,N_j]); % probability of upper grid point (from L2 index)
@@ -187,7 +187,7 @@ if N_z==0
             seedpoints=[ind2sub_vec_homemade([N_a,N_j],seedpointind')]; %,ones(simoptions.numbersims,1)];
         end
         seedpoints=gather(floor(seedpoints)); % For some reason seedpoints had heaps of '.0000' decimal places and were not being treated as integers, this solves that.
-        
+
         % simoptions.simpanelindexkron==1 % Create the simulated data in kron form
         SimPanel=nan(2,N_j,simoptions.numbersims); % (a,j)
         parfor ii=1:simoptions.numbersims % This is only change from the simoptions.parallel==0
@@ -314,7 +314,7 @@ else % N_z>0
             seedpoints=[ind2sub_vec_homemade([N_a,N_z,N_e,N_j],seedpointind'),ones(simoptions.numbersims,1)];
         end
         seedpoints=gather(floor(seedpoints)); % For some reason seedpoints had heaps of '.0000' decimal places and were not being treated as integers, this solves that.
-        
+
         % simoptions.simpanelindexkron==1 % Create the simulated data in kron form
         SimPanel=nan(4,N_j,simoptions.numbersims); % (a,z,e,j)
         parfor ii=1:simoptions.numbersims % This is only change from the simoptions.parallel==0

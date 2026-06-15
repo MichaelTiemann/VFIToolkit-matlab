@@ -1,5 +1,5 @@
 function AgeConditionalStatsPath=LifeCycleProfiles_TransPath_FHorz_Case1(FnsToEvaluate, AgentDistPath,PolicyPath, PricePath, ParamPath, Parameters,T,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid,simoptions)
-% Changing z or e over the trasition is not supported.
+% Changing z or e over the transition is not supported.
 %
 % Works from AgentDistPath to calculate life-cycle profiles over the transition.
 % Where applicable it is faster and more accurate.
@@ -15,25 +15,45 @@ function AgeConditionalStatsPath=LifeCycleProfiles_TransPath_FHorz_Case1(FnsToEv
 %                   for LorenzCurve, QuantileCuttoffs, QuantileMeans, these are the second & third dimensions
 % For 'bornduringtranstion', for Mean it is a matrix in which first dimension indexes period of transition in which born (age period 1), second dimension is current age
 
-if exist('simoptions','var')
-    if isfield(simoptions,'nquantiles')==0
-        simoptions.nquantiles=20; % by default gives ventiles
-    end
-    if isfield(simoptions,'agegroupings')==0
-        simoptions.agegroupings=1:1:N_j; % by default does each period seperately, can be used to say, calculate gini for age bins
-    end
-    if isfield(simoptions,'npoints')==0
-        simoptions.npoints=100; % number of points for lorenz curve (note this lorenz curve is also used to calculate the gini coefficient
-    end
-    if isfield(simoptions,'parallel')==0
-        simoptions.parallel=1+(gpuDeviceCount>0); % GPU where available, otherwise parallel CPU.
-    end
-else
+if ~exist('simoptions','var')
     simoptions.nquantiles=20; % by default gives ventiles
     simoptions.agegroupings=1:1:N_j; % by default does each period seperately, can be used to say, calculate gini for age bins
     simoptions.npoints=100; % number of points for lorenz curve (note this lorenz curve is also used to calculate the gini coefficient
     simoptions.parallel=2;
     simoptions.parallel=1+(gpuDeviceCount>0); % GPU where available, otherwise parallel CPU.
+    % Exogenous shocks
+    simoptions.n_e=0;
+    simoptions.n_semiz=0;
+    % When calling as a subcommand, the following is used internally
+    simoptions.alreadygridvals=0; % =1 when calling as a subcommand
+    simoptions.alreadygridvals_semiexo=0; % =1 when calling as a subcommand
+else
+    if ~isfield(simoptions,'nquantiles')
+        simoptions.nquantiles=20; % by default gives ventiles
+    end
+    if ~isfield(simoptions,'agegroupings')
+        simoptions.agegroupings=1:1:N_j; % by default does each period seperately, can be used to say, calculate gini for age bins
+    end
+    if ~isfield(simoptions,'npoints')
+        simoptions.npoints=100; % number of points for lorenz curve (note this lorenz curve is also used to calculate the gini coefficient
+    end
+    if ~isfield(simoptions,'parallel')
+        simoptions.parallel=1+(gpuDeviceCount>0); % GPU where available, otherwise parallel CPU.
+    end
+    % Exogenous shocks
+    if ~isfield(simoptions,'n_e')
+        simoptions.n_e=0;
+    end
+    if ~isfield(simoptions,'n_semiz')
+        simoptions.n_semiz=0;
+    end
+    % When calling as a subcommand, the following is used internally
+    if ~isfield(simoptions,'alreadygridvals')
+        simoptions.alreadygridvals=0; % =1 when calling as a subcommand
+    end
+    if ~isfield(simoptions,'alreadygridvals_semiexo')
+        simoptions.alreadygridvals_semiexo=0; % =1 when calling as a subcommand
+    end
 end
 
 %% Not the fastest approach (as unnecessary overhead), but just loop over t (the transtion time periods) and for each one run life-cycle profile FHorz Case1 command.
@@ -67,11 +87,11 @@ end
 
 %% Set up a few things
 N_a=prod(n_a);
+N_z=prod(n_z);
+N_e=prod(simoptions.n_e);
 
-if n_z(1)>0
-    N_z=prod(n_z);
-    if isfield(simoptions,'n_e')
-        N_e=prod(simoptions.n_e);
+if N_z>0
+    if N_e>0
         AgentDistPath=reshape(AgentDistPath, [N_a,N_z,N_e,N_j,T]);
     else
         AgentDistPath=reshape(AgentDistPath, [N_a,N_z,N_j,T]);
@@ -80,143 +100,36 @@ else
     AgentDistPath=reshape(AgentDistPath, [N_a,N_j,T]);
 end
 
-if n_z(1)==0
+if N_z==0
     PolicyPath=KronPolicyIndexes_TransPathFHorz_Case1_noz(PolicyPath, n_d, n_a, N_j, T);
 else
-    if isfield(simoptions,'n_e')
+    if N_e>0
         PolicyPath=KronPolicyIndexes_TransPathFHorz_Case1(PolicyPath, n_d, n_a, n_z, N_j, T, n_e);
     else
         PolicyPath=KronPolicyIndexes_TransPathFHorz_Case1(PolicyPath, n_d, n_a, n_z, N_j, T);
     end
 end
 %% Internally PricePath is matrix of size T-by-'number of prices'.
-% ParamPath is matrix of size T-by-'number of parameters that change over the transition path'. 
+% ParamPath is matrix of size T-by-'number of parameters that change over the transition path'.
 [PricePath,ParamPath,PricePathNames,ParamPathNames,PricePathSizeVec,ParamPathSizeVec]=PricePathParamPath_FHorz_StructToMatrix(PricePath,ParamPath,N_j,T);
 
-
-%% Check if z_grid and/or pi_z depend on prices. If not then create pi_z_J and z_grid_J for the entire transition before we start
-% If 'exogenous shock fn' is used, then precompute it to save evaluating it numerous times
-% Check if using 'exogenous shock fn' (exogenous state has a grid and transition matrix that depends on age)
-
-transpathoptions.zpathprecomputed=0;
-if isfield(simoptions,'pi_z_J')
-    transpathoptions.zpathprecomputed=1;
-    transpathoptions.zpathtrivial=1; % z_grid_J and pi_z_J are not varying over the path
-elseif isfield(simoptions,'ExogShockFn')
-    % Note: If ExogShockFn depends on the path, it must be done via a parameter
-    % that depends on the path (i.e., via ParamPath or PricePath)
-    overlap=0;
-    for ii=1:length(simoptions.ExogShockFnParamNames)
-        if strcmp(simoptions.ExogShockFnParamNames{ii},PricePathNames)
-            overlap=1;
-        end
-    end
-    if overlap==0
-        transpathoptions.zpathprecomputed=1;
-        % If ExogShockFn does not depend on any of the prices (in PricePath), then
-        % we can simply create it now rather than within each 'subfn' or 'p_grid'
-        
-        % Check if it depends on the ParamPath
-        transpathoptions.zpathtrivial=1;
-        for ii=1:length(simoptions.ExogShockFnParamNames)
-            if strcmp(simoptions.ExogShockFnParamNames{ii},ParamPathNames)
-                transpathoptions.zpathtrivial=0;
-            end
-        end
-        if transpathoptions.zpathtrivial==1
-            pi_z_J=zeros(N_z,N_z,N_j,'gpuArray');
-            z_grid_J=zeros(N_z,N_j,'gpuArray');
-            for jj=1:N_j
-                if isfield(simoptions,'ExogShockFnParamNames')
-                    ExogShockFnParamsVec=CreateVectorFromParams(Parameters, simoptions.ExogShockFnParamNames,jj);
-                    ExogShockFnParamsCell=cell(length(ExogShockFnParamsVec),1);
-                    for ii=1:length(ExogShockFnParamsVec)
-                        ExogShockFnParamsCell(ii,1)={ExogShockFnParamsVec(ii)};
-                    end
-                    [z_grid,pi_z]=simoptions.ExogShockFn(ExogShockFnParamsCell{:});
-                else
-                    [z_grid,pi_z]=simoptions.ExogShockFn(jj);
-                end
-                pi_z_J(:,:,jj)=gpuArray(pi_z);
-                z_grid_J(:,jj)=gpuArray(z_grid);
-            end
-            % Now store them in simoptions
-            simoptions.pi_z_J=pi_z_J;
-            simoptions.z_grid_J=z_grid_J;
-        elseif transpathoptions.zpathtrivial==0
-            % z_grid_J and/or pi_z_J varies along the transition path (but only depending on ParamPath, not PricePath
-            transpathoptions.pi_z_J_T=zeros(N_z,N_z,N_j,T,'gpuArray');
-            transpathoptions.z_grid_J_T=zeros(sum(n_z),N_j,T,'gpuArray');
-            pi_z_J=zeros(N_z,N_z,N_j,'gpuArray');
-            z_grid_J=zeros(sum(n_z),N_j,'gpuArray');
-            for tt=1:T
-                for ii=1:length(ParamPathNames)
-                    Parameters.(ParamPathNames{ii})=ParamPathStruct.(ParamPathNames{ii});
-                end
-                % Note, we know the PricePath is irrelevant for the current purpose
-                for jj=1:N_j
-                    if isfield(simoptions,'ExogShockFnParamNames')
-                        ExogShockFnParamsVec=CreateVectorFromParams(Parameters, simoptions.ExogShockFnParamNames,jj);
-                        ExogShockFnParamsCell=cell(length(ExogShockFnParamsVec),1);
-                        for ii=1:length(ExogShockFnParamsVec)
-                            ExogShockFnParamsCell(ii,1)={ExogShockFnParamsVec(ii)};
-                        end
-                        [z_grid,pi_z]=simoptions.ExogShockFn(ExogShockFnParamsCell{:});
-                    else
-                        [z_grid,pi_z]=simoptions.ExogShockFn(jj);
-                    end
-                    pi_z_J(:,:,jj)=gpuArray(pi_z);
-                    z_grid_J(:,jj)=gpuArray(z_grid);
-                end
-                transpathoptions.pi_z_J_T(:,:,:,tt)=pi_z_J;
-                transpathoptions.z_grid_J_T(:,:,tt)=z_grid_J;
-            end
-        end
-    end
+if simoptions.alreadygridvals==0
+    % gridpiboth=3: need both z_gridvals_J and pi_z_J
+    [z_gridvals_J,pi_z_J,~,~,~,~,~,transpathoptions,simoptions]=ExogShockSetup_FHorz_TPath(n_z,z_grid,pi_z,prod(n_a),N_j,Parameters,PricePathNames,ParamPathNames,transpathoptions,simoptions,3);
+elseif simoptions.alreadygridvals==1
+    z_gridvals_J=z_grid;
+    pi_z_J=pi_z;
 end
 
 %% Check if using _tminus1 and/or _tplus1 variables.
-if isstruct(FnsToEvaluate) %&& isstruct(GeneralEqmEqns)
-    GeneralEqmEqns=struct();
-    [tplus1priceNames,tminus1priceNames,tminus1AggVarsNames,tplus1pricePathkk]=inputsFindtplus1tminus1(FnsToEvaluate,GeneralEqmEqns,PricePathNames);
-%     tplus1priceNames,tminus1priceNames,tminus1AggVarsNames,tplus1pricePathkk
-else
-    tplus1priceNames=[];
-    tminus1priceNames=[];
-    tminus1AggVarsNames=[];
-    tplus1pricePathkk=[];
-end
-
-use_tplus1price=0;
-if length(tplus1priceNames)>0
-    use_tplus1price=1;
-end
-use_tminus1price=0;
-if length(tminus1priceNames)>0
-    use_tminus1price=1;
-    for ii=1:length(tminus1priceNames)
-        if ~isfield(transpathoptions.initialvalues,tminus1priceNames{ii})
-            error('Using %s as an input (to FnsToEvaluate or GeneralEqmEqns) but it is not in transpathoptions.initialvalues \n',tminus1priceNames{ii})
-        end
-    end
-end
-use_tminus1AggVars=0;
-if length(tminus1AggVarsNames)>0
-    use_tminus1AggVars=1;
-    for ii=1:length(tminus1AggVarsNames)
-        if ~isfield(transpathoptions.initialvalues,tminus1AggVarsNames{ii})
-            error('Using %s as an input (to FnsToEvaluate or GeneralEqmEqns) but it is not in transpathoptions.initialvalues \n',tminus1AggVarsNames{ii})
-        end
-    end
-end
-% Note: I used this approach (rather than just creating _tplus1 and _tminus1 for everything) as it will be same computation.
+[tplus1priceNames,tminus1priceNames,tminus1AggVarsNames,~,tplus1pricePathkk,use_tplus1price,use_tminus1price,~,use_tminus1AggVars]=inputsFindtplus1tminus1(FnsToEvaluate,struct(),PricePathNames,{},{},transpathoptions);
 
 %% The loop itself
 for tt=1:T
-        
+
     % Get current AgentDist
-    if n_z(1)>0
-        if isfield(simoptions,'n_e')
+    if N_z>0
+        if N_e>0
             AgentDist=AgentDistPath(:,:,:,:,tt);
         else
             AgentDist=AgentDistPath(:,:,:,tt);
@@ -229,8 +142,8 @@ for tt=1:T
     end
     % Get current Policy
     if n_d(1)>0
-        if n_z(1)>0
-            if isfield(simoptions,'n_e')
+        if N_z>0
+            if N_e>0
                 Policy=PolicyPath(:,:,:,:,:,tt); % (d,a'),a,z,e,j
             else
                 Policy=PolicyPath(:,:,:,:,tt); % (d,a'),a,z,j
@@ -239,15 +152,15 @@ for tt=1:T
             Policy=PolicyPath(:,:,:,tt); % (d,a'),a,j
         end
     else
-        if n_z(1)>0
-            if isfield(simoptions,'n_e')
+        if N_z>0
+            if N_e>0
                 Policy=PolicyPath(:,:,:,:,tt); % a,z,e,j
             else
                 Policy=PolicyPath(:,:,:,tt); % a,z,j
             end
         else
             Policy=PolicyPath(:,:,tt); % a,j
-        end        
+        end
     end
     % Get current ParamPath and PricePath
     for kk=1:length(PricePathNames)
@@ -256,7 +169,7 @@ for tt=1:T
     for kk=1:length(ParamPathNames)
         Parameters.(ParamPathNames{kk})=ParamPath(tt,ParamPathSizeVec(1,kk):ParamPathSizeVec(2,kk));
     end
-    
+
     if use_tminus1price==1
         for pp=1:length(tminus1priceNames)
             if tt>1
@@ -282,25 +195,25 @@ for tt=1:T
             end
         end
     end
-    
+
     % Get current shocks (if applicable)
     if transpathoptions.zpathprecomputed==1
-        if transpathoptions.zpathtrivial==1
+        if transpathoptions.zpathtrivial==0
             simoptions.pi_z_J=transpathoptions.pi_z_J_T(:,:,:,tt);
-            simoptions.z_grid_J=transpathoptions.z_grid_J_T(:,:,tt);
+            simoptions.z_grid_J=transpathoptions.z_gridvals_J_T(:,:,:,tt);
         end
-        % transpathoptions.zpathtrivial==0 % Does not depend on T, so is just in simoptions already
+        % transpathoptions.zpathtrivial==1 % Does not depend on T, so is just in simoptions already
     end
     % transpathoptions.zpathprecomputed==0 % Depends on the price path  parameters, so just have to use simoptions.ExogShockFn within  ValueFnIter command
-    
-    if n_z(1)==0
+
+    if N_z==0
         PolicyUnKron=UnKronPolicyIndexes_Case1_FHorz_noz(Policy, n_d, n_a, N_j,simoptions);
     else
         PolicyUnKron=UnKronPolicyIndexes_Case1_FHorz(Policy, n_d, n_a, n_z, N_j,simoptions);
     end
     tempAgeConditionalStats=LifeCycleProfiles_FHorz_Case1(AgentDist,PolicyUnKron,FnsToEvaluate,[],Parameters,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid,simoptions);
-    
-    
+
+
     for ff=1:length(AggVarNames)
         for oo=1:length(OutputTypes)
             temp=tempAgeConditionalStats.(AggVarNames{ff}).(OutputTypes{oo});
@@ -320,7 +233,7 @@ for tt=1:T
                 AgeConditionalStatsPath.(AggVarNames{ff}).initialages.(OutputTypes{oo})=temp2;
             end
             % Now, those born in the transition
-            temp3=AgeConditionalStatsPath.(AggVarNames{ff}).bornduringtranstion.(OutputTypes{oo}); 
+            temp3=AgeConditionalStatsPath.(AggVarNames{ff}).bornduringtranstion.(OutputTypes{oo});
             for ii=max(1,tt-N_j+1):tt
                 if any(oo==[1,2,3,5])
                     % Born in ii, are now aged tt-ii+1
@@ -331,8 +244,8 @@ for tt=1:T
             end
         end
     end
-    
-    
+
+
 end
 
 

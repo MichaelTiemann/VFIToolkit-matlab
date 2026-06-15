@@ -3,7 +3,7 @@ function SimPanel=SimPanelIndexes_FHorz_Case2(InitialDist,Policy,n_d,n_a,n_z,N_j
 % 'simperiods' beginning from randomly drawn InitialDist. (If you use the
 % newbirths option you will get more than 'numbersims', due to the extra births)
 %
-% InitialDist can be inputed as over the finite time-horizon (j), or
+% InitialDist can be inputted as over the finite time-horizon (j), or
 % without a time-horizon in which case it is assumed to be an InitialDist
 % for time j=1. (So InitialDist is either n_a-by-n_z-by-n_j, or n_a-by-n_z)
 %
@@ -14,23 +14,20 @@ N_d=prod(n_d);
 N_a=prod(n_a);
 N_z=prod(n_z);
 
-%% Check which simoptions have been declared, set all others to defaults 
+%% Check which simoptions have been declared, set all others to defaults
 if exist('simoptions','var')==1
     %Check simoptions for missing fields, if there are some fill them with
     %the defaults
-    if ~isfield(simoptions, 'polindorval')
-        simoptions.polindorval=1;
-    end
-    if ~isfield(simoptions, 'simperiods')
+    if ~isfield(simoptions,'simperiods')
         simoptions.simperiods=N_j;
     end
-    if ~isfield(simoptions, 'numbersims')
+    if ~isfield(simoptions,'numbersims')
         simoptions.numbersims=10^3;
     end
-    if ~isfield(simoptions, 'parallel')
+    if ~isfield(simoptions,'parallel')
         simoptions.parallel=1;
     end
-    if ~isfield(simoptions, 'verbose')
+    if ~isfield(simoptions,'verbose')
         simoptions.verbose=0;
     end
     if isfield(simoptions,'ExogShockFn') % If using ExogShockFn then figure out the parameter names
@@ -47,7 +44,6 @@ if exist('simoptions','var')==1
     end
 else
     %If simoptions is not given, just use all the defaults
-    simoptions.polindorval=1;
     simoptions.simperiods=N_j;
     simoptions.numbersims=10^3;
     simoptions.parallel=1;
@@ -65,7 +61,7 @@ l_z=length(n_z);
 % PolicyIndexesKron it saves a lot of run time.
 %Policy is [l_d,n_a,n_z,N_j]
 if ndims(Policy)==3
-%     disp('Policy is alread Kron')
+%     disp('Policy is already Kron')
     PolicyIndexesKron=Policy;
 else %    size(Policy)==[l_d+l_a,n_a,n_z,N_j]
     PolicyIndexesKron=KronPolicyIndexes_FHorz_Case2(Policy, n_d, n_a, n_z, N_j);%,simoptions);
@@ -113,7 +109,7 @@ end
     seedpoints=floor(seedpoints); % For some reason seedpoints had heaps of '.0000' decimal places and were not being treated as integers, this solves that.
 % end
 
-%% Deal with a few situtations like exogenous shocks depending on age
+%% Deal with a few situations like exogenous shocks depending on age
 eval('fieldexists_ExogShockFn=1;simoptions.ExogShockFn;','fieldexists_ExogShockFn=0;')
 eval('fieldexists_ExogShockFnParamNames=1;simoptions.ExogShockFnParamNames;','fieldexists_ExogShockFnParamNames=0;')
 eval('fieldexists_pi_z_J=1;simoptions.pi_z_J;','fieldexists_pi_z_J=0;')
@@ -158,12 +154,12 @@ if simoptions.phiaprimedependsonage==0
     end
 end
 for jj=1:N_j
-    
+
     if simoptions.phiaprimedependsonage==1
         PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames,jj);
         Phi_aprimeMatrix=CreatePhiaprimeMatrix_Case2_Disc_Par2(Phi_aprimeFn, Case2_Type, n_d, n_a, n_z, d_grid, a_grid, z_grid,PhiaprimeParamsVec);
     end
-    
+
     if Case2_Type==1 % phi(d,a,z,z')
         disp('ERROR: StationaryDist_FHorz_Case2_Iteration_raw() not yet implemented for Case2_Type==1 (nor SimPanelIndexes_FHorz_Case2_raw)')
     elseif Case2_Type==11 % phi(d,a,z')
@@ -178,7 +174,7 @@ for jj=1:N_j
         for z_c=1:N_z
             Phi_of_Policy(:,:,z_c,jj)=Phi_aprimeMatrix(PolicyIndexesKron(:,z_c,jj),:,z_c);
         end
-    end    
+    end
 end
 
 MoveOutputtoGPU=0;
@@ -193,15 +189,15 @@ if simoptions.parallel==2
     simoptions.parallel=1;
 end
 
-%% Do the simluation itself
+%% Do the simulation itself
 SimPanel=nan(l_a+l_z+1,simoptions.simperiods,simoptions.numbersims); % (a,z,j)
 if simoptions.parallel==0
     for ii=1:simoptions.numbersims
         seedpoint=seedpoints(ii,:);
         SimLifeCycleKron=SimLifeCycleIndexes_FHorz_Case2_raw(Phi_of_Policy,Case2_Type,N_d,N_a,N_z,N_j,cumsumpi_z, seedpoint, simoptions.simperiods,fieldexists_pi_z_J);
-        
+
         SimPanel_ii=nan(l_a+l_z+1,simoptions.simperiods);
-        
+
         j1=seedpoint(3);
         j2=min(N_j,j1+simoptions.simperiods);
         for t=1:(j2-j1+1)
@@ -225,9 +221,9 @@ else
     parfor ii=1:simoptions.numbersims % This is only change from the simoptions.parallel==0
         seedpoint=seedpoints(ii,:);
         SimLifeCycleKron=SimLifeCycleIndexes_FHorz_Case2_raw(Phi_of_Policy,Case2_Type,N_d,N_a,N_z,N_j,cumsumpi_z, seedpoint, simoptions.simperiods,fieldexists_pi_z_J);
-        
+
         SimPanel_ii=nan(l_a+l_z+1,simoptions.simperiods);
-        
+
         j1=seedpoint(3);
         j2=min(N_j,j1+simoptions.simperiods);
         for t=1:(j2-j1+1)
@@ -253,7 +249,7 @@ if simoptions.newbirths==1
     cumulativebirthrate=cumprod(simoptions.birthrate.*ones(simoptions.simperiods)+1)-1; % This works for scalar or vector simoptions.birthrate
     newbirthsvector=gather(round(simoptions.numbersims*cumulativebirthrate)); % Use rounding to decide how many new borns to do each period.
     BirthDist=gather(simoptions.birthdist);  % Make sure it is not on gpu
-    
+
     SimPanel2=nan(l_a+l_z+1,simoptions.simperiods,sum(newbirthsvector));
     for birthperiod=1:simoptions.simperiods
         % Get seedpoints from birthdist
@@ -272,13 +268,13 @@ if simoptions.newbirths==1
             end
         end
         seedpoints=floor(seedpoints);  % For some reason seedpoints had heaps of '.0000' decimal places and were not being treated as integers, this solves that.
-    
+
         for ii=1:newbirthsvector(birthperiod)
             seedpoint=seedpoints(ii,:);
             SimLifeCycleKron=SimLifeCycleIndexes_FHorz_Case2_raw(Phi_of_Policy,Case2_Type,N_d,N_a,N_z,N_j,cumsumpi_z, seedpoint, simoptions.simperiods-birthperiod+1,fieldexists_pi_z_J);
 
             SimPanel_ii=nan(l_a+l_z+1,simoptions.simperiods);
-            
+
             j1=seedpoint(3);
             j2=min(N_j,j1+(simoptions.simperiods-birthperiod+1));
             for t=1:(j2-j1+1)

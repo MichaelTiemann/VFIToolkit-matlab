@@ -15,7 +15,7 @@ function AllStats=EvalFnOnAgentDist_AllStats_InfHorz_PType(StationaryDist, Polic
 % AgeWeightParamNames is either same for all permanent types, or must be passed as a structure.
 %
 % The stationary distribution be a structure and will contain both the
-% weights/distribution across the permenant types, as well as a pdf for the
+% weights/distribution across the permanent types, as well as a pdf for the
 % stationary distribution of each specific permanent type.
 %
 % How exactly to handle these differences between permanent (fixed) types
@@ -73,15 +73,15 @@ else
     if ~isfield(simoptions,'verbose')
         simoptions.verbose=100;
     end
-    if isfield(simoptions,'nquantiles')==0
+    if ~isfield(simoptions,'nquantiles')
         simoptions.nquantiles=20; % by default gives ventiles
     end
-    if isfield(simoptions,'npoints')==0
+    if ~isfield(simoptions,'npoints')
         simoptions.npoints=100; % number of points for lorenz curve (note this lorenz curve is also used to calculate the gini coefficient
     elseif simoptions.npoints==0
         error('simoptions.npoints must be a positive (non-zero) integer')
     end
-    if isfield(simoptions,'tolerance')==0    
+    if ~isfield(simoptions,'tolerance')
         simoptions.tolerance=10^(-12); % Numerical tolerance used when calculating min and max values.
     end
     if ~isfield(simoptions,'whichstats')
@@ -170,6 +170,7 @@ end
 % Note that I do not currently allow the following simoptions to differ by PType
 
 for ii=1:N_i
+    iistr=Names_i{ii};
 
     tic;
 
@@ -179,9 +180,9 @@ for ii=1:N_i
     if simoptions_temp.verbose==1
         fprintf('Permanent type: %i of %i \n',ii, N_i)
     end
-    
-    PolicyIndexes_temp=gpuArray(Policy.(Names_i{ii}));
-    
+
+    PolicyIndexes_temp=gpuArray(Policy.(iistr));
+
     % Go through everything which might be dependent on permanent type (PType)
     % Notice that the way this is coded the grids (etc.) could be either
     % fixed, or a function (that depends on age, and possibly on permanent
@@ -199,7 +200,7 @@ for ii=1:N_i
 
     n_d_temp=n_d;
     if isa(n_d,'struct')
-        n_d_temp=n_d.(Names_i{ii});
+        n_d_temp=n_d.(iistr);
     else
         temp=size(n_d);
         if temp(1)>1 % n_d depends on fixed type
@@ -210,7 +211,7 @@ for ii=1:N_i
     end
     n_a_temp=n_a;
     if isa(n_a,'struct')
-        n_a_temp=n_a.(Names_i{ii});
+        n_a_temp=n_a.(iistr);
     else
         temp=size(n_a);
         if temp(1)>1 % n_a depends on fixed type
@@ -222,7 +223,7 @@ for ii=1:N_i
     end
     n_z_temp=n_z;
     if isa(n_z,'struct')
-        n_z_temp=n_z.(Names_i{ii});
+        n_z_temp=n_z.(iistr);
     else
         temp=size(n_z);
         if temp(1)>1 % n_z depends on fixed type
@@ -235,17 +236,17 @@ for ii=1:N_i
 
 
     if isa(d_grid,'struct')
-        d_grid_temp=d_grid.(Names_i{ii});
+        d_grid_temp=d_grid.(iistr);
     else
         d_grid_temp=d_grid;
     end
     if isa(a_grid,'struct')
-        a_grid_temp=a_grid.(Names_i{ii});
+        a_grid_temp=a_grid.(iistr);
     else
         a_grid_temp=a_grid;
     end
     if isa(z_grid,'struct')
-        z_grid_temp=z_grid.(Names_i{ii});
+        z_grid_temp=z_grid.(iistr);
     else
         z_grid_temp=z_grid;
     end
@@ -261,7 +262,7 @@ for ii=1:N_i
         if isa(Parameters.(FullParamNames{kField}), 'struct') % Check the current parameter for permanent type in structure form
             % Check if this parameter is used for the current permanent type (it may or may not be, some parameters are only used be a subset of permanent types)
             if isfield(Parameters.(FullParamNames{kField}),Names_i{ii})
-                Parameters_temp.(FullParamNames{kField})=Parameters.(FullParamNames{kField}).(Names_i{ii});
+                Parameters_temp.(FullParamNames{kField})=Parameters.(FullParamNames{kField}).(iistr);
             end
         elseif sum(size(Parameters.(FullParamNames{kField}))==N_i)>=1 % Check for permanent type in vector/matrix form.
             temp=Parameters.(FullParamNames{kField});
@@ -287,50 +288,52 @@ for ii=1:N_i
         l_d_temp=1;
     end
     l_a_temp=length(n_a_temp);
-    
+
     N_a_temp=prod(n_a_temp);
-    if isfield(simoptions_temp,'n_e')
-        n_ze_temp=[n_z_temp,simoptions_temp.n_e];
-    else
-        n_ze_temp=n_z_temp;
+
+    % Switch to z_gridvals_temp (folding e and semiz into z if appropriate)
+    if ~isfield(simoptions_temp,'alreadygridvals')
+        simoptions_temp.alreadygridvals=0;
     end
-    if isfield(simoptions_temp,'n_semiz')
-        n_ze_temp=[simoptions_temp.n_semiz,n_ze_temp];
+    if ~isfield(simoptions_temp,'alreadygridvals_semiexo')
+        simoptions_temp.alreadygridvals_semiexo=0;
     end
-    if n_ze_temp(1)==0
-        N_ze_temp=1;
-        l_ze_temp=0;
-    else
-        N_ze_temp=prod(n_ze_temp);
-        l_ze_temp=length(n_ze_temp);
+    if ~isfield(simoptions_temp,'n_e')
+        simoptions_temp.n_e=0;
+    end
+    if ~isfield(simoptions_temp,'n_semiz')
+        simoptions_temp.n_semiz=0;
+    end
+    [n_z_temp,z_gridvals_temp,N_z_temp,l_z_temp,simoptions_temp]=CreateGridvals_FnsToEvaluate_InfHorz(n_z_temp,z_grid_temp,simoptions_temp,Parameters_temp);
+    if N_z_temp==0
+        N_z_temp=1; % Just makes things easier below
     end
 
     % Switch to PolicyVals
     PolicyValues_temp=PolicyInd2Val_InfHorz(PolicyIndexes_temp,n_d_temp,n_a_temp,n_z_temp,d_grid_temp,a_grid_temp,simoptions_temp);
-    permuteindexes=[1+(1:1:(l_a_temp+l_ze_temp)),1];
+    permuteindexes=[1+(1:1:(l_a_temp+l_z_temp)),1];
     PolicyValuesPermute_temp=permute(PolicyValues_temp,permuteindexes); %[n_a,n_s,l_d+l_a]
 
     l_daprime_temp=size(PolicyValues_temp,1); % Note, do this off of value not indexes, so that things like gridinterplayer have already been handled
 
     a_gridvals_temp=CreateGridvals(n_a_temp,a_grid_temp,1);
-    [z_gridvals_temp, ~, simoptions_temp]=ExogShockSetup_InfHorz(n_z_temp,z_grid_temp,[],Parameters_temp,simoptions_temp,1);
-    
-    [~,~,~,FnsAndPTypeIndicator_ii]=PType_FnsToEvaluate(FnsToEvaluate,Names_i,ii,l_d_temp,l_a_temp,l_ze_temp,0);
+
+    [~,~,~,FnsAndPTypeIndicator_ii]=PType_FnsToEvaluate(FnsToEvaluate,Names_i,ii,l_d_temp,l_a_temp,l_z_temp,0);
     FnsAndPTypeIndicator(:,ii)=FnsAndPTypeIndicator_ii;
-    
-    
+
+
 
     %% Some things that don't need to go in the loop over FnsToEvalaute
     if simoptions_temp.ptypestorecpu==1 % Things are being stored on cpu but solved on gpu
-        StationaryDist_ii=gpuArray(reshape(StationaryDist.(Names_i{ii}),[N_a_temp*N_ze_temp,1])); % Note: does not impose *StationaryDist.ptweights(ii)
+        StationaryDist_ii=gpuArray(reshape(StationaryDist.(iistr),[N_a_temp*N_z_temp,1])); % Note: does not impose *StationaryDist.ptweights(ii)
     else
-        StationaryDist_ii=reshape(StationaryDist.(Names_i{ii}),[N_a_temp*N_ze_temp,1]); % Note: does not impose *StationaryDist.ptweights(ii)
+        StationaryDist_ii=reshape(StationaryDist.(iistr),[N_a_temp*N_z_temp,1]); % Note: does not impose *StationaryDist.ptweights(ii)
     end
     % Eliminate all the zero-weighted points (this doesn't really save runtime for the exact calculation and often can increase it, but
-    % for the createDigest it slashes the runtime. So since we want it then we may as well do it now.)    
+    % for the createDigest it slashes the runtime. So since we want it then we may as well do it now.)
     temp=logical(StationaryDist_ii~=0);
     % StationaryDist_ii=StationaryDist_ii(temp); % This has to happen after the conditional restriction dist is calculated
-    
+
     %% Evaluate conditional restrictions for this PType (note: these use simoptions not simoptions_temp)
     if useCondlRest==1
         RestrictionStruct_ii=struct();
@@ -340,15 +343,15 @@ for ii=1:N_i
             CondlRestnFn=simoptions.conditionalrestrictions.(CondlRestnFnNames{rr});
             % Get parameter names for Conditional Restriction functions
             tempnames=getAnonymousFnInputNames(CondlRestnFn);
-            if length(tempnames)>(l_d_temp+l_a_temp+l_a_temp+l_ze_temp)
-                CondlRestnFnParamNames={tempnames{l_d_temp+l_a_temp+l_a_temp+l_ze_temp+1:end}}; % the first inputs will always be (d,aprime,a,z)
+            if length(tempnames)>(l_d_temp+l_a_temp+l_a_temp+l_z_temp)
+                CondlRestnFnParamNames={tempnames{l_d_temp+l_a_temp+l_a_temp+l_z_temp+1:end}}; % the first inputs will always be (d,aprime,a,z)
             else
                 CondlRestnFnParamNames={};
             end
             CondlRestnFnParamsCell=CreateCellFromParams(Parameters,CondlRestnFnParamNames);
 
-            RestrictionValues=logical(EvalFnOnAgentDist_Grid(CondlRestnFn, CondlRestnFnParamsCell,PolicyValuesPermute_temp,l_daprime_temp,n_a_temp,n_ze_temp,a_gridvals_temp,z_gridvals_temp));
-            RestrictionValues=reshape(RestrictionValues,[N_a_temp*N_ze_temp,1]);
+            RestrictionValues=logical(EvalFnOnAgentDist_Grid(CondlRestnFn, CondlRestnFnParamsCell,PolicyValuesPermute_temp,l_daprime_temp,n_a_temp,n_z_temp,a_gridvals_temp,z_gridvals_temp));
+            RestrictionValues=reshape(RestrictionValues,[N_a_temp*N_z_temp,1]);
 
             RestrictedStationaryDistVec=StationaryDist_ii;
             RestrictedStationaryDistVec(~RestrictionValues)=0; % zero mass on all points that do not meet the restriction
@@ -363,9 +366,9 @@ for ii=1:N_i
             if restrictedsamplemass(ii,rr)==0
                 warning('One of the conditional restrictions evaluates to a zero mass')
                 fprintf(['Specifically, the restriction called ',CondlRestnFnNames{rr},' has a restricted sample that is of zero mass \n'])
-                AllStats.(CondlRestnFnNames{rr}).RestrictedSampleMass.(Names_i{ii})=restrictedsamplemass(ii,rr); % Just return this and hopefully it is clear to the user
+                AllStats.(CondlRestnFnNames{rr}).RestrictedSampleMass.(iistr)=restrictedsamplemass(ii,rr); % Just return this and hopefully it is clear to the user
             else
-                AllStats.(CondlRestnFnNames{rr}).RestrictedSampleMass.(Names_i{ii})=restrictedsamplemass(ii,rr); % Seems likely this would be something user might want
+                AllStats.(CondlRestnFnNames{rr}).RestrictedSampleMass.(iistr)=restrictedsamplemass(ii,rr); % Seems likely this would be something user might want
             end
 
         end
@@ -381,20 +384,20 @@ for ii=1:N_i
 
             % Get parameter names for current FnsToEvaluate functions
             tempnames=getAnonymousFnInputNames(FnsToEvaluate.(FnsToEvalNames{kk}));
-            if length(tempnames)>(l_d_temp+l_a_temp+l_a_temp+l_ze_temp)
-                FnsToEvaluateParamNames={tempnames{l_d_temp+l_a_temp+l_a_temp+l_ze_temp+1:end}}; % the first inputs will always be (d,aprime,a,z)
+            if length(tempnames)>(l_d_temp+l_a_temp+l_a_temp+l_z_temp)
+                FnsToEvaluateParamNames={tempnames{l_d_temp+l_a_temp+l_a_temp+l_z_temp+1:end}}; % the first inputs will always be (d,aprime,a,z)
             else
                 FnsToEvaluateParamNames={};
             end
             FnsToEvaluateParamsCell=CreateCellFromParams(Parameters,FnsToEvaluateParamNames);
-            
+
             %% We have set up the current PType, now do some calculations for it.
             simoptions_temp.keepoutputasmatrix=1;
-            ValuesOnGrid_ii=EvalFnOnAgentDist_Grid(FnsToEvaluate.(FnsToEvalNames{kk}), FnsToEvaluateParamsCell, PolicyValuesPermute_temp, l_daprime_temp, n_a_temp, n_ze_temp, a_gridvals_temp, z_gridvals_temp);
+            ValuesOnGrid_ii=EvalFnOnAgentDist_Grid(FnsToEvaluate.(FnsToEvalNames{kk}), FnsToEvaluateParamsCell, PolicyValuesPermute_temp, l_daprime_temp, n_a_temp, n_z_temp, a_gridvals_temp, z_gridvals_temp);
 
-            ValuesOnGrid_ii=reshape(ValuesOnGrid_ii,[N_a_temp*N_ze_temp,1]);
+            ValuesOnGrid_ii=reshape(ValuesOnGrid_ii,[N_a_temp*N_z_temp,1]);
 
-            % StationaryDist_ii=reshape(StationaryDist.(Names_i{ii}),[N_a_temp*N_ze_temp,1]); % Note: does not impose *StationaryDist.ptweights(ii)
+            % StationaryDist_ii=reshape(StationaryDist.(iistr),[N_a_temp*N_z_temp,1]); % Note: does not impose *StationaryDist.ptweights(ii)
 
             % Eliminate all the zero-weighted points (this doesn't really save runtime for the exact calculation and often can increase it, but
             % for the createDigest it slashes the runtime. So since we want it then we may as well do it now.)
@@ -409,13 +412,13 @@ for ii=1:N_i
             SortedWeights=accumarray(sortindex,StationaryDist_ii,[],@sum);
 
             %% Use the full ValuesOnGrid_ii and StationaryDist_ii to calculate various statistics for the current PType-FnsToEvaluate (current ii and kk)
-            AllStats.(FnsToEvalNames{kk}).(Names_i{ii})=StatsFromWeightedGrid(SortedValues,SortedWeights,simoptions.npoints,simoptions.nquantiles,simoptions.tolerance,1,simoptions.whichstats); % 1 is presorted
+            AllStats.(FnsToEvalNames{kk}).(iistr)=StatsFromWeightedGrid(SortedValues,SortedWeights,simoptions.npoints,simoptions.nquantiles,simoptions.tolerance,1,simoptions.whichstats); % 1 is presorted
 
             %% If using conditional restrictions, do those
             if useCondlRest==1
                 for rr=1:length(CondlRestnFnNames)
                     RestrictedSortedWeights=accumarray(sortindex,RestrictionStruct_ii(rr).RestrictedStationaryDistVec,[],@sum); % This has already been done to SortedValues, so have to do it to Restricted Agent Dist
-                    AllStats.(CondlRestnFnNames{rr}).(FnsToEvalNames{kk}).(Names_i{ii})=StatsFromWeightedGrid(SortedValues,RestrictedSortedWeights,simoptions.npoints,simoptions.nquantiles,simoptions.tolerance,1,simoptions.whichstats); % 1 is presorted
+                    AllStats.(CondlRestnFnNames{rr}).(FnsToEvalNames{kk}).(iistr)=StatsFromWeightedGrid(SortedValues,RestrictedSortedWeights,simoptions.npoints,simoptions.nquantiles,simoptions.tolerance,1,simoptions.whichstats); % 1 is presorted
                     % If doing grouped stats, store RestrictedSortedWeights
                     if simoptions_temp.groupusingtdigest==1
                         error('Code should never get here (should have thrown an error earlier')
@@ -428,18 +431,18 @@ for ii=1:N_i
                     end
                 end
             end
-            
+
             %% For later, put the mean and std dev in a convenient place
             if simoptions.whichstats(1)==1
-            MeanVec(kk,ii)=AllStats.(FnsToEvalNames{kk}).(Names_i{ii}).Mean;
+            MeanVec(kk,ii)=AllStats.(FnsToEvalNames{kk}).(iistr).Mean;
             end
             if simoptions.whichstats(3)==1
-                StdDevVec(kk,ii)=AllStats.(FnsToEvalNames{kk}).(Names_i{ii}).StdDeviation;
+                StdDevVec(kk,ii)=AllStats.(FnsToEvalNames{kk}).(iistr).StdDeviation;
             end
             % Do the same with the minimum and maximum
             if simoptions.whichstats(5)==1
-                minvaluevec(kk,ii)=AllStats.(FnsToEvalNames{kk}).(Names_i{ii}).Minimum;
-                maxvaluevec(kk,ii)=AllStats.(FnsToEvalNames{kk}).(Names_i{ii}).Maximum;
+                minvaluevec(kk,ii)=AllStats.(FnsToEvalNames{kk}).(iistr).Minimum;
+                maxvaluevec(kk,ii)=AllStats.(FnsToEvalNames{kk}).(iistr).Maximum;
             end
 
             if simoptions_temp.groupusingtdigest==1
@@ -472,7 +475,7 @@ end
 
 
 %% Now for the grouped stats, putting the ptypes together
-for kk=1:numFnsToEvaluate % Each of the functions to be evaluated on the grid    
+for kk=1:numFnsToEvaluate % Each of the functions to be evaluated on the grid
 
     if simoptions_temp.groupusingtdigest==1
         Cmerge=AllCMerge.(FnsToEvalNames{kk});
@@ -518,7 +521,7 @@ for kk=1:numFnsToEvaluate % Each of the functions to be evaluated on the grid
 
     % Grouped mean and standard deviation are overwritten on a more direct calculation that does not involve the digests
     SigmaNxi=sum(FnsAndPTypeIndicator(kk,:).*(StationaryDist.ptweights)'); % The sum of the masses of the relevant types
-    
+
     % Mean
     if simoptions.whichstats(1)==1
         AllStats.(FnsToEvalNames{kk}).Mean=sum(FnsAndPTypeIndicator(kk,:).*(StationaryDist.ptweights').*MeanVec(kk,:))/SigmaNxi;
@@ -532,7 +535,7 @@ for kk=1:numFnsToEvaluate % Each of the functions to be evaluated on the grid
             temp2=zeros(N_i,1);
             for ii=2:N_i
                 if FnsAndPTypeIndicator(kk,ii)==1
-                    temp=MeanVec(kk,1:(ii-1))-MeanVec(kk,ii); % This bit with temp is just to handle numerical rounding errors where temp evalaulated to negative with order -15
+                    temp=MeanVec(kk,1:(ii-1))-MeanVec(kk,ii); % This bit with temp is just to handle numerical rounding errors where temp evaluated to negative with order -15
                     if any(temp<0) && all(temp>10^(-12))
                         temp=max(temp,0);
                     end

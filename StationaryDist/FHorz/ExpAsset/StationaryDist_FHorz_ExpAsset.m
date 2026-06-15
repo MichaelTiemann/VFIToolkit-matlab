@@ -36,14 +36,11 @@ else
     aprimeFnParamNames={};
 end
 
-if isfield(simoptions,'n_e')
-    N_e=prod(simoptions.n_e);
-else
-    N_e=0;
-end
+N_e=prod(simoptions.n_e);
+N_z=prod(n_z);
 
 %%
-if n_z(1)==0 && N_e==0
+if N_z==0 && N_e==0
     StationaryDist=StationaryDist_FHorz_ExpAsset_noz(jequaloneDist,AgeWeightParamNames,Policy,n_d,n_a,N_j,d_grid,a2_grid,Parameters,simoptions);
     return
 end
@@ -53,11 +50,10 @@ l_d=length(n_d);
 l_a=length(n_a);
 
 N_a=prod(n_a);
-N_z=prod(n_z);
 
 %%
 if N_z==0
-    % Note: n_z(1)==0 && N_e==0 already got sent elsewhere
+    % Note: N_z==0 && N_e==0 already got sent elsewhere
     n_ze=simoptions.n_e;
     N_ze=N_e;
 else
@@ -125,7 +121,7 @@ elseif simoptions.gridinterplayer==1
     % (a,z,2,j)
     Policy_aprime=repmat(Policy_aprime,1,1,2,1);
     PolicyProbs=repmat(PolicyProbs,1,1,2,1);
-    % Policy_aprime(:,:,1:2,:) lower grid point for a1 is unchanged 
+    % Policy_aprime(:,:,1:2,:) lower grid point for a1 is unchanged
     Policy_aprime(:,:,3:4,:)=Policy_aprime(:,:,3:4,:)+1; % add one to a1, to get upper grid point
 
     aprimeProbs_upper=reshape(shiftdim((Policy(end,:,:,:)-1)/(simoptions.ngridinterp+1),1),[N_a,N_ze,1,N_j]); % probability of upper grid point (from L2 index)

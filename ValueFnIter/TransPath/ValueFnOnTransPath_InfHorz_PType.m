@@ -1,4 +1,4 @@
-function [VPath,PolicyPath]=ValueFnOnTransPath_InfHorz_PType(PricePath, ParamPath, T, V_final, Policy_final, Parameters, n_d,n_a,n_z, Names_i, d_grid,a_grid,z_grid, pi_z, DiscountFactorParamNames, ReturnFn, vfoptions)
+function [VPath,PolicyPath]=ValueFnOnTransPath_InfHorz_PType(PricePath, ParamPath, T, V_final, Policy_final, Parameters, n_d,n_a,n_z, Names_i, d_grid,a_grid,z_grid, pi_z, DiscountFactorParamNames, ReturnFn, transpathoptions, vfoptions)
 
 VPath=struct();
 PolicyPath=struct();
@@ -22,34 +22,25 @@ end
 
 %% Loop over permanent types
 for ii=1:N_i
+    iistr=Names_i{ii};
 
-    transpathoptions_temp=struct();
-
-    % First set up vfoptions
-    if exist('vfoptions','var')
-        vfoptions_temp=PType_Options(vfoptions,Names_i,ii);
-        if ~isfield(vfoptions_temp,'verbose')
-            vfoptions_temp.verbose=0;
-        end
-        if ~isfield(vfoptions_temp,'verboseparams')
-            vfoptions_temp.verboseparams=0;
-        end
-        if ~isfield(vfoptions_temp,'ptypestorecpu')
-            vfoptions_temp.ptypestorecpu=1; % GPU memory is limited, so switch solutions to the cpu
-        end
-    else
-        vfoptions_temp.verbose=0;
-        vfoptions_temp.verboseparams=0;
+    transpathoptions_temp=PType_Options(transpathoptions,Names_i,ii);
+    vfoptions_temp=PType_Options(vfoptions,Names_i,ii);
+    vfoptions_temp.parallel=2; % hardcode
+    if ~isfield(vfoptions_temp,'verbose')
+        vfoptions_temp.verbose=0; % =1 fives feedback
+    end
+    if ~isfield(vfoptions_temp,'ptypestorecpu')
         vfoptions_temp.ptypestorecpu=1; % GPU memory is limited, so switch solutions to the cpu
-    end 
-    
+    end
+
     if vfoptions_temp.verbose==1
         fprintf('Permanent type: %i of %i \n',ii, N_i)
     end
-           
-    V_final_temp=V_final.(Names_i{ii});
-    Policy_final_temp=Policy_final.(Names_i{ii});
-    
+
+    V_final_temp=V_final.(iistr);
+    Policy_final_temp=Policy_final.(iistr);
+
 
     % Go through everything which might be dependent on permanent type (PType)
     % Notice that the way this is coded the grids (etc.) could be either
@@ -58,42 +49,42 @@ for ii=1:N_i
     % a structure is there a need to take just a specific part and send
     % only that to the 'non-PType' version of the command.
     if isa(n_d,'struct')
-        n_d_temp=n_d.(Names_i{ii});
+        n_d_temp=n_d.(iistr);
     else
         n_d_temp=n_d;
     end
     if isa(n_a,'struct')
-        n_a_temp=n_a.(Names_i{ii});
+        n_a_temp=n_a.(iistr);
     else
         n_a_temp=n_a;
     end
     if isa(n_z,'struct')
-        n_z_temp=n_z.(Names_i{ii});
+        n_z_temp=n_z.(iistr);
     else
         n_z_temp=n_z;
     end
     if isa(d_grid,'struct')
-        d_grid_temp=d_grid.(Names_i{ii});
+        d_grid_temp=d_grid.(iistr);
     else
         d_grid_temp=d_grid;
     end
     if isa(a_grid,'struct')
-        a_grid_temp=a_grid.(Names_i{ii});
+        a_grid_temp=a_grid.(iistr);
     else
         a_grid_temp=a_grid;
     end
     if isa(z_grid,'struct')
-        z_grid_temp=z_grid.(Names_i{ii});
+        z_grid_temp=z_grid.(iistr);
     else
         z_grid_temp=z_grid;
     end
     if isa(pi_z,'struct')
-        pi_z_temp=pi_z.(Names_i{ii});
+        pi_z_temp=pi_z.(iistr);
     else
         pi_z_temp=pi_z;
     end
     if isa(ReturnFn,'struct')
-        ReturnFn_temp=ReturnFn.(Names_i{ii});
+        ReturnFn_temp=ReturnFn.(iistr);
     else
         ReturnFn_temp=ReturnFn;
     end
@@ -131,33 +122,27 @@ for ii=1:N_i
             end
         end
     end
-    
-    % if vfptions_temp.verboseparams==1
-    %     sprintf('Parameter values for the current permanent type')
-    %     Parameters_temp
-    % end
-    
+
     % ParamPath can include parameters that differ by ptype
     ParamPath_temp=ParamPath;
     ParamPathNames=fieldnames(ParamPath);
     for nn=1:length(ParamPathNames)
         if isstruct(ParamPath_temp.(ParamPathNames{nn}))
-            ParamPath_temp.(ParamPathNames{nn})=ParamPath.(ParamPathNames{nn}).(Names_i{ii});
+            ParamPath_temp.(ParamPathNames{nn})=ParamPath.(ParamPathNames{nn}).(iistr);
         end
     end
 
-
-    [VPath_ii,PolicyPath_ii]=ValueFnOnTransPath_InfHorz(PricePath, ParamPath_temp, T, V_final_temp, Policy_final_temp, Parameters_temp, n_d_temp, n_a_temp, n_z_temp, pi_z_temp, d_grid_temp, a_grid_temp,z_grid_temp, DiscountFactorParamNames_temp, ReturnFn_temp, transpathoptions_temp, vfoptions_temp);
+    [VPath_ii,PolicyPath_ii]=ValueFnOnTransPath_InfHorz(PricePath, ParamPath_temp, T, V_final_temp, Policy_final_temp, Parameters_temp, n_d_temp, n_a_temp, n_z_temp, d_grid_temp, a_grid_temp,z_grid_temp, pi_z_temp, DiscountFactorParamNames_temp, ReturnFn_temp, transpathoptions_temp, vfoptions_temp);
     % Note: T cannot depend on ptype, nor can PricePath depend on ptype
 
     if vfoptions_temp.ptypestorecpu==1
-        VPath.(Names_i{ii})=gather(VPath_ii);
-        PolicyPath.(Names_i{ii})=gather(PolicyPath_ii);
+        VPath.(iistr)=gather(VPath_ii);
+        PolicyPath.(iistr)=gather(PolicyPath_ii);
     else
-        VPath.(Names_i{ii})=VPath_ii;
-        PolicyPath.(Names_i{ii})=PolicyPath_ii;
+        VPath.(iistr)=VPath_ii;
+        PolicyPath.(iistr)=PolicyPath_ii;
     end
-        
+
     clear VPath_ii PolicyPath_ii
 
 end

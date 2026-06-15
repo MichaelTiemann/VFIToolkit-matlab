@@ -40,7 +40,7 @@ if exist('heteroagentoptions','var')
 end
 
 
-%% Check which options have been used, set all others to defaults 
+%% Check which options have been used, set all others to defaults
 N_p=prod(n_p);
 if isempty(n_p)
     N_p=0;
@@ -51,18 +51,29 @@ if ~exist('vfoptions','var')
     vfoptions.parallel=1+(gpuDeviceCount>0);
     %Note that the defaults will be set when we call 'ValueFnIter...'
     %commands and the like, so no need to set them here except for a few.
+    vfoptions.n_e=0;
+    vfoptions.n_semiz=0;
 else
     %Check vfoptions for missing fields, if there are some fill them with the defaults
     if ~isfield(vfoptions,'parallel')
         vfoptions.parallel=1+(gpuDeviceCount>0);
     end
+    if ~isfield(vfoptions,'n_e')
+        vfoptions.n_e=0;
+    end
+    if ~isfield(vfoptions,'n_semiz')
+        vfoptions.n_semiz=0;
+    end
 end
 
 if exist('simoptions','var')==0
     %If vfoptions is not given, just use all the defaults
-    simoptions.parallel=1+(gpuDeviceCount>0);    
+    simoptions.parallel=1+(gpuDeviceCount>0);
     %Note that the defaults will be set when we call 'StationaryDist...'
     %commands and the like, so no need to set them here except for a few.
+    % Exogenous shocks
+    simoptions.n_e=0;
+    simoptions.n_semiz=0;
 else
     %Check simoptions for missing fields, if there are some fill them with the defaults
     if ~isfield(simoptions,'parallel')
@@ -72,6 +83,13 @@ else
         if ~isfield(simoptions,'gridinterplayer')
             error('When setting vfoptions.gridinterplayer you must also set simoptions.gridinterplayer')
         end
+    end
+    % Exogenous shocks
+    if ~isfield(simoptions,'n_e')
+        simoptions.n_e=0;
+    end
+    if ~isfield(simoptions,'n_semiz')
+        simoptions.n_semiz=0;
     end
 end
 
@@ -167,7 +185,7 @@ end
 heteroagentoptions.useCustomModelStats=0;
 if isfield(heteroagentoptions,'CustomModelStats')
     heteroagentoptions.useCustomModelStats=1;
-    % Stash some of the inputs so they can be passed to CustomModelStats later (only things we otherwise overright).
+    % Stash some of the inputs so they can be passed to CustomModelStats later (only things we otherwise override).
     % So that user gets exactly what they input, not any internally reworked things
     heteroagentoptions.CustomModelStatsInputs.z_grid=z_grid;
     heteroagentoptions.CustomModelStatsInputs.pi_z=pi_z;
@@ -231,14 +249,14 @@ if isfield(vfoptions,'ExogShockFn')
     % can just leave action space in here as we only use it to see if GEPriceParamNames is part of it
     if ~isempty(intersect(tempExogShockFnParamNames,GEPriceParamNames))
         heteroagentoptions.gridsinGE=1;
-    end        
+    end
 end
 if isfield(vfoptions,'EiidShockFn')
     tempEiidShockFnParamNames=getAnonymousFnInputNames(vfoptions.EiidShockFn);
     % can just leave action space in here as we only use it to see if GEPriceParamNames is part of it
     if ~isempty(intersect(tempEiidShockFnParamNames,GEPriceParamNames))
         heteroagentoptions.gridsinGE=1;
-    end        
+    end
 end
 % If z (and e) are not determined in GE, then compute z_gridvals and pi_z now (and e_gridvals and pi_e)
 if heteroagentoptions.gridsinGE==0
@@ -253,12 +271,19 @@ if heteroagentoptions.gridsinGE==0
         % Note: these are actually z_gridvals and pi_z
         simoptions.e_gridvals=vfoptions.e_gridvals; % Note, will be [] if no e
         simoptions.pi_e=vfoptions.pi_e; % Note, will be [] if no e
+        if isfield(simoptions,'ExogShockFn') % Note: ExogShockSetup_InfHorz() removed ExogShockFn from vfoptions but not from simoptions
+            if heteroagentoptions.useCustomModelStats==1
+                heteroagentoptions.CustomModelStatsInputs.z_grid=z_gridvals;
+                heteroagentoptions.CustomModelStatsInputs.pi_z=pi_z;
+            end
+            simoptions=rmfield(simoptions,'ExogShockFn');
+        end
     end
 else
     z_gridvals=[];
 end
 % Regardless of whether they are done here of in _subfn, they will be
-% precomputed by the time we get to the value fn, staty dist, etc. So
+% precomputed by the time we get to the value fn, stationary dist, etc. So
 vfoptions.alreadygridvals=1;
 simoptions.alreadygridvals=1;
 
@@ -272,14 +297,14 @@ if isstruct(FnsToEvaluate)
     l_a=length(n_a);
     l_aprime=l_a;
     l_z=length(n_z);
-    if n_z(1)==0
+    if N_z==0
         l_z=0;
     end
     if isfield(simoptions,'SemiExoStateFn')
         l_z=l_z+length(simoptions.n_semiz);
     end
     l_e=0;
-    if isfield(simoptions,'n_e')
+    if prod(simoptions.n_e)>0
         l_e=length(simoptions.n_e);
         if simoptions.n_e(1)==0
             l_e=0;
@@ -333,7 +358,7 @@ if isfield(heteroagentoptions,'intermediateEqns')
     for gg=1:nIntEqns
         temp=getAnonymousFnInputNames(heteroagentoptions.intermediateEqns.(intEqnNames{gg}));
         heteroagentoptions.intermediateEqnParamNames(gg).Names=temp;
-        heteroagentoptions.intermediateEqnsCell{gg}=heteroagentoptions.intermediateEqns.(intEqnNames{gg});        
+        heteroagentoptions.intermediateEqnsCell{gg}=heteroagentoptions.intermediateEqns.(intEqnNames{gg});
     end
     % Now:
     %  heteroagentoptions.intermediateEqns is still the structure
@@ -348,11 +373,11 @@ for gg=1:nGeneralEqmEqns
     GeneralEqmEqnParamNames(gg).Names=temp;
     GeneralEqmEqnsCell{gg}=GeneralEqmEqns.(GEeqnNames{gg});
 end
-% Now: 
+% Now:
 %  GeneralEqmEqns is still the structure
 %  GeneralEqmEqnsCell is cell
 %  GeneralEqmEqnParamNames(gg).Names contains the names
-% Note: 
+% Note:
 
 
 %% Set up GEparamsvec0 and parameter constraints
@@ -412,7 +437,7 @@ if heteroagentoptions.maxiter>0 % Can use heteroagentoptions.maxiter=0 to just e
         heteroagentoptions.multiGEweights=weightsbackup; % change it back now that we have set up CalibrateLifeCycleModel_objectivefn()
     end
 
-    
+
     % Choosing algorithm for the optimization problem
     % https://au.mathworks.com/help/optim/ug/choosing-the-algorithm.html#bscj42s
     minoptions = optimset('TolX',heteroagentoptions.toleranceGEprices,'TolFun',heteroagentoptions.toleranceGEcondns,'MaxIter',heteroagentoptions.maxiter,'MaxFunEvals',10*heteroagentoptions.maxiter);
@@ -530,7 +555,7 @@ if heteroagentoptions.maxiter>0 % Can use heteroagentoptions.maxiter=0 to just e
     for ii=1:length(GEPriceParamNames)
         p_eqm.(GEPriceParamNames{ii})=p_eqm_vec(ii);
     end
-    
+
 %%
 elseif heteroagentoptions.maxiter==0 % Can use heteroagentoptions.maxiter=0 to just evaluate the current general eqm eqns
     % Just use the prices that are currently in Params
