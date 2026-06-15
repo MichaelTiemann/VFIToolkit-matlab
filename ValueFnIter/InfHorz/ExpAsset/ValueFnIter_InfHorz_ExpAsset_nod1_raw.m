@@ -1,5 +1,8 @@
 function [V, Policy]=ValueFnIter_InfHorz_ExpAsset_nod1_raw(V0,n_d2,n_a1,n_a2,n_z , d2_grid, a1_gridvals, a2_grid, z_gridvals, pi_z, ReturnFn, aprimeFn, Parameters, DiscountFactorParamsVec, ReturnFnParamsVec, aprimeFnParamNames, vfoptions)
 
+cast2index=str2func(vfoptions.indexT);
+index_1=cast2index(1);
+
 N_d2=prod(n_d2);
 N_a1=prod(n_a1);
 N_a2=prod(n_a2);
@@ -31,10 +34,11 @@ distvstolstr=['ValueFnIter: after %i iterations the dist is %4.',num2str(-round(
 %% Precompute some aspects of experienceasset
 aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames, vfoptions.precision);
 [a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix(aprimeFn, n_d2, n_a2, d2_grid, a2_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
+a2primeIndex=cast2index(a2primeIndex);
 % Note: aprimeIndex is [N_d2,N_a2], whereas aprimeProbs is [N_d2,N_a2]
 
-aprimeIndex=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat((a2primeIndex-1),N_a1,1); % [N_d2*N_a1,N_a2]
-aprimeplus1Index=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat(a2primeIndex,N_a1,1); % [N_d2*N_a1,N_a2]
+aprimeIndex=repelem((index_1:1:N_a1)',N_d2,N_a2)+N_a1*repmat((a2primeIndex-1),N_a1,1); % [N_d2*N_a1,N_a2]
+aprimeplus1Index=repelem((index_1:1:N_a1)',N_d2,N_a2)+N_a1*repmat(a2primeIndex,N_a1,1); % [N_d2*N_a1,N_a2]
 aprimeProbs=repmat(a2primeProbs,N_a1,1,N_z);  % [N_d2*N_a1,N_a2,N_z]
 
 %%
@@ -79,7 +83,7 @@ while currdist>vfoptions.tolerance && tempcounter<=vfoptions.maxiter
 
         Ftemp=reshape(ReturnMatrix(Policy+N_d2*N_a1*(0:1:N_a-1)'+N_d2*N_a1*N_a*(0:1:N_z-1)),[N_a*N_z,1]);
         Policy_d2ind=rem(Policy(:)-1,N_d2)+1;
-        Policy_a1primeind=ceil(Policy(:)/N_d2); % size(Policy_a1primeind) is [N_a*N_z,1]
+        Policy_a1primeind=ceil(double(Policy(:))/N_d2); % size(Policy_a1primeind) is [N_a*N_z,1]
 
         % a2primeIndex is [N_d2,N_a2]
         temp=Policy_d2ind+N_d2*repmat(repelem((0:1:N_a2-1)',N_a1,1),N_z,1); % (d2,a2) indexes in terms of (a1,a2,z)
