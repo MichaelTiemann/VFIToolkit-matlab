@@ -71,7 +71,7 @@ elseif vfoptions.EZutils==1
 end
 
 if vfoptions.EZoneminusbeta==1
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,vfoptions.precision);
     ezc1=1-prod(DiscountFactorParamsVec); % (This will be changed later if it depends on age)
 end
 
@@ -90,7 +90,7 @@ end
 
 % Create a vector containing all the return function parameters (in order)
 ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,vfoptions.precision);
-DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames);
+DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,vfoptions.precision);
 
 N_d=prod(n_d);
 

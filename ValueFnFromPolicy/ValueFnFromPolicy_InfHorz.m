@@ -54,7 +54,7 @@ ReturnFnParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,vfoptions.
 FofPolicy=EvalFnOnAgentDist_Grid(ReturnFn, ReturnFnParamsCell,PolicyValuesPermute,l_daprime,n_a,n_z,a_gridvals,z_gridvals);
 
 %% Now that we have FofPolicy, calculate V.
-DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames));
+DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames,vfoptions.precision));
 Policy=KronPolicyIndexes_forValueFnFromPolicy(Policy, n_d, n_a, n_z, 0, vfoptions);
 
 pi_z_howards=repelem(pi_z,N_a,1);

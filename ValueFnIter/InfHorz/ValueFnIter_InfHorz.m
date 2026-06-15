@@ -309,13 +309,13 @@ end
 ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,vfoptions.precision);
 if isfield(vfoptions,'exoticpreferences')
     if vfoptions.exoticpreferences~=3
-        DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames);
+        DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,vfoptions.precision);
         if vfoptions.exoticpreferences==0
             DiscountFactorParamsVec=prod(DiscountFactorParamsVec); % Infinite horizon, so just do this once.
         end
     end
 else
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec); % Infinite horizon, so just do this once.
 end
 

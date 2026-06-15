@@ -117,7 +117,7 @@ end
 %     ParamCell.R2(ii,1)={ReturnFnParamsVec.R2(ii)};
 % end
 % 
-% DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames);
+% DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,vfoptions.precision);
 % DiscountFactorParamsVec=prod(DiscountFactorParamsVec); % Infinite horizon, so just do this once.
 % 
 % %% Solve 

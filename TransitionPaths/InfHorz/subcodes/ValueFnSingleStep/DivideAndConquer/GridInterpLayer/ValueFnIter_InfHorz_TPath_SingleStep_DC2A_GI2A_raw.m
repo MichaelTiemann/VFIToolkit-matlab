@@ -45,7 +45,7 @@ Policy=zeros(5,N_a,N_z,vfoptions.indexT,'gpuArray'); % first dim: d,a1,a2,a1L2,L
 %%
 % Create a vector containing all the return function parameters (in order)
 ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,vfoptions.precision);
-DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames);
+DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,vfoptions.precision);
 DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
 if vfoptions.lowmemory==0
