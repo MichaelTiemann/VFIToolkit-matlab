@@ -38,7 +38,7 @@ if transpathoptions.graphaggvarspath==1
         end
     else
         for pp=1:length(AggVarNames)
-            subplot(nrows,ncolumns,pp); plot(AggVarsPath(:,pp))
+            subplot(nrows,ncolumns,pp); plot(AggVarsPath(pp,:))
             title(AggVarNames{pp})
         end
     end

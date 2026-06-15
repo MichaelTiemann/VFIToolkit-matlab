@@ -17,7 +17,7 @@ elseif transpathoptions.GEnewprice==3 % Version of shooting algorithm where the 
     p_i=p_i(transpathoptions.GEnewprice3.permute); % Rearrange GeneralEqmEqns into the order of the relevant prices
     I_makescutoff=(abs(p_i)>transpathoptions.updateaccuracycutoff);
     p_i=I_makescutoff.*p_i;
-    PricePathNew_tt=PricePathOld_tt+(transpathoptions.GEnewprice3.add.*transpathoptions.GEnewprice3.factor)'.*p_i-((1-transpathoptions.GEnewprice3.add).*transpathoptions.GEnewprice3.factor)'.*p_i;
+    PricePathNew_tt=PricePathOld_tt+transpathoptions.GEnewprice3.add.*transpathoptions.GEnewprice3.factor.*p_i-(1-transpathoptions.GEnewprice3.add).*transpathoptions.GEnewprice3.factor.*p_i;
 end
 
 % We want output shapes to be
