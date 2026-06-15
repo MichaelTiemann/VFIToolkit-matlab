@@ -12,7 +12,7 @@ N_a=prod(n_a);
 % Each column will be a specific parameter with the values at every age.
 ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision); % this will be a matrix, row indexes ages and column indexes the parameters (parameters which are not dependent on age appear as a constant valued column)
 
-DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j),2);
+DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision),2);
 
 EV=zeros(N_a,1,N_j,vfoptions.precision,'gpuArray');
 EV(:,1,1:N_j-1)=V(:,2:end); % Leave N_j as zeros

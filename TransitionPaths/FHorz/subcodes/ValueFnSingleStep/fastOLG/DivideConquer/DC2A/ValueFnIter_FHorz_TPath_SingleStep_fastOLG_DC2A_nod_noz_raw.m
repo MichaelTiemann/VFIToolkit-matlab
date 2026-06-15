@@ -32,7 +32,7 @@ jBind=shiftdim(gpuArray(0:1:N_j-1),-3); % sits at dim 5 (N_j) of aprimeindexes, 
 
 ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
-DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j),2);
+DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision),2);
 
 if vfoptions.EVpre==0
     EV=zeros(N_a,N_j,vfoptions.precision,'gpuArray');

@@ -1,6 +1,6 @@
 function AgeMatrixOfParamValues=CreateAgeMatrixFromParams(Parameters,ParamNames,N_j,precision)
 %
-% AgeMatrixOfParamValues=CreateAgeMatrixFromParams(Parameters,ParamNames,N_j)
+% AgeMatrixOfParamValues=CreateAgeMatrixFromParams(Parameters,ParamNames,N_j,precision)
 %
 % CreateAgeMatrixFromParams looks in structure called 'Parameters' and
 % then creates a matrix with each column contains the values of it's fields that

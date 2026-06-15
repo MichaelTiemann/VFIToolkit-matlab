@@ -40,7 +40,7 @@ jBind=shiftdim(gpuArray(0:1:N_j-1),-3); % [1,1,1,1,N_j] age offset in aprimej (d
 
 ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
-DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j),2);
+DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision),2);
 
 if vfoptions.EVpre==0
     % V is (N_a*N_j, N_e); e is i.i.d., integrate it out using pi_e_J.

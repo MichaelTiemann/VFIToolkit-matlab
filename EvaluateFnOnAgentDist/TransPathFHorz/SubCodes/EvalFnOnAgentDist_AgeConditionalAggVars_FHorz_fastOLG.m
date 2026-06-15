@@ -34,7 +34,7 @@ for ff=1:length(FnsToEvaluate)
     else
         % Create a matrix containing all the return function parameters (in order).
         % Each column will be a specific parameter with the values at every age.
-        FnToEvaluateParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, FnsToEvaluateParamNames(ff).Names,N_j); % this will be a matrix, row indexes ages and column indexes the parameters (parameters which are not dependent on age appear as a constant valued column)
+        FnToEvaluateParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, FnsToEvaluateParamNames(ff).Names,N_j,underlyingType(a_gridvals)); % this will be a matrix, row indexes ages and column indexes the parameters (parameters which are not dependent on age appear as a constant valued column)
 
         nFnToEvaluateParams=size(FnToEvaluateParamsAgeMatrix,2);
 

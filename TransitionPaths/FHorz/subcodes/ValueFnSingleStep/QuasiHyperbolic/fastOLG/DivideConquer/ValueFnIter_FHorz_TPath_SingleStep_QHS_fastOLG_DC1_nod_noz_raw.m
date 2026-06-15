@@ -21,8 +21,8 @@ level1ii=round(linspace(1,n_a,vfoptions.level1n));
 % Each column will be a specific parameter with the values at every age.
 ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision); % this will be a matrix, row indexes ages and column indexes the parameters (parameters which are not dependent on age appear as a constant valued column)
 
-DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j),2);
-Beta0_J=CreateAgeMatrixFromParams(Parameters, {vfoptions.QHadditionaldiscount},N_j);
+DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision),2);
+Beta0_J=CreateAgeMatrixFromParams(Parameters, {vfoptions.QHadditionaldiscount},N_j,vfoptions.precision);
 Beta0DiscountFactor_J=Beta0_J.*DiscountFactor_J;
 BetaMinusBeta0Beta_J=DiscountFactor_J-Beta0DiscountFactor_J;
 

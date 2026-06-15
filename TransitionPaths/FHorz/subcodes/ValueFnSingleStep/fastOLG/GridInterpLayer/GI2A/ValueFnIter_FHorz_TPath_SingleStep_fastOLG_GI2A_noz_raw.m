@@ -38,7 +38,7 @@ aBind=gpuArray(0:1:N_a-1);                % (1,N_a)
 jBind=shiftdim(gpuArray(0:1:N_j-1),-1);   % (1,1,N_j)
 
 %% Age-matrix params and discount
-DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j),2);
+DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision),2);
 
 ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 

@@ -10,7 +10,7 @@ if simoptions.experienceasset>=1 || simoptions.experienceassetz>=1
         a2primeIndexesPath=zeros(N_a,N_j-1,T-1,'gpuArray');
         a2primeProbsPath=zeros(N_a,N_j-1,T-1,'gpuArray');
         for tt=1:T-1
-            aprimeFnParamsVec=CreateAgeMatrixFromParams(Parameters,simoptions.setup_experienceasset.aprimeFnParamNames,N_j);
+            aprimeFnParamsVec=CreateAgeMatrixFromParams(Parameters,simoptions.setup_experienceasset.aprimeFnParamNames,N_j,vfoptions.precision);
             % [N_j,number of params]
 
             [a2primeIndexes, a2primeProbs]=CreateaprimePolicyExperienceAsset_J(PolicyIndexesPath(:,:,:,tt),simoptions.setup_experienceasset.aprimeFn, whichisdforexpasset, n_d, simoptions.setup_experienceasset.n_a1,simoptions.setup_experienceasset.n_a2, 0, N_j, simoptions.setup_experienceasset.d_grid, simoptions.setup_experienceasset.a2_grid, aprimeFnParamsVec,transpathoptions.fastOLG);
@@ -31,7 +31,7 @@ if simoptions.experienceasset>=1 || simoptions.experienceassetz>=1
             a2primeIndexesPath=zeros(N_a,N_ze,N_j-1,T-1,'gpuArray');
             a2primeProbsPath=zeros(N_a,N_ze,N_j-1,T-1,'gpuArray');
             for tt=1:T-1
-                aprimeFnParamsVec=CreateAgeMatrixFromParams(Parameters,simoptions.setup_experienceasset.aprimeFnParamNames,N_j);
+                aprimeFnParamsVec=CreateAgeMatrixFromParams(Parameters,simoptions.setup_experienceasset.aprimeFnParamNames,N_j,vfoptions.precision);
                 % [N_j,number of params]
 
                 if N_z>0 && N_e>0 % PolicyIndexesPath is [l_da,N_a,N_z,N_e,N_j,T-1]
@@ -53,7 +53,7 @@ if simoptions.experienceasset>=1 || simoptions.experienceassetz>=1
             a2primeIndexesPath=zeros(N_a,N_j-1,N_ze,T-1,'gpuArray');
             a2primeProbsPath=zeros(N_a,N_j-1,N_ze,T-1,'gpuArray');
             for tt=1:T-1
-                aprimeFnParamsVec=CreateAgeMatrixFromParams(Parameters,simoptions.setup_experienceasset.aprimeFnParamNames,N_j);
+                aprimeFnParamsVec=CreateAgeMatrixFromParams(Parameters,simoptions.setup_experienceasset.aprimeFnParamNames,N_j,vfoptions.precision);
                 % [N_j,number of params]
 
                 if N_z>0 && N_e>0 % PolicyIndexesPath is [l_da,N_a,N_j,N_z,N_e,T-1]

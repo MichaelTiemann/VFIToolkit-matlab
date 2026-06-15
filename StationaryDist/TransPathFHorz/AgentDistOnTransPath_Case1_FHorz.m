@@ -282,7 +282,7 @@ if simoptions.experienceasset>=1 || simoptions.experienceassetz>=1
         a2primeIndexesPath=zeros(N_a,N_j-1,T,'gpuArray');
         a2primeProbsPath=zeros(N_a,N_j-1,T,'gpuArray');
         for tt=1:T
-            aprimeFnParamsVec=CreateAgeMatrixFromParams(Parameters,aprimeFnParamNames,N_j);
+            aprimeFnParamsVec=CreateAgeMatrixFromParams(Parameters,aprimeFnParamNames,N_j,simoptions.precision);
             % [N_j,number of params]
 
             [a2primeIndexes, a2primeProbs]=CreateaprimePolicyExperienceAsset_J(PolicyPath(:,:,:,tt),simoptions.aprimeFn, whichisdforexpasset, n_d, n_a1,n_a2, N_ze, N_j, simoptions.d_grid, a2_grid, aprimeFnParamsVec,0);
@@ -295,7 +295,7 @@ if simoptions.experienceasset>=1 || simoptions.experienceassetz>=1
         a2primeIndexesPath=zeros(N_a,N_ze,N_j-1,T,'gpuArray');
         a2primeProbsPath=zeros(N_a,N_ze,N_j-1,T,'gpuArray');
         for tt=1:T
-            aprimeFnParamsVec=CreateAgeMatrixFromParams(Parameters,aprimeFnParamNames,N_j);
+            aprimeFnParamsVec=CreateAgeMatrixFromParams(Parameters,aprimeFnParamNames,N_j,simoptions.precision);
             % [N_j,number of params]
 
             if simoptions.experienceassetz>=1

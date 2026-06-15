@@ -38,8 +38,8 @@ jind=shiftdim(gpuArray(0:1:N_j-1),-1);
 %% First, create the big 'next period (of transition path) expected value fn.
 % fastOLG will be N_aprime by N_a*N_j*N_e (note: N_aprime is just equal to N_a)
 
-beta_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j),2);
-beta0_J=CreateAgeMatrixFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
+beta_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision),2);
+beta0_J=CreateAgeMatrixFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j,vfoptions.precision);
 beta0beta_J=beta0_J.*beta_J;
 betaminusbeta0beta_J=beta_J-beta0beta_J;
 

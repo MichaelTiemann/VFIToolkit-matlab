@@ -44,7 +44,7 @@ zBind =shiftdim(gpuArray(0:1:N_z-1),-4); % [1,1,1,1,1,N_z]
 % V is (N_a*N_j, N_z, N_e). Integrate over e' (i.i.d.) using pi_e_J, then over
 % z' (Markov) using pi_z_J. The resulting EV depends on (a',j,z), not e.
 
-DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j),2);
+DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision),2);
 
 ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 

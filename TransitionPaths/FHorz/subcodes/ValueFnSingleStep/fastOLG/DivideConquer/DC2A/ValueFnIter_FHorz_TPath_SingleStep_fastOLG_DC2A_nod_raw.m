@@ -40,7 +40,7 @@ zBind=shiftdim(gpuArray(0:1:N_z-1),-4); % sits at dim 6 (N_z) of aprimeindexes, 
 %% First, create the big 'next period (of transition path) expected value fn'
 % spanning all ages simultaneously.
 
-DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j),2);
+DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision),2);
 
 % Create a matrix containing all the return function parameters (in order).
 ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);

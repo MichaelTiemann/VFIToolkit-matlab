@@ -53,7 +53,7 @@ eind=shiftdim(gpuArray(0:1:N_e-1),-5);
 %% First, create the big 'next period (of transition path) expected value fn.
 % fastOLG will be N_d*N_aprime by N_a*N_j*N_z (note: N_aprime is just equal to N_a)
 
-DiscountFactorParamsVec=CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j);
+DiscountFactorParamsVec=CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
 DiscountFactorParamsVec=prod(DiscountFactorParamsVec,2);
 DiscountFactorParamsVec=shiftdim(DiscountFactorParamsVec,-4);
 
@@ -62,7 +62,7 @@ DiscountFactorParamsVec=shiftdim(DiscountFactorParamsVec,-4);
 ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision); % this will be a matrix, row indexes ages and column indexes the parameters (parameters which are not dependent on age appear as a constant valued column)
 
 if vfoptions.EVpre==0
-    aprimeFnParamsVec=CreateAgeMatrixFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateAgeMatrixFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateExperienceAssetzFnMatrix_J(aprimeFn, n_d2, n_a2, n_z, N_j, d2_gridvals, a2_grid, z_gridvals_J_zlj, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
     % Note: aprimeIndex is [N_d2,N_a2,N_z,N_j], whereas aprimeProbs is [N_d2,N_a2,N_z,N_j]   (N_z here is the current z)
     a2primeIndex=permute(a2primeIndex,[1,2,4,3]); % [N_d2,N_a2,N_j,N_z]
@@ -90,7 +90,7 @@ if vfoptions.EVpre==0
     EV=reshape(sum(EV,5),[N_d2*N_a1,N_a2,N_j,N_z]); % (aprime,1,j,z), 2nd dim will be autofilled with a
 elseif vfoptions.EVpre==1
     % This is used for 'Matched Expecations Path'
-    aprimeFnParamsVec=CreateAgeMatrixFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateAgeMatrixFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateExperienceAssetzFnMatrix_J(aprimeFn, n_d2, n_a2, n_z, N_j, d2_gridvals, a2_grid, z_gridvals_J_zlj, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
     % Note: aprimeIndex is [N_d2,N_a2,N_z,N_j], whereas aprimeProbs is [N_d2,N_a2,N_z,N_j]   (N_z here is the current z)
     a2primeIndex=permute(a2primeIndex,[1,2,4,3]); % [N_d2,N_a2,N_j,N_z]

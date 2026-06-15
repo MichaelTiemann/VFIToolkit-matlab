@@ -25,8 +25,8 @@ zind=shiftdim(gpuArray(0:1:N_z-1),-2);
 
 %% First, create the big 'next period (of transition path) expected value fn.
 
-DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j),2);
-Beta0_J=CreateAgeMatrixFromParams(Parameters, {vfoptions.QHadditionaldiscount},N_j);
+DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision),2);
+Beta0_J=CreateAgeMatrixFromParams(Parameters, {vfoptions.QHadditionaldiscount},N_j,vfoptions.precision);
 Beta0DiscountFactor_J=Beta0_J.*DiscountFactor_J;
 
 % Create a matrix containing all the return function parameters (in order).
