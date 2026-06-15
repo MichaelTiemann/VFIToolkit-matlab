@@ -123,19 +123,44 @@ vfoptions.EVpre=0; % Not actually an option that can be used here
 if ~isfield(vfoptions,'verbose')
     vfoptions.verbose=0;
 end
-if ~isfield(vfoptions,'experienceasset')
+ea_types = { 'experienceasset', 'experienceassetu', 'experienceassetz', 'experienceassete', 'experienceassetze'};
+experienceasset_matches=startsWith(fieldnames(vfoptions),'experienceasset');
+if ~any(experienceasset_matches)
     for ii=1:N_i
-        vfoptions.experienceasset.(Names_i{ii})=0;
+        for ea_type = ea_types
+            if isfield(simoptions,ea_type{1}) && isfield(simoptions.(ea_type{1}),Names_i{ii}) && logical(simoptions.(ea_type{1}).(Names_i{ii}))
+                error("simoptions has experience asset that vfoptions does not");
+            end
+            % Must force these to zero so they can be tested
+            vfoptions.(ea_type{1}).(Names_i{ii})=0;
+            simoptions.(ea_type{1}).(Names_i{ii})=0;
+        end
     end
 else
     % User created vfoptions.PType.experienceasset; we have Names_i
     for ii=1:N_i
-        if isfield(vfoptions.experienceasset, Names_i{ii})
-            if ~isfield(vfoptions,'aprimeFn') || ~isfield(vfoptions.aprimeFn, Names_i{ii})
-                error('To use an experience asset you must define vfoptions.aprimeFn')
+        for ea_type = ea_types
+            if isfield(vfoptions, ea_type{1}) && isfield(vfoptions.(ea_type{1}), Names_i{ii})
+                if logical(vfoptions.(ea_type{1}).(Names_i{ii}))
+                    if ~isfield(vfoptions,'aprimeFn') || ~isfield(vfoptions.aprimeFn, Names_i{ii})
+                        error('To use an experience asset you must define vfoptions.aprimeFn')
+                    end
+                    if isfield(simoptions,ea_type{1}) && isfield(simoptions.(ea_type{1}), Names_i{ii}) && vfoptions.(ea_type{1}).(Names_i{ii})~=simoptions.(ea_type{1}).(Names_i{ii})
+                        error('simoptions and vfoptions disagree on experience asset settings');
+                    end
+                    simoptions.(ea_type{1}).(Names_i{ii})=1;
+                elseif isfield(simoptions,ea_type{1}) && isfield(simoptions.(ea_type{1}), Names_i{ii}) && vfoptions.(ea_type{1}).(Names_i{ii})~=simoptions.(ea_type{1}).(Names_i{ii})
+                    error('simoptions and vfoptions disagree on experience asset settings');
+                else
+                    simoptions.(ea_type{1}).(Names_i{ii})=0;
+                end
+            elseif isfield(simoptions,ea_type{1}) && isfield(simoptions.(ea_type{1}), Names_i{ii})
+                vfoptions.(ea_type{1}).(Names_i{ii})=simoptions.(ea_type{1}).(Names_i{ii});
+            else
+                % Must force these to zero so they can be tested
+                vfoptions.(ea_type{1}).(Names_i{ii})=0;
+                simoptions.(ea_type{1}).(Names_i{ii})=0;
             end
-        else
-            vfoptions.experienceasset.(Names_i{ii})=0;
         end
     end
 end
@@ -245,7 +270,7 @@ for ii=1:PTypeStructure.N_i
     % Need to fill in some defaults
     PTypeStructure.(iistr).vfoptions.parallel=2; % hardcode
     PTypeStructure.(iistr).simoptions.parallel=2; % hardcode
-    PTypeStructure.(iistr).simoptions.fastOLG=0; % hardcode TESTING
+    PTypeStructure.(iistr).simoptions.fastOLG=1; % hardcode
     if ~isfield(PTypeStructure.(iistr).vfoptions,'n_e')
         PTypeStructure.(iistr).n_e=0;
     else
