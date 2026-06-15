@@ -28,4 +28,7 @@ else
     Policy=reshape(Policy,[l_daprime1+l_daprime2,n_a]);
 end
 
+cast2index=str2func(vfoptions.indexT);
+Policy=cast2index(Policy);
+
 end

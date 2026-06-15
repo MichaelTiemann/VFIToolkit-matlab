@@ -36,7 +36,7 @@ if fastOLG==0
     PolicyPath=reshape(PolicyPath,[size(PolicyPath,1),N_a,N_z,N_j,T]);
 
     if n_d(1)==0
-        PolicyValuesPath=zeros(l_aprime,N_a,N_z,N_j,T,'gpuArray');
+        PolicyValuesPath=zeros(l_aprime,N_a,N_z,N_j,T,vfoptions.precision,'gpuArray');
         if vfoptions.gridinterplayer==0
             PolicyValuesPath(1,:,:,:,:)=a_grid(PolicyPath(1,:,:,:,:));
         elseif vfoptions.gridinterplayer==1
@@ -51,7 +51,7 @@ if fastOLG==0
         end
     else
         l_d=length(n_d);
-        PolicyValuesPath=zeros(l_d+l_aprime,N_a,N_z,N_j,T,'gpuArray');
+        PolicyValuesPath=zeros(l_d+l_aprime,N_a,N_z,N_j,T,vfoptions.precision,'gpuArray');
         PolicyValuesPath(1,:,:,:,:)=d_grid(PolicyPath(1,:,:,:,:));
         if l_d>1
             if l_d>2
@@ -97,7 +97,7 @@ else
     end
 
     if n_d(1)==0
-        PolicyValuesPath=zeros(l_aprime,N_a*N_j*N_z*T,'gpuArray'); % N_a*N_j*N_z*T is because of how indexing gridvals will work
+        PolicyValuesPath=zeros(l_aprime,N_a*N_j*N_z*T,vfoptions.precision,'gpuArray'); % N_a*N_j*N_z*T is because of how indexing gridvals will work
         if vfoptions.gridinterplayer==1
             PolicyPath(1,:)=(vfoptions.ngridinterp+1)*(PolicyPath(1,:)-1)+PolicyPath(end,:); % fine index
         end
@@ -106,7 +106,7 @@ else
         end
     else
         l_d=length(n_d);
-        PolicyValuesPath=zeros(l_d+l_aprime,N_a*N_j*N_z*T,'gpuArray'); % N_a*N_j*N_z*T is because of how indexing gridvals will work
+        PolicyValuesPath=zeros(l_d+l_aprime,N_a*N_j*N_z*T,vfoptions.precision,'gpuArray'); % N_a*N_j*N_z*T is because of how indexing gridvals will work
         for ii=1:l_d
             PolicyValuesPath(ii,:)=d_grid(PolicyPath(ii,:),ii); % it is d_gridvals, not actually d_grid
         end
