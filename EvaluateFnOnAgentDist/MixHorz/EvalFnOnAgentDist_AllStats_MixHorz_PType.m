@@ -54,7 +54,7 @@ if ~exist('simoptions','var')
     simoptions.verboseparams=0;
     simoptions.nquantiles=20; % by default gives ventiles
     simoptions.npoints=100; % number of points for lorenz curve (note this lorenz curve is also used to calculate the gini coefficient
-    simoptions.tolerance=10^(-12); % Numerical tolerance used when calculating min and max values.
+    simoptions.tolerance=10^(-6); % Numerical tolerance used when calculating min and max values.
     simoptions.whichstats=ones(7,1); % See StatsFromWeightedGrid(), zeros skip some stats and can be used to reduce runtimes
     % simoptions.conditionalrestrictions  % Evaluate AllStats, but conditional on the restriction being equal to one (not zero).
     simoptions.gridinterplayer=0;
@@ -86,7 +86,7 @@ else
         error('simoptions.npoints must be a positive (non-zero) integer')
     end
     if ~isfield(simoptions,'tolerance')
-        simoptions.tolerance=10^(-12); % Numerical tolerance used when calculating min and max values.
+        simoptions.tolerance=1e-6; % Numerical tolerance used when calculating min and max values.
     end
     if ~isfield(simoptions,'whichstats')
         simoptions.whichstats=ones(7,1); % See StatsFromWeightedGrid(), zeros skip some stats and can be used to reduce runtimes
@@ -393,15 +393,15 @@ for ii=1:N_i
 
             if isfinite(N_j_temp)
                 if l_z_temp==0
-                    CellOverAgeOfParamValues=CreateCellOverAgeFromParams(Parameters_temp,CondlRestnFnParamNames,N_j_temp,2); % j in 2nd dimension: (a,j,l_d+l_a), so we want j to be after N_a
+                    CellOverAgeOfParamValues=CreateCellOverAgeFromParams(Parameters_temp,CondlRestnFnParamNames,N_j_temp,2,simoptions.precision.(iistr)); % j in 2nd dimension: (a,j,l_d+l_a), so we want j to be after N_a
                     RestrictionValues=logical(EvalFnOnAgentDist_Grid_J(CondlRestnFn,CellOverAgeOfParamValues,PolicyValuesPermute_temp,l_daprime_temp,n_a_temp,0,a_gridvals_temp,[]));
                 else
-                    CellOverAgeOfParamValues=CreateCellOverAgeFromParams(Parameters_temp,CondlRestnFnParamNames,N_j_temp,3); % j in 3rd dimension: (a,z,j,l_d+l_a), so we want j to be after N_a and N_z
+                    CellOverAgeOfParamValues=CreateCellOverAgeFromParams(Parameters_temp,CondlRestnFnParamNames,N_j_temp,3,simoptions.precision.(iistr)); % j in 3rd dimension: (a,z,j,l_d+l_a), so we want j to be after N_a and N_z
                     RestrictionValues=logical(EvalFnOnAgentDist_Grid_J(CondlRestnFn,CellOverAgeOfParamValues,PolicyValuesPermute_temp,l_daprime_temp,n_a_temp,n_z_temp,a_gridvals_temp,z_gridvals_J_temp));
                 end
                 RestrictionValues=reshape(RestrictionValues,[N_a_temp*N_z_temp*N_j_temp,1]);
             else
-                CondlRestnFnParamsCell=CreateCellFromParams(Parameters_temp,CondlRestnFnParamNames);
+                CondlRestnFnParamsCell=CreateCellFromParams(Parameters_temp,CondlRestnFnParamNames,simoptions.precision.(iistr));
 
                 RestrictionValues=logical(EvalFnOnAgentDist_Grid(CondlRestnFn, CondlRestnFnParamsCell,PolicyValuesPermute_temp,l_daprime_temp,n_a_temp,n_z_temp,a_gridvals_temp,z_gridvals_temp));
                 RestrictionValues=reshape(RestrictionValues,[N_a_temp*N_z_temp,1]);
@@ -450,9 +450,9 @@ for ii=1:N_i
             end
             if isfinite(N_j_temp)
                 if l_z_temp==0
-                    CellOverAgeOfParamValues=CreateCellOverAgeFromParams(Parameters_temp,FnsToEvaluateParamNames,N_j_temp,2);
+                    CellOverAgeOfParamValues=CreateCellOverAgeFromParams(Parameters_temp,FnsToEvaluateParamNames,N_j_temp,2,simoptions.precision.(iistr));
                 else
-                    CellOverAgeOfParamValues=CreateCellOverAgeFromParams(Parameters_temp,FnsToEvaluateParamNames,N_j_temp,3);
+                    CellOverAgeOfParamValues=CreateCellOverAgeFromParams(Parameters_temp,FnsToEvaluateParamNames,N_j_temp,3,simoptions.precision.(iistr));
                 end
 
                 %% We have set up the current PType, now do some calculations for it.
@@ -462,7 +462,7 @@ for ii=1:N_i
 
                 % StationaryDist_ii=reshape(StationaryDist.(iistr),[N_a_temp*N_z_temp*N_j_temp,1]); % Note: does not impose *StationaryDist.ptweights(ii)
             else
-                FnToEvaluateParamsCell=CreateCellFromParams(Parameters_temp,FnsToEvaluateParamNames);
+                FnToEvaluateParamsCell=CreateCellFromParams(Parameters_temp,FnsToEvaluateParamNames,simoptions.precision.(iistr));
                 ValuesOnGrid_ii=EvalFnOnAgentDist_Grid(tempfn, FnToEvaluateParamsCell,PolicyValuesPermute_temp,l_daprime_temp,n_a_temp,n_z_temp,a_gridvals_temp,z_gridvals_temp);
                 ValuesOnGrid_ii=reshape(ValuesOnGrid_ii,[N_a_temp*N_z_temp,1]);
             end

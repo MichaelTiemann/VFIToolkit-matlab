@@ -2,7 +2,7 @@ function varargout=ValueFnIter_InfHorz(n_d,n_a,n_z,d_grid,a_grid,z_grid, pi_z, R
 % Solves infinite-horizon value function problems.
 % Typically, varargoutput={V,Policy};
 
-V=nan; % Matlab was complaining that V was not assigned
+V=nan(vfoptions.precision); % Matlab was complaining that V was not assigned
 
 N_d=prod(n_d);
 N_a=prod(n_a);
@@ -185,7 +185,7 @@ if isfield(vfoptions,'V0')
     V0=reshape(gpuArray(vfoptions.V0),[N_a,N_z]);
     vfoptions.actualV0=1;
 else
-    V0=zeros([N_a,N_z], 'gpuArray');
+    V0=zeros([N_a,N_z], vfoptions.precision, 'gpuArray');
     vfoptions.actualV0=0; % DC2 has different way of creating initial guess so this will be ignored
 end
 
@@ -228,7 +228,12 @@ if N_z>0
             error('Problem with pi_z in ValueFnIter_Case1: rows do not sum to one \n')
         end
     elseif vfoptions.piz_strictonrowsaddingtoone==0
-        if max(abs((sum(pi_z,2))-1)) > 10^(-13)
+        if strcmp(vfoptions.precision,'single')
+            pi_z_tolerance=10^(-6);
+        else
+            pi_z_tolerance=10^(-13);
+        end
+        if max(abs((sum(pi_z,2))-1)) > pi_z_tolerance
             error('Problem with pi_z in ValueFnIter_Case1: rows do not sum to one \n')
         end
     end

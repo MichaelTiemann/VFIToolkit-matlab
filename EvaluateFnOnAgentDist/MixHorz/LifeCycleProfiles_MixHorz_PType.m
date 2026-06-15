@@ -54,6 +54,9 @@ if ~exist('simoptions','var')
     simoptions.verbose=0;
     simoptions.verboseparams=0;
     simoptions.alreadygridvals_semiexo=0;
+    % Default to double precision
+    simoptions.precision='double';
+    simoptions.indexT='double';
     defaultagegroupings=1;
     if isstruct(N_j)
         N_j_max=0;
@@ -121,8 +124,18 @@ else
     elseif simoptions.npoints==0
         error('simoptions.npoints must be a positive (non-zero) integer')
     end
+    if ~isfield(simoptions,'precision')
+        simoptions.precision='double';
+    end
+    if ~isfield(simoptions,'indexT')
+        simoptions.indexT='double';
+    end
     if ~isfield(simoptions,'tolerance')
-        simoptions.tolerance=10^(-12); % Numerical tolerance used when calculating min and max values.
+        if strcmp(simoptions.precision,'double')
+            simoptions.tolerance=10^(-12); % Numerical tolerance used when calculating min and max values.
+    	else
+    	    simoptions.tolerance=10^(-6);
+    	end
     end
     if ~isfield(simoptions,'agejshifter')
         simoptions.agejshifter=0; % Use when different PTypes have different initial ages (will be a structure when actually used)
@@ -575,10 +588,10 @@ if simoptions.lowmemory==0
                 end
 
                 if l_z_temp==0
-                    CellOverAgeOfParamValues=CreateCellOverAgeFromParams(Parameters_temp,CondlRestnFnParamNames,N_j_temp,2); % j in 2nd dimension: (a,j,l_d+l_a), so we want j to be after N_a
+                    CellOverAgeOfParamValues=CreateCellOverAgeFromParams(Parameters_temp,CondlRestnFnParamNames,N_j_temp,2,simoptions.precision.(iistr)); % j in 2nd dimension: (a,j,l_d+l_a), so we want j to be after N_a
                     RestrictionValues=logical(EvalFnOnAgentDist_Grid_J(CondlRestnFn,CellOverAgeOfParamValues,PolicyValuesPermute_temp,l_daprime_temp,n_a_temp,0,a_gridvals_temp,[]));
                 else
-                    CellOverAgeOfParamValues=CreateCellOverAgeFromParams(Parameters_temp,CondlRestnFnParamNames,N_j_temp,3); % j in 3rd dimension: (a,z,j,l_d+l_a), so we want j to be after N_a and N_z
+                    CellOverAgeOfParamValues=CreateCellOverAgeFromParams(Parameters_temp,CondlRestnFnParamNames,N_j_temp,3,simoptions.precision.(iistr)); % j in 3rd dimension: (a,z,j,l_d+l_a), so we want j to be after N_a and N_z
                     RestrictionValues=logical(EvalFnOnAgentDist_Grid_J(CondlRestnFn,CellOverAgeOfParamValues,PolicyValuesPermute_temp,l_daprime_temp,n_a_temp,n_z_temp,a_gridvals_temp,z_gridvals_J_temp));
                 end
                 RestrictionValues=reshape(RestrictionValues,[N_a_temp*N_z_temp*N_j_temp,1]);
@@ -616,9 +629,9 @@ if simoptions.lowmemory==0
                     FnsToEvaluateParamNames={};
                 end
                 if l_z_temp==0
-                    CellOverAgeOfParamValues=CreateCellOverAgeFromParams(Parameters_temp,FnsToEvaluateParamNames,N_j_temp,2);
+                    CellOverAgeOfParamValues=CreateCellOverAgeFromParams(Parameters_temp,FnsToEvaluateParamNames,N_j_temp,2,simoptions.precision.(iistr));
                 else
-                    CellOverAgeOfParamValues=CreateCellOverAgeFromParams(Parameters_temp,FnsToEvaluateParamNames,N_j_temp,3);
+                    CellOverAgeOfParamValues=CreateCellOverAgeFromParams(Parameters_temp,FnsToEvaluateParamNames,N_j_temp,3,simoptions.precision.(iistr));
                 end
 
                 %% We have set up the current PType, now do some calculations for it.
@@ -1345,9 +1358,9 @@ elseif simoptions.lowmemory==1
                     FnsToEvaluateParamNames={};
                 end
                 if l_z_temp==0
-                    CellOverAgeOfParamValues.(FnsToEvalNames{ff})=CreateCellOverAgeFromParams(Parameters_temp,FnsToEvaluateParamNames,N_j_temp,2);
+                    CellOverAgeOfParamValues.(FnsToEvalNames{ff})=CreateCellOverAgeFromParams(Parameters_temp,FnsToEvaluateParamNames,N_j_temp,2,simoptions.precision.(iistr));
                 else
-                    CellOverAgeOfParamValues.(FnsToEvalNames{ff})=CreateCellOverAgeFromParams(Parameters_temp,FnsToEvaluateParamNames,N_j_temp,3);
+                    CellOverAgeOfParamValues.(FnsToEvalNames{ff})=CreateCellOverAgeFromParams(Parameters_temp,FnsToEvaluateParamNames,N_j_temp,3,simoptions.precision.(iistr));
                 end
 
                 %% We have set up the current PType, now do some calculations for it.
