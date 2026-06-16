@@ -9,7 +9,7 @@ N_z=prod(n_z);
 N_e=prod(n_e);
 
 % fastOLG, so a-j-z-e
-Policy=zeros(4,N_a,N_j,N_z,N_e,vfoptions.indexT,'gpuArray'); % first dim indexes the optimal choice for d and aprime (d, midpoint, L2, L2 flag)
+Policy=zeros(4,N_a,N_j,N_z,N_e,'gpuArray'); % first dim indexes the optimal choice for d and aprime (d, midpoint, L2, L2 flag)
 Policyalt=zeros(4,N_a,N_j,N_z,N_e,'gpuArray'); % exponential discounter optimal (d, midpoint, L2, L2 flag)
 Vtilde=zeros(N_a*N_j,N_z,N_e,'gpuArray');
 
@@ -399,8 +399,7 @@ end
 % (which ranges -n2short-1:1:1+n2short). It is much easier to use later if
 % we switch Policy(2,:) to 'lower grid point' and then have Policy(3,:)
 % counting 0:nshort+1 up from this.
-adjust=cast2index(Policy(3,:,:,:,:)<1+n2short+1);
-Policy(2,:,:,:,:)=Policy(2,:,:,:,:)-adjust;
+adjust=Policy(3,:,:,:,:)<1+n2short+1;Policy(2,:,:,:,:)=Policy(2,:,:,:,:)-adjust;
 Policy(3,:,:,:,:)=adjust.*Policy(3,:,:,:,:)+(1-adjust).*(Policy(3,:,:,:,:)-n2short-1);
 
 adjustalt=(Policyalt(3,:,:,:,:)<1+n2short+1);

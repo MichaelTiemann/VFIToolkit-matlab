@@ -40,7 +40,7 @@ zBind=shiftdim(gpuArray(0:1:N_z-1),-3); % already includes -1
 a12ind=repmat(gpuArray(0:1:N_a1-1),1,N_a2)+N_a1*repelem(gpuArray(0:1:N_a2-1),1,N_a1);
 
 V=zeros(N_a,N_z,vfoptions.precision,'gpuArray');
-Policy=zeros(4,N_a,N_z,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for aprime rest of dimensions a,z (extra channel for PolicyL2flag pilot)
+Policy=zeros(4,N_a,N_z,'gpuArray'); %first dim indexes the optimal choice for aprime rest of dimensions a,z (extra channel for PolicyL2flag pilot)
 
 %%
 

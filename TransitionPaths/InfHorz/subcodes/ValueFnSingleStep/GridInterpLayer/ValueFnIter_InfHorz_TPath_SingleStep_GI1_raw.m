@@ -29,7 +29,7 @@ n2aprime=length(aprime_grid);
 % aprime_grid=aprime_grid(1:(N_a+(N_a-1)*n2short));
 
 V=zeros(N_a,N_z,vfoptions.precision,'gpuArray');
-Policy=zeros(4,N_a,N_z,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for d and aprime rest of dimensions a,z (extra channel for PolicyL2flag pilot)
+Policy=zeros(4,N_a,N_z,'gpuArray'); %first dim indexes the optimal choice for d and aprime rest of dimensions a,z (extra channel for PolicyL2flag pilot)
 
 %%
 % Create a vector containing all the return function parameters (in order)
@@ -125,7 +125,7 @@ end
 % (which ranges -n2short-1:1:1+n2short). It is much easier to use later if
 % we switch Policy(2,:) to 'lower grid point' and then have Policy(3,:)
 % counting 0:nshort+1 up from this.
-adjust=cast2index(Policy(3,:,:,:)<1+n2short+1); % if second layer is choosing below midpoint
+adjust=Policy(3,:,:,:)<1+n2short+1; % if second layer is choosing below midpoint
 Policy(2,:,:,:)=Policy(2,:,:,:)-adjust; % lower grid point
 Policy(3,:,:,:)=adjust.*Policy(3,:,:,:)+(1-adjust).*(Policy(3,:,:,:)-n2short-1); % from 1 (lower grid point) to 1+n2short+1 (upper grid point)
 

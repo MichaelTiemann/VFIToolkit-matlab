@@ -5,7 +5,7 @@ N_a=prod(n_a);
 N_e=prod(n_e);
 
 V=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(N_a,N_e,N_j,vfoptions.indexT,'gpuArray'); % no d variable
+Policy=zeros(N_a,N_e,N_j,'gpuArray'); % no d variable
 
 if vfoptions.lowmemory>0
     special_n_e=ones(1,length(n_e),vfoptions.precision);

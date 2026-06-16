@@ -56,7 +56,6 @@ if ~exist('simoptions','var')
     simoptions.alreadygridvals_semiexo=0;
     % Default to double precision
     simoptions.precision='double';
-    simoptions.indexT='double';
     defaultagegroupings=1;
     if isstruct(N_j)
         N_j_max=0;
@@ -126,9 +125,6 @@ else
     end
     if ~isfield(simoptions,'precision')
         simoptions.precision='double';
-    end
-    if ~isfield(simoptions,'indexT')
-        simoptions.indexT='double';
     end
     if ~isfield(simoptions,'tolerance')
         if strcmp(simoptions.precision,'double')

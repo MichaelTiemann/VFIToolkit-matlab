@@ -14,7 +14,7 @@ N_a=N_a1*N_a2*N_a3;
 N_z=prod(n_z);
 
 V=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(3,N_a,N_z,N_j,vfoptions.indexT,'gpuArray'); % channels: 1=d (joint), 2=a1prime, 3=a2prime
+Policy=zeros(3,N_a,N_z,N_j,'gpuArray'); % channels: 1=d (joint), 2=a1prime, 3=a2prime
 
 %%
 if vfoptions.lowmemory>0

@@ -9,7 +9,7 @@ function [V, Policy]=ValueFnIter_FHorz_TPath_SingleStep_fastOLG_DC2A_nod_noz_e_r
 N_a=prod(n_a);
 N_e=prod(n_e);
 
-Policy=zeros(N_a,N_j,N_e,vfoptions.indexT,'gpuArray'); % joint (a1prime,a2prime) index at each (a,j,e) cell
+Policy=zeros(N_a,N_j,N_e,'gpuArray'); % joint (a1prime,a2prime) index at each (a,j,e) cell
 
 %%
 a_grid=gpuArray(a_grid);

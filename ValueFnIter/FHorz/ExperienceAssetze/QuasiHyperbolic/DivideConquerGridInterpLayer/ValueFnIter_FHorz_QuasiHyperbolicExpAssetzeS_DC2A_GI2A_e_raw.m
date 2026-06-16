@@ -14,8 +14,8 @@ N_e=prod(n_e);
 
 Vhat=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
 Vunderbar=zeros(N_a,N_z,N_e,N_j,'gpuArray');
-Policy=zeros(4,N_a,N_z,N_e,N_j,vfoptions.indexT,'gpuArray');
-PolicyL2flag=2*ones(1,N_a,N_z,N_e,N_j,vfoptions.indexT,'gpuArray');
+Policy=zeros(4,N_a,N_z,N_e,N_j,'gpuArray');
+PolicyL2flag=2*ones(1,N_a,N_z,N_e,N_j,'gpuArray');
 
 aind=gpuArray(0:1:N_a-1);
 zindB=shiftdim(gpuArray(0:1:N_z-1),-1);
@@ -463,8 +463,7 @@ end
 
 
 %% Post-process
-adjust=cast2index(Policy(4,:,:,:)<1+n2short+1);
-Policy(2,:,:,:)=Policy(2,:,:,:)-adjust;
+adjust=Policy(4,:,:,:)<1+n2short+1;Policy(2,:,:,:)=Policy(2,:,:,:)-adjust;
 Policy(4,:,:,:)=adjust.*Policy(4,:,:,:)+(1-adjust).*(Policy(4,:,:,:)-n2short-1);
 
 Policy=[Policy;PolicyL2flag];

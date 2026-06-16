@@ -7,23 +7,19 @@ N_a=N_a1*N_a2;
 N_z=prod(n_z);
 N_e=prod(n_e);
 
-indexT=vfoptions.indexT;
-cast2index=str2func(indexT);
-index_0=cast2index(0); index_1=cast2index(1);
-
 V=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(3,N_a,N_z,N_e,N_j,indexT,'gpuArray'); %first dim indexes the optimal choice for d and a1prime rest of dimensions a,z,e
-PolicyL2flag=2*ones(1,N_a,N_z,N_e,N_j,indexT,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
+Policy=zeros(3,N_a,N_z,N_e,N_j,'gpuArray'); %first dim indexes the optimal choice for d and a1prime rest of dimensions a,z,e
+PolicyL2flag=2*ones(1,N_a,N_z,N_e,N_j,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
 
 %%
 a2_gridvals=CreateGridvals(n_a2,a2_grid,1);
 
 if vfoptions.lowmemory==0
-    midpoint=zeros(N_d2,1,N_a1,N_a2,N_z,N_e,indexT,'gpuArray');
+    midpoint=zeros(N_d2,1,N_a1,N_a2,N_z,N_e,'gpuArray');
 elseif vfoptions.lowmemory==1
-    midpoint=zeros(N_d2,1,N_a1,N_a2,N_z,indexT,'gpuArray');
+    midpoint=zeros(N_d2,1,N_a1,N_a2,N_z,'gpuArray');
 elseif vfoptions.lowmemory==2
-    midpoint=zeros(N_d2,1,N_a1,N_a2,indexT,'gpuArray');
+    midpoint=zeros(N_d2,1,N_a1,N_a2,'gpuArray');
 end
 
 if vfoptions.lowmemory>0
@@ -44,14 +40,14 @@ n2long=vfoptions.ngridinterp*2+3; % total number of aprime points we end up look
 a1prime_grid=interp1(1:1:n_a1(1),a1_gridvals,linspace(1,n_a1(1),n_a1(1)+(n_a1(1)-1)*n2short));
 N_a1prime=length(a1prime_grid);
 
-aind=gpuArray(index_0:1:N_a-1); % already includes -1
-zind=shiftdim(gpuArray(index_0:1:N_z-1),-3); % already includes -1
-eind=shiftdim(gpuArray(index_0:1:N_e-1),-4); % already includes -1
-zindB=shiftdim(gpuArray(index_0:1:N_z-1),-1); % already includes -1
-eindB=shiftdim(gpuArray(index_0:1:N_e-1),-2); % already includes -1
+aind=gpuArray(0:1:N_a-1); % already includes -1
+zind=shiftdim(gpuArray(0:1:N_z-1),-3); % already includes -1
+eind=shiftdim(gpuArray(0:1:N_e-1),-4); % already includes -1
+zindB=shiftdim(gpuArray(0:1:N_z-1),-1); % already includes -1
+eindB=shiftdim(gpuArray(0:1:N_e-1),-2); % already includes -1
 zeindB=zindB+N_z*eindB; % already includes -1
 
-a2ind=shiftdim(gpuArray(index_0:1:N_a2-1),-2); % already includes -1
+a2ind=shiftdim(gpuArray(0:1:N_a2-1),-2); % already includes -1
 
 
 %% j=N_j
@@ -572,7 +568,7 @@ for reverse_j=1:N_j-1
                 a1primeindexes=cast2index(loweredge+(0:1:maxgap(ii)));
                 % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_a2-by-n_z-by-n_e
                 ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,n_d2,maxgap(ii)+1,level1iidiff(ii),n_a2,n_z,n_e, d2_gridvals, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, z_gridvals_J(:,:,jj), e_gridvals_J(:,:,jj), ReturnFnParamsVec,3,0); % Level 3 as DC1+GI; Level=3, Refine=0
-                d2aprimez=(index_1:1:N_d2)'+N_d2*(a1primeindexes-1)+N_d2*N_a1*a2ind+N_d2*N_a*zind+N_d2*N_a*N_z*eind; % [N_d2,maxgap+1,1,N_a2,N_z,N_e]; linear index into DiscountedEV [N_d2,N_a1,1,N_a2,N_z,N_e]
+                d2aprimez=(1:1:N_d2)'+N_d2*(a1primeindexes-1)+N_d2*N_a1*a2ind+N_d2*N_a*zind+N_d2*N_a*N_z*eind; % [N_d2,maxgap+1,1,N_a2,N_z,N_e]; linear index into DiscountedEV [N_d2,N_a1,1,N_a2,N_z,N_e]
                 entireRHS_ii=ReturnMatrix_ii+DiscountedEV(d2aprimez);
                 [~,maxindex]=max(entireRHS_ii,[],2);
                 midpoint(:,1,curraindex,:,:,:)=maxindex+(loweredge-1);
@@ -751,7 +747,7 @@ end
 % (which ranges -n2short-1:1:1+n2short). It is much easier to use later if
 % we switch Policy(2,:) to 'lower grid point' and then have Policy(3,:)
 % counting 0:nshort+1 up from this.
-adjust=cast2index(Policy(3,:,:,:,:)<1+n2short+1); % if second layer is choosing below midpoint
+adjust=Policy(3,:,:,:,:)<1+n2short+1; % if second layer is choosing below midpoint
 Policy(2,:,:,:,:)=Policy(2,:,:,:,:)-adjust; % lower grid point
 Policy(3,:,:,:,:)=adjust.*Policy(3,:,:,:,:)+(1-adjust).*(Policy(3,:,:,:,:)-n2short-1); % from 1 (lower grid point) to 1+n2short+1 (upper grid point)
 

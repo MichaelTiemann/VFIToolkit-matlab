@@ -9,7 +9,7 @@ N_a2=prod(n_a2);
 N_a=N_a1*N_a2;
 
 V=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(N_a,N_j,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for d and a1prime rest of dimensions a,z
+Policy=zeros(N_a,N_j,'gpuArray'); %first dim indexes the optimal choice for d and a1prime rest of dimensions a,z
 
 %%
 % n_a1prime=n_a1;

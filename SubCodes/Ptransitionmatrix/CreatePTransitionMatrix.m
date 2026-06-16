@@ -14,9 +14,9 @@ else
         Policy=reshape(Policy, [size(Policy,1),N_a]);
 
         if simoptions.gridinterplayer==0
-            Policy_aprime=zeros(N_a,1,simoptions.indexT,'gpuArray');
+            Policy_aprime=zeros(N_a,1,'gpuArray');
         elseif simoptions.gridinterplayer==1
-            Policy_aprime=zeros(N_a,2,simoptions.indexT,'gpuArray'); % Policy_aprime has an additional final dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
+            Policy_aprime=zeros(N_a,2,'gpuArray'); % Policy_aprime has an additional final dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
         end
 
         if l_a==1
@@ -65,9 +65,9 @@ else
         Policy=reshape(Policy, [size(Policy,1),N_a,N_e]);
 
         if simoptions.gridinterplayer==0
-            Policy_aprime=zeros(N_a,N_e,1,simoptions.indexT,'gpuArray');
+            Policy_aprime=zeros(N_a,N_e,1,'gpuArray');
         elseif simoptions.gridinterplayer==1
-            Policy_aprime=zeros(N_a,N_e,2,simoptions.indexT,'gpuArray'); % Policy_aprime has an additional final dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
+            Policy_aprime=zeros(N_a,N_e,2,'gpuArray'); % Policy_aprime has an additional final dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
         end
 
         if l_a==1
@@ -121,9 +121,9 @@ else
         Policy=reshape(Policy, [size(Policy,1),N_a,N_z]);
 
         if simoptions.gridinterplayer==0
-            Policy_aprime=zeros(N_a,N_z,1,simoptions.indexT,'gpuArray');
+            Policy_aprime=zeros(N_a,N_z,1,'gpuArray');
         elseif simoptions.gridinterplayer==1
-            Policy_aprime=zeros(N_a,N_z,2,simoptions.indexT,'gpuArray'); % Policy_aprime has an additional final dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
+            Policy_aprime=zeros(N_a,N_z,2,'gpuArray'); % Policy_aprime has an additional final dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
         end
 
         if l_a==1
@@ -174,9 +174,9 @@ else
         Policy=reshape(Policy, [size(Policy,1),N_a,N_z*N_e]);
 
         if simoptions.gridinterplayer==0
-            Policy_aprime=zeros(N_a,N_z*N_e,1,simoptions.indexT,'gpuArray');
+            Policy_aprime=zeros(N_a,N_z*N_e,1,'gpuArray');
         elseif simoptions.gridinterplayer==1
-            Policy_aprime=zeros(N_a,N_z*N_e,2,simoptions.indexT,'gpuArray'); % Policy_aprime has an additional final dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
+            Policy_aprime=zeros(N_a,N_z*N_e,2,'gpuArray'); % Policy_aprime has an additional final dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
         end
 
         if l_a==1
@@ -232,9 +232,9 @@ else
         Policy=reshape(Policy, [size(Policy,1),N_a,N_semiz]);
 
         if simoptions.gridinterplayer==0
-            Policy_aprime=zeros(N_a,N_semiz,1,simoptions.indexT,'gpuArray');
+            Policy_aprime=zeros(N_a,N_semiz,1,'gpuArray');
         elseif simoptions.gridinterplayer==1
-            Policy_aprime=zeros(N_a,N_semiz,2,simoptions.indexT,'gpuArray'); % Policy_aprime has an additional final dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
+            Policy_aprime=zeros(N_a,N_semiz,2,'gpuArray'); % Policy_aprime has an additional final dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
         end
 
         Policy_dsemiexo=shiftdim(Policy(l_d-simoptions.l_dsemiz+1:l_d,:,:),1);
@@ -322,9 +322,9 @@ else
         Policy=reshape(Policy, [size(Policy,1),N_a,N_semiz*N_e]);
 
         if simoptions.gridinterplayer==0
-            Policy_aprime=zeros(N_a,N_semiz*N_e,1,simoptions.indexT,'gpuArray');
+            Policy_aprime=zeros(N_a,N_semiz*N_e,1,'gpuArray');
         elseif simoptions.gridinterplayer==1
-            Policy_aprime=zeros(N_a,N_semiz*N_e,2,simoptions.indexT,'gpuArray'); % Policy_aprime has an additional final dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
+            Policy_aprime=zeros(N_a,N_semiz*N_e,2,'gpuArray'); % Policy_aprime has an additional final dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
         end
 
         Policy_dsemiexo=shiftdim(Policy(l_d-simoptions.l_dsemiz+1:l_d,:,:),1);
@@ -416,9 +416,9 @@ else
         Policy=reshape(Policy, [size(Policy,1),N_a,N_semiz*N_z]);
 
         if simoptions.gridinterplayer==0
-            Policy_aprime=zeros(N_a,N_semiz*N_z,1,simoptions.indexT,'gpuArray');
+            Policy_aprime=zeros(N_a,N_semiz*N_z,1,'gpuArray');
         elseif simoptions.gridinterplayer==1
-            Policy_aprime=zeros(N_a,N_semiz*N_z,2,simoptions.indexT,'gpuArray'); % Policy_aprime has an additional final dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
+            Policy_aprime=zeros(N_a,N_semiz*N_z,2,'gpuArray'); % Policy_aprime has an additional final dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
         end
 
         Policy_dsemiexo=shiftdim(Policy(l_d-simoptions.l_dsemiz+1:l_d,:,:),1);
@@ -511,9 +511,9 @@ else
         Policy=reshape(Policy, [size(Policy,1),N_a,N_semiz*N_z*N_e]);
 
         if simoptions.gridinterplayer==0
-            Policy_aprime=zeros(N_a,N_semiz*N_z*N_e,1,simoptions.indexT,'gpuArray');
+            Policy_aprime=zeros(N_a,N_semiz*N_z*N_e,1,'gpuArray');
         elseif simoptions.gridinterplayer==1
-            Policy_aprime=zeros(N_a,N_semiz*N_z*N_e,2,simoptions.indexT,'gpuArray'); % Policy_aprime has an additional final dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
+            Policy_aprime=zeros(N_a,N_semiz*N_z*N_e,2,'gpuArray'); % Policy_aprime has an additional final dimension of length 2 which is the two points (and contains only the aprime indexes, no d indexes as would usually be the case).
         end
 
         Policy_dsemiexo=shiftdim(Policy(l_d-simoptions.l_dsemiz+1:l_d,:,:),1);

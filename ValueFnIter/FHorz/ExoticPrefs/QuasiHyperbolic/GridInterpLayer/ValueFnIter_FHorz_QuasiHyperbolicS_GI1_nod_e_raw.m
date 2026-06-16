@@ -10,8 +10,8 @@ N_z=prod(n_z);
 N_e=prod(n_e);
 
 Vhat=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(2,N_a,N_z,N_e,N_j,vfoptions.indexT,'gpuArray');
-PolicyL2flag=2*ones(1,N_a,N_z,N_e,N_j,vfoptions.indexT,'gpuArray'); % 1=all weight to lower coarse pt, 2=usual linear weights, 3=all weight to upper coarse pt
+Policy=zeros(2,N_a,N_z,N_e,N_j,'gpuArray');
+PolicyL2flag=2*ones(1,N_a,N_z,N_e,N_j,'gpuArray'); % 1=all weight to lower coarse pt, 2=usual linear weights, 3=all weight to upper coarse pt
 
 if vfoptions.lowmemory>0
     special_n_e=ones(1,length(n_e),vfoptions.precision);
@@ -306,8 +306,7 @@ end
 % (which ranges -n2short-1:1:1+n2short). It is much easier to use later if
 % we switch Policy(1,:) to 'lower grid point' and then have Policy(2,:)
 % counting 0:nshort+1 up from this.
-adjust=cast2index(Policy(2,:,:,:,:)<1+n2short+1);
-Policy(1,:,:,:,:)=Policy(1,:,:,:,:)-adjust;
+adjust=Policy(2,:,:,:,:)<1+n2short+1;Policy(1,:,:,:,:)=Policy(1,:,:,:,:)-adjust;
 Policy(2,:,:,:,:)=adjust.*Policy(2,:,:,:,:)+(1-adjust).*(Policy(2,:,:,:,:)-n2short-1);
 
 Policy=[Policy;PolicyL2flag];

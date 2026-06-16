@@ -21,7 +21,6 @@ if exist('simoptions','var')==0
     simoptions.alreadygridvals=0; % =1 when calling as a subcommand
     simoptions.alreadygridvals_semiexo=0; % =1 when calling as a subcommand
     simoptions.precision='double';
-    simoptions.indexT='double';
 else
     %Check simoptions for missing fields, if there are some fill them with the defaults
     if ~isfield(simoptions,'gridinterplayer')
@@ -95,9 +94,6 @@ else
     end
     if ~isfield(simoptions,'precision')
         simoptions.precision='double';
-    end
-    if ~isfield(simoptions,'indexT')
-        simoptions.indexT='double';
     end
 end
 

@@ -8,7 +8,7 @@ N_z=prod(n_z);
 N_e=prod(n_e);
 
 % fastOLG, so a-j-z
-Policy=zeros(N_a,N_j,N_z,N_e,vfoptions.indexT,'gpuArray'); % first dim indexes the optimal choice for aprime
+Policy=zeros(N_a,N_j,N_z,N_e,'gpuArray'); % first dim indexes the optimal choice for aprime
 Vhat=zeros(N_a,N_j,N_z,N_e,'gpuArray'); % beta0*beta-step value (snapshot of V before Vunderbar transform)
 
 z_gridvals_J=shiftdim(z_gridvals_J,-2); % needed shape for ReturnFnMatrix with fastOLG and DC1

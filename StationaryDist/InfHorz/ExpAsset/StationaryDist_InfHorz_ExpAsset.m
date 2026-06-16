@@ -73,7 +73,7 @@ end
 
 % Policy is currently about d and a1prime. Convert it to being about aprime
 % as that is what we need for simulation, and we can then just send it to standard Case1 commands.
-Policy_a2prime=zeros(N_a,N_ze,2,simoptions.indexT,'gpuArray'); % the lower grid point
+Policy_a2prime=zeros(N_a,N_ze,2,'gpuArray'); % the lower grid point
 PolicyProbs=zeros(N_a,N_z,2,simoptions.precision,'gpuArray'); % The fourth dimension is lower/upper grid point
 whichisdforexpasset=length(n_d);  % is just saying which is the decision variable that influences the experience asset (it is the 'last' decision variable)
 aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,simoptions.precision);

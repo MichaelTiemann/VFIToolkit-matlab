@@ -50,7 +50,6 @@ if ~exist('vfoptions','var')
     vfoptions.alreadygridvals=0;
     vfoptions.alreadygridvals_semiexo=0;
     vfoptions.precision='double';
-    vfoptions.indexT='double';
 else
     % Check vfoptions for missing fields, if there are some fill them with the defaults
     if ~isfield(vfoptions,'verbose')
@@ -145,9 +144,6 @@ else
     end
     if ~isfield(vfoptions,'precision')
         vfoptions.precision='double';
-    end
-    if ~isfield(vfoptions,'indexT')
-        vfoptions.indexT='double';
     end
 end
 

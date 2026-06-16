@@ -2,7 +2,7 @@ function [V,Policy,Policyalt,Vtilde]=ValueFnIter_FHorz_TPath_SingleStep_QHN_nod_
 
 N_a=prod(n_a);
 
-Policy=zeros(N_a,N_j,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for aprime rest of dimensions a,z
+Policy=zeros(N_a,N_j,'gpuArray'); %first dim indexes the optimal choice for aprime rest of dimensions a,z
 Policyalt=zeros(N_a,N_j,'gpuArray'); % exponential discounter optimal choice (Valt is computed at this)
 Vtilde=zeros(N_a,N_j,'gpuArray'); % agent's-perspective value at QH-optimal policy under beta0beta
 

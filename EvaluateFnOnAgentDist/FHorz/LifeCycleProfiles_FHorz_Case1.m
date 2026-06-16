@@ -47,7 +47,6 @@ if ~exist('simoptions','var')
     simoptions.alreadygridvals_semiexo=0; % =1 when calling as a subcommand
     % Default to double precision
     simoptions.precision='double';
-    simoptions.indexT='double';
 else
     %Check options for missing fields, if there are some fill them with the defaults
     if isgpuarray(StationaryDist) % simoptions.parallel is overwritten based on StationaryDist
@@ -69,9 +68,6 @@ else
     end
     if ~isfield(simoptions,'precision')
         simoptions.precision='double';
-    end
-    if ~isfield(simoptions,'indexT')
-        simoptions.indexT='double';
     end
     if ~isfield(simoptions,'tolerance')
         if strcmp(simoptions.precision,'double')

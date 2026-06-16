@@ -32,7 +32,7 @@ N_d23=prod(n_d23);
 d23_grid=[d2_grid; d3_grid];
 
 V=zeros(N_a,N_semiz*N_z,N_j,vfoptions.precision,'gpuArray');
-Policy4=zeros(4,N_a,N_semiz*N_z,N_j,vfoptions.indexT,'gpuArray'); % d2, d3, d4 and a1prime
+Policy4=zeros(4,N_a,N_semiz*N_z,N_j,'gpuArray'); % d2, d3, d4 and a1prime
 
 %%
 % d3_grid=gpuArray(d3_grid);

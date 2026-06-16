@@ -11,8 +11,8 @@ N_a=prod(n_a);
 N_z=prod(n_z);
 
 % fastOLG, so a-j-z
-Policy=zeros(4,N_a,N_j,N_z,vfoptions.indexT,'gpuArray'); % first dim is (d, a1prime midpoint, a2prime, a1prime L2)
-PolicyL2flag=2*ones(1,N_a,N_j,N_z,vfoptions.indexT,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
+Policy=zeros(4,N_a,N_j,N_z,'gpuArray'); % first dim is (d, a1prime midpoint, a2prime, a1prime L2)
+PolicyL2flag=2*ones(1,N_a,N_j,N_z,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
 
 %% Split endogenous state into a1 (DC) and a2 (iterate)
 n_a1=n_a(1);
@@ -224,7 +224,7 @@ end
 % (which ranges -n2short-1:1:1+n2short). It is much easier to use later if
 % we switch Policy(2,:) to 'lower grid point' and then have Policy(4,:)
 % counting 0:nshort+1 up from this.
-adjust=cast2index(Policy(4,:,:,:)<1+n2short+1); % if second layer is choosing below midpoint
+adjust=Policy(4,:,:,:)<1+n2short+1; % if second layer is choosing below midpoint
 Policy(2,:,:,:)=Policy(2,:,:,:)-adjust; % lower grid point
 Policy(4,:,:,:)=adjust.*Policy(4,:,:,:)+(1-adjust).*(Policy(4,:,:,:)-n2short-1); % from 1 (lower grid point) to 1+n2short+1 (upper grid point)
 

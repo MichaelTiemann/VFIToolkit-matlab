@@ -5,11 +5,9 @@ function StationaryDist=StationaryDist_FHorz_Iteration_nProbs_raw(jequaloneDistK
 
 precision=underlyingType(jequaloneDistKron);
 cast2precision=str2func(precision);
-indexT=underlyingType(Policy_aprime);
-cast2index=str2func(indexT);
 
 % Policy_aprime and PolicyProbs are currently [N_a,N_z,N_probs,N_j]
-Policy_aprimez=Policy_aprime+cast2index(N_a*gpuArray(0:1:N_z-1));  % Note: add z' index following the z dimension [Tan improvement, z stays where it is]
+Policy_aprimez=Policy_aprime+N_a*gpuArray(0:1:N_z-1);  % Note: add z' index following the z dimension [Tan improvement, z stays where it is]
 Policy_aprimez=gather(reshape(Policy_aprimez,[N_a*N_z,N_probs,N_j])); % sparse() requires inputs to be 2-D
 PolicyProbs=gather(reshape(PolicyProbs,[N_a*N_z,N_probs,N_j])); % sparse() requires inputs to be 2-D
 
@@ -20,8 +18,7 @@ StationaryDist(:,1)=jequaloneDistKron;
 StationaryDist_jj=sparse(gather(jequaloneDistKron)); % use sparse matrix
 
 % Precompute
-index_1=ones(1,1,indexT);
-II2=repmat((index_1:1:N_a*N_z)',1,N_probs); %  Index for this period (a,z), note the N_probs-copies
+II2=repmat((1:1:N_a*N_z)',1,N_probs); %  Index for this period (a,z), note the N_probs-copies
 
 for jj=1:(N_j-1)
 

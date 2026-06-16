@@ -1,8 +1,5 @@
 function [V, Policy]=ValueFnIter_InfHorz_ExpAsset_nod1_raw(V0,n_d2,n_a1,n_a2,n_z , d2_grid, a1_gridvals, a2_grid, z_gridvals, pi_z, ReturnFn, aprimeFn, Parameters, DiscountFactorParamsVec, ReturnFnParamsVec, aprimeFnParamNames, vfoptions)
 
-cast2index=str2func(vfoptions.indexT);
-index_1=cast2index(1);
-
 N_d2=prod(n_d2);
 N_a1=prod(n_a1);
 N_a2=prod(n_a2);
@@ -18,7 +15,7 @@ n_a1prime=n_a1;
 ReturnMatrix=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, 0, n_d2, n_a1prime, n_a1,n_a2, n_z, d2_gridvals, a1_gridvals, a1_gridvals, a2_gridvals, z_gridvals, ReturnFnParamsVec,0,0); % Level=0, Refine=0
 
 V=reshape(V0,[N_a,N_z]);
-Policy=zeros(N_a,N_z,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for d and a1prime rest of dimensions a,z
+Policy=zeros(N_a,N_z,'gpuArray'); %first dim indexes the optimal choice for d and a1prime rest of dimensions a,z
 
 % for Howards, preallocate
 Ftemp=zeros(N_a,N_z,vfoptions.precision,'gpuArray');
@@ -34,11 +31,10 @@ distvstolstr=['ValueFnIter: after %i iterations the dist is %4.',num2str(-round(
 %% Precompute some aspects of experienceasset
 aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames, vfoptions.precision);
 [a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix(aprimeFn, n_d2, n_a2, d2_grid, a2_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
-a2primeIndex=cast2index(a2primeIndex);
 % Note: aprimeIndex is [N_d2,N_a2], whereas aprimeProbs is [N_d2,N_a2]
 
-aprimeIndex=repelem((index_1:1:N_a1)',N_d2,N_a2)+N_a1*repmat((a2primeIndex-1),N_a1,1); % [N_d2*N_a1,N_a2]
-aprimeplus1Index=repelem((index_1:1:N_a1)',N_d2,N_a2)+N_a1*repmat(a2primeIndex,N_a1,1); % [N_d2*N_a1,N_a2]
+aprimeIndex=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat((a2primeIndex-1),N_a1,1); % [N_d2*N_a1,N_a2]
+aprimeplus1Index=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat(a2primeIndex,N_a1,1); % [N_d2*N_a1,N_a2]
 aprimeProbs=repmat(a2primeProbs,N_a1,1,N_z);  % [N_d2*N_a1,N_a2,N_z]
 
 %%

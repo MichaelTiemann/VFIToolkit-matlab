@@ -31,7 +31,6 @@ if exist('vfoptions','var')==0
     vfoptions.alreadygridvals=0; % =1 when calling as a subcommand
     vfoptions.alreadygridvals_semiexo=0; % =1 when calling as a subcommand
     vfoptions.precision='double';
-    vfoptions.indexT='double';
 else
     % Check vfoptions for missing fields, if there are some fill them with the defaults
     if ~isfield(vfoptions,'verbose')
@@ -107,9 +106,6 @@ else
     if ~isfield(vfoptions,'precision')
         vfoptions.precision='double';
     end
-    if ~isfield(vfoptions,'indexT')
-        vfoptions.indexT='double';
-    end
 end
 
 if isempty(n_d)
@@ -123,12 +119,8 @@ N_a=prod(n_a);
 N_z=prod(n_z);
 N_e=prod(vfoptions.n_e);
 
-indexT=vfoptions.indexT;
-cast2index=str2func(indexT);
-index_0=cast2index(0); index_1=cast2index(1);
-
 V=nan(vfoptions.precision);
-Policy=index_0; % Since all vectors in MATLAB start with index of 1, index_0 is effectively NaN
+Policy=0; % Since all vectors in MATLAB start with index of 1, 0 is effectively NaN
 
 if ~all(size(d_grid)==[sum(n_d), 1])
     if ~isempty(n_d) % Make sure d is being used before complaining about size of d_grid

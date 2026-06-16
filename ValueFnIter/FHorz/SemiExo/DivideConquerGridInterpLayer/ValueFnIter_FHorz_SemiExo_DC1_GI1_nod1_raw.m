@@ -10,8 +10,8 @@ N_bothz=prod(n_bothz);
 
 V=zeros(N_a,N_semiz*N_z,N_j,vfoptions.precision,'gpuArray');
 % For semiz it turns out to be easier to go straight to constructing policy that stores d,d2,aprime seperately
-Policy=zeros(3,N_a,N_semiz*N_z,N_j,vfoptions.indexT,'gpuArray'); % first dim indexes the optimal choice for d2,aprime and aprime2 (in GI layer)
-PolicyL2flag=2*ones(1,N_a,N_semiz*N_z,N_j,vfoptions.indexT,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
+Policy=zeros(3,N_a,N_semiz*N_z,N_j,'gpuArray'); % first dim indexes the optimal choice for d2,aprime and aprime2 (in GI layer)
+PolicyL2flag=2*ones(1,N_a,N_semiz*N_z,N_j,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
 
 %%
 special_n_d2=ones(1,length(n_d2));
@@ -284,7 +284,7 @@ end
 % (which ranges -n2short-1:1:1+n2short). It is much easier to use later if
 % we switch Policy(2,:) to 'lower grid point' and then have Policy(3,:)
 % counting 0:nshort+1 up from this.
-adjust=cast2index(Policy(3,:,:,:)<1+n2short+1); % if second layer is choosing below midpoint
+adjust=Policy(3,:,:,:)<1+n2short+1; % if second layer is choosing below midpoint
 Policy(2,:,:,:)=Policy(2,:,:,:)-adjust; % lower grid point
 Policy(3,:,:,:)=adjust.*Policy(3,:,:,:)+(1-adjust).*(Policy(3,:,:,:)-n2short-1); % from 1 (lower grid point) to 1+n2short+1 (upper grid point)
 

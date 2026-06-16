@@ -11,8 +11,8 @@ N_semiz=prod(n_semiz);
 
 Vhat=zeros(N_a,N_semiz,N_j,'gpuArray');
 Vunderbar=zeros(N_a,N_semiz,N_j,'gpuArray');
-Policy=zeros(4,N_a,N_semiz,N_j,vfoption.indexT,'gpuArray');
-PolicyL2flag=2*ones(1,N_a,N_semiz,N_j,vfoptions.indexT,'gpuArray');
+Policy=zeros(4,N_a,N_semiz,N_j,vfoption.'gpuArray');
+PolicyL2flag=2*ones(1,N_a,N_semiz,N_j,'gpuArray');
 
 %%
 special_n_d=[n_d1,ones(1,length(n_d2))];
@@ -322,8 +322,7 @@ for reverse_j=1:N_j-1
 end
 
 %% Post-process Policy
-adjust=cast2index(Policy(4,:,:,:)<1+n2short+1);
-Policy(3,:,:,:)=Policy(3,:,:,:)-adjust;
+adjust=Policy(4,:,:,:)<1+n2short+1;Policy(3,:,:,:)=Policy(3,:,:,:)-adjust;
 Policy(4,:,:,:)=adjust.*Policy(4,:,:,:)+(1-adjust).*(Policy(4,:,:,:)-n2short-1);
 
 Policy=[Policy;PolicyL2flag];

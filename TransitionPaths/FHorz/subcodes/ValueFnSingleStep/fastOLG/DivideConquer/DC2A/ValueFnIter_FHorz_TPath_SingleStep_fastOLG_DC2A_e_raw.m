@@ -12,7 +12,7 @@ N_z=prod(n_z);
 N_e=prod(n_e);
 
 % fastOLG, so a-j-z-e
-Policy=zeros(N_a,N_j,N_z,N_e,vfoptions.indexT,'gpuArray'); % first dim indexes the optimal choice for d and (a1prime,a2prime)
+Policy=zeros(N_a,N_j,N_z,N_e,'gpuArray'); % first dim indexes the optimal choice for d and (a1prime,a2prime)
 
 %%
 a_grid=gpuArray(a_grid);

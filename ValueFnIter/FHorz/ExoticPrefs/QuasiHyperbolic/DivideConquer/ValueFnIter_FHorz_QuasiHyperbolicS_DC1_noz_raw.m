@@ -9,7 +9,7 @@ N_d=prod(n_d);
 N_a=prod(n_a);
 
 Vhat=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(N_a,N_j,vfoptions.indexT,'gpuArray');
+Policy=zeros(N_a,N_j,'gpuArray');
 
 level1ii=round(linspace(1,n_a,vfoptions.level1n));
 

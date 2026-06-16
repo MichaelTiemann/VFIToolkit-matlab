@@ -23,9 +23,9 @@ V_final=reshape(V_final,[N_a,N_z,N_j]);
 AgentDist_initial=reshape(StationaryDist_init,[N_a*N_z,N_j]);
 V=zeros(size(V_final),vfoptions.precision,'gpuArray'); %preallocate space
 GeneralEqmCondnPath=nan(size(PricePathOld),'gpuArray'); GeneralEqmCondnPath(T,:)=0;
-Policy=zeros(2,N_a,N_z,N_j,vfoptions.indexT,'gpuArray');
+Policy=zeros(2,N_a,N_z,N_j,'gpuArray');
 
-PolicyIndexesPath=zeros(2,N_a,N_z,N_j,T-1,vfoptions.indexT,'gpuArray'); %Periods 1 to T-1
+PolicyIndexesPath=zeros(2,N_a,N_z,N_j,T-1,'gpuArray'); %Periods 1 to T-1
 
 %First, go from T-1 to 1 calculating the Value function and Optimal
 %policy function at each step. Since we won't need to keep the value

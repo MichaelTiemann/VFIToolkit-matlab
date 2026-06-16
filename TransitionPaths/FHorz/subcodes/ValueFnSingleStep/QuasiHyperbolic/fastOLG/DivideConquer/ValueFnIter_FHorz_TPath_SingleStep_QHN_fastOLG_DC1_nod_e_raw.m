@@ -8,7 +8,7 @@ N_z=prod(n_z);
 N_e=prod(n_e);
 
 % fastOLG, so a-j-z
-Policy=zeros(N_a,N_j,N_z,N_e,vfoptions.indexT,'gpuArray'); % first dim indexes the optimal choice for aprime
+Policy=zeros(N_a,N_j,N_z,N_e,'gpuArray'); % first dim indexes the optimal choice for aprime
 Policyalt=zeros(N_a,N_j,N_z,N_e,'gpuArray'); % exponential discounter optimal choice (Valt is computed at this)
 Vtilde=zeros(N_a,N_j,N_z,N_e,'gpuArray'); % beta0*beta-step value (max at final level2 of Policy sweep)
 

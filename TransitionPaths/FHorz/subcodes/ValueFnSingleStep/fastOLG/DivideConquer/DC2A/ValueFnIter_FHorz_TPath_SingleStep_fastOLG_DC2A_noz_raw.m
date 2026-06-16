@@ -6,7 +6,7 @@ function [V,Policy]=ValueFnIter_FHorz_TPath_SingleStep_fastOLG_DC2A_noz_raw(V,n_
 N_d=prod(n_d);
 N_a=prod(n_a);
 
-Policy=zeros(N_a,N_j,vfoptions.indexT,'gpuArray'); % first dim indexes the optimal choice for d and (a1prime,a2prime)
+Policy=zeros(N_a,N_j,'gpuArray'); % first dim indexes the optimal choice for d and (a1prime,a2prime)
 
 %%
 a_grid=gpuArray(a_grid);

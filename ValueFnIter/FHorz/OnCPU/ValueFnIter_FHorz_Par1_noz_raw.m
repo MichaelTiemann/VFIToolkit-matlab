@@ -3,12 +3,8 @@ function [V,Policy2]=ValueFnIter_FHorz_Par1_noz_raw(n_d,n_a,N_j, d_grid, a_grid,
 N_d=prod(n_d);
 N_a=prod(n_a);
 
-indexT=vfoptions.indexT;
-cast2index=str2func(indexT);
-index_0=cast2index(0); index_1=cast2index(1);
-
 V=zeros(N_a,N_j,vfoptions.precision);
-Policy=zeros(N_a,N_j,indexT); %first dim indexes the optimal choice for d and aprime rest of dimensions a,z
+Policy=zeros(N_a,N_j); %first dim indexes the optimal choice for d and aprime rest of dimensions a,z
 
 %% j=N_j
 

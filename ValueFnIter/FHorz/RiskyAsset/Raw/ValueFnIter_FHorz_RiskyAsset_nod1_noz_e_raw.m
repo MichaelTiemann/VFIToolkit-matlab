@@ -22,7 +22,7 @@ N_d23=prod(n_d23);
 d23_grid=[d2_grid; d3_grid];
 
 V=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(3,N_a,N_e,N_j,vfoptions.indexT,'gpuArray'); % d1,d2,d3,a1prime
+Policy=zeros(3,N_a,N_e,N_j,'gpuArray'); % d1,d2,d3,a1prime
 
 %%
 pi_u=shiftdim(pi_u,-1); % 2nd dimension

@@ -13,8 +13,8 @@ N_bothz=N_semiz*N_z;
 
 V=zeros(N_a,N_bothz,N_j,vfoptions.precision,'gpuArray');
 % Policy: 4 channels [d2, a1prime midpoint, a2prime, a1prime L2]
-Policy=zeros(4,N_a,N_bothz,N_j,vfoptions.indexT,'gpuArray');
-PolicyL2flag=2*ones(1,N_a,N_bothz,N_j,vfoptions.indexT,'gpuArray'); % 1=all weight to lower coarse a1, 2=usual linear weights, 3=all weight to upper coarse a1
+Policy=zeros(4,N_a,N_bothz,N_j,'gpuArray');
+PolicyL2flag=2*ones(1,N_a,N_bothz,N_j,'gpuArray'); % 1=all weight to lower coarse a1, 2=usual linear weights, 3=all weight to upper coarse a1
 
 %% Split a into a1 and a2 (a1 is interpolated, a2 is on the standard grid)
 n_a1=n_a(1);
@@ -205,8 +205,7 @@ end
 
 
 %% Convert Policy(2) from midpoint to lower grid point, Policy(4) from -n2short-1:1+n2short to 1:n2short+2
-adjust=cast2index(Policy(4,:,:,:)<1+n2short+1);
-Policy(2,:,:,:)=Policy(2,:,:,:)-adjust;
+adjust=Policy(4,:,:,:)<1+n2short+1;Policy(2,:,:,:)=Policy(2,:,:,:)-adjust;
 Policy(4,:,:,:)=adjust.*Policy(4,:,:,:)+(1-adjust).*(Policy(4,:,:,:)-n2short-1);
 
 Policy=[Policy; PolicyL2flag];

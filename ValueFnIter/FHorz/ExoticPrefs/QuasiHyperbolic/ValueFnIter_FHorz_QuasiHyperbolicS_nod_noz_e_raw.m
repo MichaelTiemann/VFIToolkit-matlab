@@ -13,7 +13,7 @@ N_a=prod(n_a);
 N_e=prod(n_e);
 
 Vhat=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(N_a,N_e,N_j,vfoptions.indexT,'gpuArray'); % indexes the optimal choice for aprime, rest of dimensions a,z
+Policy=zeros(N_a,N_e,N_j,'gpuArray'); % indexes the optimal choice for aprime, rest of dimensions a,z
 
 %%
 if vfoptions.lowmemory>0

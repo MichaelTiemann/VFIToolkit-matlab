@@ -12,7 +12,7 @@ function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicS_nod_noz_raw(
 N_a=prod(n_a);
 
 Vhat=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(N_a,N_j,vfoptions.indexT,'gpuArray'); % indexes the optimal choice for aprime, rest of dimensions a,z
+Policy=zeros(N_a,N_j,'gpuArray'); % indexes the optimal choice for aprime, rest of dimensions a,z
 
 
 %% j=N_j

@@ -10,7 +10,7 @@ N_e=prod(n_e);
 
 Valt=zeros(N_a,N_e,N_j,'gpuArray');
 Vtilde=zeros(N_a,N_e,N_j,'gpuArray');
-Policy=zeros(N_a,N_e,N_j,vfoptions.indexT,'gpuArray');
+Policy=zeros(N_a,N_e,N_j,'gpuArray');
 Policyalt=zeros(N_a,N_e,N_j,'gpuArray'); % exponential discounter optimal choice (Valt is computed at this)
 
 if vfoptions.lowmemory==0

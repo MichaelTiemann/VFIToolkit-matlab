@@ -12,8 +12,8 @@ N_bothz=prod(n_bothz);
 Valt=zeros(N_a,N_semiz*N_z,N_j,vfoptions.precision,'gpuArray');
 Vtilde=zeros(N_a,N_semiz*N_z,N_j,vfoptions.precision,'gpuArray');
 % No d1, so Policy here stores (d2,aprime); shape (2, ...)
-Policy=zeros(2,N_a,N_semiz*N_z,N_j,vfoptions.indexT,'gpuArray');
-Policyalt=zeros(2,N_a,N_semiz*N_z,N_j,vfoptions.indexT,'gpuArray'); % exponential discounter optimal (d2, aprime)
+Policy=zeros(2,N_a,N_semiz*N_z,N_j,'gpuArray');
+Policyalt=zeros(2,N_a,N_semiz*N_z,N_j,'gpuArray'); % exponential discounter optimal (d2, aprime)
 
 %%
 special_n_d2=ones(1,length(n_d2));

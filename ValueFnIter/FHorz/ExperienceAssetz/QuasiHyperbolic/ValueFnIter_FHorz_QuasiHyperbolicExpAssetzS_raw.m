@@ -17,7 +17,7 @@ N_z=prod(n_z);
 
 Vhat=zeros(N_a,N_z,N_j,'gpuArray');
 Vunderbar=zeros(N_a,N_z,N_j,'gpuArray');
-Policy=zeros(N_a,N_z,N_j,vfoptions.indexT,'gpuArray');
+Policy=zeros(N_a,N_z,N_j,'gpuArray');
 
 a2_gridvals=CreateGridvals(n_a2,a2_grid,1);
 

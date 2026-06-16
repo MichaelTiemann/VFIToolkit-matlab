@@ -7,7 +7,7 @@ N_a=prod(n_a);
 
 % Policy: 4 channels (a1prime_lower, a2prime, L2ind, L2flag) — separate a1/a2
 % channels so UnKronPolicyIndexes2_FHorz_noz can unpack via n_a1/n_a2 divisors.
-Policy=zeros(4,N_a,N_j,vfoptions.indexT,'gpuArray');
+Policy=zeros(4,N_a,N_j,'gpuArray');
 
 %% a-split
 n_a1=n_a(1);

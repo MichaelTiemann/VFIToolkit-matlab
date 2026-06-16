@@ -5,7 +5,7 @@ N_a=prod(n_a);
 N_z=prod(n_z);
 
 PolicyIndexes=zeros(N_a,N_z,'gpuArray');
-ExitPolicy=zeros(N_a,N_z,vfoptions.indexT,'gpuArray');
+ExitPolicy=zeros(N_a,N_z,'gpuArray');
 Ftemp=zeros(N_a,N_z,'gpuArray');
 
 pi_z_semiendog=reshape(pi_z_semiendog,[N_a*N_z,N_z]);

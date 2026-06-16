@@ -11,7 +11,7 @@ N_a=prod(n_a);
 N_z=prod(n_z);
 
 % fastOLG, so a-j-z
-Policy=zeros(N_a,N_j,N_z,vfoptions.indexT,'gpuArray'); % joint (a1prime,a2prime) index at each (a,j,z) cell
+Policy=zeros(N_a,N_j,N_z,'gpuArray'); % joint (a1prime,a2prime) index at each (a,j,z) cell
 
 %%
 n_a1=n_a(1);

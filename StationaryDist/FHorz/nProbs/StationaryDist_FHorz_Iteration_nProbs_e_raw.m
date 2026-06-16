@@ -4,11 +4,9 @@ function StationaryDist=StationaryDist_FHorz_Iteration_nProbs_e_raw(jequaloneDis
 % PolicyProbs are the corresponding probabilities of each of these N_probs.
 precision=underlyingType(jequaloneDistKron);
 cast2precision=str2func(precision);
-indexT=underlyingType(Policy_aprime);
-cast2index=str2func(indexT);
 
 % Policy_aprime and PolicyProbs are currently [N_a,N_z*N_e,N_probs,N_j]
-Policy_aprimez=Policy_aprime+repmat(N_a*(cast2index(0):1:N_z-1),1,N_e);  % Note: add z' index following the z dimension [Tan improvement, z stays where it is]
+Policy_aprimez=Policy_aprime+repmat(N_a*(0:1:N_z-1),1,N_e);  % Note: add z' index following the z dimension [Tan improvement, z stays where it is]
 Policy_aprimez=gather(reshape(Policy_aprimez,[N_a*N_z*N_e,N_probs,N_j])); % sparse() requires inputs to be 2-D
 PolicyProbs=gather(reshape(PolicyProbs,[N_a*N_z*N_e,N_probs,N_j])); % sparse() requires inputs to be 2-D
 
@@ -18,14 +16,12 @@ StationaryDist(:,1)=jequaloneDistKron;
 StationaryDist_jj=sparse(gather(jequaloneDistKron)); % sparse() creates a matrix of zeros
 
 % Precompute
-Gamma_dim1=cast2index(N_a*N_z);
-Gamma_dim2=cast2index(N_a*N_z*N_e);
-II2=repmat((cast2index(1):1:Gamma_dim2)',1,N_probs); %  Index for this period (a,z), note the N_probs-copies
+II2=repmat((1:1:N_a*N_z*N_e)',1,N_probs); %  Index for this period (a,z), note the N_probs-copies
 
 for jj=1:(N_j-1)
 
     % First, get Gamma
-    Gammatranspose=sparse(Policy_aprimez(:,:,jj),II2,PolicyProbs(:,:,jj),Gamma_dim1,Gamma_dim2); % Note: sparse() will accumulate at repeated indices
+    Gammatranspose=sparse(Policy_aprimez(:,:,jj),II2,PolicyProbs(:,:,jj),N_a*N_z,N_a*N_z*N_e); % Note: sparse() will accumulate at repeated indices
 
     % First step of Tan improvement
     StationaryDist_jj=reshape(Gammatranspose*StationaryDist_jj,[N_a,N_z]);

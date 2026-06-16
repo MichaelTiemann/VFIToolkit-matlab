@@ -9,10 +9,10 @@ function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicS_DC1_GI1_nod_
 N_a=prod(n_a);
 N_e=prod(n_e);
 
-cast2precision=str2func(vfoptions.indexT);
+cast2precision=str2func(vfoptions.precision);
 Vhat=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(2,N_a,N_e,N_j,vfoptions.indexT,'gpuArray');
-PolicyL2flag=2*ones(1,N_a,N_e,N_j,vfoptions.indexT,'gpuArray'); % 1=all weight to lower coarse pt, 2=usual linear weights, 3=all weight to upper coarse pt
+Policy=zeros(2,N_a,N_e,N_j,'gpuArray');
+PolicyL2flag=2*ones(1,N_a,N_e,N_j,'gpuArray'); % 1=all weight to lower coarse pt, 2=usual linear weights, 3=all weight to upper coarse pt
 
 if vfoptions.lowmemory==0
     midpoints_jj=zeros(1,N_a,N_e,'gpuArray');

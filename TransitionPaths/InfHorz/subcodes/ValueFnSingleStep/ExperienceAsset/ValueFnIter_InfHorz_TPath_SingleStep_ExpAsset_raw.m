@@ -8,8 +8,8 @@ N_a=N_a1*N_a2;
 N_z=prod(n_z);
 
 V=zeros(N_a,N_z,vfoptions.precision,'gpuArray');
-PolicyTemp=zeros(1,N_a,N_z,vfoptions.indexT,'gpuArray');
-Policy=zeros(3,N_a,N_z,vfoptions.indexT,'gpuArray'); % d1, d2, a1prime
+PolicyTemp=zeros(1,N_a,N_z,'gpuArray');
+Policy=zeros(3,N_a,N_z,'gpuArray'); % d1, d2, a1prime
 
 %%
 a2_gridvals=CreateGridvals(n_a2,a2_grid,1);

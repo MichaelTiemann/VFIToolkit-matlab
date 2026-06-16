@@ -4,7 +4,7 @@ function [V, Policy, Vhat]=ValueFnIter_FHorz_TPath_SingleStep_QHS_fastOLG_DC1_GI
 
 N_a=prod(n_a);
 
-Policy=zeros(3,N_a,N_j,vfoptions.indexT,'gpuArray'); % first dim indexes the optimal choice for aprime (midpoint, L2, L2 flag)
+Policy=zeros(3,N_a,N_j,'gpuArray'); % first dim indexes the optimal choice for aprime (midpoint, L2, L2 flag)
 Vhat=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
 
 %%
@@ -107,8 +107,7 @@ V=Vhat+EV_at_policy;
 % (which ranges -n2short-1:1:1+n2short). It is much easier to use later if
 % we switch Policy(1,:) to 'lower grid point' and then have Policy(2,:)
 % counting 0:nshort+1 up from this.
-adjust=cast2index(Policy(2,:,:)<1+n2short+1);
-Policy(1,:,:)=Policy(1,:,:)-adjust;
+adjust=Policy(2,:,:)<1+n2short+1;Policy(1,:,:)=Policy(1,:,:)-adjust;
 Policy(2,:,:)=adjust.*Policy(2,:,:)+(1-adjust).*(Policy(2,:,:)-n2short-1);
 
 

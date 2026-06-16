@@ -24,7 +24,7 @@ end
 % Policy: 5 channels (d, a1prime_lower, a2prime, L2ind, L2flag) — separate a1/a2
 % channels so UnKronPolicyIndexes3_FHorz_z can unpack via n_d/n_a1/n_a2 divisors
 % (e is treated as additional 'z' slot by the dispatcher).
-Policy=zeros(5,N_a,N_j,N_z,N_e,vfoptions.indexT,'gpuArray');
+Policy=zeros(5,N_a,N_j,N_z,N_e,'gpuArray');
 
 %% a-split
 n_a1=n_a(1);

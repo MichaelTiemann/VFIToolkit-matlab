@@ -20,8 +20,8 @@ N_bothz=N_semiz*N_z;
 
 V=zeros(N_a,N_bothz,N_j,vfoptions.precision,'gpuArray');
 % Policy storage with d1, d2, d3, a1prime_midpoint, a1primeL2ind
-Policy=zeros(5,N_a,N_bothz,N_j,vfoptions.indexT,'gpuArray');
-PolicyL2flag=2*ones(1,N_a,N_bothz,N_j,vfoptions.indexT,'gpuArray');
+Policy=zeros(5,N_a,N_bothz,N_j,'gpuArray');
+PolicyL2flag=2*ones(1,N_a,N_bothz,N_j,'gpuArray');
 
 %%
 a2_gridvals=CreateGridvals(n_a2,a2_grid,1);
@@ -423,8 +423,7 @@ end
 
 
 %% Switch from midpoint to lower grid index
-adjust=cast2index(Policy(5,:,:,:)<1+n2short+1);
-Policy(4,:,:,:)=Policy(4,:,:,:)-adjust;
+adjust=Policy(5,:,:,:)<1+n2short+1;Policy(4,:,:,:)=Policy(4,:,:,:)-adjust;
 Policy(5,:,:,:)=adjust.*Policy(5,:,:,:)+(1-adjust).*(Policy(5,:,:,:)-n2short-1);
 
 Policy=[Policy; PolicyL2flag];

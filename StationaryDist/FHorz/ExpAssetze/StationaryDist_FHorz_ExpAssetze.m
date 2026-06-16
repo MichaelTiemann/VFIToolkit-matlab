@@ -28,10 +28,6 @@ end
 if ~isfield(simoptions,'precision')
     simoptions.precision='double';
 end
-if ~isfield(simoptions,'indexT')
-    simoptions.indexT='double';
-end
-cast2index=str2func(simoptions.indexT);
 
 % aprimeFnParamNames in same fashion
 l_d2=length(n_d2);
@@ -66,7 +62,7 @@ Policy=reshape(Policy,[size(Policy,1),N_a,N_ze,N_j]);
 % (Kron'd linear index in N_a=N_a1*N_a2 space), per corner, with probs.
 % For l_a2==1: 2 corners (lower/upper). For l_a2==2: 4 corners (bilinear lattice).
 Kaprimepts=2^l_a2;
-Policy_aprime=zeros(N_a,N_ze,Kaprimepts,N_j,simoptions.indexT,'gpuArray'); % Kron'd a-index per corner
+Policy_aprime=zeros(N_a,N_ze,Kaprimepts,N_j,'gpuArray'); % Kron'd a-index per corner
 PolicyProbs  =zeros(N_a,N_ze,Kaprimepts,N_j,simoptions.precision,'gpuArray'); % corner probabilities
 whichisdforexpassetze=length(n_d)-simoptions.l_dexperienceassetze+1:length(n_d);
 
@@ -106,10 +102,10 @@ for jj=1:N_j
     if l_a2==1
         for c=1:Kaprimepts
             if c==1
-                a2Kron=cast2index(aprimeIndexes);
+                a2Kron=aprimeIndexes;
                 pcorner=aprimeProbs;
             else
-                a2Kron=cast2index(aprimeIndexes+1);
+                a2Kron=aprimeIndexes+1;
                 pcorner=1-aprimeProbs;
             end
             if l_a1==0

@@ -25,8 +25,8 @@ N_d23=N_d2*N_d3;
 d23_grid=[d2_grid; d3_grid];
 
 V=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(5,N_a,N_z,N_j,vfoptions.indexT,'gpuArray'); % (1)=d1, (2)=d2, (3)=d3, (4)=midpoint, (5)=L2ind
-PolicyL2flag=2*ones(1,N_a,N_z,N_j,vfoptions.indexT,'gpuArray'); % 1=all weight to lower coarse a1, 2=usual linear weights, 3=all weight to upper coarse a1
+Policy=zeros(5,N_a,N_z,N_j,'gpuArray'); % (1)=d1, (2)=d2, (3)=d3, (4)=midpoint, (5)=L2ind
+PolicyL2flag=2*ones(1,N_a,N_z,N_j,'gpuArray'); % 1=all weight to lower coarse a1, 2=usual linear weights, 3=all weight to upper coarse a1
 % d2 stored directly into Policy(2,...) via lookup after GI search
 
 %%
@@ -389,7 +389,7 @@ for reverse_j=1:N_j-1
 end
 
 %% Switch Policy(4,:) from 'midpoint' to 'lower grid index' (using L2ind side)
-adjust=cast2index(Policy(5,:,:,:)<1+n2short+1);                                              % L2ind strictly < n2short+2
+adjust=Policy(5,:,:,:)<1+n2short+1;                                              % L2ind strictly < n2short+2
 Policy(4,:,:,:)=Policy(4,:,:,:)-adjust;                                            % decrement midpoint when chosen-below
 Policy(5,:,:,:)=adjust.*Policy(5,:,:,:)+(1-adjust).*(Policy(5,:,:,:)-n2short-1);   % rebase L2ind to [1..n2short+2]
 

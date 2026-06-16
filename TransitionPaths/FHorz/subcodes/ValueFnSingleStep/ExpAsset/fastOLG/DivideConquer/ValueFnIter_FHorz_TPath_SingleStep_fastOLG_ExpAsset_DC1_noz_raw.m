@@ -80,7 +80,7 @@ DiscountedEV=reshape(DiscountFactorParamsVec,[1,1,1,1,N_j]).*reshape(EV,[N_d2,N_
 % Note: does not contain d1
 
 V=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(N_a,N_j,vfoptions.indexT,'gpuArray');
+Policy=zeros(N_a,N_j,'gpuArray');
 
 % n-Monotonicity
 ReturnMatrix_ii=CreateReturnFnMatrix_fastOLG_ExpAsset_Disc_noz(ReturnFn, n_d1, n_d2, n_a1, vfoptions.level1n,n_a2,N_j, d_gridvals, a1_gridvals, a1_gridvals(level1ii), a2_grid, ReturnFnParamsAgeMatrix,1,0); % Level=1, Refine=0

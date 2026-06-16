@@ -15,7 +15,7 @@ N_z=prod(n_z);
 
 Vhat=zeros(N_a,N_z,N_j,'gpuArray');
 Vunderbar=zeros(N_a,N_z,N_j,'gpuArray');
-Policy=zeros(3,N_a,N_z,N_j,vfoptions.indexT,'gpuArray');
+Policy=zeros(3,N_a,N_z,N_j,'gpuArray');
 
 zind=shiftdim((0:1:N_z-1),-1);
 d2ind_vec=repelem((1:1:N_d2)',N_d1,1);

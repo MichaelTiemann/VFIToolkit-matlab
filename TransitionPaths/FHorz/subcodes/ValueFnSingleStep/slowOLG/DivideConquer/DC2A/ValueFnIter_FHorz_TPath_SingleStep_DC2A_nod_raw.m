@@ -6,7 +6,7 @@ function [V, Policy]=ValueFnIter_FHorz_TPath_SingleStep_DC2A_nod_raw(V,n_a,n_z,N
 N_a=prod(n_a);
 N_z=prod(n_z);
 
-Policy=zeros(N_a,N_z,N_j,vfoptions.indexT,'gpuArray'); % joint (a1prime,a2prime) index at each (a,z,j) cell
+Policy=zeros(N_a,N_z,N_j,'gpuArray'); % joint (a1prime,a2prime) index at each (a,z,j) cell
 
 %%
 n_a1=n_a(1);

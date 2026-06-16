@@ -152,7 +152,7 @@ L1=max(L1a-vfoptions.maxaprimediff+1+aprimeshifter(:)-1,1); % lower grid point i
 L1intermediate=max(L1a,0)+1; % lower grid point index (on the small grid, in form so we can get L2)
 L2=fineindex-(L1intermediate-1)*(n2short+1); % L2 index
 
-Policy=zeros(3,N_a,N_z,vfoptions.indexT,'gpuArray'); % +1 channel for PolicyL2flag
+Policy=zeros(3,N_a,N_z,'gpuArray'); % +1 channel for PolicyL2flag
 Policy(1,:,:)=reshape(L1,[1,N_a,N_z]);
 Policy(2,:,:)=reshape(L2,[1,N_a,N_z]);
 

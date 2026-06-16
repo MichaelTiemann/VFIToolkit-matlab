@@ -52,7 +52,7 @@ end
 N_zprime=N_z; % just to make code easier to read
 
 % Policy is currently about d and a1prime. Convert it to being about aprime as that is what we need for simulation.
-Policy_a2prime=zeros(N_a,N_z,N_zprime,2,simoptions.indexT,'gpuArray'); % the lower grid point
+Policy_a2prime=zeros(N_a,N_z,N_zprime,2,'gpuArray'); % the lower grid point
 PolicyProbs=zeros(N_a,N_z,N_zprime,2,'gpuArray'); % The fourth dimension is lower/upper grid point
 whichisdforinheritasset=length(n_d);  % is just saying which is the decision variable that influences the experience asset (it is the 'last' decision variable)
 aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,options.precision);

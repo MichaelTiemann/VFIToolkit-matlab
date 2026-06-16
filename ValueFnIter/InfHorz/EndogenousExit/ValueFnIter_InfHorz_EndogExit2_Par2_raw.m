@@ -6,7 +6,7 @@ N_z=prod(n_z);
 
 PolicyIndexes=zeros(N_a,N_z,'gpuArray');
 PolicyWhenExitIndexes=zeros(N_a,N_z,'gpuArray');
-ExitPolicy=zeros(N_a,N_z,vfoptions.indexT,'gpuArray');
+ExitPolicy=zeros(N_a,N_z,'gpuArray');
 Ftemp=zeros(N_a,N_z,'gpuArray');
 
 bbb=reshape(shiftdim(pi_z,-1),[1,N_z*N_z]);
@@ -96,7 +96,7 @@ while currdist>Tolerance
 
 end
 
-Policy=zeros(2,N_a,N_z,vfoptions.indexT,'gpuArray'); %NOTE: this is not actually in Kron form
+Policy=zeros(2,N_a,N_z,'gpuArray'); %NOTE: this is not actually in Kron form
 % if keeppolicyonexit==0 % This is default
 %     % Deliberate add zeros when ExitPolicy==1 so that cannot accidently make mistakes elsewhere in codes without throwing errors.
 %     Policy(1,:,:)=(1-ExitPolicy).*shiftdim(rem(PolicyIndexes-1,N_d)+1,-1);

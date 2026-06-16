@@ -92,7 +92,7 @@ while currdist>Tolerance && tempcounter<maxiter
 
 end
 
-Policy=zeros(2,N_a,N_z,vfoptions.indexT,'gpuArray'); %NOTE: this is not actually in Kron form
+Policy=zeros(2,N_a,N_z,'gpuArray'); %NOTE: this is not actually in Kron form
 Policy(1,:,:)=shiftdim(rem(Policyhat-1,N_d)+1,-1);
 Policy(2,:,:)=shiftdim(ceil(Policyhat/N_d),-1);
 

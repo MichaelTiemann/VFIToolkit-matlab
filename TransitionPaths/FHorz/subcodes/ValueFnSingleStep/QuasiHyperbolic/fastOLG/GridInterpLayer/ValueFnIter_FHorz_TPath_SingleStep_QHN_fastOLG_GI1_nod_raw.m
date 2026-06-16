@@ -9,7 +9,7 @@ N_a=prod(n_a);
 N_z=prod(n_z);
 
 Vtilde=zeros(N_a*N_j,N_z,'gpuArray'); % QH-optimal value (max after L2 refinement on beta0beta-step)
-% Policy=zeros(N_a*N_j,N_z,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for aprime rest of dimensions a,z
+% Policy=zeros(N_a*N_j,N_z,'gpuArray'); %first dim indexes the optimal choice for aprime rest of dimensions a,z
 
 z_gridvals_J=shiftdim(z_gridvals_J,-2); % [1,1,N_j,N_z,l_z]
 
@@ -59,7 +59,7 @@ DiscountedEVinterp=reshape(beta0beta_J,[1,1,N_j]).*EVinterp;
 
 if vfoptions.lowmemory==0
 
-    Policy=zeros(3,N_a,N_j,N_z,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for aprime (midpoint, aprimeL2ind, L2flag)
+    Policy=zeros(3,N_a,N_j,N_z,'gpuArray'); %first dim indexes the optimal choice for aprime (midpoint, aprimeL2ind, L2flag)
     Policyalt=zeros(3,N_a,N_j,N_z,'gpuArray');
 
     ReturnMatrix=CreateReturnFnMatrix_fastOLG_Disc_DC1_nod(ReturnFn, n_z, N_j, a_grid, a_grid, z_gridvals_J, ReturnFnParamsAgeMatrix,1);
@@ -105,7 +105,7 @@ elseif vfoptions.lowmemory==1
 
     special_n_z=ones(1,length(n_z),vfoptions.precision);
     V=zeros(N_a*N_j,N_z,vfoptions.precision,'gpuArray');
-    Policy=zeros(3,N_a,N_j,N_z,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for aprime (midpoint, aprimeL2ind, L2flag)
+    Policy=zeros(3,N_a,N_j,N_z,'gpuArray'); %first dim indexes the optimal choice for aprime (midpoint, aprimeL2ind, L2flag)
     Policyalt=zeros(3,N_a,N_j,N_z,'gpuArray');
 
     for z_c=1:N_z
@@ -161,7 +161,7 @@ end
 % (which ranges -n2short-1:1:1+n2short). It is much easier to use later if
 % we switch Policy(1,:) to 'lower grid point' and then have Policy(2,:)
 % counting 0:nshort+1 up from this.
-adjust=cast2index(Policy(2,:,:,:)<1+n2short+1); % if second layer is choosing below midpoint
+adjust=Policy(2,:,:,:)<1+n2short+1; % if second layer is choosing below midpoint
 Policy(1,:,:,:)=Policy(1,:,:,:)-adjust; % lower grid point
 Policy(2,:,:,:)=adjust.*Policy(2,:,:,:)+(1-adjust).*(Policy(2,:,:,:)-n2short-1); % from 1 (lower grid point) to 1+n2short+1 (upper grid point)
 

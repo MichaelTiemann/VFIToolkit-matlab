@@ -13,8 +13,8 @@ N_a=N_a1*N_a2*N_a3;
 N_z=prod(n_z);
 
 V=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(4,N_a,N_z,N_j,vfoptions.indexT,'gpuArray'); % 1=d (joint), 2=a1prime midpoint, 3=a2prime, 4=a1prime L2 fine
-PolicyL2flag=2*ones(1,N_a,N_z,N_j,vfoptions.indexT,'gpuArray');
+Policy=zeros(4,N_a,N_z,N_j,'gpuArray'); % 1=d (joint), 2=a1prime midpoint, 3=a2prime, 4=a1prime L2 fine
+PolicyL2flag=2*ones(1,N_a,N_z,N_j,'gpuArray');
 
 %% GI setup
 n2short=vfoptions.ngridinterp;
@@ -303,8 +303,7 @@ end
 
 
 %% Post-process: convert "midpoint + L2 offset" into "lower coarse point + L2 ratio"
-adjust=cast2index(Policy(4,:,:,:)<1+n2short+1);
-Policy(2,:,:,:)=Policy(2,:,:,:)-adjust;
+adjust=Policy(4,:,:,:)<1+n2short+1;Policy(2,:,:,:)=Policy(2,:,:,:)-adjust;
 Policy(4,:,:,:)=adjust.*Policy(4,:,:,:)+(1-adjust).*(Policy(4,:,:,:)-n2short-1);
 
 Policy=[Policy;PolicyL2flag];

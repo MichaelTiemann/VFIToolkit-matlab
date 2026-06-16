@@ -8,7 +8,7 @@ N_a=prod(n_a);
 N_e=prod(n_e);
 
 Vtilde=zeros(N_a*N_j,N_e,'gpuArray'); % QH-optimal value (max after L2 refinement on beta0beta-step)
-Policy=zeros(4,N_a,N_j,N_e,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for d and aprime (d, midpoint, aprimeL2ind, L2flag)
+Policy=zeros(4,N_a,N_j,N_e,'gpuArray'); %first dim indexes the optimal choice for d and aprime (d, midpoint, aprimeL2ind, L2flag)
 Policyalt=zeros(4,N_a,N_j,N_e,'gpuArray');
 
 e_gridvals_J=shiftdim(e_gridvals_J,-3); % [1,1,1,N_j,N_e,l_e]
@@ -173,8 +173,7 @@ end
 % (which ranges -n2short-1:1:1+n2short). It is much easier to use later if
 % we switch Policy(2,:) to 'lower grid point' and then have Policy(3,:)
 % counting 0:nshort+1 up from this.
-adjust=cast2index(Policy(3,:,:,:)<1+n2short+1);
-Policy(2,:,:,:)=Policy(2,:,:,:)-adjust;
+adjust=Policy(3,:,:,:)<1+n2short+1;Policy(2,:,:,:)=Policy(2,:,:,:)-adjust;
 Policy(3,:,:,:)=adjust.*Policy(3,:,:,:)+(1-adjust).*(Policy(3,:,:,:)-n2short-1);
 
 adjustalt=(Policyalt(3,:,:,:)<1+n2short+1);

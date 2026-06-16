@@ -5,7 +5,7 @@ function [V,Policy,Policyalt,Vtilde]=ValueFnIter_FHorz_TPath_SingleStep_QHN_fast
 N_d=prod(n_d);
 N_a=prod(n_a);
 
-Policy=zeros(N_a,N_j,vfoptions.indexT,'gpuArray'); % first dim indexes the optimal choice for d and aprime
+Policy=zeros(N_a,N_j,'gpuArray'); % first dim indexes the optimal choice for d and aprime
 Policyalt=zeros(N_a,N_j,'gpuArray'); % exponential discounter optimal choice (Valt is computed at this)
 Vtilde=zeros(N_a,N_j,'gpuArray'); % beta0*beta-step value (max at final level2 of Policy sweep)
 

@@ -15,7 +15,7 @@ N_a=prod(n_a);
 N_z=prod(n_z);
 
 Vhat=zeros(N_a,N_z,N_j,'gpuArray');
-Policy=zeros(N_a,N_z,N_j,vfoptions.indexT,'gpuArray');  % combined Kron (d,aprime)
+Policy=zeros(N_a,N_z,N_j,'gpuArray');  % combined Kron (d,aprime)
 
 %%
 level1ii=round(linspace(1,n_a,vfoptions.level1n));

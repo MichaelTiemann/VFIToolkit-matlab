@@ -13,7 +13,7 @@ N_a=prod(n_a);
 N_z=prod(n_z);
 
 Valt=zeros(N_a,N_z,N_j,'gpuArray');
-Policy=zeros(N_a,N_z,N_j,vfoptions.indexT,'gpuArray');  % optimal aprime index
+Policy=zeros(N_a,N_z,N_j,'gpuArray');  % optimal aprime index
 Policyalt=zeros(N_a,N_z,N_j,'gpuArray'); % exponential discounter optimal choice (Valt is computed at this)
 
 %%

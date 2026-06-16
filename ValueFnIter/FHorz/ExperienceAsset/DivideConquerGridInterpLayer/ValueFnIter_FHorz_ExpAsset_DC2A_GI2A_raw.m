@@ -11,19 +11,15 @@ N_a3=prod(n_a3);
 N_a=N_a1*N_a2*N_a3;
 N_z=prod(n_z);
 
-indexT=vfoptions.indexT;
-cast2index=str2func(indexT);
-index_0=cast2index(0); index_1=cast2index(1);
-
 V=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(4,N_a,N_z,N_j,indexT,'gpuArray');
-PolicyL2flag=2*ones(1,N_a,N_z,N_j,indexT,'gpuArray');
+Policy=zeros(4,N_a,N_z,N_j,'gpuArray');
+PolicyL2flag=2*ones(1,N_a,N_z,N_j,'gpuArray');
 
 if vfoptions.lowmemory>0
     special_n_z=ones(1,length(n_z),vfoptions.precision);
 else
-    aind=gpuArray(index_0:1:N_a-1);
-    zindB=shiftdim(gpuArray(index_0:1:N_z-1),-1);
+    aind=gpuArray(0:1:N_a-1);
+    zindB=shiftdim(gpuArray(0:1:N_z-1),-1);
 end
 
 % d2-component of each d slot.
@@ -31,9 +27,9 @@ d2ind_vec=repelem((1:1:N_d2)',N_d1,1); % [N_d, 1]
 
 % Preallocate midpoint (filled by DC coarse pass)
 if vfoptions.lowmemory==0
-    midpoint=zeros(N_d,1,N_a2,N_a1,N_a2,N_a3,N_z,indexT,'gpuArray');
+    midpoint=zeros(N_d,1,N_a2,N_a1,N_a2,N_a3,N_z,'gpuArray');
 elseif vfoptions.lowmemory==1
-    midpoint=zeros(N_d,1,N_a2,N_a1,N_a2,N_a3,indexT,'gpuArray');
+    midpoint=zeros(N_d,1,N_a2,N_a1,N_a2,N_a3,'gpuArray');
 end
 
 % n-Monotonicity over a1
@@ -427,8 +423,7 @@ end
 
 
 %% Post-process
-adjust=cast2index(Policy(4,:,:,:)<1+n2short+1);
-Policy(2,:,:,:)=Policy(2,:,:,:)-adjust;
+adjust=Policy(4,:,:,:)<1+n2short+1;Policy(2,:,:,:)=Policy(2,:,:,:)-adjust;
 Policy(4,:,:,:)=adjust.*Policy(4,:,:,:)+(1-adjust).*(Policy(4,:,:,:)-n2short-1);
 
 Policy=[Policy;PolicyL2flag];

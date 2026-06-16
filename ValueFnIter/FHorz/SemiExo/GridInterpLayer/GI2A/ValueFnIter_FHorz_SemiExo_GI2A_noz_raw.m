@@ -10,8 +10,8 @@ N_semiz=prod(n_semiz);
 
 V=zeros(N_a,N_semiz,N_j,vfoptions.precision,'gpuArray');
 % Policy: 5 channels [d1, d2, a1prime midpoint, a2prime, a1prime L2]
-Policy=zeros(5,N_a,N_semiz,N_j,vfoptions.indexT,'gpuArray');
-PolicyL2flag=2*ones(1,N_a,N_semiz,N_j,vfoptions.indexT,'gpuArray'); % 1=all weight to lower coarse a1, 2=usual linear weights, 3=all weight to upper coarse a1
+Policy=zeros(5,N_a,N_semiz,N_j,'gpuArray');
+PolicyL2flag=2*ones(1,N_a,N_semiz,N_j,'gpuArray'); % 1=all weight to lower coarse a1, 2=usual linear weights, 3=all weight to upper coarse a1
 
 %% Split a
 n_a1=n_a(1);
@@ -234,8 +234,7 @@ end
 
 
 %% Convert Policy(3) from midpoint to lower grid point, Policy(5) from -n2short-1:1+n2short to 1:n2short+2
-adjust=cast2index(Policy(5,:,:,:)<1+n2short+1);
-Policy(3,:,:,:)=Policy(3,:,:,:)-adjust;
+adjust=Policy(5,:,:,:)<1+n2short+1;Policy(3,:,:,:)=Policy(3,:,:,:)-adjust;
 Policy(5,:,:,:)=adjust.*Policy(5,:,:,:)+(1-adjust).*(Policy(5,:,:,:)-n2short-1);
 
 Policy=[Policy; PolicyL2flag];

@@ -15,8 +15,8 @@ elseif vfoptions.lowmemory>=2
 end
 
 % Policy: 3 channels (a1prime midpoint, a2prime, a1prime L2); L2flag appended at end.
-Policy=zeros(3,N_a,N_j,N_e,vfoptions.indexT,'gpuArray');
-PolicyL2flag=2*ones(1,N_a,N_j,N_e,vfoptions.indexT,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
+Policy=zeros(3,N_a,N_j,N_e,'gpuArray');
+PolicyL2flag=2*ones(1,N_a,N_j,N_e,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
 
 %% Split endogenous state into a1 (DC) and a2 (iterate)
 n_a1=n_a(1);
@@ -197,7 +197,7 @@ end
 % (which ranges -n2short-1:1:1+n2short). It is much easier to use later if
 % we switch Policy(1,:) to 'lower grid point' and then have Policy(3,:)
 % counting 0:nshort+1 up from this.
-adjust=cast2index(Policy(3,:,:,:)<1+n2short+1); % if second layer is choosing below midpoint
+adjust=Policy(3,:,:,:)<1+n2short+1; % if second layer is choosing below midpoint
 Policy(1,:,:,:)=Policy(1,:,:,:)-adjust; % lower grid point
 Policy(3,:,:,:)=adjust.*Policy(3,:,:,:)+(1-adjust).*(Policy(3,:,:,:)-n2short-1); % from 1 (lower grid point) to 1+n2short+1 (upper grid point)
 

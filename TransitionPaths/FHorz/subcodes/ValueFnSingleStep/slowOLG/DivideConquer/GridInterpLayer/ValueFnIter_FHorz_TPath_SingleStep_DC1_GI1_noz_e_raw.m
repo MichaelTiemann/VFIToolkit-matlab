@@ -5,7 +5,7 @@ N_d=prod(n_d);
 N_a=prod(n_a);
 N_e=prod(n_e);
 
-Policy=zeros(4,N_a,N_e,N_j,vfoptions.indexT,'gpuArray'); % first dim indexes the optimal choice for d, midpoint, L2, L2flag
+Policy=zeros(4,N_a,N_e,N_j,'gpuArray'); % first dim indexes the optimal choice for d, midpoint, L2, L2flag
 
 % e is start-of-period: precompute the expectation of V over e for use as continuation
 Vnext=sum(V.*shiftdim(pi_e_J(:,[1,1:end-1]),-1),2); % Take expectations over e: Vnext(...,jj+1) is read for current age jj, so weight V at age jj+1 by pi_e_J(:,jj) [same timing as standard ValueFnIter commands]; first column is padding, never read
@@ -293,7 +293,7 @@ end
 % (which ranges -n2short-1:1:1+n2short). It is much easier to use later if
 % we switch Policy(2,:) to 'lower grid point' and then have Policy(3,:)
 % counting 0:nshort+1 up from this.
-adjust=cast2index(Policy(3,:,:,:)<1+n2short+1); % if second layer is choosing below midpoint
+adjust=Policy(3,:,:,:)<1+n2short+1; % if second layer is choosing below midpoint
 Policy(2,:,:,:)=Policy(2,:,:,:)-adjust; % lower grid point
 Policy(3,:,:,:)=adjust.*Policy(3,:,:,:)+(1-adjust).*(Policy(3,:,:,:)-n2short-1); % from 1 (lower grid point) to 1+n2short+1 (upper grid point)
 

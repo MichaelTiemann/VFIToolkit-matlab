@@ -23,7 +23,7 @@ level1iidiff=level1ii(2:end)-level1ii(1:end-1)-1;
 ReturnMatrixLvl1=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, 0, n_d2, n_a1prime, vfoptions.level1n,n_a2,n_z, d2_gridvals, a1_gridvals, a1_gridvals(level1ii), a2_gridvals, z_gridvals, ReturnFnParamsVec, 1,0); % Level=1, Refine=0
 
 V=reshape(V0,[N_a,N_z]);
-Policy=zeros(N_a,N_z,vfoptions.indexT,'gpuArray'); %first dim indexes the optimal choice for d and a1prime rest of dimensions a,z
+Policy=zeros(N_a,N_z,'gpuArray'); %first dim indexes the optimal choice for d and a1prime rest of dimensions a,z
 
 % for Howards, preallocate
 Ftemp=zeros(N_a,N_z,'gpuArray');

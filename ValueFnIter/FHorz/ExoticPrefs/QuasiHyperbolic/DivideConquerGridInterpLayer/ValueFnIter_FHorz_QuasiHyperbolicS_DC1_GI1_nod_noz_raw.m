@@ -8,8 +8,8 @@ function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicS_DC1_GI1_nod_
 N_a=prod(n_a);
 
 Vhat=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(2,N_a,N_j,vfoptions.indexT,'gpuArray'); % [midpoint; aprimeL2ind]
-PolicyL2flag=2*ones(1,N_a,N_j,vfoptions.indexT,'gpuArray'); % 1=all weight to lower coarse pt, 2=usual linear weights, 3=all weight to upper coarse pt
+Policy=zeros(2,N_a,N_j,'gpuArray'); % [midpoint; aprimeL2ind]
+PolicyL2flag=2*ones(1,N_a,N_j,'gpuArray'); % 1=all weight to lower coarse pt, 2=usual linear weights, 3=all weight to upper coarse pt
 
 midpoints_jj=zeros(1,N_a,'gpuArray');
 
@@ -150,8 +150,7 @@ end
 % (which ranges -n2short-1:1:1+n2short). It is much easier to use later if
 % we switch Policy(1,:) to 'lower grid point' and then have Policy(2,:)
 % counting 0:nshort+1 up from this.
-adjust=cast2index(Policy(2,:,:)<1+n2short+1);
-Policy(1,:,:)=Policy(1,:,:)-adjust;
+adjust=Policy(2,:,:)<1+n2short+1;Policy(1,:,:)=Policy(1,:,:)-adjust;
 Policy(2,:,:)=adjust.*Policy(2,:,:)+(1-adjust).*(Policy(2,:,:)-n2short-1);
 
 Policy=[Policy;PolicyL2flag];

@@ -14,8 +14,8 @@ N_e=prod(n_e);
 
 Valt=zeros(N_a,N_semiz*N_z,N_e,N_j,vfoptions.precision,'gpuArray');
 Vtilde=zeros(N_a,N_semiz*N_z,N_e,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(3,N_a,N_semiz*N_z,N_e,N_j,vfoptions.indexT,'gpuArray');
-Policyalt=zeros(3,N_a,N_semiz*N_z,N_e,N_j,vfoptions.indexT,'gpuArray'); % exponential discounter optimal (d1, d2, aprime)
+Policy=zeros(3,N_a,N_semiz*N_z,N_e,N_j,'gpuArray');
+Policyalt=zeros(3,N_a,N_semiz*N_z,N_e,N_j,'gpuArray'); % exponential discounter optimal (d1, d2, aprime)
 
 %%
 d_gridvals=[repmat(d1_gridvals,N_d2,1),repelem(d2_gridvals,N_d1,1)];

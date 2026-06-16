@@ -18,7 +18,7 @@ N_bothz=N_semiz*N_z;
 
 V=zeros(N_a,N_bothz,N_j,vfoptions.precision,'gpuArray');
 % Policy storage with separate entries for d2, d3, a1prime (no d1)
-Policy3=zeros(3,N_a,N_bothz,N_j,vfoptions.indexT,'gpuArray');
+Policy3=zeros(3,N_a,N_bothz,N_j,'gpuArray');
 
 %%
 a2_gridvals=CreateGridvals(n_a2,a2_grid,1);

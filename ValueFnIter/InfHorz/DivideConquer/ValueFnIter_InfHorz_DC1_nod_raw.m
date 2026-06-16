@@ -11,7 +11,7 @@ level1iidiff=level1ii(2:end)-level1ii(1:end-1)-1;
 ReturnMatrixLvl1=CreateReturnFnMatrix_Disc_DC1_nod(ReturnFn, n_z, a_grid, a_grid(level1ii), z_gridvals, ReturnFnParamsVec, 1);
 
 V=reshape(V0,[N_a,N_z]);
-Policy=zeros(N_a,N_z,vfoptions.indexT,'gpuArray');
+Policy=zeros(N_a,N_z,'gpuArray');
 
 % for Howards, preallocate
 Ftemp=zeros(N_a,N_z,'gpuArray');

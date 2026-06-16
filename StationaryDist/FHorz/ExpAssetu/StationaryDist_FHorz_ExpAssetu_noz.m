@@ -36,7 +36,7 @@ Policy=reshape(Policy,[size(Policy,1),N_a,N_j]);
 % Policy is currently about d and a2prime. Convert it to being about aprime
 % as that is what we need for simulation, and we can then just send it to standard Case1 commands.
 Policy=reshape(Policy,[size(Policy,1),N_a,N_j]);
-Policy_aprime=zeros(N_a,N_u,2,N_j,simoptions.indexT,'gpuArray'); % the lower grid point
+Policy_aprime=zeros(N_a,N_u,2,N_j,'gpuArray'); % the lower grid point
 PolicyProbs=zeros(N_a,N_u,2,N_j,simoptions.precision,'gpuArray'); % probabilities of grid points
 whichisdforexpasset=length(n_d);  % is just saying which is the decision variable that influences the experience asset (it is the 'last' decision variable)
 for jj=1:N_j

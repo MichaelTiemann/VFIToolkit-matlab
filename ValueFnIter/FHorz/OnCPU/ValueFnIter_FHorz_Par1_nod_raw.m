@@ -4,7 +4,7 @@ N_a=prod(n_a);
 N_z=prod(n_z);
 
 V=zeros(N_a,N_z,N_j,vfoptions.precision);
-Policy=zeros(N_a,N_z,N_j,vfoptions.indexT); %first dim indexes the optimal choice for aprime rest of dimensions a,z
+Policy=zeros(N_a,N_z,N_j); %first dim indexes the optimal choice for aprime rest of dimensions a,z
 
 %% j=N_j
 

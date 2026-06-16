@@ -51,7 +51,7 @@ V=reshape(V0,[N_a,N_z]);
 
 %% Now that we are armed with a (hopefully decent) initial guess, we can get on with the full problem
 % VKron=zeros(N_a,N_z,'gpuArray');
-Policy=zeros(N_a,N_z,vfoptions.indexT,'gpuArray');
+Policy=zeros(N_a,N_z,'gpuArray');
 
 Ftemp=zeros(N_a,N_z,'gpuArray');
 

@@ -33,7 +33,7 @@ Policy=reshape(Policy,[size(Policy,1),N_a,N_j]);
 
 %% riskyasset transitions
 Policy=reshape(Policy,[size(Policy,1),N_a,N_j]);
-Policy_aprime=zeros(N_a,N_u,2,N_j,simoptions.indexT,'gpuArray'); % the lower grid point
+Policy_aprime=zeros(N_a,N_u,2,N_j,'gpuArray'); % the lower grid point
 PolicyProbs=zeros(N_a,N_u,2,N_j,simoptions.precision,'gpuArray'); % probabilities of grid points
 whichisdforriskyasset=(simoptions.refine_d(1)+1):1:length(n_d);  % is just saying which is the decision variable that influences the risky asset (it is all the decision variables)
 for jj=1:N_j

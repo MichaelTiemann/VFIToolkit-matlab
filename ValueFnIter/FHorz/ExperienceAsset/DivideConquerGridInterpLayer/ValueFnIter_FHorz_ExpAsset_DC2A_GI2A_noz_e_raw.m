@@ -11,8 +11,8 @@ N_a=N_a1*N_a2*N_a3;
 N_e=prod(n_e);
 
 V=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(4,N_a,N_e,N_j,vfoptions.indexT,'gpuArray');
-PolicyL2flag=2*ones(1,N_a,N_e,N_j,vfoptions.indexT,'gpuArray');
+Policy=zeros(4,N_a,N_e,N_j,'gpuArray');
+PolicyL2flag=2*ones(1,N_a,N_e,N_j,'gpuArray');
 
 d2ind_vec=repelem((1:1:N_d2)',N_d1,1);
 
@@ -403,8 +403,7 @@ end
 
 
 %% Post-process
-adjust=cast2index(Policy(4,:,:,:)<1+n2short+1);
-Policy(2,:,:,:)=Policy(2,:,:,:)-adjust;
+adjust=Policy(4,:,:,:)<1+n2short+1;Policy(2,:,:,:)=Policy(2,:,:,:)-adjust;
 Policy(4,:,:,:)=adjust.*Policy(4,:,:,:)+(1-adjust).*(Policy(4,:,:,:)-n2short-1);
 
 Policy=[Policy;PolicyL2flag];

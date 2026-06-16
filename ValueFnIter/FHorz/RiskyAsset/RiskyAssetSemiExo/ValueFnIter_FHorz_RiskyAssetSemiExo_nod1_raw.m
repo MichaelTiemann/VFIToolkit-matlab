@@ -31,12 +31,8 @@ n_d23=[n_d2,n_d3];
 N_d23=prod(n_d23);
 d23_grid=[d2_grid; d3_grid];
 
-indexT=vfoptions.indexT;
-cast2index=str2func(indexT);
-index_0=cast2index(0); index_1=cast2index(1);
-
 V=zeros(N_a,N_semiz*N_z,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(4,N_a,N_semiz*N_z,N_j,indexT,'gpuArray'); % d2, d3, d4 and a1prime
+Policy=zeros(4,N_a,N_semiz*N_z,N_j,'gpuArray'); % d2, d3, d4 and a1prime
 
 %%
 % d3_grid=gpuArray(d3_grid);
@@ -53,12 +49,12 @@ if vfoptions.lowmemory>0
     special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision);
 end
 
-bothzind=shiftdim(index_0:1:N_bothz-1,-1);
+bothzind=shiftdim(0:1:N_bothz-1,-1);
 
 % Preallocate
-V_ford4_jj=zeros(N_a,N_semiz*N_z,N_d4,indexT,'gpuArray');
-Policy_ford4_jj=zeros(N_a,N_semiz*N_z,N_d4,indexT,'gpuArray');
-d2index_ford4_jj=zeros(N_d3*N_a1,N_semiz*N_z,N_d4,indexT,'gpuArray'); % Note, different first dimension
+V_ford4_jj=zeros(N_a,N_semiz*N_z,N_d4,'gpuArray');
+Policy_ford4_jj=zeros(N_a,N_semiz*N_z,N_d4,'gpuArray');
+d2index_ford4_jj=zeros(N_d3*N_a1,N_semiz*N_z,N_d4,'gpuArray'); % Note, different first dimension
 
 bothz_gridvals_J=[repmat(semiz_gridvals_J,N_z,1,1),repelem(z_gridvals_J,N_semiz,1,1)];
 
@@ -107,8 +103,8 @@ else
     [a2primeIndex,a2primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, [n_d23,n_a1], n_a2, n_u, d23_grid, a2_grid, u_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
     % Note: a2primeIndex is [N_d,N_u], whereas a2primeProbs is [N_d,N_u]
 
-    aprimeIndex=repelem((index_1:1:N_a1)',N_d23,N_u)+N_a1*repmat(a2primeIndex-1,N_a1,1); % [N_d*N_a1,N_u]
-    aprimeplus1Index=repelem((index_1:1:N_a1)',N_d23,N_u)+N_a1*repmat(a2primeIndex,N_a1,1); % [N_d*N_a1,N_u]
+    aprimeIndex=repelem((1:1:N_a1)',N_d23,N_u)+N_a1*repmat(a2primeIndex-1,N_a1,1); % [N_d*N_a1,N_u]
+    aprimeplus1Index=repelem((1:1:N_a1)',N_d23,N_u)+N_a1*repmat(a2primeIndex,N_a1,1); % [N_d*N_a1,N_u]
     % aprimeProbs=repmat(a2primeProbs,N_a1,1);  % [N_d*N_a1,N_u]
     % Note: aprimeIndex corresponds to value of (a1, a2), but has dimension (d,a1)
 

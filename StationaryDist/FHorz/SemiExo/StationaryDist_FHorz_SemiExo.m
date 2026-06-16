@@ -38,7 +38,7 @@ jequaloneDist=reshape(jequaloneDist,[N_a*N_bothze,1]);
 Policy=reshape(Policy,[size(Policy,1),N_a,N_bothze,N_j]);
 
 %% Policy_aprime
-% Policy_aprime=zeros(N_a,N_bothze,N_j,simoptions.indexT,'gpuArray'); % the lower grid point
+% Policy_aprime=zeros(N_a,N_bothze,N_j,'gpuArray'); % the lower grid point
 if l_a==1 % one endo state
     Policy_aprime=Policy(l_d+1,:,:,:);
 elseif l_a==2 % two endo states

@@ -3,7 +3,7 @@ function PolicyKron=KronPolicyIndexes_FHorz_Case2(Policy, n_d, n_a, n_z,N_j, n_e
 %
 % Input: Policy (l_d,n_a,n_z,N_j);
 %
-% Output: Policy=zeros(N_a,N_z,N_j,vfoptions.indexT); % contains indexes for the optimal choice for d
+% Output: Policy=zeros(N_a,N_z,N_j); % contains indexes for the optimal choice for d
 
 N_a=prod(n_a);
 N_z=prod(n_z);

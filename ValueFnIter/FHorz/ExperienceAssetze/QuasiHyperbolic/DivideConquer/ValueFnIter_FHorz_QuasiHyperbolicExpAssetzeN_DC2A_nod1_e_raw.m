@@ -12,7 +12,7 @@ N_e=prod(n_e);
 
 Valt=zeros(N_a,N_z,N_e,N_j,'gpuArray');
 Vtilde=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(3,N_a,N_z,N_e,N_j,vfoptions.indexT,'gpuArray');
+Policy=zeros(3,N_a,N_z,N_e,N_j,'gpuArray');
 Policyalt=zeros(3,N_a,N_z,N_e,N_j,'gpuArray');
 
 zind=shiftdim((0:1:N_z-1),-1);

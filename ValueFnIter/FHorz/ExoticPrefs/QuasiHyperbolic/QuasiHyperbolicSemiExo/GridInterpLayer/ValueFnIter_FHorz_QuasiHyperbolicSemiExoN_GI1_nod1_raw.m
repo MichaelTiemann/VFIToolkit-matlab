@@ -11,9 +11,9 @@ N_bothz=prod(n_bothz);
 
 Valt=zeros(N_a,N_semiz*N_z,N_j,vfoptions.precision,'gpuArray');
 Vtilde=zeros(N_a,N_semiz*N_z,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(3,N_a,N_semiz*N_z,N_j,vfoptions.indexT,'gpuArray'); % [d2; midpoint; aprimeL2ind]
-PolicyL2flag=2*ones(1,N_a,N_semiz*N_z,N_j,vfoptions.indexT,'gpuArray');
-Policyalt=zeros(3,N_a,N_semiz*N_z,N_j,vfoptions.indexT,'gpuArray'); % exponential discounter optimal [d2; midpoint; aprimeL2ind]
+Policy=zeros(3,N_a,N_semiz*N_z,N_j,'gpuArray'); % [d2; midpoint; aprimeL2ind]
+PolicyL2flag=2*ones(1,N_a,N_semiz*N_z,N_j,'gpuArray');
+Policyalt=zeros(3,N_a,N_semiz*N_z,N_j,'gpuArray'); % exponential discounter optimal [d2; midpoint; aprimeL2ind]
 PolicyL2flagalt=2*ones(1,N_a,N_semiz*N_z,N_j,'gpuArray');
 
 %%
@@ -377,8 +377,7 @@ for reverse_j=1:N_j-1
 end
 
 %% Post-process Policy (no d1: index encoding drops d1 slot)
-adjust=cast2index(Policy(3,:,:,:)<1+n2short+1);
-Policy(2,:,:,:)=Policy(2,:,:,:)-adjust;
+adjust=Policy(3,:,:,:)<1+n2short+1;Policy(2,:,:,:)=Policy(2,:,:,:)-adjust;
 Policy(3,:,:,:)=adjust.*Policy(3,:,:,:)+(1-adjust).*(Policy(3,:,:,:)-n2short-1);
 
 Policy=[Policy;PolicyL2flag];

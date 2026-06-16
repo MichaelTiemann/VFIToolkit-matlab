@@ -20,8 +20,8 @@ N_d23=N_d2*N_d3;
 d23_grid=[d2_grid; d3_grid];
 
 V=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(5,N_a,N_j,vfoptions.indexT,'gpuArray'); % (1)=d1, (2)=d2, (3)=d3, (4)=midpoint, (5)=L2ind
-PolicyL2flag=2*ones(1,N_a,N_j,vfoptions.indexT,'gpuArray');
+Policy=zeros(5,N_a,N_j,'gpuArray'); % (1)=d1, (2)=d2, (3)=d3, (4)=midpoint, (5)=L2ind
+PolicyL2flag=2*ones(1,N_a,N_j,'gpuArray');
 % We will refine away d2 out of EV before combining with ReturnFn
 
 %%
@@ -226,7 +226,7 @@ for reverse_j=1:N_j-1
 end
 
 %% Switch Policy(4,:) from 'midpoint' to 'lower grid index' (using L2ind side)
-adjust=cast2index(Policy(5,:,:)<1+n2short+1);                                              % L2ind strictly < n2short+2
+adjust=Policy(5,:,:)<1+n2short+1;                                              % L2ind strictly < n2short+2
 Policy(4,:,:)=Policy(4,:,:)-adjust;                                              % decrement midpoint when chosen-below
 Policy(5,:,:)=adjust.*Policy(5,:,:)+(1-adjust).*(Policy(5,:,:)-n2short-1);       % rebase L2ind to [1..n2short+2]
 
