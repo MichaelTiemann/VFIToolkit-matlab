@@ -28,7 +28,7 @@ for jj=1:(N_j-1)
 
     % Second step of Tan improvement
     pi_z=sparse(gather(pi_z_J(:,:,jj)));
-    StationaryDist_jj=reshape(StationaryDist_jj*pi_z,[Gamma_dim1,1]);
+    StationaryDist_jj=reshape(StationaryDist_jj*pi_z,[N_a*N_z,1]);
 
     % Put e back into dist
     pi_e=sparse(gather(pi_e_J(:,jj)));
