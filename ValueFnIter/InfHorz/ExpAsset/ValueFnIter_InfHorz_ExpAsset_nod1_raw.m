@@ -79,7 +79,7 @@ while currdist>vfoptions.tolerance && tempcounter<=vfoptions.maxiter
 
         Ftemp=reshape(ReturnMatrix(Policy+N_d2*N_a1*(0:1:N_a-1)'+N_d2*N_a1*N_a*(0:1:N_z-1)),[N_a*N_z,1]);
         Policy_d2ind=rem(Policy(:)-1,N_d2)+1;
-        Policy_a1primeind=ceil(double(Policy(:))/N_d2); % size(Policy_a1primeind) is [N_a*N_z,1]
+        Policy_a1primeind=ceil((Policy(:))/N_d2); % size(Policy_a1primeind) is [N_a*N_z,1]
 
         % a2primeIndex is [N_d2,N_a2]
         temp=Policy_d2ind+N_d2*repmat(repelem((0:1:N_a2-1)',N_a1,1),N_z,1); % (d2,a2) indexes in terms of (a1,a2,z)

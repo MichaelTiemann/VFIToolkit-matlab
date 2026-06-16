@@ -94,7 +94,7 @@ else
             % First, get Gamma
             PolicyProbs=zeros(N_a,2,N_j,options.precision,'gpuArray');% PolicyProbs are the corresponding probabilities of each of these two.
 
-            PolicyProbs(:,2,:)=reshape(double(Policy(end-1,:,:)-1)/(simoptions.ngridinterp+1),[N_a,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
+            PolicyProbs(:,2,:)=reshape((Policy(end-1,:,:)-1)/(simoptions.ngridinterp+1),[N_a,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
             PolicyProbs(:,1,:)=1-PolicyProbs(:,2,:); % probability of lower grid point
 
             % Policy_aprime and PolicyProbs are currently [N_a,2,N_j]
@@ -153,7 +153,7 @@ else
             % First, get Gamma
             PolicyProbs=zeros(N_a,N_e,2,N_j,options.precision,'gpuArray');% PolicyProbs are the corresponding probabilities of each of these two.
 
-            PolicyProbs(:,:,2,:)=reshape(double(Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),[N_a,N_e,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
+            PolicyProbs(:,:,2,:)=reshape((Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),[N_a,N_e,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
             PolicyProbs(:,:,1,:)=1-PolicyProbs(:,:,2,:); % probability of lower grid point
 
             % Policy_aprime and PolicyProbs are currently [N_a,N_e,2,N_j]
@@ -210,7 +210,7 @@ else
             % First, get Gamma
             PolicyProbs=zeros(N_a,N_z,2,N_j,options.precision,'gpuArray');% PolicyProbs are the corresponding probabilities of each of these two.
 
-            PolicyProbs(:,:,2,:)=reshape(double(Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),[N_a,N_z,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
+            PolicyProbs(:,:,2,:)=reshape((Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),[N_a,N_z,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
             PolicyProbs(:,:,1,:)=1-PolicyProbs(:,:,2,:); % probability of lower grid point
 
             % Policy_aprime and PolicyProbs are currently [N_a,N_z,2,N_j]
@@ -270,7 +270,7 @@ else
             % First, get Gamma
             PolicyProbs=zeros(N_a,N_z*N_e,2,N_j,options.precision,'gpuArray');% PolicyProbs are the corresponding probabilities of each of these two.
 
-            PolicyProbs(:,:,2,:)=reshape(double(Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),[N_a,N_z*N_e,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
+            PolicyProbs(:,:,2,:)=reshape((Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),[N_a,N_z*N_e,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
             PolicyProbs(:,:,1,:)=1-PolicyProbs(:,:,2,:); % probability of lower grid point
 
             % Policy_aprime and PolicyProbs are currently [N_a,N_z*N_e,2,N_j]
@@ -351,7 +351,7 @@ else
             % First, get Gamma
             PolicyProbs=zeros(N_a,N_semiz,2,N_j,'gpuArray'); % PolicyProbs are the corresponding probabilities of each of these two.
 
-            PolicyProbs(:,:,2,:)=reshape(double(Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),[N_a,N_semiz,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
+            PolicyProbs(:,:,2,:)=reshape((Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),[N_a,N_semiz,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
             PolicyProbs(:,:,1,:)=1-PolicyProbs(:,:,2,:); % probability of lower grid point
 
             N_semizshort=max(max(max(sum((pi_semiz_J>0),2))));
@@ -448,7 +448,7 @@ else
             % First, get Gamma
             PolicyProbs=zeros(N_a,N_semiz*N_e,2,N_j,options.precision,'gpuArray'); % PolicyProbs are the corresponding probabilities of each of these two.
 
-            PolicyProbs(:,:,2,:)=reshape(double(Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),[N_a,N_semiz*N_e,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
+            PolicyProbs(:,:,2,:)=reshape((Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),[N_a,N_semiz*N_e,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
             PolicyProbs(:,:,1,:)=1-PolicyProbs(:,:,2,:); % probability of lower grid point
 
             N_semizshort=max(max(max(sum((pi_semiz_J>0),2))));
@@ -545,7 +545,7 @@ else
             % First, get Gamma
             PolicyProbs=zeros(N_a,N_semiz*N_z,2,N_j,options.precision,'gpuArray'); % PolicyProbs are the corresponding probabilities of each of these two.
 
-            PolicyProbs(:,:,2,:)=reshape(double(Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),[N_a,N_semiz*N_z,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
+            PolicyProbs(:,:,2,:)=reshape((Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),[N_a,N_semiz*N_z,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
             PolicyProbs(:,:,1,:)=1-PolicyProbs(:,:,2,:); % probability of lower grid point
 
             N_semizshort=max(max(max(sum((pi_semiz_J>0),2))));
@@ -645,7 +645,7 @@ else
             % First, get Gamma
             PolicyProbs=zeros(N_a,N_semiz*N_z*N_e,2,N_j,options.precision,'gpuArray'); % PolicyProbs are the corresponding probabilities of each of these two.
 
-            PolicyProbs(:,:,2,:)=reshape(double(Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),[N_a,N_semiz*N_z*N_e,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
+            PolicyProbs(:,:,2,:)=reshape((Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),[N_a,N_semiz*N_z*N_e,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
             PolicyProbs(:,:,1,:)=1-PolicyProbs(:,:,2,:); % probability of lower grid point
 
             N_semizshort=max(max(max(sum((pi_semiz_J>0),2))));

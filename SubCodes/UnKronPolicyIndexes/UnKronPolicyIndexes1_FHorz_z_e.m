@@ -13,12 +13,12 @@ l_daprime1=length(n_daprime1);
 divisors=cumprod([1,double(n_daprime1(1:end-1))])';   % [l_daprime1,1]
 
 if vfoptions.gridinterplayer==1
-    Policy=[mod(floor(double(PolicyKron(1,:)-1)./divisors),n_daprime1(:))+1;
+    Policy=[mod(floor((PolicyKron(1,:)-1)./divisors),n_daprime1(:))+1;
             PolicyKron(2,:);
             PolicyKron(3,:)];
     Policy=reshape(Policy,[l_daprime1+2,n_a,n_z,n_e,N_j]);
 else
-    Policy=mod(floor(double(PolicyKron-1)./divisors),n_daprime1(:))+1;
+    Policy=mod(floor((PolicyKron-1)./divisors),n_daprime1(:))+1;
     Policy=reshape(Policy,[l_daprime1,n_a,n_z,n_e,N_j]);
 end
 
