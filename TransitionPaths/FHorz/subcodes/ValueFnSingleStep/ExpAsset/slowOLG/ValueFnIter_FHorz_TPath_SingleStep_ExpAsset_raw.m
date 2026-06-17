@@ -97,12 +97,14 @@ for reverse_j=1:N_j-1
     EV=squeeze(sum(EV,3));
     % EV is over (d2,a1prime,a2,z)
 
+    % This creates a large matrix that defeats the lowmemory ideas, so build case-by-case
+    % DiscountedEV=DiscountFactorParamsVec*repelem(EV,N_d1,N_a1);
+
     if vfoptions.lowmemory==0
-        DiscountedEV=DiscountFactorParamsVec*repelem(EV,N_d1,N_a1);
         ReturnMatrix=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2, n_a1, n_a1,n_a2,n_z, d_gridvals, a1_gridvals, a1_gridvals, a2_gridvals,z_gridvals_J(:,:,jj), ReturnFnParamsVec,0,0); % Level=0, Refine=0
         % (d,aprime,a,z)
 
-        entireRHS=ReturnMatrix+DiscountedEV;
+        entireRHS=ReturnMatrix+DiscountFactorParamsVec*repelem(EV,N_d1,N_a1);
 
         %Calc the max and its index
         [Vtemp,maxindex]=max(entireRHS,[],1);
@@ -113,11 +115,10 @@ for reverse_j=1:N_j-1
     elseif vfoptions.lowmemory==1
         for z_c=1:N_z
             z_val=z_gridvals_J(z_c,:,jj);
-            DiscountedEV_z=DiscountFactorParamsVec*repelem(EV(:,:,z_c),N_d1,N_a1);
 
             ReturnMatrix_z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2, n_a1, n_a1,n_a2, special_n_z, d_gridvals, a1_gridvals, a1_gridvals, a2_gridvals, z_val, ReturnFnParamsVec,0,0); % Level=0, Refine=0
 
-            entireRHS_z=ReturnMatrix_z+DiscountedEV_z;
+            entireRHS_z=ReturnMatrix_z+DiscountFactorParamsVec*repelem(EV(:,:,z_c),N_d1,N_a1);
 
             %Calc the max and its index
             [Vtemp,maxindex]=max(entireRHS_z,[],1);
@@ -130,11 +131,10 @@ for reverse_j=1:N_j-1
             ea_val=a2_gridvals(ea_c);
             for z_c=1:N_z
                 z_val=z_gridvals_J(z_c,:,jj);
-                DiscountedEV_ea_z=DiscountFactorParamsVec*repelem(EV(:,ea_c,z_c),N_d1,N_a1);
 
                 ReturnMatrix_ea_z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2,n_a1,n_a1,special_n_ea,special_n_z, d_gridvals, a1_gridvals, a1_gridvals, ea_val, z_val, ReturnFnParamsVec,0,0); % Level=0, Refine=0
 
-                entireRHS_ea_z=ReturnMatrix_ea_z+DiscountedEV_ea_z;
+                entireRHS_ea_z=ReturnMatrix_ea_z+DiscountFactorParamsVec*repelem(EV(:,ea_c,z_c),N_d1,N_a1);
 
                 %Calc the max and its index
                 [Vtemp,maxindex]=max(entireRHS_ea_z,[],1);
