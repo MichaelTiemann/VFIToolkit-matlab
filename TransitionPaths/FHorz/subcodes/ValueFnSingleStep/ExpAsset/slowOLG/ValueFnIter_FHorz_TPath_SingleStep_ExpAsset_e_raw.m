@@ -110,7 +110,7 @@ for reverse_j=1:N_j-1
     aprimeProbs(skipinterp)=0; % effectively skips interpolation
 
     % Switch EV from being in terms of a2prime to being in terms of d2 and a2
-    EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper; % (d2,a1prime,a2,u,zprime)
+    EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper; % (d2,a1prime,a2,N_j,zprime)
     % Already applied the probabilities from interpolating onto grid
 
     EV=EV.*shiftdim(pi_z_J(:,:,jj)',-2);
