@@ -43,8 +43,26 @@ if ~exist('simoptions','var')
 end
 
 %% Check inputs
-if abs(sum(Parameters.(PTypeDistParamNames{1}))-1)>10^(-15)
-    warning('The permanent type mass weights must sum to one (PTypeDistParamNames points to weights that do not sum to one)')
+tolerance_ptweights=10^(-15);
+if strcmp(simoptions.precision,'single')
+    tolerance_ptweights=10^(-6);
+end
+if isfield(simoptions, 'FnsToEvaluate')
+    ptweights=Parameters.(PTypeDistParamNames{1});
+    FnsAndPTypeIndicator=zeros(length(Names_i),length(fieldnames(simoptions.FnsToEvaluate)));
+    for ii=1:length(Names_i)
+        [~,~,~,FnsAndPTypeIndicator_ii]=PType_FnsToEvaluate(simoptions.FnsToEvaluate,Names_i,ii); % Missing parameters don't matter
+        % Columns are PTypes
+        FnsAndPTypeIndicator(:,ii)=FnsAndPTypeIndicator_ii;
+    end
+
+    if any(abs(sum(FnsAndPTypeIndicator.*Parameters.(PTypeDistParamNames{1}),2)-1))>tolerance_ptweights
+        warning('The permanent type mass weights must sum to one (PTypeDistParamNames points to weights that do not sum to one)')
+    end
+else
+    if abs(sum(Parameters.(PTypeDistParamNames{1}))-1)>tolerance_ptweights
+        warning('The permanent type mass weights must sum to one (PTypeDistParamNames points to weights that do not sum to one)')
+    end
 end
 
 %% Deal with jequaloneDist
