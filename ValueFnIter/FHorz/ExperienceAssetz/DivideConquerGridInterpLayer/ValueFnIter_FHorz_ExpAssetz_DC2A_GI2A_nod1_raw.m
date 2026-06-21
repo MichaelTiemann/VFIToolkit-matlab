@@ -33,11 +33,11 @@ elseif vfoptions.lowmemory==1
 end
 
 % n-Monotonicity over a1
-level1ii=cast2index(round(linspace(1,n_a1,vfoptions.level1n)));
+level1ii=round(linspace(1,n_a1,vfoptions.level1n));
 level1iidiff=level1ii(2:end)-level1ii(1:end-1)-1;
 
 % GI grid
-n2short=cast2index(vfoptions.ngridinterp);
+n2short=vfoptions.ngridinterp;
 n2long=vfoptions.ngridinterp*2+3;
 a1prime_grid=interp1(1:1:N_a1,a1_grid,linspace(1,N_a1,N_a1+(N_a1-1)*n2short))';
 N_a1fine=length(a1prime_grid);

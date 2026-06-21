@@ -18,7 +18,7 @@ a1_grid=a_grid(1:N_a1);
 a2_grid=a_grid(N_a1+1:end);
 
 % n-Monotonicity
-level1ii=cast2index(round(linspace(1,N_a1,vfoptions.level1n)));
+level1ii=round(linspace(1,N_a1,vfoptions.level1n));
 % level1iidiff=level1ii(2:end)-level1ii(1:end-1)-1;
 
 % Grid interpolation
