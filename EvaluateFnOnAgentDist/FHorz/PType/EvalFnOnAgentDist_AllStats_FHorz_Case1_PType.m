@@ -61,6 +61,7 @@ if ~exist('simoptions','var')
     % When calling as a subcommand, the following is used internally
     simoptions.alreadygridvals=0;
     simoptions.alreadygridvals_semiexo=0;
+    simoptions.precision='double';
 else
     if ~isfield(simoptions,'groupptypesforstats')
         simoptions.groupptypesforstats=1;
@@ -102,6 +103,9 @@ else
     if ~isfield(simoptions,'alreadygridvals_semiexo')
         simoptions.alreadygridvals_semiexo=0;
     end
+    if ~isfield(simoptions,'precision')
+        simoptions.precision='double';
+    end
 end
 
 if isstruct(FnsToEvaluate)
@@ -136,15 +140,16 @@ if simoptions.groupusingtdigest==1 % Things are being stored on cpu but solved o
     AllCMerge=struct();
     Alldigestweightsmerge=struct();
     for ff=1:numFnsToEvaluate % Each of the functions to be evaluated on the grid
-        AllCMerge.(FnsToEvalNames{ff})=zeros(5000*N_i,1,simoptions.precision),; % This is intended to be an upper limit on number of points that might be use
+        AllCMerge.(FnsToEvalNames{ff})=zeros(5000*N_i,1,simoptions.precision); % This is intended to be an upper limit on number of points that might be use
         Alldigestweightsmerge.(FnsToEvalNames{ff})=zeros(5000*N_i,1,simoptions.precision); % This is intended to be an upper limit on number of points that might be use
     end
 else
     AllValues=struct();
     AllWeights=struct();
+    cast2precision=str2func(simoptions.precision);
     for ff=1:numFnsToEvaluate % Each of the functions to be evaluated on the grid
-        AllValues.(FnsToEvalNames{ff})=str2func(simoptions.precision)([]);
-        AllWeights.(FnsToEvalNames{ff})=str2func(simoptions.precision)([]);
+        AllValues.(FnsToEvalNames{ff})=cast2precision([]);
+        AllWeights.(FnsToEvalNames{ff})=cast2precision([]);
     end
 end
 
