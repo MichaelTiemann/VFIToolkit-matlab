@@ -239,7 +239,7 @@ if isfield(simoptions,'conditionalrestrictions')
     useCondlRest=1;
     CondlRestnFnNames=fieldnames(simoptions.conditionalrestrictions);
 
-    restrictedsamplemass=nan(length(CondlRestnFnNames),N_j);
+    restrictedsamplemass=nan(length(CondlRestnFnNames),N_j,simoptions.precision);
     RestrictionStruct=struct();
 
     % For each conditional restriction, create a 'restricted stationary distribution'
@@ -361,7 +361,7 @@ if N_z==0
 
         %%
         for ff=1:numFnsToEvaluate % Each of the functions to be evaluated on the grid
-            Values=nan(N_a,jend-j1+1,'gpuArray'); % Preallocate
+            Values=nan(N_a,jend-j1+1,simoptions.precision,'gpuArray'); % Preallocate
             for jj=j1:jend
                 FnToEvaluateParamsCell=CreateCellFromParams(Parameters,FnsToEvaluateParamNames(ff).Names,jj,simoptions.precision);
                 Values(:,jj-j1+1)=EvalFnOnAgentDist_Grid(FnsToEvaluate{ff}, FnToEvaluateParamsCell,PolicyValuesPermuteJ(:,:,jj),l_daprime,n_a,0,a_gridvals,cast2precision([]));
@@ -483,7 +483,7 @@ else
 
         %%
         for ff=1:numFnsToEvaluate % Each of the functions to be evaluated on the grid
-            Values=nan(N_a,N_z,jend-j1+1,'gpuArray'); % Preallocate
+            Values=nan(N_a,N_z,jend-j1+1,simoptions.precision,'gpuArray'); % Preallocate
             for jj=j1:jend
                 % Includes check for cases in which no parameters are actually required
                 FnToEvaluateParamsCell=CreateCellFromParams(Parameters,FnsToEvaluateParamNames(ff).Names,jj,simoptions.precision);

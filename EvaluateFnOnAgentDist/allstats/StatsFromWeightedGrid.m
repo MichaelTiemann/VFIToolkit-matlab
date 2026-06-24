@@ -121,7 +121,7 @@ else
     if whichstats(3)==1
         % Calculate the 'age conditional' variance
         AllStats.Variance=sum(((Values-AllStats.Mean).^2).*Weights); % Weighted square of (values - mean)
-        if AllStats.Variance<0 && AllStats.Variance>-10^(-6) % overwrite what is likely just numerical error
+        if AllStats.Variance<0 && AllStats.Variance>-sqrt(tolerance) % overwrite what is likely just numerical error
             AllStats.Variance=0;
         end
         AllStats.StdDeviation=sqrt(AllStats.Variance);
@@ -172,7 +172,7 @@ else
                             LorenzCurve(1:end-1)=temp;
                             % Because of how interp1() works, it will put NaN at the bottom of the curve if there is a bunch of mass at first value
                             temp2=sum(isnan(temp));
-                            if abs(LorenzCurve(temp2+1)-CumSumSortedWeightedValues(1))<1e-15
+                            if abs(LorenzCurve(temp2+1)-CumSumSortedWeightedValues(1))<tolerance
                                 temp2=temp2+1;
                             end
                             LorenzCurve(1:temp2)=(CumSumSortedWeightedValues(1) - SortedValues(1)*(CumSumSortedWeights(1)-temp2/npoints)) .*((1:1:temp2)/temp2);
