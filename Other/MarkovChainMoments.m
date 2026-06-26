@@ -55,12 +55,12 @@ if mcmomentsoptions.eigenvector==1
     % [V,~] = eigs(Ptranspose,1); % We are only interested in the largest eigenvector
     % Following lines are alternative I found in MNS2016. It includes a bunch
     % of checks of input and output
-    assert(all(abs(sum(pi_z_transpose)-1)<1e-10));
+    assert(all(abs(sum(pi_z_transpose)-1)<mcmomentsoptions.Tolerance*1e-2));
     opts.disp=0;
-    [x,eval] = eigs(pi_z_transpose,[],1,1+1e-10,opts);
-    assert(abs(eval-1)<1e-10);
+    [x,eval] = eigs(pi_z_transpose,[],1,1+mcmomentsoptions.Tolerance*1e-2,opts);
+    assert(abs(eval-1)<mcmomentsoptions.Tolerance*1e-2);
     V = x/sum(x);
-    assert(min(V)>-1e-12);
+    assert(min(V)>-mcmomentsoptions.Tolerance*1e-4);
     V = max(V,0);
 
     statdist=V/sum(V);
