@@ -60,7 +60,7 @@ else
 
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
     beta=prod(DiscountFactorParamsVec); % Discount factor between any two future periods
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
+    beta0=CreateVectorFromParams(Parameters,{vfoptions.QHadditionaldiscount},N_j,vfoptions.precision);
     beta0beta=beta0*beta; % Discount factor between today and tomorrow.
 
     EV=V_Jplus1; % Note: The V_Jplus1 input should be Valt for naive
@@ -129,7 +129,7 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj,vfoptions.precision);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj,vfoptions.precision);
     beta=prod(DiscountFactorParamsVec); % Discount factor between any two future periods
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
+    beta0=CreateVectorFromParams(Parameters,{vfoptions.QHadditionaldiscount},jj,vfoptions.precision);
     beta0beta=beta0*beta; % Discount factor between today and tomorrow.
 
     EV=Valt(:,:,jj+1); % Use Valt (goes into the equation to determine Valt)

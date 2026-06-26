@@ -148,7 +148,7 @@ if vfoptions.gridinterplayer==1
             end
         else
             beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-            beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
+            beta0=CreateVectorFromParams(Parameters,{vfoptions.QHadditionaldiscount},jj,vfoptions.precision);
             beta0beta=beta0*beta;
 
             if isNaive
@@ -277,7 +277,7 @@ for reverse_j=0:N_j-1
         end
     else
         beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-        beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
+        beta0=CreateVectorFromParams(Parameters,{vfoptions.QHadditionaldiscount},jj,vfoptions.precision);
         beta0beta=beta0*beta;
 
         % V_next is the continuation-driving fn: Vunderbar(jj+1) for Soph, Valt(jj+1) for Naive

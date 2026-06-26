@@ -53,7 +53,7 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj,vfoptions.precision);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj,vfoptions.precision);
     beta=prod(DiscountFactorParamsVec); % Discount factor between any two future periods
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
+    beta0=CreateVectorFromParams(Parameters,{vfoptions.QHadditionaldiscount},jj,vfoptions.precision);
     beta0beta=beta0*beta; % Discount factor between today and tomorrow.
 
     EV=Vnext(:,1,jj+1);

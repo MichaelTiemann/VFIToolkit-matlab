@@ -116,7 +116,7 @@ if vfoptions.gridinterplayer==1
                 end
             else
                 beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-                beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
+                beta0=CreateVectorFromParams(Parameters,{vfoptions.QHadditionaldiscount},jj,vfoptions.precision);
                 beta0beta=beta0*beta;
 
                 if isNaive
@@ -192,7 +192,7 @@ if vfoptions.gridinterplayer==1
                 end
             else
                 beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-                beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
+                beta0=CreateVectorFromParams(Parameters,{vfoptions.QHadditionaldiscount},jj,vfoptions.precision);
                 beta0beta=beta0*beta;
 
                 if isNaive
@@ -275,7 +275,7 @@ if vfoptions.gridinterplayer==1
                 end
             else
                 beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-                beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
+                beta0=CreateVectorFromParams(Parameters,{vfoptions.QHadditionaldiscount},jj,vfoptions.precision);
                 beta0beta=beta0*beta;
 
                 if isNaive
@@ -354,7 +354,7 @@ if vfoptions.gridinterplayer==1
                 end
             else
                 beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-                beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
+                beta0=CreateVectorFromParams(Parameters,{vfoptions.QHadditionaldiscount},jj,vfoptions.precision);
                 beta0beta=beta0*beta;
 
                 if isNaive
@@ -431,7 +431,7 @@ if N_z==0 && N_e==0
             end
         else
             beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-            beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
+            beta0=CreateVectorFromParams(Parameters,{vfoptions.QHadditionaldiscount},jj,vfoptions.precision);
             beta0beta=beta0*beta;
 
             if isNaive
@@ -511,7 +511,7 @@ elseif N_z==0 && N_e>0
             end
         else
             beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-            beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
+            beta0=CreateVectorFromParams(Parameters,{vfoptions.QHadditionaldiscount},jj,vfoptions.precision);
             beta0beta=beta0*beta;
 
             if isNaive
@@ -591,7 +591,7 @@ elseif N_z>0 && N_e==0
             end
         else
             beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-            beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
+            beta0=CreateVectorFromParams(Parameters,{vfoptions.QHadditionaldiscount},jj,vfoptions.precision);
             beta0beta=beta0*beta;
 
             if isNaive
@@ -676,7 +676,7 @@ elseif N_z>0 && N_e>0
             end
         else
             beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-            beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
+            beta0=CreateVectorFromParams(Parameters,{vfoptions.QHadditionaldiscount},jj,vfoptions.precision);
             beta0beta=beta0*beta;
 
             if isNaive
