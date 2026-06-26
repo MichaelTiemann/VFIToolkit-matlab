@@ -18,12 +18,12 @@ function CellOfParamValues=CreateCellFromParams(Parameters,ParamNames,index1,ind
 
 
 nargin_temp=nargin;
-if exist('index2','var') && ischar(index2)
+if exist('index2','var') && ischar(index2) && any(strcmp({'single','double'}, index2))
     precision=index2;
     clear index2
     % Don't confuse `precision` with index 1 or 2
     nargin_temp=nargin_temp-1;
-elseif exist('index1','var') && ischar(index1)
+elseif exist('index1','var') && ischar(index1) && any(strcmp({'single','double'}, index1))
     precision=index1;
     clear index1
     % Don't confuse `precision` with index 1 or 2
