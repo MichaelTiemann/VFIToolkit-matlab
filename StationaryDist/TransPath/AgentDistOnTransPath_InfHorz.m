@@ -17,6 +17,7 @@ if exist('simoptions','var')==0
     simoptions.verbose=0;
     simoptions.gridinterplayer=0;
     simoptions.experienceasset=0;
+    simoptions.precision='double';
 else
     % Check simoptions for missing fields, if there are some fill them with the defaults
     if ~isfield(simoptions,'verbose')
@@ -27,6 +28,9 @@ else
     end
     if ~isfield(simoptions,'experienceasset')
         simoptions.experienceasset=0;
+    end
+    if ~isfield(simoptions,'precision')
+        simoptions.precision='double';
     end
 end
 
@@ -133,7 +137,7 @@ elseif simoptions.experienceasset>=1
 
     % Precompute
     Policy_a2prime=zeros(N_a,N_z,2,'gpuArray'); % the lower grid point
-    PolicyProbs=zeros(N_a,N_z,2,simoptions.precision,'gpuArray'); % preallocate
+    PolicyProbs=zeros(N_a,N_z,2,'gpuArray'); % preallocate
     Policy_aprime=zeros(N_a,N_z,2,'gpuArray'); % preallocate
     II2=([1:1:N_a*N_z; 1:1:N_a*N_z]'); % Index for this period (a,z), note the 2 copies
 
@@ -168,7 +172,7 @@ elseif simoptions.experienceasset>=1
                 Policy_aprime(:,:,2)=reshape(Policy(l_d+1,:,:),[N_a,N_z,1])+n_a1*Policy_a2prime(:,:,1); % Note: upper grid point minus 1 is anyway just lower grid point
             end
             PolicyaprimezPath=reshape(Policy_aprime+N_a*(0:1:N_z-1),[N_a*N_z,2]);
-            PolicyProbsPath=reshape(PolicyProbs+N_a*(0:1:N_z-1),[N_a*N_z,2]);
+            PolicyProbsPath=reshape(PolicyProbs,[N_a*N_z,2]); % Change shape to 2-D...anything else needed?
 
             AgentDist=AgentDist_InfHorz_TPath_SingleStep_nProbs_raw(AgentDist,PolicyaprimezPath,II2,PolicyProbsPath,N_a,N_z,pi_z_sparse);
             AgentDistPath(:,tt+1)=gpuArray(full(AgentDist));
