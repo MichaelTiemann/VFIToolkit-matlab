@@ -10,6 +10,7 @@ if ~exist('simoptions','var')
     simoptions.gridinterplayer=0;
     simoptions.n_e=0;
     simoptions.n_semiz=0;
+    % set precision if/when we pass simoptions down to EvalFnOnAgentDist_InfHorz_TPath_SingleStep_AggVars
 else
     % Check simoptions for missing fields, if there are some fill them with the defaults
     if ~isfield(simoptions,'experienceasset')
