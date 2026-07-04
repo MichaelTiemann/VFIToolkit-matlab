@@ -14,8 +14,11 @@ else
     AggVars=struct();
 end
 
+% Might be cleaner to pass in simoptions
+precision=underlyingType(a_gridvals);
+
 for ff=1:length(FnsToEvaluateNames)
-    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,FnsToEvaluateParamNames(ff).Names);
+    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,FnsToEvaluateParamNames(ff).Names,precision);
     Values=EvalFnOnAgentDist_Grid(FnsToEvaluateCell{ff}, FnToEvaluateParamsCell,PolicyValuesPermute,l_daprime,n_a,n_z,a_gridvals,z_gridvals);
     Values=reshape(Values,[N_a*N_z,1]);
     % When evaluating value function (which may sometimes give -Inf values) on StationaryDistVec (which at those points will be 0) we get 'NaN'. Use temp as intermediate variable just eliminate those.
