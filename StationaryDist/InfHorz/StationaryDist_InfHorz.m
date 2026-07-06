@@ -38,6 +38,7 @@ if exist('simoptions','var')==0
     simoptions.outputkron=0;
     simoptions.alreadygridvals=0;
     simoptions.alreadygridvals_semiexo=0;
+    simoptions.precision='double';
 else
     %Check simoptions for missing fields, if there are some fill them with the defaults
     if ~isfield(simoptions,'verbose')
@@ -125,6 +126,9 @@ else
     end
     if isfield(simoptions,'a_grid')
         simoptions.a_grid=gpuArray(simoptions.a_grid);
+    end
+    if ~isfield(simoptions,'precision')
+        simoptions.precision='double';
     end
 end
 

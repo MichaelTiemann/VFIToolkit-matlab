@@ -60,10 +60,16 @@ end
 if ~isfield(vfoptions,'lowmemory')
     vfoptions.lowmemory=0;
 end
+if ~isfield(vfoptions,'precision')
+    vfoptions.precision='double';
+end
 vfoptions.EVpre=1;
 vfoptions.outputkron=1;
 if ~isfield(simoptions,'gridinterplayer')
     simoptions.gridinterplayer=0;
+end
+if ~isfield(simoptions,'precision')
+    simoptions.precision='double';
 end
 simoptions.outputkron=1;
 

@@ -2,8 +2,6 @@ function varargout=ValueFnIter_InfHorz(n_d,n_a,n_z,d_grid,a_grid,z_grid, pi_z, R
 % Solves infinite-horizon value function problems.
 % Typically, varargoutput={V,Policy};
 
-V=nan(vfoptions.precision); % Matlab was complaining that V was not assigned
-
 N_d=prod(n_d);
 N_a=prod(n_a);
 N_z=prod(n_z);
@@ -163,6 +161,7 @@ if vfoptions.divideandconquer==1 && isscalar(n_a)
     vfoptions.divideandconquer=0;
 end
 
+V=nan(vfoptions.precision); % Matlab was complaining that V was not assigned
 
 %% Report on Setup
 if vfoptions.verbose==1
