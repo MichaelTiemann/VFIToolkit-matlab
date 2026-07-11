@@ -12,6 +12,7 @@ PolicyProbs=gather(PolicyProbs);
 StationaryDist=zeros(N_a,N_j,'gpuArray');
 StationaryDist(:,1)=jequaloneDistKron;
 StationaryDist_jj=sparse(gather(jequaloneDistKron)); % sparse() creates a matrix of zeros
+epsilon=5e-4; % A suitably small value
 
 % Precompute
 II2=repmat((1:1:N_a)',1,N_probs); % Note the N_probs-copies
@@ -26,7 +27,6 @@ for jj=1:(N_j-1)
     % Clean up Gaussian diffusion from Gamma step
     nnz_gamma=nnz(StationaryDist_jj);
     if nnz_gamma>4
-        epsilon=5e-4; % A suitably small value
         [epsilons, e_idx] = mink(nonzeros(StationaryDist_jj), nnz_gamma-4);
         e_idx=e_idx(epsilons<epsilon);
         epsilons=epsilons(epsilons<epsilon);
