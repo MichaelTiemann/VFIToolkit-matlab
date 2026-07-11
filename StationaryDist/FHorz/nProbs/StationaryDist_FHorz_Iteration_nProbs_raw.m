@@ -16,6 +16,7 @@ PolicyProbs=gather(reshape(PolicyProbs,[N_a*N_z,N_probs,N_j])); % sparse() requi
 StationaryDist=zeros(N_a*N_z,N_j,precision,'gpuArray');
 StationaryDist(:,1)=jequaloneDistKron;
 StationaryDist_jj=sparse(gather(jequaloneDistKron)); % use sparse matrix
+epsilon_z=1e-3*full(sum(reshape(StationaryDist_jj,[N_a,N_z]),1)); % A suitably small value, scaled by the probability sum of this z slice
 
 % Precompute
 II2=repmat((1:1:N_a*N_z)',1,N_probs); %  Index for this period (a,z), note the N_probs-copies
@@ -27,6 +28,26 @@ for jj=1:(N_j-1)
 
     % First step of Tan improvement
     StationaryDist_jj=reshape(Gammatranspose*StationaryDist_jj,[N_a,N_z]);
+
+    % Clean up Gaussian diffusion from Gamma step
+    nnz_gamma=sum(StationaryDist_jj~=0,1);
+    for z_c=1:length(nnz_gamma)
+        if nnz_gamma(z_c)>6
+            [epsilons, e_idx] = mink(nonzeros(StationaryDist_jj(:,z_c)), nnz_gamma(z_c)-6);
+            e_idx=e_idx(epsilons<epsilon_z(z_c));
+            epsilons=epsilons(epsilons<epsilon_z(z_c));
+            if nnz(epsilons)>0
+                nonzero_idx=find(StationaryDist_jj(:,z_c));
+                % zero out likely error artifacts
+                StationaryDist_jj(nonzero_idx(e_idx),z_c)=0;
+                keep_nonzero=true(size(nonzero_idx));
+                keep_nonzero(e_idx)=false;
+                % redistribute values zeroed out equally among remaining nonzero terms
+                % QUESTION: should we redistribute pro-rata instead of equally?
+                StationaryDist_jj(nonzero_idx(keep_nonzero),z_c)=StationaryDist_jj(nonzero_idx(keep_nonzero),z_c)+sum(epsilons)/(nnz_gamma(z_c)-length(epsilons));
+            end
+        end
+    end
 
     % Second step of Tan improvement
     pi_z=sparse(gather(pi_z_J(:,:,jj)));
