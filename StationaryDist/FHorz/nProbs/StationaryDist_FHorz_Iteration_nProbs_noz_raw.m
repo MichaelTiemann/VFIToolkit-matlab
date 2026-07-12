@@ -26,7 +26,7 @@ for jj=1:(N_j-1)
 
     % Clean up Gaussian diffusion from Gamma step
     nnz_gamma=nnz(StationaryDist_jj);
-    if nnz_gamma>6
+    if nnz_gamma>8
         [epsilons, e_idx] = mink(nonzeros(StationaryDist_jj), nnz_gamma-4);
         e_idx=e_idx(epsilons<epsilon);
         epsilons=epsilons(epsilons<epsilon);
