@@ -41,7 +41,6 @@ for jj=1:(N_j-1)
         % Redistribute values zeroed out equally among remaining nonzero terms
         % By subtracting the largest zeroed epsilon, we return some
         % weight from the edges to the center of the distribution
-        % By multiplying by epsilon_z(z_c), we limit drift in our normalized averages
         newdist_jj=StationaryDist_jj(nonzero_idx(keep_nonzero))-epsilons(end);
         StationaryDist_jj(nonzero_idx(keep_nonzero))=epsilon*newdist_jj./sum(newdist_jj);
         nnz_gamma=nnz(StationaryDist_jj);
