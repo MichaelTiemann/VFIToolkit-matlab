@@ -43,12 +43,8 @@ for jj=1:(N_j-1)
     Gammatranspose_upper=sparse(Policy_aprimez(:,2,jj),II1,PolicyProbs(:,2,jj),N_a*N_z,N_a*N_z);
 
     % First step of Tan improvement
-    if false
-        needs_rounding=(StationaryDist_jj<1e-7 | StationaryDist_jj>1-1e-7);
-        needs_rounding(StationaryDist_jj==0)=0;
-        needs_rounding(StationaryDist_jj==1)=0;
-        StationaryDist_jj(needs_rounding)=round(StationaryDist_jj(needs_rounding));
-    end
+    needs_rounding=(StationaryDist_jj<1e-7 | StationaryDist_jj>1-1e-7);
+    StationaryDist_jj(needs_rounding)=round(StationaryDist_jj(needs_rounding));
     StationaryDist_lower_jj=reshape(Gammatranspose_lower*StationaryDist_jj,[N_a,N_z]);
     StationaryDist_upper_jj=reshape(Gammatranspose_upper*StationaryDist_jj,[N_a,N_z]);
     StationaryDist_jj=reshape(Gammatranspose*StationaryDist_jj,[N_a,N_z]);
@@ -58,7 +54,6 @@ for jj=1:(N_j-1)
     StationaryDist_jj=StationaryDist_jj*pi_z;
     StationaryDist_lower_jj=StationaryDist_lower_jj*pi_z;
     StationaryDist_upper_jj=StationaryDist_upper_jj*pi_z;
-    fprintf("jj = %d; probabilities sum to %.2f\n", jj, sum(full(StationaryDist_jj),1));
     for z_c=1:N_z
         probability_z=full(sum(StationaryDist_jj(:,z_c),1));
         if probability_z==0 || nnz(StationaryDist_jj(:,z_c))<3
@@ -71,22 +66,23 @@ for jj=1:(N_j-1)
 
         [rows,cols]=find(StationaryDist_colz_jj~=0);
         for col=unique(cols)'
-            [row_lowerz_idx_jj,~,lowerz_values_jj]=find(StationaryDist_lowerz_jj(:,col));
-            if isempty(row_lowerz_idx_jj)
-                if nnz(StationaryDist_upper_jj(:,z_c))
-                    continue
-                    % Swap and try again; the empty half-distribution will not prevent us from getting the job done
-                    StationaryDist_upperz_jj=StationaryDist_lowerz_jj;
-                    StationaryDist_lowerz_jj=reshape(StationaryDist_upper_jj(:,z_c),[N_a1,N_a2])';
-                    [row_lowerz_idx_jj,~,lowerz_values_jj]=find(StationaryDist_lowerz_jj(:,col));
-                else
-                    % Cannot have empty Stationary Distribution w/probability_z
-                    assert(false)
-                end
-            end
-
             % Process agents' ExpAssets column by column
             probability_col=full(sum(StationaryDist_colz_jj(:,col)));
+
+            [row_lowerz_idx_jj,~,lowerz_values_jj]=find(StationaryDist_lowerz_jj(:,col));
+            if isempty(row_lowerz_idx_jj)
+                % Swap and try again; the empty half-distribution will not prevent us from getting the job done
+                row_upperz_idx_jj=row_lowerz_idx_jj;
+                [row_lowerz_idx_jj,~,lowerz_values_jj]=find(StationaryDist_upperz_jj(:,col));
+                if isscalar(row_lowerz_idx_jj) && row_lowerz_idx_jj==N_a2 && probability_col<1e-6
+                    % Allow this infinitesimal to evaporate from grid
+                    temp=sparse(row_lowerz_idx,col,0,N_a2,N_a1); % Note transposed!
+                    StationaryDist_jj(sub2ind([N_a1,N_a2,z_c],col,row_lowerz_idx,z_c))=temp(row_lowerz_idx,col);
+                    continue
+                end
+            else
+                [row_upperz_idx_jj,~,upperz_values_jj]=find(StationaryDist_upperz_jj(:,col));
+            end
 
             [row_lowerz_idx_jj,sort_idx]=sort(row_lowerz_idx_jj);
             lowerz_values_jj=lowerz_values_jj(sort_idx);
@@ -114,152 +110,157 @@ for jj=1:(N_j-1)
     
                 multiplierz_lower=row_lowerz_idx-row_lowerz_idx(1)'+1;
     
-                if nnz(StationaryDist_upperz_jj(:,col))
-                    % Attempt to consolidate upper and lower
-                    [row_upperz_idx_jj,~,upperz_values_jj]=find(StationaryDist_upperz_jj(:,col));
-                    [row_upperz_idx_jj,sort_idx]=sort(row_upperz_idx_jj);
-                    upperz_values_jj=upperz_values_jj(sort_idx);
-    
-                    row_gaps=find(diff(row_upperz_idx_jj)>1);
-                    if ~isempty(row_gaps)
-                        continue
-                    end
-                    upper_group_idx=[0;row_gaps;length(row_upperz_idx_jj)];
-                    assert(length(lower_group_idx)==length(upper_group_idx))
-                    uu=ll; % we keep these two in sync
-                    row_upperz_idx=row_upperz_idx_jj(upper_group_idx(uu)+1:upper_group_idx(uu+1));
-                    upperz_values=upperz_values_jj(upper_group_idx(uu)+1:upper_group_idx(uu+1));
-    
-                    if row_upperz_idx(end)-row_upperz_idx(1)+1>length(row_upperz_idx)
-                        % A zero logically bubbled in...so make space for it for now
-                        full_row_idx=row_upperz_idx(1):row_upperz_idx(end);
-                        [tf,~]=ismember(full_row_idx,row_upperz_idx);
-                        insert_pos=find(tf==0);
-                        good_rows=setdiff(1:length(full_row_idx),insert_pos);
-                        new_values=zeros(length(full_row_idx),1);
-                        new_values(good_rows)=upperz_values;
-                        upperz_values=new_values;
-                        row_upperz_idx=full_row_idx;
-                    end
-        
-                    multiplierz_upper=row_upperz_idx-row_lowerz_idx(1)+1;
-        
-                    sum_lowerz=sum(lowerz_values.*multiplierz_lower);
-                    sum_upperz=sum(upperz_values.*multiplierz_upper);
-        
-                    if length(unique(multiplierz_lower))>1 && (sum_upperz+sum_lowerz)/multiplierz_lower(end)<=probability_col
-                        % We can fit all the upper values into slots allocated to lower with a basis to work with
-                        lowerz_values(end)=lowerz_values(end)+sum_upperz/multiplierz_lower(end);
-                        % But in so doing, we may have probabilities that sum>1, so fix
-                        zero_elimination=zeros(1,length(lowerz_values));
-                        zero_minimization=false;
-                        while (nnz(lowerz_values)>2)
-                            last_zeros=find(lowerz_values~=0,1,'last');
-                            zero_elimination(last_zeros:end)=1;
-                            % Aggressively try to zero out largest indices
-                            new_values=linsolve([multiplierz_lower';ones(1,length(lowerz_values));zero_elimination],[sum(lowerz_values.*multiplierz_lower); probability_col;0]);
-                            needs_round=(abs(new_values)<=1e-7 | new_values>=1-1e-7);
-                            new_values(needs_round)=round(new_values(needs_round));
-                            if all(new_values>=0)
-                                lowerz_values=new_values;
-                                zero_minimization=true;
-                            else
-                                break
-                            end
-                        end
-                        zero_elimination=zeros(1,length(lowerz_values));
-                        while (nnz(lowerz_values)>2)
-                            % Try to zero out least index
-                            first_zeros=find(lowerz_values~=0,1,'first');
-                            zero_elimination(1:first_zeros)=1;
-                            new_values=linsolve([multiplierz_lower';ones(1,length(lowerz_values));zero_elimination],[sum(lowerz_values.*multiplierz_lower); probability_col;0]);
-                            needs_round=(abs(new_values)<=1e-7 | new_values>=1-1e-7);
-                            new_values(needs_round)=round(new_values(needs_round));
-                            if all(new_values==lowerz_values)
-                                break
-                            elseif all(new_values>=0)
-                                lowerz_values=new_values;
-                                zero_minimization=true;
-                            else
-                                break
-                            end
-                        end
-                        if ~zero_minimization
-                            % Just rebalance the indicies (possibly creating a zero in the middle we cannot move to either end of lowerz_values
-                            new_values=linsolve([multiplierz_lower';ones(1,length(lowerz_values))],[sum(lowerz_values.*multiplierz_lower); probability_col]);
-                            needs_round=(abs(new_values)<=1e-7 | new_values>=1-1e-7);
-                            new_values(needs_round)=round(new_values(needs_round));
-                            if all(new_values>=0)
-                                lowerz_values=new_values;
-                            end
-                        end
-                        StationaryDist_lowerz_jj(row_lowerz_idx,col)=lowerz_values;                        
-                        StationaryDist_jj(sub2ind([N_a1,N_a2,z_c],col,row_lowerz_idx(1):row_upperz_idx(end),z_c))=StationaryDist_lowerz_jj(row_lowerz_idx(1):row_upperz_idx(end),col);
-                        continue
-                    elseif length(unique(multiplierz_upper))>1 && sum_lowerz/multiplierz_lower(end)+sum(upperz_values)<=probability_col
-                        % We can fit all the lower values into slots allocated to upper with a basis to work with
-                        upperz_values(1)=upperz_values(1)+sum_lowerz/multiplierz_upper(1);
-                        % But in so doing, we may have probabilities that sum>1, so fix
-                        zero_elimination=zeros(1,length(upperz_values));
-                        zero_minimization=false;
-                        while (nnz(upperz_values)>2)
-                            last_zeros=find(upperz_values~=0,1,'last');
-                            zero_elimination(last_zeros:end)=1;
-                            % Aggressively try to zero out largest indices
-                            new_values=linsolve([multiplierz_upper';ones(1,length(upperz_values));zero_elimination],[sum(upperz_values.*multiplierz_upper); probability_col;0]);
-                            needs_round=(abs(new_values)<=1e-7 | new_values>=1-1e-7);
-                            new_values(needs_round)=round(new_values(needs_round));
-                            if all(new_values>=0)
-                                upperz_values=new_values;
-                                zero_minimization=true;
-                            else
-                                break
-                            end
-                        end
-                        zero_elimination=zeros(1,length(upperz_values));
-                        while (nnz(upperz_values)>2)
-                            % Try to zero out least index
-                            first_zeros=find(upperz_values~=0,1,'first');
-                            zero_elimination(1:first_zeros)=1;
-                            new_values=linsolve([multiplierz_upper';ones(1,length(upperz_values));zero_elimination],[sum(upperz_values.*multiplierz_upper); probability_col;0]);
-                            needs_round=(abs(new_values)<=1e-7 | new_values>=1-1e-5);
-                            new_values(needs_round)=round(new_values(needs_round));
-                            if all(new_values==upperz_values)
-                                break
-                            elseif all(new_values>=0)
-                                upperz_values=new_values;
-                                zero_minimization=true;
-                            else
-                                break
-                            end
-                        end
-                        if ~zero_minimization
-                            % Just rebalance the indicies (possibly creating a zero in the middle we cannot move to either end of upperz_values
-                            new_values=linsolve([multiplierz_upper';ones(1,length(upperz_values))],[sum(upperz_values.*multiplierz_upper); probability_col]);
-                            needs_round=(abs(new_values)<=1e-7 | new_values>=1-1e-7);
-                            new_values(needs_round)=round(new_values(needs_round));
-                            if all(new_values>=0)
-                                upperz_values=new_values;
-                            end
-                        end
-                        StationaryDist_upperz_jj(row_upperz_idx,col)=upperz_values;
-                        StationaryDist_jj(sub2ind([N_a1,N_a2,z_c],col,row_lowerz_idx(1):row_upperz_idx(end),z_c))=StationaryDist_upperz_jj(row_lowerz_idx(1):row_upperz_idx(end),col);
-                        continue
-                    elseif length(unique(multiplierz_upper))>2
-                        % Attempt to consolidate upper into itself
+                if isempty(row_upperz_idx_jj)
+                    if nnz(lowerz_values)>2
+                        % Attempt to consolidate lower into itself
                         assert(false);
+                        for ii=1:length(lowerz_values)-1
+                            if sum(lowerz_values(ii:end).*multiplierz_lower(ii:end))/multiplierz_lower(1)<=probability_col
+                                lowerz_values(ii)=sum(lowerz_values(ii:end).*multiplierz_lower(ii:end))/multiplierz_lower(1);
+                                temp=sparse(row_lowerz_idx(1:ii),col,lowerz_values(1:ii),N_a2,N_a1); % Note transposed!
+                                temp_rows=row_lowerz_idx(1):row_upperz_idx(end);
+                                StationaryDist_jj(sub2ind([N_a1,N_a2,z_c],col,temp_rows,z_c))=temp(temp_rows,col);
+                                break
+                            end
+                        end
+                    else
+                        continue
                     end
-                elseif nnz(lowerz_values)>2
-                    % Attempt to consolidate lower into itself
-                    assert(false);
-                    for ii=1:length(lowerz_values)-1
-                        if sum(lowerz_values(ii:end).*multiplierz_lower(ii:end))/multiplierz_lower(1)<=probability_col
-                            lowerz_values(ii)=sum(lowerz_values(ii:end).*multiplierz_lower(ii:end))/multiplierz_lower(1);
-                            StationaryDist_lowerz_jj(:,col)=sparse(row_lowerz_idx(1:ii),col*ones(1,ii),lowerz_values(1:ii),N_a2,N_a1); % Note transposed!
-                            StationaryDist_jj(sub2ind([N_a1,N_a2,z_c],col,row_lowerz_idx(1):row_upperz_idx(end),z_c))=StationaryDist_lowerz_jj(row_lowerz_idx(1):row_upperz_idx(end),col);
+                end
+
+                % Attempt to consolidate upper and lower
+                [row_upperz_idx_jj,sort_idx]=sort(row_upperz_idx_jj);
+                upperz_values_jj=upperz_values_jj(sort_idx);
+
+                row_gaps=find(diff(row_upperz_idx_jj)>1);
+                if ~isempty(row_gaps)
+                    continue
+                end
+                upper_group_idx=[0;row_gaps;length(row_upperz_idx_jj)];
+                assert(length(lower_group_idx)==length(upper_group_idx))
+                uu=ll; % we keep these two in sync
+                row_upperz_idx=row_upperz_idx_jj(upper_group_idx(uu)+1:upper_group_idx(uu+1));
+                upperz_values=upperz_values_jj(upper_group_idx(uu)+1:upper_group_idx(uu+1));
+
+                if row_upperz_idx(end)-row_upperz_idx(1)+1>length(row_upperz_idx)
+                    % A zero logically bubbled in...so make space for it for now
+                    full_row_idx=row_upperz_idx(1):row_upperz_idx(end);
+                    [tf,~]=ismember(full_row_idx,row_upperz_idx);
+                    insert_pos=find(tf==0);
+                    good_rows=setdiff(1:length(full_row_idx),insert_pos);
+                    new_values=zeros(length(full_row_idx),1);
+                    new_values(good_rows)=upperz_values;
+                    upperz_values=new_values;
+                    row_upperz_idx=full_row_idx;
+                end
+    
+                multiplierz_upper=row_upperz_idx-row_lowerz_idx(1)+1;
+    
+                sum_lowerz=sum(lowerz_values.*multiplierz_lower);
+                sum_upperz=sum(upperz_values.*multiplierz_upper);
+    
+                if length(unique(multiplierz_lower))>1 && (sum_upperz+sum_lowerz)/multiplierz_lower(end)<=probability_col
+                    % We can fit all the upper values into slots allocated to lower with a basis to work with
+                    lowerz_values(end)=lowerz_values(end)+sum_upperz/multiplierz_lower(end);
+                    % But in so doing, we may have probabilities that sum>1, so fix
+                    zero_elimination=zeros(1,length(lowerz_values));
+                    zero_minimization=false;
+                    while (nnz(lowerz_values)>2)
+                        last_zeros=find(lowerz_values~=0,1,'last');
+                        zero_elimination(last_zeros:end)=1;
+                        % Aggressively try to zero out largest indices
+                        new_values=linsolve([multiplierz_lower';ones(1,length(lowerz_values));zero_elimination],[sum(lowerz_values.*multiplierz_lower); probability_col;0]);
+                        needs_round=(abs(new_values)<=1e-7 | new_values>=1-1e-7);
+                        new_values(needs_round)=round(new_values(needs_round));
+                        if all(new_values>=0)
+                            lowerz_values=new_values;
+                            zero_minimization=true;
+                        else
                             break
                         end
                     end
+                    zero_elimination=zeros(1,length(lowerz_values));
+                    while (nnz(lowerz_values)>2)
+                        % Try to zero out least index
+                        first_zeros=find(lowerz_values~=0,1,'first');
+                        zero_elimination(1:first_zeros)=1;
+                        new_values=linsolve([multiplierz_lower';ones(1,length(lowerz_values));zero_elimination],[sum(lowerz_values.*multiplierz_lower); probability_col;0]);
+                        new_values=round(new_values,6);
+                        if all(new_values==lowerz_values)
+                            break
+                        elseif all(new_values>=0)
+                            lowerz_values=new_values;
+                            zero_minimization=true;
+                        else
+                            break
+                        end
+                    end
+                    if ~zero_minimization
+                        % Just rebalance the indicies (possibly creating a zero in the middle we cannot move to either end of lowerz_values
+                        new_values=linsolve([multiplierz_lower';ones(1,length(lowerz_values))],[sum(lowerz_values.*multiplierz_lower); probability_col]);
+                        new_values=round(new_values,6);
+                        if all(new_values>=0)
+                            lowerz_values=new_values;
+                        else
+                            continue
+                        end
+                    end
+                    temp=sparse(row_lowerz_idx,col,lowerz_values,N_a2,N_a1); % Note transposed!
+                    temp_rows=row_lowerz_idx(1):row_upperz_idx(end);
+                    StationaryDist_jj(sub2ind([N_a1,N_a2,z_c],col,temp_rows,z_c))=temp(temp_rows,col);
+                    continue
+                elseif length(unique(multiplierz_upper))>1 && sum_lowerz/multiplierz_lower(end)+sum(upperz_values)<=probability_col
+                    % We can fit all the lower values into slots allocated to upper with a basis to work with
+                    upperz_values(1)=upperz_values(1)+sum_lowerz/multiplierz_upper(1);
+                    % But in so doing, we may have probabilities that sum>1, so fix
+                    zero_elimination=zeros(1,length(upperz_values));
+                    zero_minimization=false;
+                    while (nnz(upperz_values)>2)
+                        last_zeros=find(upperz_values~=0,1,'last');
+                        zero_elimination(last_zeros:end)=1;
+                        % Aggressively try to zero out largest indices
+                        new_values=linsolve([multiplierz_upper';ones(1,length(upperz_values));zero_elimination],[sum(upperz_values.*multiplierz_upper); probability_col;0]);
+                        new_values=round(new_values,6);
+                        if all(new_values>=0)
+                            upperz_values=new_values;
+                            zero_minimization=true;
+                        else
+                            break
+                        end
+                    end
+                    zero_elimination=zeros(1,length(upperz_values));
+                    while (nnz(upperz_values)>2)
+                        % Try to zero out least index
+                        first_zeros=find(upperz_values~=0,1,'first');
+                        zero_elimination(1:first_zeros)=1;
+                        new_values=linsolve([multiplierz_upper';ones(1,length(upperz_values));zero_elimination],[sum(upperz_values.*multiplierz_upper); probability_col;0]);
+                        new_values=round(new_values,6);
+                        if all(new_values==upperz_values)
+                            break
+                        elseif all(new_values>=0)
+                            upperz_values=new_values;
+                            zero_minimization=true;
+                        else
+                            break
+                        end
+                    end
+                    if ~zero_minimization
+                        % Just rebalance the indicies (possibly creating a zero in the middle we cannot move to either end of upperz_values
+                        new_values=linsolve([multiplierz_upper';ones(1,length(upperz_values))],[sum(upperz_values.*multiplierz_upper); probability_col]);
+                        new_values=round(new_values,6);
+                        if all(new_values>=0)
+                            upperz_values=new_values;
+                        else
+                            continue
+                        end
+                    end
+                    temp=sparse(row_upperz_idx,col,upperz_values,N_a2,N_a1); % Note transposed!
+                    temp_rows=row_lowerz_idx(1):row_upperz_idx(end);
+                    StationaryDist_jj(sub2ind([N_a1,N_a2,z_c],col,temp_rows,z_c))=temp(temp_rows,col);
+                    continue
+                elseif length(unique(multiplierz_upper))>2
+                    % Attempt to consolidate upper into itself
+                    assert(false);
                 end
             end
         end
