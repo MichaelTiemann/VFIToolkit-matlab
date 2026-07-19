@@ -29,11 +29,12 @@ StationaryDist(:,1)=jequaloneDistKron;
 StationaryDist_jj=sparse(gather(jequaloneDistKron)); % use sparse matrix
 StationaryDist_lower_jj=StationaryDist_jj;
 StationaryDist_upper_jj=StationaryDist_jj;
-epsilon=2e-5;  % A suitably small value...that may be scaled by the probability sum of each z slice
 
 % Precompute
 II1=(1:1:N_a*N_z)';
 II2=repmat((1:1:N_a*N_z)',1,N_probs); %  Index for this period (a,z), note the N_probs-copies
+
+SD_ref=StationaryDist;
 
 for jj=1:(N_j-1)
 
@@ -43,7 +44,7 @@ for jj=1:(N_j-1)
     Gammatranspose_upper=sparse(Policy_aprimez(:,2,jj),II1,PolicyProbs(:,2,jj),N_a*N_z,N_a*N_z);
 
     % First step of Tan improvement
-    needs_rounding=(StationaryDist_jj<1e-7 | StationaryDist_jj>1-1e-7);
+    needs_rounding=full(StationaryDist_jj<1e-7 | StationaryDist_jj>1-1e-7);
     needs_rounding(StationaryDist_jj==0)=0;
     needs_rounding(StationaryDist_jj==1)=0;
     StationaryDist_jj(needs_rounding)=round(StationaryDist_jj(needs_rounding));
@@ -56,6 +57,7 @@ for jj=1:(N_j-1)
     StationaryDist_jj=StationaryDist_jj*pi_z;
     StationaryDist_lower_jj=StationaryDist_lower_jj*pi_z;
     StationaryDist_upper_jj=StationaryDist_upper_jj*pi_z;
+
     for z_c=1:N_z
         probability_z=full(sum(StationaryDist_jj(:,z_c),1));
         if probability_z==0 || nnz(StationaryDist_jj(:,z_c))<3
@@ -74,16 +76,47 @@ for jj=1:(N_j-1)
             [row_lowerz_idx_jj,~,lowerz_values_jj]=find(StationaryDist_lowerz_jj(:,col));
             if isempty(row_lowerz_idx_jj)
                 % Swap and try again; the empty half-distribution will not prevent us from getting the job done
-                row_upperz_idx_jj=row_lowerz_idx_jj;
+                row_upperz_idx_jj=row_lowerz_idx_jj; % empty!!
                 [row_lowerz_idx_jj,~,lowerz_values_jj]=find(StationaryDist_upperz_jj(:,col));
-                if isscalar(row_lowerz_idx_jj) && row_lowerz_idx_jj==N_a2 && probability_col<1e-6
-                    % Allow this infinitesimal to evaporate from grid
-                    temp=sparse(row_lowerz_idx,col,0,N_a2,N_a1); % Note transposed!
-                    StationaryDist_jj(sub2ind([N_a1,N_a2,z_c],col,row_lowerz_idx,z_c))=temp(row_lowerz_idx,col);
+                if length(row_lowerz_idx_jj)==2
                     continue
                 end
             else
                 [row_upperz_idx_jj,~,upperz_values_jj]=find(StationaryDist_upperz_jj(:,col));
+            end
+            noise_vals=(lowerz_values_jj/probability_col)<1e-5;
+            noise_vals(find(noise_vals==0,1,'first'):end)=0;
+            if any(noise_vals)
+                temp_rows=row_lowerz_idx_jj(noise_vals);
+                row_lowerz_idx_jj=row_lowerz_idx_jj(~noise_vals);
+                lowerz_values_jj=lowerz_values_jj(~noise_vals);
+                temp=sparse(row_lowerz_idx_jj,col,lowerz_values_jj,N_a2,N_a1); % Note transposed!
+                StationaryDist_jj(sub2ind([N_a1,N_a2,N_z],col,temp_rows,z_c),z_c)=temp(temp_rows,col);
+            end
+
+            if isempty(row_upperz_idx_jj)
+                if isscalar(row_lowerz_idx_jj) && probability_col<1e-5 && (row_lowerz_idx_jj==1 || row_lowerz_idx_jj==N_a2)
+                    % Allow this infinitesimal to evaporate from grid
+                    temp=sparse(row_lowerz_idx_jj,col,0,N_a2,N_a1); % Note transposed!
+                    StationaryDist_jj(sub2ind([N_a1,N_a2,N_z],col,row_lowerz_idx_jj,z_c),z_c)=temp(row_lowerz_idx_jj,col);
+                    continue
+                elseif length(row_lowerz_idx_jj)<3
+                    continue
+                end
+            else
+                noise_vals=(upperz_values_jj/probability_col)<1e-5;
+                noise_vals(1:find(noise_vals==0,1,'last'))=0;
+                if any(noise_vals)
+                    temp_rows=row_upperz_idx_jj(noise_vals);
+                    row_upperz_idx_jj=row_upperz_idx_jj(~noise_vals);
+                    upperz_values_jj=upperz_values_jj(~noise_vals);
+                    temp=sparse(row_upperz_idx_jj,col,upperz_values_jj,N_a2,N_a1); % Note transposed!
+                    StationaryDist_jj(sub2ind([N_a1,N_a2,N_z],col,temp_rows,z_c),z_c)=temp(temp_rows,col);
+                end
+
+                if row_upperz_idx_jj(end)-row_lowerz_idx_jj(1)<2
+                    continue
+                end
             end
 
             [row_lowerz_idx_jj,sort_idx]=sort(row_lowerz_idx_jj);
@@ -120,8 +153,8 @@ for jj=1:(N_j-1)
                             if sum(lowerz_values(ii:end).*multiplierz_lower(ii:end))/multiplierz_lower(1)<=probability_col
                                 lowerz_values(ii)=sum(lowerz_values(ii:end).*multiplierz_lower(ii:end))/multiplierz_lower(1);
                                 temp=sparse(row_lowerz_idx(1:ii),col,lowerz_values(1:ii),N_a2,N_a1); % Note transposed!
-                                temp_rows=row_lowerz_idx(1):row_upperz_idx(end);
-                                StationaryDist_jj(sub2ind([N_a1,N_a2,z_c],col,temp_rows,z_c))=temp(temp_rows,col);
+                                temp_rows=row_lowerz_idx(1):row_lowerz_idx(end);
+                                StationaryDist_jj(sub2ind([N_a1,N_a2,N_z],col,temp_rows,z_c),z_c)=temp(temp_rows,col);
                                 break
                             end
                         end
@@ -209,6 +242,9 @@ for jj=1:(N_j-1)
                     if ~zero_created
                         % Just re-balance the indices (possibly creating a zero in the middle we cannot move to either end of lowerz_values
                         new_values=linsolve([multiplierz_lower';ones(1,length(lowerz_values))],[sum(lowerz_values.*multiplierz_lower); probability_col]);
+                        if abs(sum(new_values)-probability_col)>1e-6
+                            continue
+                        end
                         new_values=round(new_values,6);
                         if all(new_values>=0)
                             lowerz_values=new_values;
@@ -218,7 +254,7 @@ for jj=1:(N_j-1)
                     end
                     temp=sparse(row_lowerz_idx,col,lowerz_values,N_a2,N_a1); % Note transposed!
                     temp_rows=row_lowerz_idx(1):row_upperz_idx(end);
-                    StationaryDist_jj(sub2ind([N_a1,N_a2,z_c],col,temp_rows,z_c))=temp(temp_rows,col);
+                    StationaryDist_jj(sub2ind([N_a1,N_a2,N_z],col,temp_rows,z_c),z_c)=temp(temp_rows,col);
                     continue
                 elseif length(unique(multiplierz_upper))>1 && sum_lowerz/multiplierz_lower(end)+sum(upperz_values)<=probability_col
                     % We can fit all the lower values into slots allocated to upper with a basis to work with
@@ -268,6 +304,9 @@ for jj=1:(N_j-1)
                     if ~zero_created
                         % Just re-balance the indices (possibly creating a zero in the middle we cannot move to either end of lowerz_values
                         new_values=linsolve([multiplierz_upper';ones(1,length(upperz_values))],[sum(upperz_values.*multiplierz_upper); probability_col]);
+                        if abs(sum(new_values)-probability_col)>1e-6
+                            continue
+                        end
                         new_values=round(new_values,6);
                         if all(new_values>=0)
                             upperz_values=new_values;
@@ -277,7 +316,7 @@ for jj=1:(N_j-1)
                     end
                     temp=sparse(row_upperz_idx,col,upperz_values,N_a2,N_a1); % Note transposed!
                     temp_rows=row_lowerz_idx(1):row_upperz_idx(end);
-                    StationaryDist_jj(sub2ind([N_a1,N_a2,z_c],col,temp_rows,z_c))=temp(temp_rows,col);
+                    StationaryDist_jj(sub2ind([N_a1,N_a2,N_z],col,temp_rows,z_c),z_c)=temp(temp_rows,col);
                     continue
                 elseif length(unique(multiplierz_upper))>2
                     % Attempt to consolidate upper into itself
