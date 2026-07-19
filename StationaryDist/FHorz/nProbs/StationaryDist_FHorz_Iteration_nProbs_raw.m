@@ -88,8 +88,7 @@ for jj=1:(N_j-1)
                 temp_cols=col_lowerz_idx_jj(noise_vals);
                 col_lowerz_idx_jj=col_lowerz_idx_jj(~noise_vals);
                 lowerz_values_jj=lowerz_values_jj(~noise_vals);
-                temp=sparse(row,col_lowerz_idx_jj,lowerz_values_jj,N_a1,N_a2);
-                StationaryDist_jj(sub2ind([N_a1,N_a2,N_z],row,temp_cols,z_c),z_c)=temp(row,temp_cols);
+                StationaryDist_jj(sub2ind([N_a1,N_a2,N_z],row,temp_cols,z_c),z_c)=0;
             end
 
             if isempty(col_upperz_idx_jj)
@@ -108,11 +107,10 @@ for jj=1:(N_j-1)
                     temp_cols=col_upperz_idx_jj(noise_vals);
                     col_upperz_idx_jj=col_upperz_idx_jj(~noise_vals);
                     upperz_values_jj=upperz_values_jj(~noise_vals);
-                    temp=sparse(row,col_upperz_idx_jj,upperz_values_jj,N_a1,N_a2);
-                    StationaryDist_jj(sub2ind([N_a1,N_a2,N_z],row,temp_cols,z_c),z_c)=temp(row,temp_cols);
+                    StationaryDist_jj(sub2ind([N_a1,N_a2,N_z],row,temp_cols,z_c),z_c)=0;
                 end
 
-                if col_upperz_idx_jj(end)-col_lowerz_idx_jj(1)<2
+                if isempty(col_lowerz_idx_jj) || isempty(col_upperz_idx_jj) || col_upperz_idx_jj(end)-col_lowerz_idx_jj(1)<2
                     continue
                 end
             end
