@@ -68,7 +68,7 @@ for jj=1:(N_j-1)
 
         [rows,~]=find(StationaryDist_rowz_jj~=0);
         for row=unique(rows')
-            % Process agents' ExpAssets column by column
+            % Process agents' ExpAssets row by row (i.e., each N_a1 asset mixture)
             probability_row=full(sum(StationaryDist_rowz_jj(row,:),2));
 
             [~,col_lowerz_idx_jj,lowerz_values_jj]=find(StationaryDist_lowerz_jj(row,:));
