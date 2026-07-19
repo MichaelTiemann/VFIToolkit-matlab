@@ -205,16 +205,13 @@ for jj=1:(N_j-1)
                             % Aggressively try to zero out largest indices
                             new_values=linsolve([multiplierz_lower;ones(1,length(lowerz_values));zero_candidate],[sum(lowerz_values.*multiplierz_lower); probability_row; 0])';
                             new_values=round(new_values,6);
-                            if all(new_values==lowerz_values)
-                                break
-                            elseif all(new_values>=0)
-                                lowerz_values=new_values;
-                                zero_created=true;
-                                next_candidate=find(zero_candidate==0,1,'last');
-                                zero_candidate(next_candidate)=1;
-                            else
+                            if all(new_values==lowerz_values) || any(new_values<0)
                                 break
                             end
+                            lowerz_values=new_values;
+                            zero_created=true;
+                            next_candidate=find(zero_candidate==0,1,'last');
+                            zero_candidate(next_candidate)=1;
                         end
                         if zero_created
                             zero_candidate(next_candidate)=0;
@@ -225,30 +222,24 @@ for jj=1:(N_j-1)
                             % Try to zero out least index
                             new_values=linsolve([multiplierz_lower;ones(1,length(lowerz_values));zero_candidate],[sum(lowerz_values.*multiplierz_lower); probability_row;0])';
                             new_values=round(new_values,6);
-                            if all(new_values==lowerz_values)
-                                break
-                            elseif all(new_values>=0)
-                                lowerz_values=new_values;
-                                zero_created=true;
-                                next_candidate=find(zero_candidate==0,1,'first');
-                                zero_candidate(next_candidate)=1;
-                            else
+                            if all(new_values==lowerz_values) || any(new_values<0)
                                 break
                             end
+                            lowerz_values=new_values;
+                            zero_created=true;
+                            next_candidate=find(zero_candidate==0,1,'first');
+                            zero_candidate(next_candidate)=1;
                         end
                     end
                     if ~zero_created
                         % Just re-balance the indices (possibly creating a zero in the middle we cannot move to either end of lowerz_values
                         new_values=linsolve([multiplierz_lower;ones(1,length(lowerz_values))],[sum(lowerz_values.*multiplierz_lower); probability_row])';
-                        if abs(sum(new_values)-probability_row)>1e-6
-                            continue
-                        end
+                        assert(abs(sum(new_values)-probability_row)<1e-6)
                         new_values=round(new_values,6);
-                        if all(new_values>=0)
-                            lowerz_values=new_values;
-                        else
-                            continue
+                        if any(new_values<0)
+                            break
                         end
+                        lowerz_values=new_values;
                     end
                     temp=sparse(row,col_lowerz_idx,lowerz_values,N_a1,N_a2);
                     temp_cols=col_lowerz_idx(1):col_upperz_idx(end);
@@ -267,16 +258,13 @@ for jj=1:(N_j-1)
                             % Aggressively try to zero out largest indices
                             new_values=linsolve([multiplierz_upper;ones(1,length(upperz_values));zero_candidate],[sum(upperz_values.*multiplierz_upper); probability_row;0])';
                             new_values=round(new_values,6);
-                            if all(new_values==upperz_values)
-                                break
-                            elseif all(new_values>=0)
-                                upperz_values=new_values;
-                                zero_created=true;
-                                next_candidate=find(zero_candidate==0,1,'last');
-                                zero_candidate(next_candidate)=1;
-                            else
+                            if all(new_values==upperz_values) || any(new_values<0)
                                 break
                             end
+                            upperz_values=new_values;
+                            zero_created=true;
+                            next_candidate=find(zero_candidate==0,1,'last');
+                            zero_candidate(next_candidate)=1;
                         end
                         if zero_created
                             zero_candidate(next_candidate)=0;
@@ -287,30 +275,24 @@ for jj=1:(N_j-1)
                             % Try to zero out least index
                             new_values=linsolve([multiplierz_upper;ones(1,length(upperz_values));zero_candidate],[sum(upperz_values.*multiplierz_upper); probability_row;0])';
                             new_values=round(new_values,6);
-                            if all(new_values==upperz_values)
-                                break
-                            elseif all(new_values>=0)
-                                upperz_values=new_values;
-                                zero_created=true;
-                                next_candidate=find(zero_candidate==0,1,'first');
-                                zero_candidate(next_candidate)=1;
-                            else
+                            if all(new_values==upperz_values) || any(new_values<0)
                                 break
                             end
+                            upperz_values=new_values;
+                            zero_created=true;
+                            next_candidate=find(zero_candidate==0,1,'first');
+                            zero_candidate(next_candidate)=1;
                         end
                     end
                     if ~zero_created
                         % Just re-balance the indices (possibly creating a zero in the middle we cannot move to either end of lowerz_values
                         new_values=linsolve([multiplierz_upper;ones(1,length(upperz_values))],[sum(upperz_values.*multiplierz_upper); probability_row])';
-                        if abs(sum(new_values)-probability_row)>1e-6
-                            continue
-                        end
+                        assert(abs(sum(new_values)-probability_row)<1e-6)
                         new_values=round(new_values,6);
-                        if all(new_values>=0)
-                            upperz_values=new_values;
-                        else
-                            continue
+                        if any(new_values<0)
+                            break
                         end
+                        upperz_values=new_values;
                     end
                     temp=sparse(row,col_upperz_idx,upperz_values,N_a1,N_a2);
                     temp_cols=col_lowerz_idx(1):col_upperz_idx(end);
