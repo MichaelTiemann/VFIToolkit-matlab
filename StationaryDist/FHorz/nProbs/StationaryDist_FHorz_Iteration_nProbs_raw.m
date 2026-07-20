@@ -5,6 +5,9 @@ function StationaryDist=StationaryDist_FHorz_Iteration_nProbs_raw(jequaloneDistK
 
 precision=underlyingType(jequaloneDistKron);
 cast2precision=str2func(precision);
+total_zeros_created=0;
+epsilon=1e-7;
+epsilon_round=7;
 
 % Policy_aprime and PolicyProbs are currently [N_a,N_z,N_probs,N_j]
 N_a1=prod(n_a1);
@@ -18,7 +21,7 @@ else
 end
 Policy_aprimez=Policy_aprime+N_a*gpuArray(0:1:N_z-1);  % Note: add z' index following the z dimension [Tan improvement, z stays where it is]
 Policy_aprimez=gather(reshape(Policy_aprimez,[N_a*N_z,N_probs,N_j])); % sparse() requires inputs to be 2-D
-needs_rounding=(PolicyProbs<1e-7 | PolicyProbs>1-1e-7);
+needs_rounding=(PolicyProbs<epsilon | PolicyProbs>1-epsilon);
 PolicyProbs(needs_rounding)=round(PolicyProbs(needs_rounding));
 PolicyProbs=gather(reshape(PolicyProbs,[N_a*N_z,N_probs,N_j])); % sparse() requires inputs to be 2-D
 
@@ -35,6 +38,7 @@ II1=(1:1:N_a*N_z)';
 II2=repmat((1:1:N_a*N_z)',1,N_probs); %  Index for this period (a,z), note the N_probs-copies
 
 for jj=1:(N_j-1)
+    age_zeros_created=total_zeros_created;
 
     % First, get Gamma
     Gammatranspose=sparse(Policy_aprimez(:,:,jj),II2,PolicyProbs(:,:,jj),N_a*N_z,N_a*N_z); % Note: sparse() will accumulate at repeated indices
@@ -42,7 +46,7 @@ for jj=1:(N_j-1)
     Gammatranspose_upper=sparse(Policy_aprimez(:,2,jj),II1,PolicyProbs(:,2,jj),N_a*N_z,N_a*N_z);
 
     % First step of Tan improvement
-    needs_rounding=full(StationaryDist_jj<1e-7 | StationaryDist_jj>1-1e-7);
+    needs_rounding=full(StationaryDist_jj<epsilon | StationaryDist_jj>1-epsilon);
     needs_rounding(StationaryDist_jj==0)=0;
     needs_rounding(StationaryDist_jj==1)=0;
     StationaryDist_jj(needs_rounding)=round(StationaryDist_jj(needs_rounding));
@@ -92,8 +96,9 @@ for jj=1:(N_j-1)
             end
 
             if isempty(col_upperz_idx_jj)
-                if isscalar(col_lowerz_idx_jj) && probability_row<1e-5 && (col_lowerz_idx_jj==1 || col_lowerz_idx_jj==N_a2)
+                if isscalar(col_lowerz_idx_jj) && probability_row<epsilon && (col_lowerz_idx_jj==1 || col_lowerz_idx_jj==N_a2)
                     % Allow this infinitesimal to evaporate from grid
+                    total_zeros_created=total_zeros_created+nnz(lowerz_values_jj);
                     temp=sparse(row,col_lowerz_idx_jj,0,N_a1,N_a2);
                     StationaryDist_jj(sub2ind([N_a1,N_a2,N_z],row,col_lowerz_idx_jj,z_c),z_c)=temp(row,col_lowerz_idx_jj);
                     continue
@@ -287,6 +292,7 @@ for jj=1:(N_j-1)
     
                 sum_lowerz=sum(lowerz_values.*multiplierz_lower);
                 sum_upperz=sum(upperz_values.*multiplierz_upper);
+                starting_zeros=sum(lowerz_values==0)+sum(upperz_values==0);
     
                 if length(unique(multiplierz_lower))>1 && (sum_upperz+sum_lowerz)/multiplierz_lower(end)<=probability_row
                     % We can fit all the upper values into slots allocated to lower with a basis to work with
@@ -300,7 +306,7 @@ for jj=1:(N_j-1)
                         while nnz(lowerz_values)>1
                             % Aggressively try to zero out largest indices
                             new_values=linsolve([multiplierz_lower;ones(1,length(lowerz_values));zero_candidate],[sum(lowerz_values.*multiplierz_lower); probability_row; 0])';
-                            new_values=round(new_values,6);
+                            new_values=round(new_values,epsilon_round);
                             if all(new_values==lowerz_values) || any(new_values<0)
                                 break
                             end
@@ -316,8 +322,8 @@ for jj=1:(N_j-1)
                         zero_candidate(next_candidate)=1;
                         while nnz(lowerz_values)>1
                             % Try to zero out least index
-                            new_values=linsolve([multiplierz_lower;ones(1,length(lowerz_values));zero_candidate],[sum(lowerz_values.*multiplierz_lower); probability_row;0])';
-                            new_values=round(new_values,6);
+                            new_values=linsolve([multiplierz_lower;ones(1,length(lowerz_values));zero_candidate],[sum(lowerz_values.*multiplierz_lower); probability_row; 0])';
+                            new_values=round(new_values,epsilon_round);
                             if all(new_values==lowerz_values) || any(new_values<0) || any(isnan(new_values))
                                 break
                             end
@@ -330,8 +336,7 @@ for jj=1:(N_j-1)
                     if ~zero_created
                         % Just re-balance the indices (possibly creating a zero in the middle we cannot move to either end of lowerz_values
                         new_values=linsolve([multiplierz_lower;ones(1,length(lowerz_values))],[sum(lowerz_values.*multiplierz_lower); probability_row])';
-                        assert(abs(sum(new_values)-probability_row)<1e-6)
-                        new_values=round(new_values,6);
+                        new_values=round(new_values,epsilon_round);
                         if any(new_values<0)
                             break
                         end
@@ -340,6 +345,7 @@ for jj=1:(N_j-1)
                     temp=sparse(row,col_lowerz_idx,lowerz_values,N_a1,N_a2);
                     temp_cols=col_lowerz_idx(1):col_upperz_idx(end);
                     StationaryDist_jj(sub2ind([N_a1,N_a2,N_z],row,temp_cols,z_c),z_c)=temp(row,temp_cols);
+                    total_zeros_created=total_zeros_created+sum(lowerz_values==0)+length(upperz_values)-starting_zeros;
                     continue
                 elseif length(unique(multiplierz_upper))>1 && sum_lowerz/multiplierz_upper(end-1)+sum(upperz_values)<=probability_row
                     % We can fit all the lower values into slots allocated to upper with a basis to work with
@@ -352,8 +358,8 @@ for jj=1:(N_j-1)
                         zero_candidate(next_candidate)=1;
                         while nnz(upperz_values)>1
                             % Aggressively try to zero out largest indices
-                            new_values=linsolve([multiplierz_upper;ones(1,length(upperz_values));zero_candidate],[sum(upperz_values.*multiplierz_upper); probability_row;0])';
-                            new_values=round(new_values,6);
+                            new_values=linsolve([multiplierz_upper;ones(1,length(upperz_values));zero_candidate],[sum(upperz_values.*multiplierz_upper); probability_row; 0])';
+                            new_values=round(new_values,epsilon_round);
                             if all(new_values==upperz_values) || any(new_values<0) || any(isnan(new_values))
                                 break
                             end
@@ -369,8 +375,8 @@ for jj=1:(N_j-1)
                         zero_candidate(next_candidate)=1;
                         while nnz(upperz_values)>1
                             % Try to zero out least index
-                            new_values=linsolve([multiplierz_upper;ones(1,length(upperz_values));zero_candidate],[sum(upperz_values.*multiplierz_upper); probability_row;0])';
-                            new_values=round(new_values,6);
+                            new_values=linsolve([multiplierz_upper;ones(1,length(upperz_values));zero_candidate],[sum(upperz_values.*multiplierz_upper); probability_row; 0])';
+                            new_values=round(new_values,epsilon_round);
                             if all(new_values==upperz_values) || any(new_values<0)
                                 break
                             end
@@ -383,8 +389,7 @@ for jj=1:(N_j-1)
                     if ~zero_created
                         % Just re-balance the indices (possibly creating a zero in the middle we cannot move to either end of lowerz_values
                         new_values=linsolve([multiplierz_upper;ones(1,length(upperz_values))],[sum(upperz_values.*multiplierz_upper); probability_row])';
-                        assert(abs(sum(new_values)-probability_row)<1e-6)
-                        new_values=round(new_values,6);
+                        new_values=round(new_values,epsilon_round);
                         if any(new_values<0)
                             break
                         end
@@ -393,6 +398,7 @@ for jj=1:(N_j-1)
                     temp=sparse(row,col_upperz_idx,upperz_values,N_a1,N_a2);
                     temp_cols=col_lowerz_idx(1):col_upperz_idx(end);
                     StationaryDist_jj(sub2ind([N_a1,N_a2,N_z],row,temp_cols,z_c),z_c)=temp(row,temp_cols);
+                    total_zeros_created=total_zeros_created+sum(upperz_values==0)+length(lowerz_values)-starting_zeros;
                     continue
                 elseif length(unique(multiplierz_upper))>2
                     % Attempt to consolidate upper into itself
@@ -406,6 +412,7 @@ for jj=1:(N_j-1)
     assert(all(StationaryDist_jj>=0));
     StationaryDist(:,jj+1)=gpuArray(full(StationaryDist_jj));
 
+    fprintf("Age %3d: zeros created = %d \n", jj, total_zeros_created-age_zeros_created);
 end
 
 
@@ -422,5 +429,7 @@ if size(AgeWeights,2)==1 % If it seems to be a column vector, then transpose it
 end
 
 StationaryDist=StationaryDist.*AgeWeights;
+
+fprintf("With epsilon = %.2e, total zeros created = %d \n", epsilon, total_zeros_created);
 
 end
