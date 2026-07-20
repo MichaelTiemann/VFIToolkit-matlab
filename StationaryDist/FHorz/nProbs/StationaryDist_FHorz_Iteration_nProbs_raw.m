@@ -148,10 +148,8 @@ for jj=1:(N_j-1)
                     col_gaps=find(diff(col_allz_idx)>1);
                     p=find(diff(col_allz_idx)>1); % p columns are start and end of consecutive elements
                     ind=[col_allz_idx(1),col_allz_idx(p+1);col_allz_idx(p),col_allz_idx(end)];
-                    if size(ind,2)==1
-                        single_gaps=1;
-                    % else keep single_gaps as is
-                    end
+                    gap_idx=col_allz_idx(s)';
+                    single_gaps=sum(gap_idx>=ind(1,:) & gap_idx<=ind(2,:),1);
                 else
                     single_gaps=zeros(1,size(ind,2));
                 end
@@ -166,8 +164,8 @@ for jj=1:(N_j-1)
                         upperz_values_jj=upperz_values_jj(temp);
                     else
                         % Fill in zeros for everything we track
-                        col_lowerz_end=find(col_lowerz_idx_jj<=ind(2,ind_idx),1,'last');
-                        col_upperz_1=find(col_upperz_idx_jj>=ind(1,ind_idx),1,'first');
+                        col_lowerz_end=find(col_lowerz_idx_jj>=ind(1,ind_idx) & col_lowerz_idx_jj<=ind(2,ind_idx),1,'last');
+                        col_upperz_1=find(col_upperz_idx_jj>=ind(1,ind_idx) & col_upperz_idx_jj<=ind(2,ind_idx),1,'first');
                         if col_lowerz_idx_jj(col_lowerz_end)~=col_upperz_idx_jj(col_upperz_1) || single_gaps(ind_idx)
                             % Merging disjoint/overlapping lower and upper
                             col_lowerz_1=find(col_lowerz_idx_jj>=ind(1,ind_idx),1,'first');
