@@ -84,7 +84,7 @@ for jj=1:(N_j-1)
             end
             noise_vals=(lowerz_values_jj/probability_row)<1e-5;
             noise_vals(find(noise_vals==0,1,'first'):end)=0;
-            if any(noise_vals)
+            if false && any(noise_vals)
                 temp_cols=col_lowerz_idx_jj(noise_vals);
                 col_lowerz_idx_jj=col_lowerz_idx_jj(~noise_vals);
                 lowerz_values_jj=lowerz_values_jj(~noise_vals);
@@ -103,7 +103,7 @@ for jj=1:(N_j-1)
             else
                 noise_vals=(upperz_values_jj/probability_row)<1e-5;
                 noise_vals(1:find(noise_vals==0,1,'last'))=0;
-                if any(noise_vals)
+                if false && any(noise_vals)
                     temp_cols=col_upperz_idx_jj(noise_vals);
                     col_upperz_idx_jj=col_upperz_idx_jj(~noise_vals);
                     upperz_values_jj=upperz_values_jj(~noise_vals);
@@ -115,29 +115,140 @@ for jj=1:(N_j-1)
                 end
             end
 
+            % We have two strategies for dealing with gaps.  The first is
+            % to see whether the gap disappears when we look at the whole
+            % picture.  It can happen that lower/upper columns are
+            % disjoint like this: [2 4] [3 5] which gives 4-in-a-row.
+            % If we see we have [2 3 4 5] we have to reconstruct
+            % lower/upper columns somehow.  In this case, it is possible
+            % for a singleton upper to have a lower index than a lower,
+            % so we take care to fix that.
+
+            % The second strategy is to fill in a single hole if that
+            % allows us to connect lower and upper columns.  In the above
+            % case we get [2 3* 4] [3 4* 5] where * means inserted zero.
+            % This is simpler because lower/upper are already split.
+            [~,col_allz_idx,allz_values_jj]=find(StationaryDist_rowz_jj(row,:));
+            p=find(diff(col_allz_idx)>1); % p columns are start and end of consecutive elements
+            ind=[col_allz_idx(1),col_allz_idx(p+1);col_allz_idx(p),col_allz_idx(end)];
+
+            if size(ind,2)>1
+                single_gaps=col_allz_idx(p+1)-col_allz_idx(p)==2;
+                if any(single_gaps)
+                    % A zero logically bubbled in...so make space for it for now
+                    s=p(single_gaps);
+                    z = zeros(1,length(col_allz_idx)+length(s));  %initialise a new vector of the appropriate size
+                    z(s+(1:length(s))) = col_allz_idx(s)+1; % set locations in 's' to s+1, which will have the value zero
+                    z(z==0) = col_allz_idx; %insert the original values in col_allz_idx into the new vector at their new positions.
+                    col_allz_idx=z;
+                    z = nan(1,length(allz_values_jj)+length(s));  %initialise a new vector of the appropriate size
+                    z(s+(1:length(s))) = 0; % set value locations in 'p' to zero
+                    z(isnan(z)) = allz_values_jj; %insert the original values in allz_values_jj into the new vector at their new positions.
+                    allz_values_jj=z;
+                    col_gaps=find(diff(col_allz_idx)>1);
+                    p=find(diff(col_allz_idx)>1); % p columns are start and end of consecutive elements
+                    ind=[col_allz_idx(1),col_allz_idx(p+1);col_allz_idx(p),col_allz_idx(end)];
+                    if size(ind,2)==1
+                        single_gaps=1;
+                    % else keep single_gaps as is
+                    end
+                else
+                    single_gaps=zeros(1,size(ind,2));
+                end
+                for ind_idx=1:size(ind,2)
+                    if ind(2,ind_idx)-ind(1,ind_idx)<2
+                        % Remove traces of any short sequences
+                        temp=col_lowerz_idx_jj<ind(1,ind_idx) | col_lowerz_idx_jj>ind(2,ind_idx);
+                        col_lowerz_idx_jj=col_lowerz_idx_jj(temp);
+                        lowerz_values_jj=lowerz_values_jj(temp);
+                        temp=col_upperz_idx_jj<ind(1,ind_idx) | col_upperz_idx_jj>ind(2,ind_idx);
+                        col_upperz_idx_jj=col_upperz_idx_jj(temp);
+                        upperz_values_jj=upperz_values_jj(temp);
+                    else
+                        % Fill in zeros for everything we track
+                        col_lowerz_end=find(col_lowerz_idx_jj<=ind(2,ind_idx),1,'last');
+                        col_upperz_1=find(col_upperz_idx_jj>=ind(1,ind_idx),1,'first');
+                        if col_lowerz_idx_jj(col_lowerz_end)~=col_upperz_idx_jj(col_upperz_1) || single_gaps(ind_idx)
+                            % Merging disjoint/overlapping lower and upper
+                            col_lowerz_1=find(col_lowerz_idx_jj>=ind(1,ind_idx),1,'first');
+                            if col_lowerz_idx_jj(col_lowerz_1)>col_upperz_idx_jj(col_upperz_1)
+                                % add zeros to lower so both start at the same index
+                                new_zeros=col_lowerz_idx_jj(col_lowerz_1)-col_upperz_idx_jj(col_upperz_1);
+                                lowerz_values_jj=[zeros(1,new_zeros),lowerz_values_jj];
+                                col_lowerz_end=col_lowerz_end+new_zeros;
+                                col_lowerz_idx_jj=[col_upperz_idx_jj(col_upperz_1)+(0:new_zeros-1),col_lowerz_idx_jj];
+                            end
+                            if col_lowerz_end>col_lowerz_1
+                                % Non-singleton, so maybe insert zeros
+                                new_values=zeros(1,col_lowerz_idx_jj(col_lowerz_end)-col_lowerz_idx_jj(col_lowerz_1)+1); % pick up the new zeros
+                                temp=col_lowerz_idx_jj>=ind(1,ind_idx) & col_lowerz_idx_jj<=ind(2,ind_idx);
+                                new_values(col_lowerz_idx_jj(temp)-col_lowerz_idx_jj(col_lowerz_1)+1)=lowerz_values_jj(temp);
+                                lowerz_values_jj=[lowerz_values_jj(1:col_lowerz_1-1), new_values, lowerz_values_jj(col_lowerz_end+1:end)];
+                                col_lowerz_idx_jj=[col_lowerz_idx_jj(1:col_lowerz_1-1), col_lowerz_idx_jj(col_lowerz_1):col_lowerz_idx_jj(col_lowerz_end), col_lowerz_idx_jj(col_lowerz_end+1:end)];
+                            end
+                            col_upperz_end=find(col_upperz_idx_jj<=ind(2,ind_idx),1,'last');
+                            if col_upperz_end>col_upperz_1
+                                % Non-singleton, so maybe insert zeros
+                                new_values=zeros(1,col_upperz_idx_jj(col_upperz_end)-col_upperz_idx_jj(col_upperz_1)+1); % pick up the new zeros
+                                temp=col_upperz_idx_jj>=ind(1,ind_idx) & col_upperz_idx_jj<=ind(2,ind_idx);
+                                new_values(col_upperz_idx_jj(temp)-col_upperz_idx_jj(col_upperz_1)+1)=upperz_values_jj(temp);
+                                upperz_values_jj=[upperz_values_jj(1:col_upperz_1-1), new_values, upperz_values_jj(col_upperz_end+1:end)];
+                                col_upperz_idx_jj=[col_upperz_idx_jj(1:col_upperz_1-1), col_upperz_idx_jj(col_upperz_1):col_upperz_idx_jj(col_upperz_end), col_upperz_idx_jj(col_upperz_end+1:end)];
+                            end
+                        else
+                            continue
+                        end
+                    end
+                end
+                ind=ind(:,ind(2,:)-ind(1,:)>1);
+                if isempty(ind)
+                    % We have disqualified all merging opportunities
+                    continue
+                elseif size(ind,2)==1
+                    col_gaps=[];
+                end
+            else
+                if col_lowerz_idx_jj(end)-col_lowerz_idx_jj(1)>=length(col_lowerz_idx_jj)
+                    % We have no gaps in the big picture, but lower gaps
+                    p=find(diff(col_lowerz_idx_jj)>1); % p columns are start and end of consecutive elements
+                    ind=[col_lowerz_idx_jj(1),col_lowerz_idx_jj(p+1);col_lowerz_idx_jj(p),col_lowerz_idx_jj(end)];
+                    z = zeros(1,length(col_lowerz_idx_jj)+length(p));  %initialise a new vector of the appropriate size
+                    z(p+(1:length(p))) = col_lowerz_idx_jj(p)+1; % set locations in 'p' to p+1, which will have the value zero
+                    z(z==0) = col_lowerz_idx_jj; %insert the original values in col_lowerz_idx_jj into the new vector at their new positions.
+                    col_lowerz_idx_jj=z;
+                    z = nan(1,length(lowerz_values_jj)+length(p));  %initialise a new vector of the appropriate size
+                    z(p+(1:length(p))) = 0; % set value locations in 'p' to zero
+                    z(isnan(z)) = lowerz_values_jj; %insert the original values in lowerz_values_jj into the new vector at their new positions.
+                    lowerz_values_jj=z;
+                end
+                if col_upperz_idx_jj(end)-col_upperz_idx_jj(1)>=length(col_upperz_idx_jj)
+                    % We have no gaps in the big picture, but upper gaps
+                    p=find(diff(col_upperz_idx_jj)>1); % p columns are start and end of consecutive elements
+                    ind=[col_upperz_idx_jj(1),col_upperz_idx_jj(p+1);col_upperz_idx_jj(p),col_upperz_idx_jj(end)];
+                    z = zeros(1,length(col_upperz_idx_jj)+length(p));  %initialise a new vector of the appropriate size
+                    z(p+(1:length(p))) = col_upperz_idx_jj(p)+1; % set locations in 'p' to p+1, which will have the value zero
+                    z(z==0) = col_upperz_idx_jj; %insert the original values in col_upperz_idx_jj into the new vector at their new positions.
+                    col_upperz_idx_jj=z;
+                    z = nan(1,length(upperz_values_jj)+length(p));  %initialise a new vector of the appropriate size
+                    z(p+(1:length(p))) = 0; % set value locations in 'p' to zero
+                    z(isnan(z)) = upperz_values_jj; %insert the original values in upperz_values_jj into the new vector at their new positions.
+                    upperz_values_jj=z;
+                end
+                col_gaps=[];
+            end
+
             [col_lowerz_idx_jj,sort_idx]=sort(col_lowerz_idx_jj);
             lowerz_values_jj=lowerz_values_jj(sort_idx);
-
-            col_gaps=find(diff(col_lowerz_idx_jj)>1);
-            if ~isempty(col_gaps)
-                continue
+            if isempty(col_gaps)
+                lowerz_gaps=col_gaps;
+            else
+                lowerz_gaps=find(diff(col_lowerz_idx_jj)>1);
             end
-            lower_group_idx=[0,col_gaps,length(col_lowerz_idx_jj)];
+
+            lower_group_idx=[0,lowerz_gaps,length(col_lowerz_idx_jj)];
             for ll=1:length(lower_group_idx)-1
                 col_lowerz_idx=col_lowerz_idx_jj(lower_group_idx(ll)+1:lower_group_idx(ll+1));
                 lowerz_values=lowerz_values_jj(lower_group_idx(ll)+1:lower_group_idx(ll+1));
-    
-                if col_lowerz_idx(end)-col_lowerz_idx(1)+1>length(col_lowerz_idx)
-                    % A zero logically bubbled in...so make space for it for now
-                    full_col_idx=col_lowerz_idx(1):col_lowerz_idx(end);
-                    [tf,~]=ismember(full_col_idx,col_lowerz_idx);
-                    insert_pos=find(tf==0);
-                    good_cols=setdiff(1:length(full_col_idx),insert_pos);
-                    new_values=zeros(length(full_col_idx),1);
-                    new_values(good_cols)=lowerz_values;
-                    lowerz_values=new_values;
-                    col_lowerz_idx=full_col_idx;
-                end
     
                 multiplierz_lower=col_lowerz_idx-col_lowerz_idx(1)'+1;
     
@@ -162,29 +273,18 @@ for jj=1:(N_j-1)
                 % Attempt to consolidate upper and lower
                 [col_upperz_idx_jj,sort_idx]=sort(col_upperz_idx_jj);
                 upperz_values_jj=upperz_values_jj(sort_idx);
-
-                col_gaps=find(diff(col_upperz_idx_jj)>1);
-                if ~isempty(col_gaps)
-                    continue
+                if isempty(col_gaps)
+                    upperz_gaps=col_gaps;
+                else
+                    upperz_gaps=find(diff(col_upperz_idx_jj)>1);
                 end
-                upper_group_idx=[0,col_gaps,length(col_upperz_idx_jj)];
+
+                upper_group_idx=[0,upperz_gaps,length(col_upperz_idx_jj)];
                 assert(length(lower_group_idx)==length(upper_group_idx))
                 uu=ll; % we keep these two in sync
                 col_upperz_idx=col_upperz_idx_jj(upper_group_idx(uu)+1:upper_group_idx(uu+1));
                 upperz_values=upperz_values_jj(upper_group_idx(uu)+1:upper_group_idx(uu+1));
 
-                if col_upperz_idx(end)-col_upperz_idx(1)+1>length(col_upperz_idx)
-                    % A zero logically bubbled in...so make space for it for now
-                    full_col_idx=col_upperz_idx(1):col_upperz_idx(end);
-                    [tf,~]=ismember(full_col_idx,col_upperz_idx);
-                    insert_pos=find(tf==0);
-                    good_cols=setdiff(1:length(full_col_idx),insert_pos);
-                    new_values=zeros(length(full_col_idx),1);
-                    new_values(good_cols)=upperz_values;
-                    upperz_values=new_values;
-                    col_upperz_idx=full_col_idx;
-                end
-    
                 multiplierz_upper=col_upperz_idx-col_lowerz_idx(1)+1;
     
                 sum_lowerz=sum(lowerz_values.*multiplierz_lower);
@@ -220,7 +320,7 @@ for jj=1:(N_j-1)
                             % Try to zero out least index
                             new_values=linsolve([multiplierz_lower;ones(1,length(lowerz_values));zero_candidate],[sum(lowerz_values.*multiplierz_lower); probability_row;0])';
                             new_values=round(new_values,6);
-                            if all(new_values==lowerz_values) || any(new_values<0)
+                            if all(new_values==lowerz_values) || any(new_values<0) || any(isnan(new_values))
                                 break
                             end
                             lowerz_values=new_values;
@@ -243,9 +343,9 @@ for jj=1:(N_j-1)
                     temp_cols=col_lowerz_idx(1):col_upperz_idx(end);
                     StationaryDist_jj(sub2ind([N_a1,N_a2,N_z],row,temp_cols,z_c),z_c)=temp(row,temp_cols);
                     continue
-                elseif length(unique(multiplierz_upper))>1 && sum_lowerz/multiplierz_lower(end)+sum(upperz_values)<=probability_row
+                elseif length(unique(multiplierz_upper))>1 && sum_lowerz/multiplierz_upper(end-1)+sum(upperz_values)<=probability_row
                     % We can fit all the lower values into slots allocated to upper with a basis to work with
-                    upperz_values(1)=upperz_values(1)+sum_lowerz/multiplierz_upper(1);
+                    upperz_values(end-1)=upperz_values(end-1)+sum_lowerz/multiplierz_upper(end-1);
                     % But in so doing, we may have probabilities that sum>1, so fix
                     zero_created=false;
                     if length(upperz_values)>2
@@ -256,7 +356,7 @@ for jj=1:(N_j-1)
                             % Aggressively try to zero out largest indices
                             new_values=linsolve([multiplierz_upper;ones(1,length(upperz_values));zero_candidate],[sum(upperz_values.*multiplierz_upper); probability_row;0])';
                             new_values=round(new_values,6);
-                            if all(new_values==upperz_values) || any(new_values<0)
+                            if all(new_values==upperz_values) || any(new_values<0) || any(isnan(new_values))
                                 break
                             end
                             upperz_values=new_values;
