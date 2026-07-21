@@ -8,6 +8,7 @@ cast2precision=str2func(precision);
 total_zeros_created=0;
 epsilon=1e-7;
 epsilon_round=7;
+jj_at_max_a2=Inf;
 
 % Policy_aprime and PolicyProbs are currently [N_a,N_z,N_probs,N_j]
 N_a1=prod(n_a1);
@@ -61,12 +62,15 @@ for jj=1:(N_j-1)
     StationaryDist_upper_jj=StationaryDist_upper_jj*pi_z;
 
     for z_c=1:N_z
-        probability_z=full(sum(StationaryDist_jj(:,z_c),1));
-        if probability_z==0 || nnz(StationaryDist_jj(:,z_c))<3
+        StationaryDist_rowz_jj=reshape(StationaryDist_jj(:,z_c),[N_a1,N_a2]);
+        probability_z=full(sum(StationaryDist_rowz_jj,'all'));
+        if probability_z==0 || all(arrayfun(@(r) nnz(StationaryDist_rowz_jj(r,:)), 1:size(StationaryDist_rowz_jj,1))<3)
             % Sometimes nobody chooses the path less taken
             continue
         end
-        StationaryDist_rowz_jj=reshape(StationaryDist_jj(:,z_c),[N_a1,N_a2]);
+        if jj<jj_at_max_a2 && any(StationaryDist_rowz_jj(:,N_a2)~=0)
+            jj_at_max_a2=jj;
+        end
         StationaryDist_lowerz_jj=reshape(StationaryDist_lower_jj(:,z_c),[N_a1,N_a2]);
         StationaryDist_upperz_jj=reshape(StationaryDist_upper_jj(:,z_c),[N_a1,N_a2]);
 
@@ -81,6 +85,7 @@ for jj=1:(N_j-1)
                 col_upperz_idx_jj=col_lowerz_idx_jj; % empty!!
                 [~,col_lowerz_idx_jj,lowerz_values_jj]=find(StationaryDist_upperz_jj(row,:));
                 if length(col_lowerz_idx_jj)==2
+                    % Below we take care of singletons, which might need to evaporate
                     continue
                 end
             else
@@ -431,5 +436,14 @@ end
 StationaryDist=StationaryDist.*AgeWeights;
 
 fprintf("With epsilon = %.2e, total zeros created = %d \n", epsilon, total_zeros_created);
+if isfinite(jj_at_max_a2)
+    fprintf("Max ExpAsset value first observed at age %3d \n", jj_at_max_a2);
+else
+    temp=reshape(StationaryDist,[N_a1,N_a2,N_z,N_j]);
+    [a1,a2,z_c,age_j]=ind2sub(size(temp),find(temp~=0));
+    max_a2=max(a2);
+    jj_at_max_a2=age_j(find(a2==max_a2));
+    fprintf("Max ExpAsset index reached = %3d (of %3d) at age %3d \n", max_a2, N_a2, jj_at_max_a2);
+end
 
 end
