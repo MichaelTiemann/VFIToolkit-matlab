@@ -63,6 +63,8 @@ for z_c=1:N_z
                 else
                     StationaryDist_jj(sub2ind([N_a1,N_a2,N_z],row,temp_cols,z_c),z_c)=0;
                 end
+                % Must update our working row because we are not yet done with it
+                StationaryDist_row_jj(row,temp_cols)=0;
                 total_zeros_created=total_zeros_created+length(temp_cols);
             end
         end
@@ -96,6 +98,8 @@ for z_c=1:N_z
                     else
                         StationaryDist_jj(sub2ind([N_a1,N_a2,N_z],row,temp_cols,z_c),z_c)=0;
                     end
+                    % Must update our working row because we are not yet done with it
+                    StationaryDist_row_jj(row,temp_cols)=0;
                     total_zeros_created=total_zeros_created+length(temp_cols);
                 end
             end
