@@ -54,7 +54,7 @@ for z_c=1:N_z
         noise_vals(find(noise_vals==0,1,'first'):end)=0;
         if any(noise_vals)
             lower_bounds=ea_lower_idx(noise_vals);
-            if all(ea_upper_vals(ea_upper_idx>=lower_bounds(1) & ea_upper_idx<=lower_bounds(end))<epsilon)
+            if all(ea_upper_vals(ea_upper_idx>=lower_bounds(1) & ea_upper_idx<=lower_bounds(end))/row_prob_sum<epsilon)
                 temp_cols=ea_lower_idx(noise_vals);
                 ea_lower_idx=ea_lower_idx(~noise_vals);
                 ea_lower_vals=ea_lower_vals(~noise_vals);
@@ -89,7 +89,7 @@ for z_c=1:N_z
             noise_vals(1:find(noise_vals==0,1,'last'))=0;
             if any(noise_vals)
                 upper_bounds=ea_upper_idx(noise_vals);
-                if all(ea_lower_vals(ea_lower_idx>=upper_bounds(1) & ea_lower_idx<=upper_bounds(end))<epsilon)
+                if all(ea_lower_vals(ea_lower_idx>=upper_bounds(1) & ea_lower_idx<=upper_bounds(end))/row_prob_sum<epsilon)
                     temp_cols=ea_upper_idx(noise_vals);
                     ea_upper_idx=ea_upper_idx(~noise_vals);
                     ea_upper_vals=ea_upper_vals(~noise_vals);
