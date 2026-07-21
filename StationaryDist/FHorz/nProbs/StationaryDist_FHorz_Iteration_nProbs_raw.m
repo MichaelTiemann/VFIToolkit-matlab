@@ -22,6 +22,8 @@ end
 Policy_aprimez=Policy_aprime+N_a*gpuArray(0:1:N_z-1);  % Note: add z' index following the z dimension [Tan improvement, z stays where it is]
 Policy_aprimez=gather(reshape(Policy_aprimez,[N_a*N_z,N_probs,N_j])); % sparse() requires inputs to be 2-D
 needs_rounding=(PolicyProbs<epsilon | PolicyProbs>1-epsilon);
+needs_rounding(PolicyProbs==0)=0;
+needs_rounding(PolicyProbs==1)=0;
 PolicyProbs(needs_rounding)=round(PolicyProbs(needs_rounding));
 PolicyProbs=gather(reshape(PolicyProbs,[N_a*N_z,N_probs,N_j])); % sparse() requires inputs to be 2-D
 

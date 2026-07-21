@@ -21,7 +21,9 @@ else
     N_a=N_a1*N_a2;
 end
 Policy_aprime=gather(Policy_aprime);
-needs_rounding=(PolicyProbs<epsilon | PolicyProbs>epsilon);
+needs_rounding=(PolicyProbs<epsilon | PolicyProbs>1-epsilon);
+needs_rounding(PolicyProbs==0)=0;
+needs_rounding(PolicyProbs==1)=0;
 PolicyProbs(needs_rounding)=round(PolicyProbs(needs_rounding));
 PolicyProbs=gather(PolicyProbs);
 
@@ -46,7 +48,7 @@ for jj=1:(N_j-1)
     StationaryDist_upper_jj=Gammatranspose_upper*StationaryDist_jj;
     StationaryDist_jj=Gammatranspose*StationaryDist_jj; % =StationaryDist_lower_jj+StationaryDist_upper_jj;
 
-    % [StationaryDist_jj,total_zeros_created,jj_at_max_a2]=StationaryDist_FHorz_Optimize_nProbs_raw(StationaryDist_jj,StationaryDist_lower_jj,StationaryDist_upper_jj, N_a1,N_a2,0,jj, epsilon,total_zeros_created,jj_at_max_a2);
+    [StationaryDist_jj,total_zeros_created,jj_at_max_a2]=StationaryDist_FHorz_Optimize_nProbs_raw(StationaryDist_jj,StationaryDist_lower_jj,StationaryDist_upper_jj, N_a1,N_a2,0,jj, epsilon,total_zeros_created,jj_at_max_a2);
 
     StationaryDist(:,jj+1)=gather(full(StationaryDist_jj));
 end
