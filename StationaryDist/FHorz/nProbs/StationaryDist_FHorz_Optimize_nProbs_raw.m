@@ -49,30 +49,11 @@ for z_c=1:N_z
         else
             [~,ea_upper_idx,ea_upper_vals]=find(StationaryDist_upper_jj(row,:));
         end
-        % noise are small values touching the edge of the grid; in this case, the bottom
-        noise_vals=(ea_lower_vals/row_prob_sum)<epsilon;
-        noise_vals(find(noise_vals==0,1,'first'):end)=0;
-        if any(noise_vals)
-            lower_bounds=ea_lower_idx(noise_vals);
-            if all(ea_upper_vals(ea_upper_idx>=lower_bounds(1) & ea_upper_idx<=lower_bounds(end))/row_prob_sum<epsilon)
-                temp_cols=ea_lower_idx(noise_vals);
-                ea_lower_idx=ea_lower_idx(~noise_vals);
-                ea_lower_vals=ea_lower_vals(~noise_vals);
-                if N_z_input==0
-                    StationaryDist_jj(sub2ind([N_a1,N_a2],row,temp_cols))=0;
-                else
-                    StationaryDist_jj(sub2ind([N_a1,N_a2,N_z],row,temp_cols,z_c),z_c)=0;
-                end
-                % Must update our working row because we are not yet done with it
-                StationaryDist_row_jj(row,temp_cols)=0;
-                total_zeros_created=total_zeros_created+length(temp_cols);
-            end
-        end
 
         if isempty(ea_upper_idx)
             if isscalar(ea_lower_idx) && row_prob_sum<epsilon && (ea_lower_idx==1 || ea_lower_idx==N_a2)
-                % Allow this infinitesimal to evaporate from grid
-                total_zeros_created=total_zeros_created+nnz(ea_lower_vals);
+                % Allow this infinitesimal to evaporate from this otherwise empty row
+                total_zeros_created=total_zeros_created+1;
                 temp=sparse(row,ea_lower_idx,0,N_a1,N_a2);
                 if N_z_input==0
                     StationaryDist_jj(sub2ind([N_a1,N_a2],row,ea_lower_idx))=temp(row,ea_lower_idx);
@@ -81,30 +62,6 @@ for z_c=1:N_z
                 end
                 continue
             elseif length(ea_lower_idx)<3
-                continue
-            end
-        else
-            % noise are small values touching the edge of the grid; in this case, the top
-            noise_vals=(ea_upper_vals/row_prob_sum)<epsilon;
-            noise_vals(1:find(noise_vals==0,1,'last'))=0;
-            if any(noise_vals)
-                upper_bounds=ea_upper_idx(noise_vals);
-                if all(ea_lower_vals(ea_lower_idx>=upper_bounds(1) & ea_lower_idx<=upper_bounds(end))/row_prob_sum<epsilon)
-                    temp_cols=ea_upper_idx(noise_vals);
-                    ea_upper_idx=ea_upper_idx(~noise_vals);
-                    ea_upper_vals=ea_upper_vals(~noise_vals);
-                    if N_z_input==0
-                        StationaryDist_jj(sub2ind([N_a1,N_a2],row,temp_cols))=0;
-                    else
-                        StationaryDist_jj(sub2ind([N_a1,N_a2,N_z],row,temp_cols,z_c),z_c)=0;
-                    end
-                    % Must update our working row because we are not yet done with it
-                    StationaryDist_row_jj(row,temp_cols)=0;
-                    total_zeros_created=total_zeros_created+length(temp_cols);
-                end
-            end
-
-            if isempty(ea_lower_idx) || isempty(ea_upper_idx) || ea_upper_idx(end)-ea_lower_idx(1)<2
                 continue
             end
         end
