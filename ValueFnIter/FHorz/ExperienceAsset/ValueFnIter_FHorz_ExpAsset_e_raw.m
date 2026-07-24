@@ -9,7 +9,8 @@ N_z=prod(n_z);
 N_e=prod(n_e);
 
 V=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
-Policy=zeros(N_a,N_z,N_e,N_j,'gpuArray'); %first dim indexes the optimal choice for d and a1prime rest of dimensions a,z
+Policy=zeros(N_a,N_z,N_e,N_j,'gpuArray'); %first dim (added at the very end) indexes the optimal choice for d and a1prime rest of dimensions a,z
+
 
 %%
 a2_gridvals=CreateGridvals(n_a2,a2_grid,1);
@@ -19,7 +20,9 @@ if vfoptions.lowmemory==1
 elseif vfoptions.lowmemory==2
     special_n_e=ones(1,length(n_e),vfoptions.precision);
     special_n_z=ones(1,length(n_z),vfoptions.precision);
-elseif vfoptions.lowmemory==3
+elseif vfoptions.lowmemory==4
+    special_n_ea=ones(1,length(n_a2),vfoptions.precision);
+elseif vfoptions.lowmemory==5
     special_n_e=ones(1,length(n_e),vfoptions.precision);
     special_n_z=ones(1,length(n_z),vfoptions.precision);
     special_n_ea=ones(1,length(n_a2),vfoptions.precision);
@@ -58,7 +61,17 @@ if ~isfield(vfoptions,'V_Jplus1')
                 Policy(:,z_c,e_c,N_j)=maxindex;
             end
         end
-    elseif vfoptions.lowmemory==3
+    elseif vfoptions.lowmemory==4
+        for ea_c=1:N_a2
+            ea_val=a2_gridvals(ea_c);
+
+            ReturnMatrix_ea=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,n_d2,n_a1,n_a1, special_n_ea, n_z, n_e, d_gridvals, a1_gridvals, a1_gridvals, ea_val, z_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,0,0); % Level=0, Refine=0
+            % Calc the max and its index
+            [Vtemp,maxindex]=max(ReturnMatrix_ea);
+            V(1+(ea_c-1)*N_a1:ea_c*N_a1,:,:,N_j)=Vtemp;
+            Policy(1+(ea_c-1)*N_a1:ea_c*N_a1,:,:,N_j)=maxindex;
+        end
+    elseif vfoptions.lowmemory==5
         for ea_c=1:N_a2
             ea_val=a2_gridvals(ea_c);
             for z_c=1:N_z
@@ -152,7 +165,22 @@ else
                 Policy(:,z_c,e_c,N_j)=shiftdim(maxindex,1);
             end
         end
-    elseif vfoptions.lowmemory==3
+    elseif vfoptions.lowmemory==4
+        %% New code 24 Jul 2026; untested
+        for ea_c=1:N_a2
+            ea_val=a2_gridvals(ea_c);
+
+            ReturnMatrix_ea=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,n_d2,n_a1,n_a1,special_n_ea,n_z,n_e, d_gridvals, a1_gridvals, a1_gridvals, ea_val, z_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,0,0); % Level=0, Refine=0
+
+            entireRHS_ea=ReturnMatrix_ea+DiscountFactorParamsVec*repelem(EV,N_d1,N_a1,1); % should autofill e dimension
+
+            % Calc the max and its index
+            [Vtemp,maxindex]=max(entireRHS_ea,[],1);
+
+            V(1+(ea_c-1)*N_a1:ea_c*N_a1,:,:,N_j)=shiftdim(Vtemp,1);
+            Policy(1+(ea_c-1)*N_a1:ea_c*N_a1,:,:,N_j)=shiftdim(maxindex,1);
+        end
+    elseif vfoptions.lowmemory==5
         for ea_c=1:N_a2
             ea_val=a2_gridvals(ea_c);
             for z_c=1:N_z
@@ -265,7 +293,44 @@ for reverse_j=1:N_j-1
                 Policy(:,z_c,e_c,jj)=shiftdim(maxindex,1);
             end
         end
-    elseif vfoptions.lowmemory==3
+    elseif vfoptions.lowmemory==4
+        %% New code 24 Jul 2026; untested
+        for ea_c=1:N_a2
+            aprimeIndex_ea=repelem((1:1:N_a1)',N_d2,1)+N_a1*repmat(squeeze(a2primeIndex(:,ea_c))-1,N_a1,1,1); % [N_d2*N_a1,1]
+            aprimeplus1Index_ea=repelem((1:1:N_a1)',N_d2)+N_a1*repmat(squeeze(a2primeIndex(:,ea_c)),N_a1,1,1); % [N_d2*N_a1,1]
+            aprimeProbs_ea=repmat(squeeze(a2primeProbs(:,ea_c)),N_a1,1,N_z); % [N_d2*N_a1,1,N_z]
+
+            Vlower_ea=reshape(V(aprimeIndex_ea(:),:,jj+1),[N_d2*N_a1,1,N_z]); % (d*a1prime,1,z)
+            Vupper_ea=reshape(V(aprimeplus1Index_ea(:),:,jj+1),[N_d2*N_a1,1,N_z]);
+            % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
+            skipinterp_ea=(Vlower_ea==Vupper_ea);
+            aprimeProbs_ea(skipinterp_ea)=0; % effectively skips interpolation
+
+            % Switch EV from being in terms of a2prime to being in terms of d (and the present ea_c, from a2)
+            EV_ea_l=aprimeProbs_ea.*Vlower_ea; EV_ea_u=(1-aprimeProbs_ea).*Vupper_ea;
+            EV_ea_l(isnan(EV_ea_l))=0; EV_ea_u(isnan(EV_ea_u))=0;
+            EV_ea=EV_ea_l+EV_ea_u; % (d2*a1prime,1,z)
+            % Already applied the probabilities from interpolating onto grid
+
+            EV_ea=EV_ea.*shiftdim(pi_z_J(:,:,jj),-1); % shifted pi_z shaped [1,z,zprime] -- no transpose since current z is dim 3
+            EV_ea(isnan(EV_ea))=0; % remove nan created where value fn is -Inf but probability is zero
+            EV_ea=squeeze(sum(EV_ea,3));
+            % EV is over (d2*a1prime,z)
+
+            ea_val=a2_gridvals(ea_c);
+
+            ReturnMatrix_ea=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,n_d2,n_a1,n_a1,special_n_ea,n_z,n_e, d_gridvals, a1_gridvals, a1_gridvals, ea_val, z_gridvals_J(:,:,jj), e_gridvals_J(:,:,jj), ReturnFnParamsVec,0,0); % Level=0, Refine=0
+
+            entireRHS_ea=ReturnMatrix_ea+DiscountFactorParamsVec*repelem(EV_ea,N_d1,N_a1); % should autofill e dimension
+            assert(false); % check that the above should not be some version of permute(repelem(EV_ea,1,1,N_a1),[1,3,2]); % manually fill a1 into the middle column
+
+            %Calc the max and its index
+            [Vtemp,maxindex]=max(entireRHS_ea,[],1);
+
+            V(1+(ea_c-1)*N_a1:ea_c*N_a1,:,:,jj)=shiftdim(Vtemp,1);
+            Policy(1+(ea_c-1)*N_a1:ea_c*N_a1,:,:,jj)=shiftdim(maxindex,1);
+        end
+    elseif vfoptions.lowmemory==5
         for ea_c=1:N_a2
             aprimeIndex_ea=repelem((1:1:N_a1)',N_d2,1)+N_a1*repmat(squeeze(a2primeIndex(:,ea_c))-1,N_a1,1,1); % [N_d2*N_a1,1]
             aprimeplus1Index_ea=repelem((1:1:N_a1)',N_d2)+N_a1*repmat(squeeze(a2primeIndex(:,ea_c)),N_a1,1,1); % [N_d2*N_a1,1]

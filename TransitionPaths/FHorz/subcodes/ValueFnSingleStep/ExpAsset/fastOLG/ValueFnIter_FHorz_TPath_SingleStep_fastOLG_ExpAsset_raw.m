@@ -110,7 +110,25 @@ elseif vfoptions.lowmemory==1
         V(:,z_c)=reshape(Vtemp,[N_a*N_j,1]);
         Policy(:,z_c)=reshape(maxindex,[N_a*N_j,1]);
     end
-elseif vfoptions.lowmemory==3
+elseif vfoptions.lowmemory==4
+    special_n_ea=ones(1,length(n_a2),vfoptions.precision,'gpuArray');
+    V=zeros(N_a*N_j,N_z,vfoptions.precision,'gpuArray');
+    Policy=zeros(N_a*N_j,N_z,'gpuArray');
+
+    for ea_c=1:N_a2
+        %% New code 24 Jul 2026; untested
+        ea_val=a2_gridvals(ea_c);
+        ReturnMatrix_ea=CreateReturnFnMatrix_fastOLG_ExpAsset_Disc(ReturnFn, n_d1, n_d2, n_a1, n_a1,special_n_ea, n_z,N_j, d_gridvals, a1_gridvals, a1_gridvals, ea_val, z_gridvals_J, ReturnFnParamsAgeMatrix,0,0); % Level=0, Refine=0
+
+        entireRHS_ea=ReturnMatrix_ea+DiscountFactorParamsVec.*repelem(EV(:,ea_c,:,:),N_d1,N_a1,1,1);
+
+        % Calc the max and it's index
+        [Vtemp,maxindex]=max(entireRHS_ea,[],1);
+
+        V(1+(ea_c-1)*N_a1*N_j:ea_c*N_a1*N_j,:)=reshape(Vtemp,[N_a1*N_j,N_z]);
+        Policy(1+(ea_c-1)*N_a1*N_j:ea_c*N_a1*N_j,:)=reshape(maxindex,[N_a1*N_j,N_z]);
+    end
+elseif vfoptions.lowmemory==5
     special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
     special_n_ea=ones(1,length(n_a2),vfoptions.precision,'gpuArray');
     V=zeros(N_a*N_j,N_z,vfoptions.precision,'gpuArray');
