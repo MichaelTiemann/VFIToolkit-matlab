@@ -195,12 +195,14 @@ for reverse_j=1:N_j-1
             ea_val=a2_gridvals(ea_c);
             for z_c=1:N_z
                 z_val=z_gridvals_J(z_c,:,jj);
+                DiscountedEV_ea_z=DiscountFactorParamsVec*repelem(EV(:,ea_c,z_c),N_d1,N_a1);
+
                 for e_c=1:N_e
                     e_val=e_gridvals_J(e_c,:,jj);
 
                     ReturnMatrix_ea_ze=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,n_d2,n_a1,n_a1,special_n_ea,special_n_z,special_n_e, d_gridvals, a1_gridvals, a1_gridvals, ea_val, z_val, e_val, ReturnFnParamsVec,0,0); % Level=0, Refine=0
 
-                    entireRHS_ea_z=ReturnMatrix_ea_ze+DiscountFactorParamsVec*repelem(EV(:,ea_c,z_c),N_d1,N_a1);
+                    entireRHS_ea_z=ReturnMatrix_ea_ze+DiscountedEV_ea_z;
 
                     %Calc the max and its index
                     [Vtemp,maxindex]=max(entireRHS_ea_z,[],1);
