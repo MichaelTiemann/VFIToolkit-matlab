@@ -136,6 +136,51 @@ elseif vfoptions.lowmemory==2
             Policy(:,z_c,e_c)=reshape(maxindex,[N_a*N_j,1]);
         end
     end
+elseif vfoptions.lowmemory==4
+    special_n_ea=ones(1,length(n_a2),vfoptions.precision,'gpuArray');
+    V=zeros(N_a*N_j,N_z,N_e,vfoptions.precision,'gpuArray');
+    Policy=zeros(N_a*N_j,N_z,N_e,'gpuArray');
+
+    for ea_c=1:N_a2
+        %% New code 24 Jul 2026; untested
+        ea_val=a2_gridvals(ea_c);
+        ReturnMatrix_ea=CreateReturnFnMatrix_fastOLG_ExpAsset_Disc_e(ReturnFn, n_d1, n_d2, n_a1, n_a1,special_n_ea, n_z,n_e,N_j, d_gridvals, a1_gridvals, a1_gridvals, ea_val, z_gridvals_J, e_gridvals_J, ReturnFnParamsAgeMatrix,0,0); % Level=0, Refine=0
+
+        entireRHS_ea=ReturnMatrix_ea+DiscountFactorParamsVec.*repelem(EV(:,ea_c,:,:),N_d1,N_a1,1,1);
+
+        % Calc the max and it's index
+        [Vtemp,maxindex]=max(entireRHS_ea,[],1);
+
+        V(1+(ea_c-1)*N_a1*N_j:ea_c*N_a1*N_j,:,:)=reshape(Vtemp,[N_a1*N_j,N_z,N_e]);
+        Policy(1+(ea_c-1)*N_a1*N_j:ea_c*N_a1*N_j,:,:)=reshape(maxindex,[N_a1*N_j,N_z,N_e]);
+    end
+elseif vfoptions.lowmemory==5
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
+    special_n_ea=ones(1,length(n_a2),vfoptions.precision,'gpuArray');
+    V=zeros(N_a*N_j,N_z,N_e,vfoptions.precision,'gpuArray');
+    Policy=zeros(N_a*N_j,N_z,N_e,'gpuArray');
+
+    for ea_c=1:N_a2
+        ea_val=a2_gridvals(ea_c);
+        for z_c=1:N_z
+            z_val=z_gridvals_J(:,:,:,:,:,z_c,:); % z_gridvals_J is [1,1,1,1,N_j,N_z,l_z] — z on dim 6
+    
+            for e_c=1:N_e
+                e_val=e_gridvals_J(:,:,:,:,:,:,e_c,:); % e_gridvals_J is [1,1,1,1,1,N_j,N_e,l_e] — e on dim 7
+    
+                ReturnMatrix_ze=CreateReturnFnMatrix_fastOLG_ExpAsset_Disc_e(ReturnFn, n_d1, n_d2, n_a1, n_a1, special_n_ea,special_n_z,special_n_e,N_j, d_gridvals, a1_gridvals, a1_gridvals, ea_val, z_val, e_val, ReturnFnParamsAgeMatrix,0,0); % Level=0, Refine=0
+    
+                entireRHS_ze=ReturnMatrix_ze+DiscountFactorParamsVec.*repelem(EV(:,ea_c,:,z_c),N_d1,N_a1,1,1);
+    
+                % Calc the max and it's index
+                [Vtemp,maxindex]=max(entireRHS_ze,[],1);
+
+                V(1+(ea_c-1)*N_a1*N_j:ea_c*N_a1*N_j,z_c,e_c)=reshape(Vtemp,[N_a1*N_j,1]);
+                Policy(1+(ea_c-1)*N_a1*N_j:ea_c*N_a1*N_j,z_c,e_c)=reshape(maxindex,[N_a1*N_j,1]);
+            end
+        end
+    end
 end
 
 

@@ -14,7 +14,9 @@ a2_gridvals=CreateGridvals(n_a2,a2_grid,1);
 
 if vfoptions.lowmemory==1
     special_n_z=ones(1,length(n_z));
-elseif vfoptions.lowmemory==3
+elseif vfoptions.lowmemory==4
+    special_n_ea=ones(1,length(n_a2));
+elseif vfoptions.lowmemory==5
     special_n_z=ones(1,length(n_z));
     special_n_ea=ones(1,length(n_a2));
 end
@@ -42,7 +44,18 @@ elseif vfoptions.lowmemory==1
         V(:,z_c,N_j)=Vtemp;
         Policy(:,z_c,N_j)=maxindex;
     end
-elseif vfoptions.lowmemory==3
+elseif vfoptions.lowmemory==4
+    %% New code 24 Jul 2026; untested
+    for ea_c=1:N_a2
+        ea_val=a2_gridvals(ea_c);
+
+        ReturnMatrix_ea=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2,n_a1,n_a1, special_n_ea, n_z, d_gridvals, a1_gridvals, a1_gridvals, ea_val, z_gridvals_J(:,:,N_j), ReturnFnParamsVec,0,0); % Level=0, Refine=0
+        % Calc the max and its index
+        [Vtemp,maxindex]=max(ReturnMatrix_ea);
+        V(1+(ea_c-1)*N_a1:ea_c*N_a1,:,N_j)=Vtemp;
+        Policy(1+(ea_c-1)*N_a1:ea_c*N_a1,:,N_j)=maxindex;
+    end
+elseif vfoptions.lowmemory==5
     for ea_c=1:N_a2
         ea_val=a2_gridvals(ea_c);
         for z_c=1:N_z
@@ -126,7 +139,22 @@ for reverse_j=1:N_j-1
             Policy(:,z_c,jj)=maxindex;
         end
 
-    elseif vfoptions.lowmemory==3
+    elseif vfoptions.lowmemory==4
+        %% New code 24 Jul 2026; untested
+        for ea_c=1:N_a2
+            ea_val=a2_gridvals(ea_c);
+
+            ReturnMatrix_ea=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2,n_a1,n_a1,special_n_ea,n_z, d_gridvals, a1_gridvals, a1_gridvals, ea_val, z_gridvals_J(:,:,jj), ReturnFnParamsVec,0,0); % Level=0, Refine=0
+
+            entireRHS_ea=ReturnMatrix_ea+DiscountFactorParamsVec*repelem(EV(:,ea_c,:),N_d1,N_a1);
+
+            %Calc the max and its index
+            [Vtemp,maxindex]=max(entireRHS_ea,[],1);
+
+            V(1+(ea_c-1)*N_a1:ea_c*N_a1,:,jj)=shiftdim(Vtemp,1);
+            Policy(1+(ea_c-1)*N_a1:ea_c*N_a1,:,jj)=shiftdim(maxindex,1);
+        end
+    elseif vfoptions.lowmemory==5
         for ea_c=1:N_a2
             ea_val=a2_gridvals(ea_c);
             for z_c=1:N_z
