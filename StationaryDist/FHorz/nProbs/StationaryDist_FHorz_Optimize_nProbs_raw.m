@@ -160,7 +160,7 @@ end
 
 sum_new_zeros=sum(new_zeros_created);
 total_zeros_created=total_zeros_created+sum_new_zeros;
-if simoptions.verbose>=1
+if simoptions.verbose==2
     if sum_new_zeros || simoptions.verbose==2
         fprintf("Age %3d: zeros created = %d \n", jj, sum_new_zeros);
     end
