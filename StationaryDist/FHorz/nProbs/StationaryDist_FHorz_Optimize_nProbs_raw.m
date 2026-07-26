@@ -11,7 +11,7 @@ else
     N_a1=prod(n_a1);
 end
 N_a2=prod(n_a2);
-a2_grid=simoptions.a_grid(sum(n_a1)+1:end);
+a2_grid_T=gather(double(simoptions.a_grid(sum(n_a1)+1:end)))';
 
 % Remember whether we want to return [N_a*N_z,1] or [N_a,N_z]
 StationaryDist_jj_size=size(StationaryDist_jj);
@@ -31,7 +31,7 @@ new_zeros_created=zeros(1,N_z);
 % For large N_z, this loop can be changed to `parfor` for greater CPU parallelism
 for z_c=1:N_z
     % When N_z=1, the index z_c is only every 1, which does nothing
-    StationaryDist_row_jj=reshape(StationaryDist_jj(:,z_c),[N_a1,N_a2]);
+    StationaryDist_row_jj=round(reshape(StationaryDist_jj(:,z_c),[N_a1,N_a2]),epsilon_round);
 
     row_prob_sum=full(sum(StationaryDist_row_jj,'all'));
     if row_prob_sum==0 || all(arrayfun(@(r) nnz(StationaryDist_row_jj(r,:)), 1:size(StationaryDist_row_jj,1))<3)
@@ -66,23 +66,59 @@ for z_c=1:N_z
             zero_created=false;
             cidx=length(this_run);
             zero_candidate=zeros(1,cidx);
-            I=eye(cidx);
             nonzeros=true(1,cidx);
+
+            if cidx>3
+                % Just once, try to zero out both max and min in one shot
+                if any(a2_grid_T(this_run)==0)
+                    SystemOfEquations=[this_run;ones(1,cidx);[1,zeros(1,cidx-1)];[zeros(1,cidx-1),1]];
+                    GoalValues=[sum(vals.*this_run); run_prob_sum; 0; 0];
+                    new_vals=linsolve(SystemOfEquations,GoalValues);
+                    res_vec_mag = norm(GoalValues-SystemOfEquations*new_vals);
+                else
+                    SystemOfEquations=[a2_grid_T(this_run);ones(1,cidx);[1,zeros(1,cidx-1)];[zeros(1,cidx-1),1]];
+                    GoalValues=[sum(vals.*a2_grid_T(this_run)); run_prob_sum; 0; 0];
+                    new_vals=linsolve(SystemOfEquations,GoalValues);
+                    res_vec_mag = norm(GoalValues-SystemOfEquations*new_vals);
+                end
+                new_vals=round(new_vals,epsilon_round)';
+                if isnan(res_vec_mag) || res_vec_mag/norm(new_vals)>1e-5 || all(abs(new_vals-vals)<1e-6) || any(new_vals<0)
+                    % zero_candidate(cidx)=0;
+                else
+                    vals=new_vals;
+                    if cidx<5
+                        % Early out if we collapsed 4 values into 2
+                        temp=sparse(row,this_run,vals,N_a1,N_a2);
+                        StationaryDist_row_jj(row,this_run)=temp(row,this_run);
+                        new_zeros_created(z_c)=new_zeros_created(z_c)+sum(vals==0)-starting_zeros;
+                        continue
+                    end
+                    zero_created=true;
+                    nonzeros(1)=false; nonzeros(cidx)=false;
+                    zero_candidate(1)=1; zero_candidate(cidx)=1;
+                    cidx=cidx-1;
+                end
+            end
             zero_candidate(cidx)=1;
             while nnz(vals)>1
-                % Aggressively try to zero out largest indices
-                ZC=I(nonzeros,nonzeros).*zero_candidate(nonzeros);
-                ZC=ZC(any(ZC~=0,2),:);
-                SystemOfEquations=[a2_grid(this_run(nonzeros))';ones(1,nnz(nonzeros));ZC];
-                GoalValues=[sum(vals(nonzeros).*a2_grid(this_run(nonzeros))'); run_prob_sum; zeros(size(ZC,1),1)];
-                new_vals=gather(linsolve(SystemOfEquations,GoalValues));
-                res_vec_mag = norm(GoalValues-SystemOfEquations*new_vals);
+                % Try to zero out largest indices, perhaps squeezing zero from middle
+                if any(a2_grid_T(this_run(nonzeros))==0)
+                    SystemOfEquations=[this_run(nonzeros);ones(1,nnz(nonzeros));zero_candidate(nonzeros)];
+                    GoalValues=[sum(vals(nonzeros).*this_run(nonzeros)); run_prob_sum; 0];
+                    new_vals=linsolve(SystemOfEquations,GoalValues);
+                    res_vec_mag = norm(GoalValues-SystemOfEquations*new_vals);
+                else
+                    SystemOfEquations=[a2_grid_T(this_run(nonzeros));ones(1,nnz(nonzeros));zero_candidate(nonzeros)];
+                    GoalValues=[sum(vals(nonzeros).*a2_grid_T(this_run(nonzeros))); run_prob_sum; 0];
+                    new_vals=linsolve(SystemOfEquations,GoalValues);
+                    res_vec_mag = norm(GoalValues-SystemOfEquations*new_vals);
+                end
                 new_vals=round(new_vals,epsilon_round)';
-                if res_vec_mag/norm(new_vals)>1e-5 || all(new_vals==vals(nonzeros)) || any(new_vals<0)
+                if isnan(res_vec_mag) || res_vec_mag/norm(new_vals)>1e-5 || all(abs(new_vals-vals(nonzeros))<1e-6) || any(new_vals<0)
                     zero_candidate(cidx)=0;
                     break
                 end
-                vals=paddata(new_vals,length(this_run));
+                vals(nonzeros)=new_vals;
                 nonzeros(cidx)=false;
                 zero_created=true;
                 cidx=cidx-1;
@@ -91,21 +127,26 @@ for z_c=1:N_z
             if zero_created
                 zero_candidate(cidx)=0;
             end
-            cidx=1;
+            cidx=find(zero_candidate==0,1,'first');
             zero_candidate(cidx)=1;
             while nnz(vals)>1
-                % Try to zero out least index
-                ZC=I(nonzeros,nonzeros).*zero_candidate(nonzeros);
-                ZC=ZC(any(ZC~=0,2),:);
-                SystemOfEquations=[a2_grid(this_run(nonzeros))';ones(1,nnz(nonzeros));ZC];
-                GoalValues=[sum(vals(nonzeros).*a2_grid(this_run(nonzeros))'); run_prob_sum; zeros(size(ZC,1),1)];
-                new_vals=gather(linsolve(SystemOfEquations,GoalValues));
-                res_vec_mag = norm(GoalValues-SystemOfEquations*new_vals);
+                % Try to zero out least index, perhaps squeezing zero from middle
+                if any(a2_grid_T(this_run(nonzeros))==0)
+                    SystemOfEquations=[this_run(nonzeros);ones(1,nnz(nonzeros));zero_candidate(nonzeros)];
+                    GoalValues=[sum(vals(nonzeros).*this_run(nonzeros)); run_prob_sum; 0];
+                    new_vals=linsolve(SystemOfEquations,GoalValues);
+                    res_vec_mag = norm(GoalValues-SystemOfEquations*new_vals);
+                else
+                    SystemOfEquations=[a2_grid_T(this_run(nonzeros));ones(1,nnz(nonzeros));zero_candidate(nonzeros)];
+                    GoalValues=[sum(vals(nonzeros).*a2_grid_T(this_run(nonzeros))); run_prob_sum; 0];
+                    new_vals=linsolve(SystemOfEquations,GoalValues);
+                    res_vec_mag = norm(GoalValues-SystemOfEquations*new_vals);
+                end
                 new_vals=round(new_vals,epsilon_round)';
-                if res_vec_mag/norm(new_vals)>1e-5 || all(new_vals==vals(nonzeros)) || any(new_vals<0)
+                if isnan(res_vec_mag) || res_vec_mag/norm(new_vals)>1e-5 || all(abs(new_vals-vals(nonzeros))<1e-6) || any(new_vals<0)
                     break
                 end
-                vals=paddata([zeros(1,cidx-1),new_vals],length(this_run));
+                vals(nonzeros)=new_vals;
                 nonzeros(cidx)=false;
                 cidx=cidx+1;
                 zero_candidate(cidx)=1;
