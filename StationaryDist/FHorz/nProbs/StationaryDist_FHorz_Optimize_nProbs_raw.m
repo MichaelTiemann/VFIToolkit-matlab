@@ -1,16 +1,17 @@
-function [StationaryDist_jj,total_zeros_created,jj_at_max_a2]=StationaryDist_FHorz_Optimize_nProbs_raw(StationaryDist_jj, N_a1_input,N_a2_input,N_z_input,jj, epsilon,total_zeros_created,jj_at_max_a2, simoptions)
+function [StationaryDist_jj,total_zeros_created,jj_at_max_a2]=StationaryDist_FHorz_Optimize_nProbs_raw(StationaryDist_jj, n_a1,n_a2,N_z_input,jj, epsilon,total_zeros_created,jj_at_max_a2, simoptions)
 
 epsilon_round=7;
 
 % For grid interpolation, N_a2 arrives as zero.  We simplify the implementation
 % by treating this N_a1x1 grid as an 1xN_a1 grid (with N_a1 spelled N_a2 below).
-if N_a2_input==0
-    N_a2=N_a1_input;
+if n_a2==0
     N_a1=1;
+    n_a2=n_a1;
 else
-    N_a1=N_a1_input;
-    N_a2=N_a2_input;
+    N_a1=prod(n_a1);
 end
+N_a2=prod(n_a2);
+a2_grid=simoptions.a_grid(sum(n_a1)+1:end);
 
 % Remember whether we want to return [N_a*N_z,1] or [N_a,N_z]
 StationaryDist_jj_size=size(StationaryDist_jj);
@@ -65,13 +66,16 @@ for z_c=1:N_z
             zero_created=false;
             cidx=length(this_run);
             zero_candidate=zeros(1,cidx);
+            I=eye(cidx);
             nonzeros=true(1,cidx);
             zero_candidate(cidx)=1;
             while nnz(vals)>1
                 % Aggressively try to zero out largest indices
-                SystemOfEquations=[this_run(nonzeros);ones(1,nnz(nonzeros));zero_candidate(nonzeros)];
-                GoalValues=[sum(vals(nonzeros).*this_run(nonzeros)); run_prob_sum; 0];
-                new_vals=linsolve(SystemOfEquations,GoalValues);
+                ZC=I(nonzeros,nonzeros).*zero_candidate(nonzeros);
+                ZC=ZC(any(ZC~=0,2),:);
+                SystemOfEquations=[a2_grid(this_run(nonzeros))';ones(1,nnz(nonzeros));ZC];
+                GoalValues=[sum(vals(nonzeros).*a2_grid(this_run(nonzeros))'); run_prob_sum; zeros(size(ZC,1),1)];
+                new_vals=gather(linsolve(SystemOfEquations,GoalValues));
                 res_vec_mag = norm(GoalValues-SystemOfEquations*new_vals);
                 new_vals=round(new_vals,epsilon_round)';
                 if res_vec_mag/norm(new_vals)>1e-5 || all(new_vals==vals(nonzeros)) || any(new_vals<0)
@@ -91,15 +95,17 @@ for z_c=1:N_z
             zero_candidate(cidx)=1;
             while nnz(vals)>1
                 % Try to zero out least index
-                SystemOfEquations=[this_run(nonzeros);ones(1,nnz(nonzeros));zero_candidate(nonzeros)];
-                GoalValues=[sum(vals(nonzeros).*this_run(nonzeros)); run_prob_sum; 0];
-                new_vals=linsolve(SystemOfEquations,GoalValues);
+                ZC=I(nonzeros,nonzeros).*zero_candidate(nonzeros);
+                ZC=ZC(any(ZC~=0,2),:);
+                SystemOfEquations=[a2_grid(this_run(nonzeros))';ones(1,nnz(nonzeros));ZC];
+                GoalValues=[sum(vals(nonzeros).*a2_grid(this_run(nonzeros))'); run_prob_sum; zeros(size(ZC,1),1)];
+                new_vals=gather(linsolve(SystemOfEquations,GoalValues));
                 res_vec_mag = norm(GoalValues-SystemOfEquations*new_vals);
                 new_vals=round(new_vals,epsilon_round)';
                 if res_vec_mag/norm(new_vals)>1e-5 || all(new_vals==vals(nonzeros)) || any(new_vals<0)
                     break
                 end
-                vals=paddata([zeros(1,cidx-1), new_vals],length(this_run));
+                vals=paddata([zeros(1,cidx-1),new_vals],length(this_run));
                 nonzeros(cidx)=false;
                 cidx=cidx+1;
                 zero_candidate(cidx)=1;

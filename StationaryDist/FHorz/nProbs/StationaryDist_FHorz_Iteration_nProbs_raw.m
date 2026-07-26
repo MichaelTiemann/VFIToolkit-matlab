@@ -50,15 +50,12 @@ StationaryDist(:,1)=jequaloneDistKron;
 StationaryDist_jj=sparse(gather(jequaloneDistKron)); % use sparse matrix
 
 % Precompute
-II1=(1:1:N_a*N_z)';
 II2=repmat((1:1:N_a*N_z)',1,N_probs); %  Index for this period (a,z), note the N_probs-copies
 
 for jj=1:(N_j-1)
 
     % First, get Gamma
     Gammatranspose=sparse(Policy_aprimez(:,:,jj),II2,PolicyProbs(:,:,jj),N_a*N_z,N_a*N_z); % Note: sparse() will accumulate at repeated indices
-    Gammatranspose_lower=sparse(Policy_aprimez(:,1,jj),II1,PolicyProbs(:,1,jj),N_a*N_z,N_a*N_z);
-    Gammatranspose_upper=sparse(Policy_aprimez(:,2,jj),II1,PolicyProbs(:,2,jj),N_a*N_z,N_a*N_z);
 
     % First step of Tan improvement
     needs_rounding=full(StationaryDist_jj<epsilon | StationaryDist_jj>1-epsilon);
@@ -74,7 +71,7 @@ for jj=1:(N_j-1)
     StationaryDist_jj=StationaryDist_jj*pi_z;
 
     if simoptions.optimize_nProbs==1
-        [StationaryDist_jj,total_zeros_created,jj_at_max_a2]=StationaryDist_FHorz_Optimize_nProbs_raw(StationaryDist_jj, N_a1,N_a2,N_z,jj, epsilon,total_zeros_created,jj_at_max_a2,simoptions);
+        [StationaryDist_jj,total_zeros_created,jj_at_max_a2]=StationaryDist_FHorz_Optimize_nProbs_raw(StationaryDist_jj,n_a1,n_a2,N_z,jj, epsilon,total_zeros_created,jj_at_max_a2,simoptions);
     end
 
     StationaryDist_jj=reshape(StationaryDist_jj,[N_a*N_z,1]);
