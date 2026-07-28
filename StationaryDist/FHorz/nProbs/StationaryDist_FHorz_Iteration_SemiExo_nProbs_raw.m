@@ -4,6 +4,7 @@ function StationaryDist=StationaryDist_FHorz_Iteration_SemiExo_nProbs_raw(jequal
 % PolicyProbs are the corresponding probabilities of each of these N_probs.
 
 precision=underlyingType(jequaloneDistKron);
+cast2precision=str2func(precision);
 
 if exist('simoptions','var')==0
     simoptions=struct();
