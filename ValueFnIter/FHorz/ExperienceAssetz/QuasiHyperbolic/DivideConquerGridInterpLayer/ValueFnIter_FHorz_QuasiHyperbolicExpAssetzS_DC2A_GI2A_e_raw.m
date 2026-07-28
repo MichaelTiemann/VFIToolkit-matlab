@@ -13,7 +13,7 @@ N_z=prod(n_z);
 N_e=prod(n_e);
 
 Vhat=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
-Vunderbar=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+Vunderbar=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(4,N_a,N_z,N_e,N_j,'gpuArray');
 PolicyL2flag=2*ones(1,N_a,N_z,N_e,N_j,'gpuArray');
 
@@ -25,8 +25,8 @@ d2ind_vec=repelem((1:1:N_d2)',N_d1,1);
 if vfoptions.lowmemory==0
     midpoint=zeros(N_d,1,N_a2,N_a1,N_a2,N_a3,N_z,N_e,'gpuArray');
 elseif vfoptions.lowmemory==1
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
-    midpoint_z=zeros(N_d,1,N_a2,N_a1,N_a2,N_a3,1,N_e,'gpuArray');
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    midpoint_z=zeros(N_d,1,N_a2,N_a1,N_a2,N_a3,N_z,1,'gpuArray');
 elseif vfoptions.lowmemory==2
     special_n_z=ones(1,length(n_z),vfoptions.precision);
     special_n_e=ones(1,length(n_e),vfoptions.precision);
