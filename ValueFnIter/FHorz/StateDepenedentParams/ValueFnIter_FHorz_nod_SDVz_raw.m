@@ -10,7 +10,7 @@ Policy=zeros(N_a,N_z,N_j,'gpuArray'); %first dim indexes the optimal choice for 
 
 if vfoptions.lowmemory>0
     l_z=length(n_z);
-    special_n_z=ones(1,l_z);
+    special_n_z=ones(1,l_z,vfoptions.precision);
 end
 
 %% Get the parameter values that depend on the z_state.
@@ -34,7 +34,7 @@ for ii=1:l_SDV_z
 end
 % If using lowmemory>0 then can just pass these state dependent parameter
 % values as if they were another z_val (as these will all be done 1 by 1 anyway).
-special_n_z=[ones(1,length(n_z)),ones(1,l_SDV_z)]; % (special_n_z is only used when lowmemory>0 so no need to worry about its value otherwise)
+special_n_z=[ones(1,length(n_z),vfoptions.precision),ones(1,l_SDV_z,vfoptions.precision)]; % (special_n_z is only used when lowmemory>0 so no need to worry about its value otherwise)
 if vfoptions.lowmemory==0
     fprintf('ERROR: State Dependent Variables that depend on z (and possibly j) are only permitted for lowmemory>0')
     return

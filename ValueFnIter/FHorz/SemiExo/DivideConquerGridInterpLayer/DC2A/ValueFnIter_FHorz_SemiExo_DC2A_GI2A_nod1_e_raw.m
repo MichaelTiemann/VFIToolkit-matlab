@@ -36,19 +36,19 @@ eind =shiftdim(gpuArray(0:1:N_e-1),-2);
 zBind=shiftdim(gpuArray(0:1:N_bothz-1),-4);
 a12ind=gpuArray(0:1:N_a1*N_a2-1);
 
-special_n_d2=ones(1,length(n_d2));
+special_n_d2=ones(1,length(n_d2),vfoptions.precision);
 
 % lowmemory: which shocks are looped vs vectorised (spec: =1 loop e; =2 outer z/inner e, vec semiz; =3 joint bothz/inner e)
 if vfoptions.lowmemory==1
-    special_n_e=ones(1,length(n_e));
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
 elseif vfoptions.lowmemory==2
-    special_n_z=ones(1,length(n_z));
-    special_n_e=ones(1,length(n_e));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
     semizind =shiftdim(gpuArray(0:1:N_semiz-1),-1); % semiz-block analogue of zind (L2)
     semizBind=shiftdim(gpuArray(0:1:N_semiz-1),-4); % semiz-block analogue of zBind (L2)
 elseif vfoptions.lowmemory==3
-    special_n_bothz=ones(1,length(n_semiz)+length(n_z));
-    special_n_e=ones(1,length(n_e));
+    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
 end
 
 bothz_gridvals_J=[repmat(semiz_gridvals_J,N_z,1,1),repelem(z_gridvals_J,N_semiz,1,1)];

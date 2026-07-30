@@ -11,7 +11,7 @@ Policy=zeros(2,N_a,N_semiz,N_e,N_j,'gpuArray');
 
 
 %%
-special_n_d2=ones(1,length(n_d2));
+special_n_d2=ones(1,length(n_d2),vfoptions.precision);
 
 n_a1=n_a(1);
 n_a2=n_a(2:end);
@@ -32,10 +32,10 @@ semizBind=shiftdim(gpuArray(0:1:N_semiz-1),-3); % already includes -1
 
 % lowmemory: which shocks are looped vs vectorised (spec: =1 loop e, vectorise semiz; =2 outer semiz/inner e)
 if vfoptions.lowmemory==1
-    special_n_e=ones(1,length(n_e));
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
 elseif vfoptions.lowmemory==2
-    special_n_semiz=ones(1,length(n_semiz));
-    special_n_e=ones(1,length(n_e));
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
 end
 
 pi_e_J=shiftdim(pi_e_J,-2); % Move to third dimension

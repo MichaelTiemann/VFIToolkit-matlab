@@ -11,7 +11,7 @@ Ftemp=zeros(N_a,N_z,'gpuArray');
 
 pi_z_howards=repelem(pi_z,N_a,1);
 
-special_n_z=ones(l_z,1);
+special_n_z=ones(l_z,1,vfoptions.precision);
 
 %%
 tempcounter=1;

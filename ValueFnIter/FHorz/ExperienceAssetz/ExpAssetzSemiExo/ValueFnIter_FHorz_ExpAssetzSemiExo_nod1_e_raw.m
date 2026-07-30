@@ -34,7 +34,7 @@ if vfoptions.lowmemory>0
     special_n_e=ones(1,length(n_e),vfoptions.precision);
 end
 if vfoptions.lowmemory>1
-    special_n_bothz=ones(1,length(n_semiz)+length(n_z));
+    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision);
 end
 
 % Preallocate
@@ -101,7 +101,7 @@ if ~isfield(vfoptions,'V_Jplus1')
     end
 else
     % aprime depends on (d2, a1, a2, current_z); independent of d3, semiz, e -- compute once
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateExperienceAssetzFnMatrix(aprimeFn, n_d2, n_a2, n_z, d2_gridvals, a2_grid, z_gridvals_J(:,:,N_j), aprimeFnParamsVec,2);
 
     aprimeIndex=repelem((1:1:N_a1)',N_d2,N_a2,N_z)+N_a1*repmat(a2primeIndex-1,N_a1,1,1);

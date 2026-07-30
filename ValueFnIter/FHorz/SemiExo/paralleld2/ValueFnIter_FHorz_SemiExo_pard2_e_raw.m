@@ -23,7 +23,7 @@ if vfoptions.lowmemory>0
     special_n_e=ones(1,length(n_e),vfoptions.precision);
 end
 if vfoptions.lowmemory>1
-    special_n_bothz=ones(1,length(n_z)+length(n_semiz));
+    special_n_bothz=ones(1,length(n_z)+length(n_semiz),vfoptions.precision);
 end
 bothz_gridvals_J=[repmat(semiz_gridvals_J,N_z,1,1),repelem(z_gridvals_J,N_semiz,1,1)];
 

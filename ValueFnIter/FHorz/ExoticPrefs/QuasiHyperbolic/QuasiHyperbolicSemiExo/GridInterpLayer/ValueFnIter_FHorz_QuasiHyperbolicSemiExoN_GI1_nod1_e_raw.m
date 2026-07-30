@@ -18,7 +18,7 @@ Policyalt=zeros(3,N_a,N_semiz*N_z,N_e,N_j,'gpuArray'); % exponential discounter 
 PolicyL2flagalt=2*ones(1,N_a,N_semiz*N_z,N_e,N_j,'gpuArray');
 
 %%
-special_n_d2=ones(1,length(n_d2));
+special_n_d2=ones(1,length(n_d2),vfoptions.precision);
 
 if vfoptions.lowmemory==1
     special_n_e=ones(1,length(n_e),vfoptions.precision);

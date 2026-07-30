@@ -17,7 +17,8 @@ Policy=zeros(4,N_a,N_semiz*N_z,N_j,'gpuArray'); % first dim indexes the optimal 
 PolicyL2flag=2*ones(1,N_a,N_semiz*N_z,N_j,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
 
 %%
-special_n_d=[n_d1,ones(1,length(n_d2))];
+cast2precision=str2func(vfoptions.precision);
+special_n_d=[cast2precision(n_d1),ones(1,length(n_d2),vfoptions.precision)];
 d_gridvals=[repmat(d1_gridvals,N_d2,1),repelem(d2_gridvals,N_d1,1)];
 
 d12_gridvals=permute(reshape(d_gridvals,[N_d1,N_d2,length(n_d1)+length(n_d2)]),[1,3,2]); % version to use when looping over d2
@@ -27,11 +28,11 @@ bothzind=shiftdim(gpuArray(0:1:N_bothz-1),-1); % already includes -1
 bothzind2=shiftdim(gpuArray(0:1:N_bothz-1),-2);
 
 if vfoptions.lowmemory==1
-    special_n_z=ones(1,length(n_z));
+    special_n_z=ones(1,length(n_z),vfoptions.precision);
     semizind=shiftdim(gpuArray(0:1:N_semiz-1),-1); % already includes -1 (loop z, vectorize semiz)
     semizind2=shiftdim(gpuArray(0:1:N_semiz-1),-2);
 elseif vfoptions.lowmemory==2
-    special_n_bothz=ones(1,length(n_semiz)+length(n_z));
+    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision);
 end
 
 bothz_gridvals_J=[repmat(semiz_gridvals_J,N_z,1,1),repelem(z_gridvals_J,N_semiz,1,1)];

@@ -11,13 +11,13 @@ V=zeros(N_a,N_semiz,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy3=zeros(2,N_a,N_semiz,N_e,N_j,'gpuArray');
 
 %%
-special_n_d2=ones(1,length(n_d2));
+special_n_d2=ones(1,length(n_d2),vfoptions.precision);
 
 if vfoptions.lowmemory==1
     special_n_e=ones(1,length(n_e),vfoptions.precision);
 elseif vfoptions.lowmemory==2
-    special_n_semiz=ones(1,length(n_semiz));
-    special_n_e=ones(1,length(n_e));
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision);
 end
 
 % Preallocate

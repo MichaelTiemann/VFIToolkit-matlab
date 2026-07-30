@@ -19,7 +19,7 @@ if vfoptions.lowmemory>0
     z_gridvals=CreateGridvals(n_z,z_grid,1);
 end
 if vfoptions.lowmemory>1
-    special_n_a=ones(1,length(n_a));
+    special_n_a=ones(1,length(n_a),vfoptions.precision);
     a_gridvals=CreateGridvals(n_a,a_grid,1);
 end
 

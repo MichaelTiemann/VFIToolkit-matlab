@@ -13,7 +13,7 @@ N_a=prod(n_a);
 N_semiz=prod(n_semiz);
 N_u=prod(n_u);
 
-special_n_d4=ones(1,length(n_d4));
+special_n_d4=ones(1,length(n_d4),vfoptions.precision);
 d4_gridvals=CreateGridvals(n_d4,d4_grid,1);
 
 n_d23=[n_d2,n_d3];
@@ -32,7 +32,7 @@ d1d3d4_gridvals=gpuArray(CreateGridvals([n_d1,n_d3,n_d4],[d1_grid;d3_grid;d4_gri
 a_gridvals=gpuArray(CreateGridvals(n_a,a_grid,1));
 
 if vfoptions.lowmemory>0
-    special_n_semiz=ones(1,length(n_semiz));
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision);
 end
 
 aind=gpuArray(0:1:N_a-1);
@@ -78,7 +78,7 @@ else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [aprimeIndex,aprimeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a, n_u, d23_grid, a_grid, u_grid, aprimeFnParamsVec,1);
 
     if isstruct(pi_semiz_J)

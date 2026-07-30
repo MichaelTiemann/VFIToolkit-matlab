@@ -16,7 +16,7 @@ N_bothz=prod(n_bothz);
 N_u=prod(n_u);
 
 % d variable for the semiz
-special_n_d4=ones(1,length(n_d4));
+special_n_d4=ones(1,length(n_d4),vfoptions.precision);
 d4_gridvals=CreateGridvals(n_d4,d4_grid,1);
 
 % N_d234=N_d2*N_d3*N_d4;

@@ -14,7 +14,7 @@ special_n_e=ones(1,length(n_e),vfoptions.precision); % if vfoptions.lowmemory>0
 pi_e_J=shiftdim(pi_e_J,-2); % Move to third dimension
 if vfoptions.lowmemory>1
     l_z=length(n_z);
-    special_n_z=ones(1,l_z);
+    special_n_z=ones(1,l_z,vfoptions.precision);
 end
 
 %% j=N_j

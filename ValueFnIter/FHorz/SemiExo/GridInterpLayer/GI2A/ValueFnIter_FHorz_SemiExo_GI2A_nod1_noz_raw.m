@@ -32,11 +32,11 @@ semizind =shiftdim(gpuArray(0:1:N_semiz-1),-1);  % singleton on first dim
 semizBind=shiftdim(gpuArray(0:1:N_semiz-1),-4);  % singleton on first four dims (for aprime in layer 2)
 a12ind=gpuArray(0:1:N_a1*N_a2-1);
 
-special_n_d2=ones(1,length(n_d2));
+special_n_d2=ones(1,length(n_d2),vfoptions.precision);
 
 % lowmemory: which shocks are looped vs vectorised (spec: =1 loop semiz)
 if vfoptions.lowmemory==1
-    special_n_semiz=ones(1,length(n_semiz));
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision);
 end
 
 %% Preallocate per-d2 storage

@@ -179,7 +179,7 @@ else
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
     V_Jplus1=reshape(vfoptions.V_Jplus1,[N_a,N_semiz,N_e]);
     EVpre=sum(V_Jplus1.*shiftdim(pi_e_J(:,N_j),-2),3); % [N_a,N_semiz]
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a2, n_u, d23_grid, a2_grid, u_grid, aprimeFnParamsVec,2);
 
     if isstruct(pi_semiz_J)

@@ -24,7 +24,7 @@ elseif vfoptions.lowmemory==1 % loop over z
     ReturnMatrix=zeros(N_a,N_a,N_z,'gpuArray'); % 'refined' return matrix
     dstar=zeros(N_a,N_a,N_z,'gpuArray');
     l_z=length(n_z);
-    special_n_z=ones(1,l_z);
+    special_n_z=ones(1,l_z,vfoptions.precision);
     for z_c=1:N_z
         zvals=z_gridvals(z_c,:);
         ReturnMatrix_z=CreateReturnFnMatrix_Case2_Disc(ReturnFn,n_da, n_a, special_n_z, da_gridvals, a_grid, zvals, ReturnFnParams);
@@ -119,7 +119,7 @@ elseif vfoptions.lowmemory==1 % loop over z
     ReturnMatrixfine=zeros(N_aprime,N_a,N_z,'gpuArray'); % 'refined' return matrix
     dstar=zeros(N_aprime,N_a,N_z,'gpuArray');
     l_z=length(n_z);
-    special_n_z=ones(1,l_z);
+    special_n_z=ones(1,l_z,vfoptions.precision);
     for z_c=1:N_z
         zvals=z_gridvals(z_c,:);
         ReturnMatrixfine_z=CreateReturnFnMatrix_Disc_DC1(ReturnFn, n_d, special_n_z, d_gridvals, aprime_grid(:,:,z_c), a_grid, zvals, ReturnFnParams,1);
@@ -231,7 +231,7 @@ while vfoptions.postGIrepeat>0
         ReturnMatrixfine=zeros(N_aprime,N_a,N_z,'gpuArray'); % 'refined' return matrix
         dstar=zeros(N_aprime,N_a,N_z,'gpuArray');
         l_z=length(n_z);
-        special_n_z=ones(1,l_z);
+        special_n_z=ones(1,l_z,vfoptions.precision);
         for z_c=1:N_z
             zvals=z_gridvals(z_c,:);
             ReturnMatrixfine_z=CreateReturnFnMatrix_Disc_DC1(ReturnFn, n_d, special_n_z, d_gridvals, aprime_grid(:,:,z_c), a_grid, zvals, ReturnFnParams,1);

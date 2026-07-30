@@ -12,7 +12,7 @@ N_semiz=prod(n_semiz);
 N_e=prod(n_e);
 N_u=prod(n_u);
 
-special_n_d4=ones(1,length(n_d4));
+special_n_d4=ones(1,length(n_d4),vfoptions.precision);
 d4_gridvals=CreateGridvals(n_d4,d4_grid,1);
 
 n_d23=[n_d2,n_d3];
@@ -34,7 +34,7 @@ if vfoptions.lowmemory>0
     special_n_e=ones(1,length(n_e),vfoptions.precision);
 end
 if vfoptions.lowmemory>1
-    special_n_semiz=ones(1,length(n_semiz));
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision);
 end
 
 semizind=shiftdim(0:1:N_semiz-1,-1);
@@ -88,7 +88,7 @@ else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [aprimeIndex,aprimeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a, n_u, d23_grid, a_grid, u_grid, aprimeFnParamsVec,1);
 
     EVpre=sum(V_Jplus1.*shiftdim(pi_e_J(:,N_j),-2),3);

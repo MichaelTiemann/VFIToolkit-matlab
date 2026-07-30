@@ -16,7 +16,7 @@ Policy=zeros(2,N_a,N_semiz*N_z,N_j,'gpuArray');
 Policyalt=zeros(2,N_a,N_semiz*N_z,N_j,'gpuArray'); % exponential discounter optimal (d2, aprime)
 
 %%
-special_n_d2=ones(1,length(n_d2));
+special_n_d2=ones(1,length(n_d2),vfoptions.precision);
 
 bothz_gridvals_J=[repmat(semiz_gridvals_J,N_z,1,1),repelem(z_gridvals_J,N_semiz,1,1)];
 

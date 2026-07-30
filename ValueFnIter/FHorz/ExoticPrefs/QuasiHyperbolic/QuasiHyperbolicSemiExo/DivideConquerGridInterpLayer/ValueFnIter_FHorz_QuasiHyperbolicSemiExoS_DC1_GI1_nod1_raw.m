@@ -15,7 +15,7 @@ Policy=zeros(3,N_a,N_semiz*N_z,N_j,'gpuArray');
 PolicyL2flag=2*ones(1,N_a,N_semiz*N_z,N_j,'gpuArray');
 
 %%
-special_n_d2=ones(1,length(n_d2));
+special_n_d2=ones(1,length(n_d2),vfoptions.precision);
 
 aind=gpuArray(0:1:N_a-1);
 bothzind=shiftdim(gpuArray(0:1:N_bothz-1),-1);

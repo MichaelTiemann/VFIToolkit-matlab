@@ -14,7 +14,7 @@ N_d1=prod(n_d1);
 N_d2=prod(n_d2);
 N_d3=prod(n_d3);
 N_d4=prod(n_d4);
-special_n_d4=ones(1,length(n_d4));
+special_n_d4=ones(1,length(n_d4),vfoptions.precision);
 N_a1=prod(n_a1);
 N_a2=prod(n_a2);
 N_a=N_a1*N_a2;
@@ -70,8 +70,8 @@ zBind=shiftdim(gpuArray(0:1:N_bothz-1),-1);
 d3ind=repelem(gpuArray(1:1:N_d3)',N_d1,1); % [N_d13,1]
 
 if vfoptions.lowmemory>=1
-    special_n_semiz=ones(1,length(n_semiz));
-    special_n_bothz=ones(1,length(n_semiz)+length(n_z));
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision);
+    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision);
 end
 
 % Preallocate per-d4 slabs
@@ -107,7 +107,7 @@ else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
     EVnext=reshape(vfoptions.V_Jplus1,[N_a,N_bothz]);
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a2, n_u, d23_grid, a2_grid, u_grid, aprimeFnParamsVec,2);
 
     if isstruct(pi_semiz_J)

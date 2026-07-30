@@ -6,7 +6,7 @@ N_a=prod(n_a);
 N_z=prod(n_z);
 
 Policy=zeros(N_a,N_z,'gpuArray');
-special_n_z=ones(l_z,1);
+special_n_z=ones(l_z,1,vfoptions.precision);
 
 % Precompute variables for Howard improvement step
 Ftemp          = zeros(N_a,N_z,'gpuArray');

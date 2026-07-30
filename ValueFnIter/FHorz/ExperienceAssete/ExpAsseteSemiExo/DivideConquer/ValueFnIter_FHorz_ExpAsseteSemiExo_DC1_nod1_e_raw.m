@@ -39,7 +39,7 @@ if vfoptions.lowmemory==2
     semizind=shiftdim((0:1:N_semiz-1),-3); % for d2aprimesemiz stride into 5D DiscountedEV_ze
     semizBind=shiftdim((0:1:N_semiz-1),-1); % for allind
 elseif vfoptions.lowmemory==3
-    special_n_bothz=ones(1,length(n_semiz)+length(n_z));
+    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision);
 else % lowmemory 0 or 1
     bothzind=shiftdim((0:1:N_bothz-1),-3);
     bothzBind=shiftdim((0:1:N_bothz-1),-1);
@@ -237,7 +237,7 @@ if ~isfield(vfoptions,'V_Jplus1')
         end
     end
 else
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateExperienceAsseteFnMatrix(aprimeFn, n_d2, n_a2, n_e, d2_gridvals, a2_grid, e_gridvals_J(:,:,N_j), aprimeFnParamsVec,2);
 
     aprimeIndex=repelem((1:1:N_a1)',N_d2,N_a2,N_e)+N_a1*repmat(a2primeIndex-1,N_a1,1,1);

@@ -10,7 +10,7 @@ PolicyL2flag=2*ones(1,N_a,N_semiz,N_j,'gpuArray'); % L2 flag: 1=all to lower, 2=
 Policy=zeros(3,N_a,N_semiz,N_j,'gpuArray'); % first dim indexes the optimal choice for d2,aprime and aprime2 (in GI layer)
 
 %%
-special_n_d2=ones(1,length(n_d2));
+special_n_d2=ones(1,length(n_d2),vfoptions.precision);
 
 if vfoptions.lowmemory==1; special_n_semiz=ones(1,length(n_semiz)); end
 

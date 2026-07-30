@@ -28,7 +28,7 @@ if vfoptions.lowmemory>0
     end
 end
 if vfoptions.lowmemory>1
-    special_n_a=ones(1,length(n_a));
+    special_n_a=ones(1,length(n_a),vfoptions.precision);
 
     a_gridvals=zeros(N_a,length(n_a),'gpuArray');
     for i2=1:N_a
