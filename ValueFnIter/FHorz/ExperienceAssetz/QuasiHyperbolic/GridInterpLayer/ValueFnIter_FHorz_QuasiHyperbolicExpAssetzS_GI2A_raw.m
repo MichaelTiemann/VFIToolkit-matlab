@@ -28,7 +28,7 @@ zindB=shiftdim(gpuArray(0:1:N_z-1),-1);
 d2ind_vec=repelem((1:1:N_d2)',N_d1,1);
 
 if vfoptions.lowmemory==1
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 end
 
 %% j=N_j

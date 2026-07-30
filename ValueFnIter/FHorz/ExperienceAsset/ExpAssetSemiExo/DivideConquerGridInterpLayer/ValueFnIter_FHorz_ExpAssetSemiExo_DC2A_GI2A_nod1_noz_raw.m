@@ -24,7 +24,7 @@ aind=gpuArray(0:1:N_a-1); % already includes -1
 if vfoptions.lowmemory==0
     semizind=shiftdim(gpuArray(0:1:N_semiz-1),-1); % at dim 3 of [1,N_a,N_semiz]
 elseif vfoptions.lowmemory==1
-    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision);
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision,'gpuArray');
 end
 
 % Preallocate midpoint (filled by DC coarse pass, then used for GI fine pass)

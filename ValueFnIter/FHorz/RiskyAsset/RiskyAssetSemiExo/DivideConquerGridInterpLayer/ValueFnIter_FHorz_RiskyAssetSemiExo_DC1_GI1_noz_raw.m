@@ -55,7 +55,7 @@ zBind=shiftdim(gpuArray(0:1:N_semiz-1),-1);
 d3ind=repelem(gpuArray(1:1:N_d3)',N_d1,1);
 
 if vfoptions.lowmemory>=1
-    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision);
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision,'gpuArray');
 end
 
 V_ford4_jj=zeros(N_a,N_semiz,N_d4,'gpuArray');

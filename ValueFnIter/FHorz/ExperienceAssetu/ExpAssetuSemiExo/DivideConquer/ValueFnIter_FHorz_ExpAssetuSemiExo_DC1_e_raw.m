@@ -39,11 +39,11 @@ if vfoptions.lowmemory==0
     % precompute
     eBind=shiftdim((0:1:N_e-1),-2); % already includes -1
 else
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 
 if vfoptions.lowmemory>1
-    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision);
+    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision,'gpuArray');
 else
     % precompute
     bothzind=shiftdim((0:1:N_bothz-1),-3); % already includes -1

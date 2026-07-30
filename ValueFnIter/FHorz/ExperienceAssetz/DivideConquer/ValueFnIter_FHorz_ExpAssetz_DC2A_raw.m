@@ -19,7 +19,7 @@ Policy=zeros(3,N_a,N_z,N_j,'gpuArray'); % channels: 1=d (joint), 2=a1prime, 3=a2
 
 %%
 if vfoptions.lowmemory>0
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 else
     zind=shiftdim((0:1:N_z-1),-1); % places N_z at dim 3 of decode index
 end

@@ -27,11 +27,11 @@ bothzind=shiftdim(gpuArray(0:1:N_bothz-1),-1);
 bothzBind=shiftdim(gpuArray(0:1:N_bothz-1),-2);
 
 if vfoptions.lowmemory==1
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
     semizind=shiftdim(gpuArray(0:1:N_semiz-1),-1);
     semizBind=shiftdim(gpuArray(0:1:N_semiz-1),-2);
 elseif vfoptions.lowmemory==2
-    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision);
+    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision,'gpuArray');
 end
 
 % Preallocate

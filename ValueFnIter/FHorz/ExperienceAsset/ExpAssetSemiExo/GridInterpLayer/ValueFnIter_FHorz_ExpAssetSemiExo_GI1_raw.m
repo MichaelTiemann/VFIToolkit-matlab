@@ -29,7 +29,7 @@ bothz_gridvals_J=[repmat(semiz_gridvals_J,N_z,1,1),repelem(z_gridvals_J,N_semiz,
 if vfoptions.lowmemory==1
     special_n_semiz=[n_semiz,ones(1,length(n_z))];
 elseif vfoptions.lowmemory==2
-    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision);
+    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision,'gpuArray');
 end
 
 % Preallocate

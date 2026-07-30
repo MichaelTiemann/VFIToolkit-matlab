@@ -40,7 +40,7 @@ a12ind=gpuArray(0:1:N_a1*N_a2-1)';
 
 % lowmemory: which shocks are looped vs vectorised ({semiz} spec: =1 loop semiz)
 if vfoptions.lowmemory==1
-    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision);
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision,'gpuArray');
 end
 
 %% Preallocate

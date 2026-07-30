@@ -17,7 +17,7 @@ if vfoptions.lowmemory==0
     eindB=shiftdim(gpuArray(0:1:N_e-1),-1);
     midpoint=zeros(N_d2,1,N_a2,N_a1,N_a2,N_a3,N_e,'gpuArray');
 else
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
     midpoint=zeros(N_d2,1,N_a2,N_a1,N_a2,N_a3,'gpuArray');
 end
 

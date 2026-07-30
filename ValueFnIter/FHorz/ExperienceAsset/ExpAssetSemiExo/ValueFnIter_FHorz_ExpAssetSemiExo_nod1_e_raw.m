@@ -29,12 +29,12 @@ N_d23=prod(n_d23);
 d23_gridvals=[repmat(d2_gridvals,N_d3,1),repelem(CreateGridvals(n_d3,d3_grid,1),N_d2,1)];
 
 if vfoptions.lowmemory>0
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 if vfoptions.lowmemory==2
     special_n_semiz=[cast(n_semiz,vfoptions.precision),ones(1,length(n_z),vfoptions.precision)];
 elseif vfoptions.lowmemory==3
-    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision);
+    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision,'gpuArray');
 end
 
 % Preallocate

@@ -143,7 +143,7 @@ if vfoptions.lowmemory==0
 
 elseif vfoptions.lowmemory==1
 
-    special_n_bothz=ones(1,length(n_bothz));
+    special_n_bothz=ones(1,length(n_bothz),'gpuArray');
     V=zeros(N_a*N_j,N_bothz,'gpuArray'); % V is over (a,j,z)
 
     for z_c=1:N_bothz

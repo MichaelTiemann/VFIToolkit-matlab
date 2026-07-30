@@ -23,13 +23,13 @@ if vfoptions.lowmemory==0
     zind=shiftdim((0:1:N_z-1),-3); % already includes -1
     zBind=shiftdim((0:1:N_z-1),-1); % already includes -1
 elseif vfoptions.lowmemory==1
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
     % precompute
     zind=shiftdim((0:1:N_z-1),-3); % already includes -1
     zBind=shiftdim((0:1:N_z-1),-1); % already includes -1
 elseif vfoptions.lowmemory==2
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 end
 
 % n-Monotonicity

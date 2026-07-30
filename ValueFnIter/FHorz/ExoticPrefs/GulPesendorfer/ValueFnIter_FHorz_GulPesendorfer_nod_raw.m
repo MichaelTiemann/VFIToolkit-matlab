@@ -11,7 +11,7 @@ a_gridvals=CreateGridvals(n_a,a_grid,1); % The 1 at end indicates want output in
 
 if vfoptions.lowmemory>0
     l_z=length(n_z);
-    special_n_z=ones(1,l_z,vfoptions.precision);
+    special_n_z=ones(1,l_z,vfoptions.precision,'gpuArray');
 end
 
 %% j=N_j

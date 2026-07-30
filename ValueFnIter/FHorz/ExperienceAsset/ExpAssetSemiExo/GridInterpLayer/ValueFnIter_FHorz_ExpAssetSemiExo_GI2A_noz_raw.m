@@ -28,7 +28,7 @@ d2ind_vec=repelem((1:1:N_d2)',N_d1,1); % [N_d12,1]; maps d12-index to d2-compone
 if vfoptions.lowmemory==0
     semizindB=shiftdim(gpuArray(0:1:N_semiz-1),-1); % already includes -1
 elseif vfoptions.lowmemory==1
-    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision);
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision,'gpuArray');
 end
 
 % Grid interpolation

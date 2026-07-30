@@ -63,11 +63,11 @@ eBind=shiftdim(gpuArray(0:1:N_e-1),-2);
 d3ind=repelem(gpuArray(1:1:N_d3)',N_d1,1);
 
 if vfoptions.lowmemory>=1
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 if vfoptions.lowmemory>=2
-    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision);
-    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision);
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision,'gpuArray');
+    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision,'gpuArray');
 end
 
 V_ford4_jj=zeros(N_a,N_bothz,N_e,N_d4,vfoptions.precision,'gpuArray');
@@ -209,7 +209,7 @@ else
 
         elseif vfoptions.lowmemory==1
             % Loop over e inside d4 to reduce memory footprint
-            special_n_e=ones(1,length(n_e),vfoptions.precision);
+            special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
             for e_c=1:N_e
                 e_val=e_gridvals(e_c,:);
                 midpoint=zeros(N_d13,1,N_a1,N_a2,N_bothz,'gpuArray');
@@ -342,7 +342,7 @@ else
             end
         elseif vfoptions.lowmemory==3
             % Loop over bothz (outer) and e (inner) to reduce memory footprint
-            special_n_e=ones(1,length(n_e),vfoptions.precision);
+            special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
             for z_c=1:N_bothz
                 bothz_val=bothz_gridvals(z_c,:);
                 DiscountedEV_zc=DiscountedEV(:,:,:,:,z_c);
@@ -558,7 +558,7 @@ for reverse_j=1:N_j-1
 
         elseif vfoptions.lowmemory==1
             % Loop over e inside d4 to reduce memory footprint
-            special_n_e=ones(1,length(n_e),vfoptions.precision);
+            special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
             for e_c=1:N_e
                 e_val=e_gridvals(e_c,:);
                 midpoint=zeros(N_d13,1,N_a1,N_a2,N_bothz,'gpuArray');
@@ -691,7 +691,7 @@ for reverse_j=1:N_j-1
             end
         elseif vfoptions.lowmemory==3
             % Loop over bothz (outer) and e (inner) to reduce memory footprint
-            special_n_e=ones(1,length(n_e),vfoptions.precision);
+            special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
             for z_c=1:N_bothz
                 bothz_val=bothz_gridvals(z_c,:);
                 DiscountedEV_zc=DiscountedEV(:,:,:,:,z_c);

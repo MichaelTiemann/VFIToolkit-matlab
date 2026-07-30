@@ -42,11 +42,11 @@ bothzBind=shiftdim(gpuArray(0:1:N_bothz-1),-4); % already includes -1
 
 % lowmemory: which shocks are looped vs vectorised ({z,semiz} spec: =1 split outer-z/vec-semiz; =2 joint over bothz)
 if vfoptions.lowmemory==1
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
     semizind=shiftdim(gpuArray(0:1:N_semiz-1),-1); % semiz-block analogue of bothzind (L1)
     semizBind=shiftdim(gpuArray(0:1:N_semiz-1),-4); % semiz-block analogue of bothzBind (L1)
 elseif vfoptions.lowmemory==2
-    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision);
+    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision,'gpuArray');
 end
 
 % Preallocate

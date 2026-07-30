@@ -26,7 +26,7 @@ N_d=prod(n_d);
 d_gridvals=[repmat(d12_gridvals,N_d3,1),repelem(CreateGridvals(n_d3,d3_grid,1),N_d12,1)];
 
 if vfoptions.lowmemory>0
-    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision);
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision,'gpuArray');
 else
     % precompute
     semizind=shiftdim((0:1:N_semiz-1),-1); % already includes -1

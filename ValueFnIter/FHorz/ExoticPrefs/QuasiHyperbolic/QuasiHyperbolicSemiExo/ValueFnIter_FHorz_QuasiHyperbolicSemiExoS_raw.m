@@ -26,7 +26,7 @@ special_n_d=[cast2precision(n_d1),ones(1,length(n_d2),vfoptions.precision)];
 d12_gridvals=permute(reshape(d_gridvals,[N_d1,N_d2,length(n_d1)+length(n_d2)]),[1,3,2]); % version to use when looping over d2
 
 if vfoptions.lowmemory>0
-    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision);
+    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision,'gpuArray');
 end
 
 % Preallocate slabs across d2

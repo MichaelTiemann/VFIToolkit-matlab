@@ -12,7 +12,7 @@ r_grid=gpuArray(r_grid);
 
 if vfoptions.lowmemory>0
     l_z=length(n_z);
-    special_n_z=ones(1,l_z,vfoptions.precision);
+    special_n_z=ones(1,l_z,vfoptions.precision,'gpuArray');
 end
 
 

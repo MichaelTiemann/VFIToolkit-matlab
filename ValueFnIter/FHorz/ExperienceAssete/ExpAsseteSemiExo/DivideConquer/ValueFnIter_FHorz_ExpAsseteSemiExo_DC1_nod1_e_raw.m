@@ -32,14 +32,14 @@ if vfoptions.lowmemory==0
     eBind=shiftdim((0:1:N_e-1),-2);
     eind=shiftdim((0:1:N_e-1),-4);
 else
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 
 if vfoptions.lowmemory==2
     semizind=shiftdim((0:1:N_semiz-1),-3); % for d2aprimesemiz stride into 5D DiscountedEV_ze
     semizBind=shiftdim((0:1:N_semiz-1),-1); % for allind
 elseif vfoptions.lowmemory==3
-    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision);
+    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision,'gpuArray');
 else % lowmemory 0 or 1
     bothzind=shiftdim((0:1:N_bothz-1),-3);
     bothzBind=shiftdim((0:1:N_bothz-1),-1);

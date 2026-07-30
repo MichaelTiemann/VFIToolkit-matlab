@@ -26,14 +26,14 @@ N_d23=prod(n_d23);
 d23_gridvals=[repmat(d2_gridvals,N_d3,1),repelem(CreateGridvals(n_d3,d3_grid,1),N_d2,1)];
 
 if vfoptions.lowmemory>0
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 else
     % precompute
     eind=shiftdim((0:1:N_e-1),-2); % already includes -1
 end
 
 if vfoptions.lowmemory>1
-    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision);
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision,'gpuArray');
 else
     % precompute
     semizind=shiftdim((0:1:N_semiz-1),-1); % already includes -1

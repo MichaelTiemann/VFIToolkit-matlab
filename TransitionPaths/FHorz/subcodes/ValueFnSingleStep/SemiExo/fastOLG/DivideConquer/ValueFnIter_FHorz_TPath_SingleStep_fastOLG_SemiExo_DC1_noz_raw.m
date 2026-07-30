@@ -110,7 +110,7 @@ if vfoptions.lowmemory==0
 
 elseif vfoptions.lowmemory==1
 
-    special_n_bothz=ones(1,length(n_bothz));
+    special_n_bothz=ones(1,length(n_bothz),'gpuArray');
 
     for z_c=1:N_bothz
         bothz_vals=bothz_gridvals_J(1,1,1,:,z_c,:); % bothz_gridvals_J has shape (1,1,1,N_j,N_bothz,l_z) for fastOLG

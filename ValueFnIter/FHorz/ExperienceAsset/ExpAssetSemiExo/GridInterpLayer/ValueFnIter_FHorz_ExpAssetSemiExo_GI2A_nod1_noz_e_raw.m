@@ -33,11 +33,11 @@ if vfoptions.lowmemory==0
     semizBind=shiftdim(gpuArray(0:1:N_semiz-1),-1); % dim 3
     eBind=shiftdim(gpuArray(0:1:N_e-1),-2); % dim 4
 elseif vfoptions.lowmemory==1
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
     semizBind=shiftdim(gpuArray(0:1:N_semiz-1),-1); % dim 3
 elseif vfoptions.lowmemory==2
-    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision);
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision,'gpuArray');
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 
 % Preallocate (for the max over d3)

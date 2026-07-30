@@ -97,7 +97,7 @@ if vfoptions.lowmemory==0
 
 elseif vfoptions.lowmemory==1
 
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
     V=zeros(N_a*N_j,N_z,vfoptions.precision,'gpuArray'); %first dim indexes the optimal choice for d and aprime rest of dimensions a,z
 
     for z_c=1:N_z

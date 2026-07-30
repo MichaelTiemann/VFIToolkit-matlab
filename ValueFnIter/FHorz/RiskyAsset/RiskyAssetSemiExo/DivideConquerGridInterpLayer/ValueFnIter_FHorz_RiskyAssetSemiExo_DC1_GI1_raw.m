@@ -70,8 +70,8 @@ zBind=shiftdim(gpuArray(0:1:N_bothz-1),-1);
 d3ind=repelem(gpuArray(1:1:N_d3)',N_d1,1); % [N_d13,1]
 
 if vfoptions.lowmemory>=1
-    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision);
-    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision);
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision,'gpuArray');
+    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision,'gpuArray');
 end
 
 % Preallocate per-d4 slabs

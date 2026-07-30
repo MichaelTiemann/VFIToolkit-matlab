@@ -32,7 +32,7 @@ d2ind_vec=repelem((1:1:N_d2)',N_d1,1); % [N_d12,1]; maps d12-index to d2-compone
 if vfoptions.lowmemory==0
     semizind=shiftdim((0:1:N_semiz-1),-1);
 elseif vfoptions.lowmemory==1
-    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision);
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision,'gpuArray');
 end
 
 level1ii=round(linspace(1,n_a1,vfoptions.level1n));

@@ -43,7 +43,7 @@ a1a2_gridvals=gpuArray(CreateGridvals([n_a1,n_a2],[a1_grid;a2_grid],1));
 pi_u_col=pi_u(:);
 
 if vfoptions.lowmemory>0
-    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision);
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision,'gpuArray');
 end
 
 level1ii=round(linspace(1,n_a1,vfoptions.level1n));

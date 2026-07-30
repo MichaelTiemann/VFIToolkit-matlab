@@ -34,7 +34,7 @@ a1_gridvals=a1_grid;
 d13_gridvals=CreateGridvals(n_d13,d13_grid,1);
 
 if vfoptions.lowmemory==1
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
     midpoint_jj=zeros(N_d13,1,N_a1,N_a2,'gpuArray');
 else
     midpoint_jj=zeros(N_d13,1,N_a1,N_a2,N_z,'gpuArray');
@@ -272,7 +272,7 @@ else % V_Jplus1
         Policy(2,:,:,N_j)=shiftdim(d2index_resh(linlookup),-1);
 
     elseif vfoptions.lowmemory==1
-        special_n_z=ones(1,length(n_z),vfoptions.precision);
+        special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
         for z_c=1:N_z
             z_val=z_gridvals_J(z_c,:,N_j);
             DiscountedEV_z=DiscountedEV(:,:,:,:,z_c); % [N_d3,N_a1,1,1]
@@ -451,7 +451,7 @@ for reverse_j=1:N_j-1
         Policy(2,:,:,jj)=shiftdim(d2index_resh(linlookup),-1);
 
     elseif vfoptions.lowmemory==1
-        special_n_z=ones(1,length(n_z),vfoptions.precision);
+        special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
         for z_c=1:N_z
             z_val=z_gridvals_J(z_c,:,jj);
             DiscountedEV_z=DiscountedEV(:,:,:,:,z_c);

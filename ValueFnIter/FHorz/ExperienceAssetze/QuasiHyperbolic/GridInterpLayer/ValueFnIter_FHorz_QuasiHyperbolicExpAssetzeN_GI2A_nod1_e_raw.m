@@ -27,10 +27,10 @@ zindB=shiftdim(gpuArray(0:1:N_z-1),-1);
 eindB=shiftdim(gpuArray(0:1:N_e-1),-2);
 
 if vfoptions.lowmemory==1
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 elseif vfoptions.lowmemory==2
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 
 %% j=N_j

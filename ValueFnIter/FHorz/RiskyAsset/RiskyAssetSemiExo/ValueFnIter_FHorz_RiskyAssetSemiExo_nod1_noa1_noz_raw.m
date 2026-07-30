@@ -30,7 +30,7 @@ d3d4_gridvals=gpuArray(CreateGridvals([n_d3,n_d4],[d3_grid;d4_grid],1));
 a_gridvals=gpuArray(CreateGridvals(n_a,a_grid,1));
 
 if vfoptions.lowmemory>0
-    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision);
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision,'gpuArray');
 end
 
 semizind=shiftdim(0:1:N_semiz-1,-1);

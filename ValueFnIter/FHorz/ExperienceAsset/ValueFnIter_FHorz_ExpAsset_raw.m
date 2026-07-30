@@ -14,14 +14,14 @@ Policy=zeros(N_a,N_z,N_j,'gpuArray'); % indexes the optimal choice for d and a1p
 a2_gridvals=CreateGridvals(n_a2,a2_grid,1);
 
 if vfoptions.lowmemory==1
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 elseif vfoptions.lowmemory==2
     error("invalid vfoptions.lowmemory without e");
 elseif vfoptions.lowmemory==4
-    special_n_ea=ones(1,length(n_a2),vfoptions.precision);
+    special_n_ea=ones(1,length(n_a2),vfoptions.precision,'gpuArray');
 elseif vfoptions.lowmemory==5
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
-    special_n_ea=ones(1,length(n_a2),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
+    special_n_ea=ones(1,length(n_a2),vfoptions.precision,'gpuArray');
 end
 
 %% j=N_j

@@ -28,7 +28,7 @@ d3_gridvals=CreateGridvals(n_d3,d3_grid,1);
 if vfoptions.lowmemory==0
     eBind=shiftdim(gpuArray(0:1:N_e-1),-1);
 elseif vfoptions.lowmemory>=1
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 
 % Setup for DC

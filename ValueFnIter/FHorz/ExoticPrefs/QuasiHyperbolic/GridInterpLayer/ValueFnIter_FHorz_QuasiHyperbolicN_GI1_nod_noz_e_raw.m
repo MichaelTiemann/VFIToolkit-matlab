@@ -16,7 +16,7 @@ Policyalt=zeros(2,N_a,N_e,N_j,'gpuArray'); % exponential discounter optimal choi
 PolicyL2flagalt=2*ones(1,N_a,N_e,N_j,'gpuArray');
 
 if vfoptions.lowmemory==1
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 
 n2short=vfoptions.ngridinterp;

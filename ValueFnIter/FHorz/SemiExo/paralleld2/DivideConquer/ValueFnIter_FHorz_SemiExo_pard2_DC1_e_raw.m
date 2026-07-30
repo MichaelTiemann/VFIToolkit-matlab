@@ -20,7 +20,7 @@ Policy=zeros(N_a,N_semiz*N_z,N_e,N_j,'gpuArray');
 d_gridvals=[repmat(d1_gridvals,N_d2,1),repelem(d2_gridvals,N_d1,1)];
 
 if vfoptions.lowmemory>0
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 else
     eind=shiftdim((0:1:N_e-1),-2); % already includes -1
 end

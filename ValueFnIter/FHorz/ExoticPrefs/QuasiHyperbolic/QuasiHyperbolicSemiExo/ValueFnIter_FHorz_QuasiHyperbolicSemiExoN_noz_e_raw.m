@@ -22,7 +22,7 @@ special_n_d=[cast2precision(n_d1),ones(1,length(n_d2),vfoptions.precision)];
 d12_gridvals=permute(reshape(d_gridvals,[N_d1,N_d2,length(n_d1)+length(n_d2)]),[1,3,2]);
 
 if vfoptions.lowmemory==1
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 elseif vfoptions.lowmemory==2
     error('vfoptions.lowmemory=2 not supported with semi-exogenous states');
 end

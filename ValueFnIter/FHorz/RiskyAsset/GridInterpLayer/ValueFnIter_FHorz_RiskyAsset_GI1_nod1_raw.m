@@ -27,7 +27,7 @@ a1_gridvals=a1_grid;
 d3_gridvals=CreateGridvals(n_d3,d3_grid,1);
 
 if vfoptions.lowmemory==1
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 end
 
 % Setup for GI

@@ -32,7 +32,7 @@ pi_e_J=shiftdim(pi_e_J,-2);
 level1ii=round(linspace(1,n_a,vfoptions.level1n));
 
 if vfoptions.lowmemory==1
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 elseif vfoptions.lowmemory==2
     error('vfoptions.lowmemory=2 not supported with semi-exogenous states');
 end

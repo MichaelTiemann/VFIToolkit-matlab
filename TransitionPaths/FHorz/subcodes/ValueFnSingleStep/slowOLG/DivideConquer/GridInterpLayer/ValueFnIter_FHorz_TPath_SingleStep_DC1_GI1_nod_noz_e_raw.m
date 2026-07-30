@@ -11,7 +11,7 @@ Vnext=sum(V.*shiftdim(pi_e_J(:,[1,1:end-1]),-1),2); % Take expectations over e: 
 
 %%
 if vfoptions.lowmemory>0
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 if vfoptions.lowmemory>=2
     error('vfoptions.lowmemory=K not supported for ValueFnIter_FHorz_TPath_SingleStep_DC1_GI1_nod_noz_e_raw')

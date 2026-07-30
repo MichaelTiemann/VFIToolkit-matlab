@@ -56,7 +56,7 @@ DiscountedEV=reshape(DiscountFactor_J,[1,1,1,1,N_j]).*EV; % [N_a1,N_a2,1,1,N_j];
 
 
 %% Loop over e (lowmemory-style; mirrors GI2A_nod_noz_e_raw lowmemory==1 branch)
-special_n_e=ones(1,length(n_e),vfoptions.precision);
+special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 for e_c=1:N_e
     e_vals=e_gridvals_J(1,1,1,1,:,e_c,:); % [1,1,1,1,N_j,1,l_e]
 

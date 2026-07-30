@@ -16,11 +16,11 @@ if vfoptions.lowmemory==0
     loweredgesize=[1,1,N_semiz,N_e];
 elseif vfoptions.lowmemory==1
     loweredgesize=[1,1,N_semiz];
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 elseif vfoptions.lowmemory==2 % outer loop semiz, inner loop e
     loweredgesize=[1,1];
-    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision);
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision,'gpuArray');
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 
 semizind=shiftdim(gpuArray(0:1:N_semiz-1),-1); % already includes -1

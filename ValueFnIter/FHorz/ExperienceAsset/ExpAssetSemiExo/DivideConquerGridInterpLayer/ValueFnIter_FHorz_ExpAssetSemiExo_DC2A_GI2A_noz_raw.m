@@ -36,7 +36,7 @@ aind=gpuArray(0:1:N_a-1);
 if vfoptions.lowmemory==0
     semizBind=shiftdim(gpuArray(0:1:N_semiz-1),-1);
 elseif vfoptions.lowmemory==1
-    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision);
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision,'gpuArray');
 end
 
 % n-Monotonicity over a1

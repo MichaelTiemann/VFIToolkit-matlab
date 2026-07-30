@@ -37,7 +37,7 @@ d3_gridvals=gpuArray(CreateGridvals(n_d3,d3_grid,1));
 pi_u_col=pi_u(:);
 
 if vfoptions.lowmemory>0
-    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision);
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision,'gpuArray');
 end
 
 n2short=vfoptions.ngridinterp;
@@ -213,7 +213,7 @@ else
         end
 
     elseif vfoptions.lowmemory==1
-        special_n_semiz=ones(1,length(n_semiz),vfoptions.precision);
+        special_n_semiz=ones(1,length(n_semiz),vfoptions.precision,'gpuArray');
         for d4_c=1:N_d4
             pi_semizd4=pi_semiz(:,:,d4_c);
             d3_with_d4=[d3_gridvals,repmat(d4_gridvals(d4_c,:),N_d3,1)];
@@ -387,7 +387,7 @@ for reverse_j=1:N_j-1
         end
 
     elseif vfoptions.lowmemory==1
-        special_n_semiz=ones(1,length(n_semiz),vfoptions.precision);
+        special_n_semiz=ones(1,length(n_semiz),vfoptions.precision,'gpuArray');
         for d4_c=1:N_d4
             pi_semizd4=pi_semiz(:,:,d4_c);
             d3_with_d4=[d3_gridvals,repmat(d4_gridvals(d4_c,:),N_d3,1)];

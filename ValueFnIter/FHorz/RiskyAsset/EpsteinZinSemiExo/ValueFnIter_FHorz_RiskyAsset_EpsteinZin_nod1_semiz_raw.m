@@ -46,7 +46,7 @@ d3d4a1_gridvals=CreateGridvals([n_d3,n_d4,n_a1],[d3_grid;d4_grid;a1_grid],1);
 a1a2_gridvals=CreateGridvals([n_a1,n_a2],[a1_grid;a2_grid],1);
 
 if vfoptions.lowmemory>0
-    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision);
+    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision,'gpuArray');
 end
 
 bothzind=shiftdim(0:1:N_bothz-1,-1);

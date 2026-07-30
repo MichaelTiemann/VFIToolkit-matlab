@@ -33,7 +33,7 @@ d13_gridvals=CreateGridvals(n_d13,d13_grid,1);
 if vfoptions.lowmemory==0
     eBind=shiftdim(gpuArray(0:1:N_e-1),-1); % e takes role of z dim location (2nd dim)
 elseif vfoptions.lowmemory>=1
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 
 % Setup for DC

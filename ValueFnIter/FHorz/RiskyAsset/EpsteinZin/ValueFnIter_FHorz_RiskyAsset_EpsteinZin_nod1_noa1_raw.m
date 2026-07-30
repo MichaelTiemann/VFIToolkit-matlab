@@ -27,7 +27,7 @@ a2_grid=gpuArray(a2_grid);
 u_grid=gpuArray(u_grid);
 
 if vfoptions.lowmemory>0
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 end
 
 aind=(0:1:N_a2-1);

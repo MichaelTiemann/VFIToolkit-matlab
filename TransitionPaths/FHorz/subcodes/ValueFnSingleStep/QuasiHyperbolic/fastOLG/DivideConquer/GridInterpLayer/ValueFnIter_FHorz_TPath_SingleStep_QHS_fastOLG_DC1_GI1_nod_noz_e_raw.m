@@ -117,7 +117,7 @@ if vfoptions.lowmemory==0
 
 elseif vfoptions.lowmemory==1
 
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
     V=zeros(N_a*N_j,N_e,vfoptions.precision,'gpuArray');
 
     for e_c=1:N_e

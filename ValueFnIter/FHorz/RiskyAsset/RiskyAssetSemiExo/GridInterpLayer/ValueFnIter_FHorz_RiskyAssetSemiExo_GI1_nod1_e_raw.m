@@ -42,10 +42,10 @@ d3_gridvals=gpuArray(CreateGridvals(n_d3,d3_grid,1));
 pi_u_col=pi_u(:);
 
 if vfoptions.lowmemory>=1
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 if vfoptions.lowmemory>=2
-    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision);
+    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision,'gpuArray');
 end
 
 bothz_gridvals_J=[repmat(semiz_gridvals_J,N_z,1,1),repelem(z_gridvals_J,N_semiz,1,1)];
@@ -297,7 +297,7 @@ else
         end
 
     elseif vfoptions.lowmemory==1
-        special_n_e=ones(1,length(n_e),vfoptions.precision);
+        special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
         for d4_c=1:N_d4
             pi_bothz=kron(pi_z, pi_semiz(:,:,d4_c));
             d3_with_d4=[d3_gridvals,repmat(d4_gridvals(d4_c,:),N_d3,1)];
@@ -610,7 +610,7 @@ for reverse_j=1:N_j-1
         end
 
     elseif vfoptions.lowmemory==1
-        special_n_e=ones(1,length(n_e),vfoptions.precision);
+        special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
         for d4_c=1:N_d4
             pi_bothz=kron(pi_z, pi_semiz(:,:,d4_c));
             d3_with_d4=[d3_gridvals,repmat(d4_gridvals(d4_c,:),N_d3,1)];

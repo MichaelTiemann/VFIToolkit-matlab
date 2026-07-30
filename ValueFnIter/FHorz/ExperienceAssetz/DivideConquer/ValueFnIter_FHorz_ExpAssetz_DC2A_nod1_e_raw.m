@@ -17,11 +17,11 @@ if vfoptions.lowmemory==0
     zind=shiftdim((0:1:N_z-1),-1);
     eind=shiftdim((0:1:N_e-1),-2);
 elseif vfoptions.lowmemory==1
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
     zind=shiftdim((0:1:N_z-1),-1);
 else
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 
 level1ii=round(linspace(1,n_a1,vfoptions.level1n));

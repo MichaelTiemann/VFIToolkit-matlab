@@ -29,11 +29,11 @@ d13_gridvals=CreateGridvals([n_d1,n_d3],[d1_grid;d3_grid],1);
 a_gridvals=CreateGridvals(n_a,a_grid,1);
 
 if vfoptions.lowmemory>0
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 if vfoptions.lowmemory>1
     l_z=length(n_z);
-    special_n_z=ones(1,l_z,vfoptions.precision);
+    special_n_z=ones(1,l_z,vfoptions.precision,'gpuArray');
 end
 
 aind=gpuArray(0:1:N_a-1);

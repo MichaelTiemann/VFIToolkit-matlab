@@ -8,7 +8,7 @@ Policy=zeros(1,N_a,N_z,N_j,'gpuArray'); %first dim indexes the optimal choice fo
 
 %%
 if vfoptions.lowmemory>0
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 end
 
 %% j=N_j

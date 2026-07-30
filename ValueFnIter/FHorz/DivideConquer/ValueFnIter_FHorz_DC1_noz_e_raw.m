@@ -14,7 +14,7 @@ level1ii=round(linspace(1,n_a,vfoptions.level1n));
 % level1iidiff=level1ii(2:end)-level1ii(1:end-1)-1;
 
 if vfoptions.lowmemory==1
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 else
     eind=shiftdim((0:1:N_e-1),-1); % already includes -1
 end

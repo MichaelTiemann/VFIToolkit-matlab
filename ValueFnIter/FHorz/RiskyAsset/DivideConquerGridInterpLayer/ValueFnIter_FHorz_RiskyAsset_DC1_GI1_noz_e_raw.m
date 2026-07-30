@@ -106,7 +106,7 @@ if ~isfield(vfoptions,'V_Jplus1')
         Policy(2,:,:,N_j)=ones(1,N_a,N_e,'gpuArray'); % d2 (because this is terminal period, choice of d2 is not actually doing anything (as it is only in the expectations term)
 
     elseif vfoptions.lowmemory>=1
-        special_n_e=ones(1,length(n_e),vfoptions.precision);
+        special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
         % Setup for DC
         midpoint_jj=zeros(N_d13,1,N_a1,N_a2,'gpuArray');
         for e_c=1:N_e
@@ -261,7 +261,7 @@ else % V_Jplus1
     elseif vfoptions.lowmemory>=1
         % Setup for DC
         midpoint_jj=zeros(N_d13,1,N_a1,N_a2,'gpuArray');
-        special_n_e=ones(1,length(n_e),vfoptions.precision);
+        special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
         for e_c=1:N_e
             e_val=e_gridvals_J(e_c,:,N_j);
             % Layer 1
@@ -432,7 +432,7 @@ for reverse_j=1:N_j-1
     elseif vfoptions.lowmemory>=1
         % Setup for DC
         midpoint_jj=zeros(N_d13,1,N_a1,N_a2,'gpuArray');
-        special_n_e=ones(1,length(n_e),vfoptions.precision);
+        special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
         for e_c=1:N_e
             e_val=e_gridvals_J(e_c,:,jj);
             % Layer 1

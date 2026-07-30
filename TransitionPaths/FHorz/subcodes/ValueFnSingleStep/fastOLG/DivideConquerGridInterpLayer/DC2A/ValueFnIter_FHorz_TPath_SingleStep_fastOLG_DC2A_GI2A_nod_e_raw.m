@@ -11,10 +11,10 @@ N_z=prod(n_z);
 N_e=prod(n_e);
 
 if vfoptions.lowmemory>0
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 if vfoptions.lowmemory>1
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 end
 if vfoptions.lowmemory>=3
     error('vfoptions.lowmemory>=3 not supported')

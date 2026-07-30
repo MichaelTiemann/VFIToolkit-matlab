@@ -31,12 +31,12 @@ if vfoptions.lowmemory==0
     eindB=shiftdim(gpuArray(0:1:N_e-1),-2);
     midpoint=zeros(N_d12,1,N_a2,N_a1,N_a2,N_a3,N_semiz,N_e,'gpuArray');
 elseif vfoptions.lowmemory==1
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
     semizindB=shiftdim(gpuArray(0:1:N_semiz-1),-1);
     midpoint=zeros(N_d12,1,N_a2,N_a1,N_a2,N_a3,N_semiz,'gpuArray');
 elseif vfoptions.lowmemory==2
-    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision);
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision,'gpuArray');
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
     midpoint=zeros(N_d12,1,N_a2,N_a1,N_a2,N_a3,'gpuArray');
 end
 

@@ -16,7 +16,7 @@ Policy3=zeros(2,N_a,N_semiz*N_z,N_j,'gpuArray');
 special_n_d2=ones(1,length(n_d2));
 
 if vfoptions.lowmemory>0
-    special_n_bothz=ones(1,length(n_semiz)+length(n_z));
+    special_n_bothz=ones(1,length(n_semiz)+length(n_z),'gpuArray');
 end
 
 % Preallocate

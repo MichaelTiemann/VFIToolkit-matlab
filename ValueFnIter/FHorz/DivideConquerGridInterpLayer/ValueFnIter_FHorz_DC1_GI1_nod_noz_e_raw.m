@@ -13,7 +13,7 @@ if vfoptions.lowmemory==0
     midpoints_jj=zeros(1,N_a,N_e,'gpuArray');
 elseif vfoptions.lowmemory==1 % loops over e
     midpoints_jj=zeros(1,N_a,'gpuArray');
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 
 % n-Monotonicity

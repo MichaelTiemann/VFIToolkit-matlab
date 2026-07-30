@@ -31,7 +31,7 @@ d3a1_gridvals=CreateGridvals([n_d3,n_a1],[d3_grid;a1_grid],1);
 a1a2_gridvals=CreateGridvals([n_a1,n_a2],[a1_grid;a2_grid],1);
 
 if vfoptions.lowmemory>0
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 end
 
 zind=shiftdim(gpuArray(0:1:N_z-1),-1);
