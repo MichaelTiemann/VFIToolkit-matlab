@@ -27,9 +27,9 @@ N_z=prod(n_z);
 N_bothz=N_semiz*N_z;
 N_e=prod(n_e);
 
-V=zeros(N_a,N_bothz,N_e,N_j,'gpuArray');
+V=zeros(N_a,N_bothz,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy3=zeros(3,N_a,N_bothz,N_e,N_j,'gpuArray');
-Valt=zeros(N_a,N_bothz,N_e,N_j,'gpuArray');
+Valt=zeros(N_a,N_bothz,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy3alt=zeros(3,N_a,N_bothz,N_e,N_j,'gpuArray');
 
 %%
@@ -51,9 +51,9 @@ end
 bothzind=shiftdim((0:1:N_bothz-1),-1);
 
 % Preallocate per-d3 (alt=exponential, tilde=QH-perceived)
-V_ford3_alt=zeros(N_a,N_bothz,N_e,N_d3,'gpuArray');
+V_ford3_alt=zeros(N_a,N_bothz,N_e,N_d3,vfoptions.precision,'gpuArray');
 Policy_ford3_alt=zeros(N_a,N_bothz,N_e,N_d3,'gpuArray');
-V_ford3_tilde=zeros(N_a,N_bothz,N_e,N_d3,'gpuArray');
+V_ford3_tilde=zeros(N_a,N_bothz,N_e,N_d3,vfoptions.precision,'gpuArray');
 Policy_ford3_tilde=zeros(N_a,N_bothz,N_e,N_d3,'gpuArray');
 
 level1ii=round(linspace(1,n_a1,vfoptions.level1n));
@@ -64,7 +64,7 @@ bothz_offset=N_a*reshape(0:N_bothz-1,[1,1,N_bothz]);
 
 %% j=N_j
 
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0

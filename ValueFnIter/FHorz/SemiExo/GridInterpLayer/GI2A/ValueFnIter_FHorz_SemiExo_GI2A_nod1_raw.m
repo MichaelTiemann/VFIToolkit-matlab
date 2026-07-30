@@ -50,14 +50,14 @@ end
 bothz_gridvals_J=[repmat(semiz_gridvals_J,N_z,1,1),repelem(z_gridvals_J,N_semiz,1,1)];
 
 %% Preallocate per-d2 storage
-V_ford2=zeros(N_a,N_bothz,N_d2,'gpuArray');
+V_ford2=zeros(N_a,N_bothz,N_d2,vfoptions.precision,'gpuArray');
 mid_ford2=zeros(N_a,N_bothz,N_d2,'gpuArray');
 L2a1_ford2=zeros(N_a,N_bothz,N_d2,'gpuArray');
 L2a2_ford2=zeros(N_a,N_bothz,N_d2,'gpuArray');
 flag_ford2=2*ones(N_a,N_bothz,N_d2,'gpuArray');
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
 
@@ -166,7 +166,7 @@ if ~isfield(vfoptions,'V_Jplus1')
     Policy(4,:,:,N_j)=reshape(L2a1_ford2(idx),[1,N_a,N_bothz]);
     PolicyL2flag(1,:,:,N_j)=reshape(flag_ford2(idx),[1,N_a,N_bothz]);
 else
-    DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames, N_j));
+    DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames, N_j, vfoptions.precision));
     V_next=reshape(vfoptions.V_Jplus1,[N_a,N_bothz]);
 
     for d2_c=1:N_d2
@@ -303,8 +303,8 @@ for reverse_j=1:N_j-1
         fprintf('Finite horizon: %i of %i (counting backwards to 1) \n',jj, N_j)
     end
 
-    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, jj);
-    DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames, jj));
+    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, jj, vfoptions.precision);
+    DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames, jj, vfoptions.precision));
 
     V_next=V(:,:,jj+1);
 

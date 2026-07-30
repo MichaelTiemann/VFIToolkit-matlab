@@ -32,7 +32,7 @@ pi_e_J=shiftdim(pi_e_J,-1); % Move to second dimension (normally -2, but no z so
 
 %% N_j
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0

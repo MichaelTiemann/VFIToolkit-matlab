@@ -12,7 +12,7 @@ function [Vtilde,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicN_DC1_n
 N_a=prod(n_a);
 N_z=prod(n_z);
 
-Valt=zeros(N_a,N_z,N_j,'gpuArray');
+Valt=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(N_a,N_z,N_j,'gpuArray');  % optimal aprime index
 Policyalt=zeros(N_a,N_z,N_j,'gpuArray'); % exponential discounter optimal choice (Valt is computed at this)
 
@@ -30,7 +30,7 @@ level1ii=round(linspace(1,n_a,vfoptions.level1n));
 level1iidiff=level1ii(2:end)-level1ii(1:end-1)-1;
 
 %% j=N_j  (terminal period)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     % No discounting at terminal period.

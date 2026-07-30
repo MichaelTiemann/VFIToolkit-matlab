@@ -9,7 +9,7 @@ N_d=prod(n_d);
 N_a=prod(n_a);
 N_z=prod(n_z);
 
-Vhat=zeros(N_a,N_z,N_j,'gpuArray');
+Vhat=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(3,N_a,N_z,N_j,'gpuArray'); % [d_ind; midpoint; aprimeL2ind]
 PolicyL2flag=2*ones(1,N_a,N_z,N_j,'gpuArray'); % 1=all weight to lower coarse pt, 2=usual linear weights, 3=all weight to upper coarse pt
 
@@ -27,7 +27,7 @@ aprime_grid=interp1(1:1:N_a,a_grid,linspace(1,N_a,N_a+(N_a-1)*n2short));
 n2aprime=length(aprime_grid);
 
 %% j=N_j (terminal period)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     % No discounting at terminal period.

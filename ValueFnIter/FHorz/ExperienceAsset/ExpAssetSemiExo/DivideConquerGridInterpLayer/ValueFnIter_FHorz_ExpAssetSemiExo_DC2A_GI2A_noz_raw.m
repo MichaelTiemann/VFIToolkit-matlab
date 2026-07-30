@@ -50,14 +50,14 @@ a1prime_grid=interp1(1:1:N_a1,a1_grid,linspace(1,N_a1,N_a1+(N_a1-1)*n2short))';
 N_a1fine=length(a1prime_grid);
 
 % Preallocate (for the EV sections, which loop over d3)
-V_ford3_jj=zeros(N_a,N_semiz,N_d3,'gpuArray');
+V_ford3_jj=zeros(N_a,N_semiz,N_d3,vfoptions.precision,'gpuArray');
 d12_ford3_jj=zeros(N_a,N_semiz,N_d3,'gpuArray');
 joint_ford3_jj=zeros(N_a,N_semiz,N_d3,'gpuArray');
 L2a1_ford3_jj=zeros(N_a,N_semiz,N_d3,'gpuArray');
 L2flag_ford3_jj=2*ones(N_a,N_semiz,N_d3,'gpuArray');
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     % No continuation value: return does not depend on the a3 dynamics, so vectorise over the full d=(d1,d2,d3)

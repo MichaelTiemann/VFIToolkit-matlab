@@ -12,7 +12,7 @@ N_a3=prod(n_a3);
 N_a=N_a1*N_a2*N_a3;
 N_z=prod(n_z);
 
-Valt=zeros(N_a,N_z,N_j,'gpuArray');
+Valt=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
 Vtilde=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(3,N_a,N_z,N_j,'gpuArray');
 Policyalt=zeros(3,N_a,N_z,N_j,'gpuArray');

@@ -36,7 +36,7 @@ if vfoptions.lowmemory==2
 end
 
 % Preallocate (for the d3-loop sections, which loop over d3 and then max over d3)
-V_ford3_jj=zeros(N_a,N_semiz,N_e,N_d3,'gpuArray');
+V_ford3_jj=zeros(N_a,N_semiz,N_e,N_d3,vfoptions.precision,'gpuArray');
 Policy3_ford3_jj=zeros(3,N_a,N_semiz,N_e,N_d3,'gpuArray'); % d2, joint(a1prime-midpoint,a2prime), a1primeL2ind
 flag_ford3_jj=2*ones(N_a,N_semiz,N_e,N_d3,'gpuArray');
 
@@ -56,7 +56,7 @@ semizBind=shiftdim(gpuArray(0:1:N_semiz-1),-1); % already includes -1
 eBind=shiftdim(gpuArray(0:1:N_e-1),-2); % already includes -1
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0

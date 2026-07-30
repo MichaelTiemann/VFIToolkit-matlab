@@ -8,7 +8,7 @@ Policy=zeros(N_a,N_j); %first dim indexes the optimal choice for aprime rest of 
 %% j=N_j
 
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 
 % Note: There is no z, so no need to deal with z_grid and pi_z depending on age
 

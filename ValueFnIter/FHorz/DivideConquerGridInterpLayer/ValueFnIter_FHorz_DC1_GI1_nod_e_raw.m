@@ -48,7 +48,7 @@ n2aprime=length(aprime_grid);
 %% j=N_j
 
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 
 pi_e_J=shiftdim(pi_e_J,-2); % Move to third dimension
 

@@ -6,8 +6,8 @@ N_a=prod(n_a);
 N_semiz=prod(n_semiz);
 N_e=prod(n_e);
 
-Vhat=zeros(N_a,N_semiz,N_e,N_j,'gpuArray');
-Vunderbar=zeros(N_a,N_semiz,N_e,N_j,'gpuArray');
+Vhat=zeros(N_a,N_semiz,N_e,N_j,vfoptions.precision,'gpuArray');
+Vunderbar=zeros(N_a,N_semiz,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(2,N_a,N_semiz,N_e,N_j,'gpuArray');
 
 %%
@@ -18,8 +18,8 @@ loweredgesize=[1,1,N_semiz,N_e];
 semizind=shiftdim(gpuArray(0:1:N_semiz-1),-1);
 eind=shiftdim(gpuArray(0:1:N_e-1),-2); %#ok<NASGU>
 
-Vhat_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,'gpuArray');
-Vunderbar_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,'gpuArray');
+Vhat_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,vfoptions.precision,'gpuArray');
+Vunderbar_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,vfoptions.precision,'gpuArray');
 Policy_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,'gpuArray');
 
 pi_e_J=shiftdim(pi_e_J,-2);

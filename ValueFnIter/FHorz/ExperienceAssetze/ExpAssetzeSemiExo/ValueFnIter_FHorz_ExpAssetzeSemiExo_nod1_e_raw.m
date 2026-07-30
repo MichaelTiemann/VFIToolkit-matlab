@@ -36,7 +36,7 @@ if vfoptions.lowmemory>1
     special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision);
 end
 
-V_ford3_jj=zeros(N_a,N_bothz,N_e,N_d3,'gpuArray');
+V_ford3_jj=zeros(N_a,N_bothz,N_e,N_d3,vfoptions.precision,'gpuArray');
 Policy_ford3_jj=zeros(N_a,N_bothz,N_e,N_d3,'gpuArray');
 
 bothz_offset=N_a*reshape(0:N_bothz-1,[1,1,N_bothz]);

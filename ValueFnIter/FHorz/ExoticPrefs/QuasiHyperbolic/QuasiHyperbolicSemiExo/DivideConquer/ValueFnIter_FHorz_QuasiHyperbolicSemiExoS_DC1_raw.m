@@ -20,7 +20,8 @@ Vunderbar=zeros(N_a,N_semiz*N_z,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(3,N_a,N_semiz*N_z,N_j,'gpuArray');
 
 %%
-special_n_d=[n_d1,ones(1,length(n_d2))];
+cast2precision=str2func(vfoptions.precision);
+special_n_d=[cast2precision(n_d1),ones(1,length(n_d2),vfoptions.precision)];
 d_gridvals=[repmat(d1_gridvals,N_d2,1),repelem(d2_gridvals,N_d1,1)];
 d12_gridvals=permute(reshape(d_gridvals,[N_d1,N_d2,length(n_d1)+length(n_d2)]),[1,3,2]);
 
@@ -30,8 +31,8 @@ bothzind=shiftdim(gpuArray(0:1:N_bothz-1),-1);
 bothzBind=shiftdim(gpuArray(0:1:N_bothz-1),-2);
 
 % Per-d2 slabs: Vhat (agent's value, used for d2 choice), Vunderbar (long-run, post-correction)
-Vhat_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
-Vunderbar_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
+Vhat_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,vfoptions.precision,'gpuArray');
+Vunderbar_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,vfoptions.precision,'gpuArray');
 Policy_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
 
 level1ii=round(linspace(1,n_a,vfoptions.level1n));

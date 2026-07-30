@@ -22,7 +22,7 @@ N_semiz=prod(n_semiz);
 N_z=prod(n_z);
 N_bothz=N_semiz*N_z;
 
-V=zeros(N_a,N_bothz,N_j,'gpuArray');
+V=zeros(N_a,N_bothz,N_j,vfoptions.precision,'gpuArray');
 % For semiz it turns out to be easier to go straight to constructing policy that stores d1,d2,d3,joint(a1prime(mid),a2prime),a1primeL2ind seperately
 Policy4=zeros(5,N_a,N_bothz,N_j,'gpuArray'); % 1=d1, 2=d2, 3=d3, 4=joint(a1prime midpoint,a2prime), 5=a1prime L2
 PolicyL2flag=2*ones(1,N_a,N_bothz,N_j,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
@@ -59,14 +59,14 @@ a1prime_grid=interp1(1:1:N_a1,a1_grid,linspace(1,N_a1,N_a1+(N_a1-1)*n2short))';
 N_a1fine=length(a1prime_grid);
 
 % Preallocate (for the EV sections, which loop over d3)
-V_ford3_jj=zeros(N_a,N_bothz,N_d3,'gpuArray');
+V_ford3_jj=zeros(N_a,N_bothz,N_d3,vfoptions.precision,'gpuArray');
 d12_ford3_jj=zeros(N_a,N_bothz,N_d3,'gpuArray');
 joint_ford3_jj=zeros(N_a,N_bothz,N_d3,'gpuArray');
 L2a1_ford3_jj=zeros(N_a,N_bothz,N_d3,'gpuArray');
 L2flag_ford3_jj=2*ones(N_a,N_bothz,N_d3,'gpuArray');
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     % No continuation value: return does not depend on the a3 dynamics, so vectorise over the full d=(d1,d2,d3)

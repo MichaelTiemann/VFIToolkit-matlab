@@ -39,7 +39,7 @@ semizBind=shiftdim(gpuArray(0:1:N_semiz-1),-2); % already includes -1 (for lowme
 bothz_gridvals_J=[repmat(semiz_gridvals_J,N_z,1,1),repelem(z_gridvals_J,N_semiz,1,1)];
 
 % Preallocate
-V_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
+V_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,vfoptions.precision,'gpuArray');
 Policy_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
 midpoint_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
 flag_ford2_jj=2*ones(N_a,N_semiz*N_z,N_d2,'gpuArray');

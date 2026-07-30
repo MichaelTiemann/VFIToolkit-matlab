@@ -9,7 +9,7 @@ N_a=prod(n_a);
 N_z=prod(n_z);
 N_e=prod(n_e);
 
-Valt=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+Valt=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
 Vtilde=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(N_a,N_z,N_e,N_j,'gpuArray');
 Policyalt=zeros(N_a,N_z,N_e,N_j,'gpuArray'); % exponential discounter optimal choice (Valt is computed at this)
@@ -32,7 +32,7 @@ level1iidiff=level1ii(2:end)-level1ii(1:end-1)-1;
 pi_e_J=shiftdim(pi_e_J,-2);
 
 %% j=N_j (terminal period)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0

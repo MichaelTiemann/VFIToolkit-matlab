@@ -34,7 +34,7 @@ semizind2=shiftdim(gpuArray(0:1:N_semiz-1),-2); % already includes -1
 eind=shiftdim(gpuArray(0:1:N_e-1),-2); % already includes -1
 
 % Preallocate
-V_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,'gpuArray');
+V_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,vfoptions.precision,'gpuArray');
 Policy_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,'gpuArray');
 midpoint_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,'gpuArray');
 PolicyL2flag_ford2_jj=2*ones(N_a,N_semiz,N_e,N_d2,'gpuArray');

@@ -28,10 +28,10 @@ N_z=prod(n_z);
 N_bothz=N_semiz*N_z;
 N_e=prod(n_e);
 
-V=zeros(N_a,N_bothz,N_e,N_j,'gpuArray');
+V=zeros(N_a,N_bothz,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(5,N_a,N_bothz,N_e,N_j,'gpuArray');
 PolicyL2flag=2*ones(1,N_a,N_bothz,N_e,N_j,'gpuArray');
-Valt=zeros(N_a,N_bothz,N_e,N_j,'gpuArray');
+Valt=zeros(N_a,N_bothz,N_e,N_j,vfoptions.precision,'gpuArray');
 Policyalt=zeros(5,N_a,N_bothz,N_e,N_j,'gpuArray');
 PolicyaltL2flag=2*ones(1,N_a,N_bothz,N_e,N_j,'gpuArray');
 
@@ -48,10 +48,10 @@ if vfoptions.lowmemory>1
 end
 
 % Per-d3 workspaces (alt=exponential @beta, tilde=QH-perceived @beta0beta)
-V_ford3_alt=zeros(N_a,N_bothz,N_e,N_d3,'gpuArray');
+V_ford3_alt=zeros(N_a,N_bothz,N_e,N_d3,vfoptions.precision,'gpuArray');
 Policy4_ford3_alt=zeros(4,N_a,N_bothz,N_e,N_d3,'gpuArray');
 flag_ford3_alt=2*ones(N_a,N_bothz,N_e,N_d3,'gpuArray');
-V_ford3_tilde=zeros(N_a,N_bothz,N_e,N_d3,'gpuArray');
+V_ford3_tilde=zeros(N_a,N_bothz,N_e,N_d3,vfoptions.precision,'gpuArray');
 Policy4_ford3_tilde=zeros(4,N_a,N_bothz,N_e,N_d3,'gpuArray');
 flag_ford3_tilde=2*ones(N_a,N_bothz,N_e,N_d3,'gpuArray');
 
@@ -72,7 +72,7 @@ bothz_offset=N_a*reshape(0:N_bothz-1,[1,1,N_bothz]);
 
 %% j=N_j
 
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     % Terminal period: no continuation, so QH-perceived value equals exponential value

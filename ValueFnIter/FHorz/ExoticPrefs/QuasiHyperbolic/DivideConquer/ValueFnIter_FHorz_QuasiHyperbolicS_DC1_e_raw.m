@@ -33,7 +33,7 @@ level1ii=round(linspace(1,n_a,vfoptions.level1n));
 pi_e_J=shiftdim(pi_e_J,-2);
 
 %% j=N_j (terminal period)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0

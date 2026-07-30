@@ -28,10 +28,10 @@ N_z=prod(n_z);
 N_bothz=N_semiz*N_z;
 N_e=prod(n_e);
 
-V=zeros(N_a,N_bothz,N_e,N_j,'gpuArray');
+V=zeros(N_a,N_bothz,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(5,N_a,N_bothz,N_e,N_j,'gpuArray');
 PolicyL2flag=2*ones(1,N_a,N_bothz,N_e,N_j,'gpuArray');
-Valt=zeros(N_a,N_bothz,N_e,N_j,'gpuArray');
+Valt=zeros(N_a,N_bothz,N_e,N_j,vfoptions.precision,'gpuArray');
 
 %%
 a2_gridvals=CreateGridvals(n_a2,a2_grid,1);
@@ -69,7 +69,7 @@ bothz_offset=N_a*reshape(0:N_bothz-1,[1,1,N_bothz]);
 
 %% j=N_j
 
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     % Terminal period: no continuation, so Vunderbar equals Vhat

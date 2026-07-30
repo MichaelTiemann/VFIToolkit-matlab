@@ -18,7 +18,7 @@ semizind=shiftdim(gpuArray(0:1:N_semiz-1),-1);
 loweredgesize=[1,1,N_semiz];
 
 % Preallocate
-V_ford2_jj=zeros(N_a,N_semiz,N_d2,'gpuArray');
+V_ford2_jj=zeros(N_a,N_semiz,N_d2,vfoptions.precision,'gpuArray');
 Policy_ford2_jj=zeros(N_a,N_semiz,N_d2,'gpuArray');
 
 % n-Monotonicity

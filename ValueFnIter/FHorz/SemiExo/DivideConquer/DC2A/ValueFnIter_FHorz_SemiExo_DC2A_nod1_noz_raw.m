@@ -34,13 +34,13 @@ if vfoptions.lowmemory==1
 end
 
 % Preallocate
-V_ford2_jj=zeros(N_a,N_semiz,N_d2,'gpuArray');
+V_ford2_jj=zeros(N_a,N_semiz,N_d2,vfoptions.precision,'gpuArray');
 Policy_ford2_jj=zeros(N_a,N_semiz,N_d2,'gpuArray');
 
 %% j=N_j
 
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
 

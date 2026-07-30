@@ -40,7 +40,7 @@ n2aprime=length(aprime_grid);
 pi_e_J=shiftdim(pi_e_J,-2); % 1-by-1-by-N_e-by-N_j
 
 %% j=N_j (terminal period)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0

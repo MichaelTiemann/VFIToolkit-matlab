@@ -13,7 +13,7 @@ N_a=prod(n_a);
 N_z=prod(n_z);
 N_e=prod(n_e);
 
-Valt=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+Valt=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(N_a,N_z,N_e,N_j,'gpuArray'); % indexes the optimal choice for aprime, rest of dimensions a,z
 Policyalt=zeros(N_a,N_z,N_e,N_j,'gpuArray'); % exponential discounter optimal choice (Valt is computed at this)
 
@@ -30,7 +30,7 @@ pi_e_J=shiftdim(pi_e_J,-2); % Move to third dimension
 %% j=N_j
 
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 % Nothing extra to do for final period with quasi-hyperbolic preferences
 
 if ~isfield(vfoptions,'V_Jplus1')

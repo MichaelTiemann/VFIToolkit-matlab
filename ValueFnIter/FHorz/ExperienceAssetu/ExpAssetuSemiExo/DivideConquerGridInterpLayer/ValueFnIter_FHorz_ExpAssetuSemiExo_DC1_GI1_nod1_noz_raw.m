@@ -13,7 +13,7 @@ N_u=prod(n_u);
 
 V=zeros(N_a,N_semiz,N_j,vfoptions.precision,'gpuArray');
 % For semiz it turns out to be easier to go straight to constructing policy that stores d2,d3,a1prime seperately
-Policy=zeros(4,N_a,N_semiz,N_j,vfoption.'gpuArray');
+Policy=zeros(4,N_a,N_semiz,N_j,'gpuArray');
 PolicyL2flag=2*ones(1,N_a,N_semiz,N_j,'gpuArray');
 
 pi_u=shiftdim(pi_u,-2); % put it into third dimension
@@ -33,7 +33,7 @@ elseif vfoptions.lowmemory==1
 end
 
 % Preallocate
-V_ford3_jj=zeros(N_a,N_semiz,N_d3,'gpuArray');
+V_ford3_jj=zeros(N_a,N_semiz,N_d3,vfoptions.precision,'gpuArray');
 Policy3_ford3_jj=zeros(3,N_a,N_semiz,N_d3,'gpuArray');
 flag_ford3_jj=2*ones(1,N_a,N_semiz,N_d3,'gpuArray');
 

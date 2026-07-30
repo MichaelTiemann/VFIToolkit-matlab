@@ -48,11 +48,11 @@ a2ind=gpuArray(0:N_a2-1)';
 a3ind=gpuArray(0:N_a3-1)';
 
 % Preallocate (for the EV sections, which loop over d3)
-V_ford3_jj=zeros(N_a,N_semiz,N_e,N_d3,'gpuArray');
+V_ford3_jj=zeros(N_a,N_semiz,N_e,N_d3,vfoptions.precision,'gpuArray');
 Policy_ford3_jj=zeros(N_a,N_semiz,N_e,N_d3,'gpuArray');
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0

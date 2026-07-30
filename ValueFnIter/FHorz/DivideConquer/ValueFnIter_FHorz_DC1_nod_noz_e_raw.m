@@ -20,7 +20,7 @@ level1iidiff=level1ii(2:end)-level1ii(1:end-1)-1;
 %% j=N_j
 
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 
 pi_e_J=shiftdim(pi_e_J,-1); % Move to second dimension
 

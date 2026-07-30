@@ -27,7 +27,7 @@ if vfoptions.lowmemory>0
     special_n_semiz=[n_semiz,ones(1,length(n_z))]; % semiz vectorised, z scalar (lowmemory=1 split over z)
 end
 
-V_ford3_jj=zeros(N_a,N_bothz,N_d3,'gpuArray');
+V_ford3_jj=zeros(N_a,N_bothz,N_d3,vfoptions.precision,'gpuArray');
 Policy_ford3_jj=zeros(N_a,N_bothz,N_d3,'gpuArray');
 
 %% j=N_j

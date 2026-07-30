@@ -14,7 +14,7 @@ if vfoptions.lowmemory>0
 end
 
 %%
-Vold=zeros(N_a,N_z,N_j);
+Vold=zeros(N_a,N_z,N_j,vfoptions.precision);
 tempcounter=1;
 currdist=Inf;
 while currdist>vfoptions.tolerance

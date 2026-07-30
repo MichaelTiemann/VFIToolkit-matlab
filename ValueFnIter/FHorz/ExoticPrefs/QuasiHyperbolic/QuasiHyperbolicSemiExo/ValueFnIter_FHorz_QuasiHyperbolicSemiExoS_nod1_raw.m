@@ -21,8 +21,8 @@ if vfoptions.lowmemory>0
     special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision);
 end
 
-Vhat_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
-Vunderbar_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
+Vhat_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,vfoptions.precision,'gpuArray');
+Vunderbar_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,vfoptions.precision,'gpuArray');
 Policy_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
 
 bothz_gridvals_J=[repmat(semiz_gridvals_J,N_z,1,1),repelem(z_gridvals_J,N_semiz,1,1)];

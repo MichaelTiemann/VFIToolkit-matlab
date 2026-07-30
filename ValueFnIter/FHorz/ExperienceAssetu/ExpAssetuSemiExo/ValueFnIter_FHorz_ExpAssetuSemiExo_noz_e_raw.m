@@ -37,7 +37,7 @@ if vfoptions.lowmemory>1
 end
 
 % Preallocate
-V_ford3_jj=zeros(N_a,N_semiz,N_e,N_d3,'gpuArray');
+V_ford3_jj=zeros(N_a,N_semiz,N_e,N_d3,vfoptions.precision,'gpuArray');
 Policy_ford3_jj=zeros(N_a,N_semiz,N_e,N_d3,'gpuArray');
 
 

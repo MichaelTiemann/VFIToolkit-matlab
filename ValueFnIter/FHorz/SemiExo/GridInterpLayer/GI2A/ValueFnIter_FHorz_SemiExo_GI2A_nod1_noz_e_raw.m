@@ -46,14 +46,14 @@ end
 pi_e_J=shiftdim(pi_e_J,-2); % Move e probabilities to third dimension
 
 %% Preallocate per-d2 storage
-V_ford2=zeros(N_a,N_semiz,N_e,N_d2,'gpuArray');
+V_ford2=zeros(N_a,N_semiz,N_e,N_d2,vfoptions.precision,'gpuArray');
 mid_ford2=zeros(N_a,N_semiz,N_e,N_d2,'gpuArray');
 L2a1_ford2=zeros(N_a,N_semiz,N_e,N_d2,'gpuArray');
 L2a2_ford2=zeros(N_a,N_semiz,N_e,N_d2,'gpuArray');
 flag_ford2=2*ones(N_a,N_semiz,N_e,N_d2,'gpuArray');
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
 
@@ -165,7 +165,7 @@ if ~isfield(vfoptions,'V_Jplus1')
     Policy(4,:,:,:,N_j)=reshape(L2a1_ford2(idx),[1,N_a,N_semiz,N_e]);
     PolicyL2flag(1,:,:,:,N_j)=reshape(flag_ford2(idx),[1,N_a,N_semiz,N_e]);
 else
-    DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames, N_j));
+    DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames, N_j, vfoptions.precision));
     V_next=sum(reshape(vfoptions.V_Jplus1,[N_a,N_semiz,N_e]).*pi_e_J(1,1,:,N_j),3); % integrate over e' first -> [N_a, N_semiz]
 
     for d2_c=1:N_d2
@@ -305,8 +305,8 @@ for reverse_j=1:N_j-1
         fprintf('Finite horizon: %i of %i (counting backwards to 1) \n',jj, N_j)
     end
 
-    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, jj);
-    DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames, jj));
+    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, jj, vfoptions.precision);
+    DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames, jj, vfoptions.precision));
 
     V_next=sum(V(:,:,:,jj+1).*pi_e_J(1,1,:,jj),3);
 

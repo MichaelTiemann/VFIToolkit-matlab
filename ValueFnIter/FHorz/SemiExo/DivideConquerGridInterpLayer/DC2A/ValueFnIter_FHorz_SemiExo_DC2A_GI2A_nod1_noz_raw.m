@@ -9,7 +9,7 @@ N_semiz=prod(n_semiz);
 V=zeros(N_a,N_semiz,N_j,vfoptions.precision,'gpuArray');
 PolicyL2flag=2*ones(1,N_a,N_semiz,N_j,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
 % Policy: 4 channels [d2, a1prime midpoint, a2prime, a1prime L2]
-Policy=zeros(4,N_a,N_semiz,N_j,vfoption.'gpuArray');
+Policy=zeros(4,N_a,N_semiz,N_j,'gpuArray');
 
 %% Split a into a1 and a2
 n_a1=n_a(1);
@@ -49,7 +49,7 @@ L2a2_ford2=zeros(N_a,N_semiz,N_d2,'gpuArray');
 L2flag_ford2=2*ones(N_a,N_semiz,N_d2,'gpuArray');
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     % No continuation. Per-d2 loop (d2 still in ReturnFn).
@@ -168,7 +168,7 @@ if ~isfield(vfoptions,'V_Jplus1')
     PolicyL2flag(1,:,:,N_j)=reshape(L2flag_ford2(idx),[1,N_a,N_semiz]);
 else
     % Using V_Jplus1
-    DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames, N_j));
+    DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames, N_j, vfoptions.precision));
     V_next=reshape(vfoptions.V_Jplus1,[N_a,N_semiz]);
 
   if vfoptions.lowmemory==0
@@ -316,8 +316,8 @@ for reverse_j=1:N_j-1
         fprintf('Finite horizon: %i of %i (counting backwards to 1) \n',jj, N_j)
     end
 
-    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, jj);
-    DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames, jj));
+    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, jj, vfoptions.precision);
+    DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames, jj, vfoptions.precision));
 
     V_next=V(:,:,jj+1);
 

@@ -34,7 +34,7 @@ n2aprime=length(aprime_grid);
 pi_e_J=shiftdim(pi_e_J,-2);
 
 %% j=N_j (terminal period)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     % No discounting at terminal period.

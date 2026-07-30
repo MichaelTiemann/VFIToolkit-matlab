@@ -24,8 +24,8 @@ bothzind=shiftdim(gpuArray(0:1:N_bothz-1),-1);
 
 loweredgesize=[1,1,N_semiz*N_z];
 
-V_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
-Vtilde_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
+V_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,vfoptions.precision,'gpuArray');
+Vtilde_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,vfoptions.precision,'gpuArray');
 Policy_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
 Policy_V_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
 

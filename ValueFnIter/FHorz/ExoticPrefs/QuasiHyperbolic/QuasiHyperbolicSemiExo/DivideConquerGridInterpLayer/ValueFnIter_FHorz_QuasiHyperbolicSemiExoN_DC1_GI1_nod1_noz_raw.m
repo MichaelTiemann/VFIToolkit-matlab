@@ -18,8 +18,8 @@ special_n_d2=ones(1,length(n_d2),vfoptions.precision);
 aind=gpuArray(0:1:N_a-1);
 semizind=shiftdim(gpuArray(0:1:N_semiz-1),-1);
 
-Valt_ford2_jj=zeros(N_a,N_semiz,N_d2,'gpuArray');
-V_ford2_jj=zeros(N_a,N_semiz,N_d2,'gpuArray');
+Valt_ford2_jj=zeros(N_a,N_semiz,N_d2,vfoptions.precision,'gpuArray');
+V_ford2_jj=zeros(N_a,N_semiz,N_d2,vfoptions.precision,'gpuArray');
 Policy_ford2_jj=zeros(N_a,N_semiz,N_d2,'gpuArray');
 midpoint_ford2_jj=zeros(N_a,N_semiz,N_d2,'gpuArray');
 PolicyL2flag_ford2_jj=2*ones(N_a,N_semiz,N_d2,'gpuArray');

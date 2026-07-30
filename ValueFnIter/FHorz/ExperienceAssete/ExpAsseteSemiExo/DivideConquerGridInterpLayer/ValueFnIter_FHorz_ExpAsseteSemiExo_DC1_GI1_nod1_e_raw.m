@@ -45,7 +45,7 @@ elseif vfoptions.lowmemory==3
     midpoint=zeros(N_d2,1,N_a1,N_a2,'gpuArray');
 end
 
-V_ford3_jj=zeros(N_a,N_bothz,N_e,N_d3,'gpuArray');
+V_ford3_jj=zeros(N_a,N_bothz,N_e,N_d3,vfoptions.precision,'gpuArray');
 Policy3_ford3_jj=zeros(3,N_a,N_bothz,N_e,N_d3,'gpuArray');
 flag_ford3_jj=2*ones(1,N_a,N_bothz,N_e,N_d3,'gpuArray'); % L2 flag per d3, aggregated after d3 max
 

@@ -36,7 +36,7 @@ elseif vfoptions.lowmemory==3
     special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision);
 end
 
-V_ford3_jj=zeros(N_a,N_bothz,N_e,N_d3,'gpuArray');
+V_ford3_jj=zeros(N_a,N_bothz,N_e,N_d3,vfoptions.precision,'gpuArray');
 Policy4_ford3_jj=zeros(4,N_a,N_bothz,N_e,N_d3,'gpuArray');
 flag_ford3_jj=2*ones(N_a,N_bothz,N_e,N_d3,'gpuArray');
 

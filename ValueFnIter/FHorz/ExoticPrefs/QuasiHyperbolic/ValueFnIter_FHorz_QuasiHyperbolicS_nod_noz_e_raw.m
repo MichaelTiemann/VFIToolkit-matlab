@@ -24,7 +24,7 @@ pi_e_J=shiftdim(pi_e_J,-1); % Move to second dimension as no_z
 %% j=N_j
 
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 % Nothing extra to do for final period with quasi-hyperbolic preferences
 
 if ~isfield(vfoptions,'V_Jplus1')

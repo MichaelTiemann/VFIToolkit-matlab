@@ -41,12 +41,12 @@ elseif vfoptions.lowmemory==2
 end
 
 % Preallocate (for the max over d3)
-V_ford3_jj=zeros(N_a,N_semiz,N_e,N_d3,'gpuArray');
+V_ford3_jj=zeros(N_a,N_semiz,N_e,N_d3,vfoptions.precision,'gpuArray');
 Policy3_ford3_jj=zeros(3,N_a,N_semiz,N_e,N_d3,'gpuArray'); % 1=d2, 2=joint(a1prime midpoint,a2prime), 3=a1prime L2 (d3 is the loop index)
 flag_ford3_jj=2*ones(N_a,N_semiz,N_e,N_d3,'gpuArray');
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0

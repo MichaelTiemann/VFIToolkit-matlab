@@ -16,8 +16,8 @@ end
 
 %% j=N_j
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
-TemptationFnParamsVec=CreateVectorFromParams(Parameters, TemptationFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
+TemptationFnParamsVec=CreateVectorFromParams(Parameters, TemptationFnParamNames, N_j, vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0

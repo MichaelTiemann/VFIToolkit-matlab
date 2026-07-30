@@ -22,8 +22,8 @@ if vfoptions.lowmemory>0
     special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision);
 end
 
-V_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
-Vtilde_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
+V_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,vfoptions.precision,'gpuArray');
+Vtilde_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,vfoptions.precision,'gpuArray');
 Policy_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
 Policy_V_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
 

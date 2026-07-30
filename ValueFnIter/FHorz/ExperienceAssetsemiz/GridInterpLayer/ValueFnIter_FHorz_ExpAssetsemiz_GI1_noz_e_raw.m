@@ -17,7 +17,7 @@ N_semiz=prod(n_semiz);
 N_bothz=N_semiz;
 N_e=prod(n_e);
 
-V=zeros(N_a,N_bothz,N_e,N_j,'gpuArray');
+V=zeros(N_a,N_bothz,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(5,N_a,N_bothz,N_e,N_j,'gpuArray');
 PolicyL2flag=2*ones(1,N_a,N_bothz,N_e,N_j,'gpuArray');
 
@@ -33,7 +33,7 @@ if vfoptions.lowmemory>1
     special_n_bothz=ones(1,length(n_semiz),vfoptions.precision);
 end
 
-V_ford3_jj=zeros(N_a,N_bothz,N_e,N_d3,'gpuArray');
+V_ford3_jj=zeros(N_a,N_bothz,N_e,N_d3,vfoptions.precision,'gpuArray');
 Policy4_ford3_jj=zeros(4,N_a,N_bothz,N_e,N_d3,'gpuArray');
 flag_ford3_jj=2*ones(N_a,N_bothz,N_e,N_d3,'gpuArray');
 
@@ -53,7 +53,7 @@ bothz_offset=N_a*reshape(0:N_bothz-1,[1,1,N_bothz]);
 
 %% j=N_j
 
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0

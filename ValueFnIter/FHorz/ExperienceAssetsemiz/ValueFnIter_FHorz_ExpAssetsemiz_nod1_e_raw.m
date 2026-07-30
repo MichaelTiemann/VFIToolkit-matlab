@@ -17,7 +17,7 @@ N_z=prod(n_z);
 N_bothz=N_semiz*N_z;
 N_e=prod(n_e);
 
-V=zeros(N_a,N_bothz,N_e,N_j,'gpuArray');
+V=zeros(N_a,N_bothz,N_e,N_j,vfoptions.precision,'gpuArray');
 % Policy storage with separate entries for d2, d3, a1prime (no d1)
 Policy3=zeros(3,N_a,N_bothz,N_e,N_j,'gpuArray');
 
@@ -38,7 +38,7 @@ if vfoptions.lowmemory>1
 end
 
 % Preallocate
-V_ford3_jj=zeros(N_a,N_bothz,N_e,N_d3,'gpuArray');
+V_ford3_jj=zeros(N_a,N_bothz,N_e,N_d3,vfoptions.precision,'gpuArray');
 Policy_ford3_jj=zeros(N_a,N_bothz,N_e,N_d3,'gpuArray');
 
 % Offset for linear indexing into [N_a, N_bothz]
@@ -47,7 +47,7 @@ bothz_offset=N_a*reshape(0:N_bothz-1,[1,1,N_bothz]);
 
 %% j=N_j
 
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0

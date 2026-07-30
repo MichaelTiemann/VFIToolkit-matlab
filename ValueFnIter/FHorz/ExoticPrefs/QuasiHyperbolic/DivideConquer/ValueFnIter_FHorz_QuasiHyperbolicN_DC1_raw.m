@@ -13,7 +13,7 @@ N_d=prod(n_d);
 N_a=prod(n_a);
 N_z=prod(n_z);
 
-Valt=zeros(N_a,N_z,N_j,'gpuArray');
+Valt=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(N_a,N_z,N_j,'gpuArray');  % combined Kron (d,aprime)
 Policyalt=zeros(N_a,N_z,N_j,'gpuArray'); % exponential discounter optimal choice (Valt is computed at this)
 
@@ -30,7 +30,7 @@ end
 zBind=shiftdim(gpuArray(0:1:N_z-1),-2);  % 1-by-1-by-N_z (for EV indexing)
 
 %% j=N_j  (terminal period)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     % No discounting at terminal period.

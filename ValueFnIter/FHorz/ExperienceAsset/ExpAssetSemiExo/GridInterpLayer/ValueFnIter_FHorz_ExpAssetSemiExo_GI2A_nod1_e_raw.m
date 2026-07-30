@@ -21,7 +21,7 @@ N_z=prod(n_z);
 N_bothz=prod(n_bothz);
 N_e=prod(n_e);
 
-V=zeros(N_a,N_semiz*N_z,N_e,N_j,'gpuArray');
+V=zeros(N_a,N_semiz*N_z,N_e,N_j,vfoptions.precision,'gpuArray');
 % For semiz it turns out to be easier to go straight to constructing policy that stores d2,d3,joint(a1prime-midpoint,a2prime),a1primeL2ind
 Policy=zeros(4,N_a,N_semiz*N_z,N_e,N_j,'gpuArray');
 PolicyL2flag=2*ones(1,N_a,N_semiz*N_z,N_e,N_j,'gpuArray'); % 1=all weight to lower coarse a1, 2=usual linear weights, 3=all weight to upper coarse a1
@@ -44,7 +44,7 @@ elseif vfoptions.lowmemory==3
 end
 
 % Preallocate (for the d3-loop sections, which loop over d3 and then max over d3)
-V_ford3_jj=zeros(N_a,N_semiz*N_z,N_e,N_d3,'gpuArray');
+V_ford3_jj=zeros(N_a,N_semiz*N_z,N_e,N_d3,vfoptions.precision,'gpuArray');
 Policy3_ford3_jj=zeros(3,N_a,N_semiz*N_z,N_e,N_d3,'gpuArray'); % d2, joint(a1prime-midpoint,a2prime), a1primeL2ind
 flag_ford3_jj=2*ones(N_a,N_semiz*N_z,N_e,N_d3,'gpuArray');
 
@@ -61,7 +61,7 @@ eBind=shiftdim(gpuArray(0:1:N_e-1),-2); % already includes -1
 semizBind=shiftdim(gpuArray(0:1:N_semiz-1),-1); % already includes -1
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0

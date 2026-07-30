@@ -31,7 +31,8 @@ a1prime_grid=interp1(1:1:N_a1,a1_grid,linspace(1,N_a1,N_a1+(N_a1-1)*n2short))';
 N_a1fine=length(a1prime_grid);
 
 %% Combine d1 and d2 grids
-special_n_d=[n_d1,ones(1,length(n_d2))];
+cast2precision=str2func(vfoptions.precision);
+special_n_d=[cast2precision(n_d1),ones(1,length(n_d2),vfoptions.precision)];
 d_gridvals=[repmat(d1_gridvals,N_d2,1),repelem(d2_gridvals,N_d1,1)];
 d12_gridvals=permute(reshape(d_gridvals,[N_d1,N_d2,length(n_d1)+length(n_d2)]),[1,3,2]);
 
@@ -60,7 +61,7 @@ bothz_gridvals_J=[repmat(semiz_gridvals_J,N_z,1,1),repelem(z_gridvals_J,N_semiz,
 pi_e_J=shiftdim(pi_e_J,-2); % Move e probabilities to third dimension
 
 %% Preallocate
-V_ford2=zeros(N_a,N_bothz,N_e,N_d2,'gpuArray');
+V_ford2=zeros(N_a,N_bothz,N_e,N_d2,vfoptions.precision,'gpuArray');
 d1_ford2=zeros(N_a,N_bothz,N_e,N_d2,'gpuArray');
 mid_ford2=zeros(N_a,N_bothz,N_e,N_d2,'gpuArray');
 L2a1_ford2=zeros(N_a,N_bothz,N_e,N_d2,'gpuArray');
@@ -68,7 +69,7 @@ L2a2_ford2=zeros(N_a,N_bothz,N_e,N_d2,'gpuArray');
 flag_ford2=2*ones(N_a,N_bothz,N_e,N_d2,'gpuArray');
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
 
@@ -241,7 +242,7 @@ if ~isfield(vfoptions,'V_Jplus1')
     Policy(5,:,:,:,N_j)=reshape(L2a1_ford2(idx),[1,N_a,N_bothz,N_e]);
     PolicyL2flag(1,:,:,:,N_j)=reshape(flag_ford2(idx),[1,N_a,N_bothz,N_e]);
 else
-    DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames, N_j));
+    DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames, N_j, vfoptions.precision));
     V_next=sum(reshape(vfoptions.V_Jplus1,[N_a,N_bothz,N_e]).*pi_e_J(1,1,:,N_j),3);
 
     for d2_c=1:N_d2
@@ -447,8 +448,8 @@ for reverse_j=1:N_j-1
         fprintf('Finite horizon: %i of %i (counting backwards to 1) \n',jj, N_j)
     end
 
-    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, jj);
-    DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames, jj));
+    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, jj, vfoptions.precision);
+    DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames, jj, vfoptions.precision));
 
     V_next=sum(V(:,:,:,jj+1).*pi_e_J(1,1,:,jj),3);
 

@@ -45,7 +45,7 @@ else % lowmemory 0 or 1
     bothzBind=shiftdim((0:1:N_bothz-1),-1);
 end
 
-V_ford3_jj=zeros(N_a,N_bothz,N_e,N_d3,'gpuArray');
+V_ford3_jj=zeros(N_a,N_bothz,N_e,N_d3,vfoptions.precision,'gpuArray');
 Policy_ford3_jj=zeros(N_a,N_bothz,N_e,N_d3,'gpuArray');
 
 level1ii=round(linspace(1,n_a1,vfoptions.level1n));

@@ -10,7 +10,7 @@ N_semiz=prod(n_semiz);
 
 V=zeros(N_a,N_semiz,N_j,vfoptions.precision,'gpuArray');
 % For semiz it turns out to be easier to go straight to constructing policy that stores d,d2,aprime seperately
-Policy=zeros(4,N_a,N_semiz,N_j,vfoption.'gpuArray'); % first dim indexes the optimal choice for d1,d2,aprime and aprime2 (in GI layer)
+Policy=zeros(4,N_a,N_semiz,N_j,'gpuArray'); % first dim indexes the optimal choice for d1,d2,aprime and aprime2 (in GI layer)
 PolicyL2flag=2*ones(1,N_a,N_semiz,N_j,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
 
 %%
@@ -29,7 +29,7 @@ semizind=shiftdim(gpuArray(0:1:N_semiz-1),-1); % already includes -1
 semizind2=shiftdim(gpuArray(0:1:N_semiz-1),-2); % already includes -1
 
 % Preallocate
-V_ford2_jj=zeros(N_a,N_semiz,N_d2,'gpuArray');
+V_ford2_jj=zeros(N_a,N_semiz,N_d2,vfoptions.precision,'gpuArray');
 Policy_ford2_jj=zeros(N_a,N_semiz,N_d2,'gpuArray');
 midpoint_ford2_jj=zeros(N_a,N_semiz,N_d2,'gpuArray');
 PolicyL2flag_ford2_jj=2*ones(N_a,N_semiz,N_d2,'gpuArray');

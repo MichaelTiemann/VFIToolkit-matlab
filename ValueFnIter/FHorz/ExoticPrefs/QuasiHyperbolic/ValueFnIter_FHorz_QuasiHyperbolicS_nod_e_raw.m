@@ -29,7 +29,7 @@ end
 %% j=N_j
 
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 % Nothing extra to do for final period with quasi-hyperbolic preferences
 
 if ~isfield(vfoptions,'V_Jplus1')

@@ -14,7 +14,7 @@ if vfoptions.lowmemory>0
     special_n_z=ones(1,l_z,vfoptions.precision);
 end
 
-Vold=zeros(N_a,N_z,N_j,'gpuArray');
+Vold=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
 tempcounter=1;
 currdist=Inf;
 while currdist>vfoptions.tolerance

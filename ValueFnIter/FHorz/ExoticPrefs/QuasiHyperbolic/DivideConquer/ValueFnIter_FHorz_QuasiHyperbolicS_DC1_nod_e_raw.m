@@ -32,7 +32,7 @@ level1iidiff=level1ii(2:end)-level1ii(1:end-1)-1;
 pi_e_J=shiftdim(pi_e_J,-2);
 
 %% j=N_j (terminal period)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0

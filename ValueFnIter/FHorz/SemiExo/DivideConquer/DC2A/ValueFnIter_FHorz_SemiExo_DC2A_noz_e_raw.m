@@ -15,7 +15,8 @@ Policy=zeros(3,N_a,N_semiz,N_e,N_j,'gpuArray');
 
 
 %%
-special_n_d=[n_d1,ones(1,length(n_d2))];
+cast2precision=str2func(vfoptions.precision);
+special_n_d=[cast2precision(n_d1),ones(1,length(n_d2),vfoptions.precision)];
 d_gridvals=[repmat(d1_gridvals,N_d2,1),repelem(d2_gridvals,N_d1,1)];
 d12_gridvals=permute(reshape(d_gridvals,[N_d1,N_d2,length(n_d1)+length(n_d2)]),[1,3,2]); % version to use when looping over d2
 
@@ -48,13 +49,13 @@ end
 pi_e_J=shiftdim(pi_e_J,-2); % Move to third dimension
 
 % Preallocate
-V_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,'gpuArray');
+V_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,vfoptions.precision,'gpuArray');
 Policy_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,'gpuArray');
 
 %% j=N_j
 
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
 

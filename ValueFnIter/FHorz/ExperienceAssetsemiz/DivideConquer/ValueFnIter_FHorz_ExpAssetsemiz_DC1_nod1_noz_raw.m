@@ -15,7 +15,7 @@ N_a=N_a1*N_a2;
 N_semiz=prod(n_semiz);
 N_bothz=N_semiz;
 
-V=zeros(N_a,N_bothz,N_j,'gpuArray');
+V=zeros(N_a,N_bothz,N_j,vfoptions.precision,'gpuArray');
 Policy3=zeros(3,N_a,N_bothz,N_j,'gpuArray');
 
 %%
@@ -33,7 +33,7 @@ else
     bothzind=shiftdim((0:1:N_bothz-1),-1);
 end
 
-V_ford3_jj=zeros(N_a,N_bothz,N_d3,'gpuArray');
+V_ford3_jj=zeros(N_a,N_bothz,N_d3,vfoptions.precision,'gpuArray');
 Policy_ford3_jj=zeros(N_a,N_bothz,N_d3,'gpuArray');
 
 level1ii=round(linspace(1,n_a1,vfoptions.level1n));
@@ -44,7 +44,7 @@ bothz_offset=N_a*reshape(0:N_bothz-1,[1,1,N_bothz]);
 
 %% j=N_j
 
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0

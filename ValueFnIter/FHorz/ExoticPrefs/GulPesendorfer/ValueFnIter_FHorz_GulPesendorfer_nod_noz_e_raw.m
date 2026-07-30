@@ -13,7 +13,7 @@ if vfoptions.lowmemory==0
 
     %% N_j
     % Create a vector containing all the return function parameters (in order)
-    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
     TemptationFnParamsVec=CreateVectorFromParams(Parameters, TemptationFnParamNames,N_j);
 
     pi_e_J=shiftdim(pi_e_J,-1); % Move to second dimensionfor e_c=1:n_e (normally -2, but no z so -1)
@@ -89,8 +89,8 @@ elseif vfoptions.lowmemory==1
 
     %% N_j
     % Create a vector containing all the return function parameters (in order)
-    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
-    TemptationFnParamsVec=CreateVectorFromParams(Parameters, TemptationFnParamNames, N_j);
+    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
+    TemptationFnParamsVec=CreateVectorFromParams(Parameters, TemptationFnParamNames, N_j, vfoptions.precision);
 
     pi_e_J=shiftdim(pi_e_J,-1); % Move to second dimensionfor e_c=1:n_e (normally -2, but no z so -1)
 

@@ -36,17 +36,17 @@ semizBind=shiftdim(gpuArray(0:1:N_semiz-1),-2); % already includes -1
 
 % Preallocate
 if vfoptions.lowmemory==0
-    V_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,'gpuArray');
+    V_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,vfoptions.precision,'gpuArray');
     Policy_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,'gpuArray');
     midpoint_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,'gpuArray');
     flag_ford2_jj=2*ones(N_a,N_semiz,N_e,N_d2,'gpuArray');
 elseif vfoptions.lowmemory==1 % loops over e
-    V_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,'gpuArray');
+    V_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,vfoptions.precision,'gpuArray');
     Policy_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,'gpuArray');
     midpoint_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,'gpuArray');
     flag_ford2_jj=2*ones(N_a,N_semiz,N_e,N_d2,'gpuArray');
 elseif vfoptions.lowmemory==2 % outer loop semiz, inner loop e
-    V_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,'gpuArray');
+    V_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,vfoptions.precision,'gpuArray');
     Policy_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,'gpuArray');
     midpoint_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,'gpuArray');
     flag_ford2_jj=2*ones(N_a,N_semiz,N_e,N_d2,'gpuArray');

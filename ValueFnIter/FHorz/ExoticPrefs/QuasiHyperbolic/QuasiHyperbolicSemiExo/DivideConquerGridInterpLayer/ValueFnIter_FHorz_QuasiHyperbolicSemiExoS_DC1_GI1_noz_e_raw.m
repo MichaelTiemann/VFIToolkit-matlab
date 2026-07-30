@@ -10,13 +10,14 @@ N_a=prod(n_a);
 N_semiz=prod(n_semiz);
 N_e=prod(n_e);
 
-Vhat=zeros(N_a,N_semiz,N_e,N_j,'gpuArray');
-Vunderbar=zeros(N_a,N_semiz,N_e,N_j,'gpuArray');
+Vhat=zeros(N_a,N_semiz,N_e,N_j,vfoptions.precision,'gpuArray');
+Vunderbar=zeros(N_a,N_semiz,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(4,N_a,N_semiz,N_e,N_j,'gpuArray');
 PolicyL2flag=2*ones(1,N_a,N_semiz,N_e,N_j,'gpuArray');
 
 %%
-special_n_d=[n_d1,ones(1,length(n_d2))];
+cast2precision=str2func(vfoptions.precision);
+special_n_d=[cast2precision(n_d1),ones(1,length(n_d2),vfoptions.precision)];
 d_gridvals=[repmat(d1_gridvals,N_d2,1),repelem(d2_gridvals,N_d1,1)];
 d12_gridvals=permute(reshape(d_gridvals,[N_d1,N_d2,length(n_d1)+length(n_d2)]),[1,3,2]);
 
@@ -25,8 +26,8 @@ semizind=shiftdim(gpuArray(0:1:N_semiz-1),-1);
 semizind2=shiftdim(gpuArray(0:1:N_semiz-1),-2);
 eind=shiftdim(gpuArray(0:1:N_e-1),-2);
 
-Vhat_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,'gpuArray');
-Vunderbar_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,'gpuArray');
+Vhat_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,vfoptions.precision,'gpuArray');
+Vunderbar_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,vfoptions.precision,'gpuArray');
 Policy_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,'gpuArray');
 midpoint_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,'gpuArray');
 PolicyL2flag_ford2_jj=2*ones(N_a,N_semiz,N_e,N_d2,'gpuArray');

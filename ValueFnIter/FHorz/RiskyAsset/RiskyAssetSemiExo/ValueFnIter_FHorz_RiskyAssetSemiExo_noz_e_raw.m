@@ -47,7 +47,7 @@ aind=gpuArray(0:1:N_a-1);
 semizind=shiftdim(0:1:N_semiz-1,-1);
 eind=shiftdim(0:1:N_e-1,-2);
 
-V_ford4_jj=zeros(N_a,N_semiz,N_e,N_d4,'gpuArray');
+V_ford4_jj=zeros(N_a,N_semiz,N_e,N_d4,vfoptions.precision,'gpuArray');
 Policy_ford4_jj=zeros(N_a,N_semiz,N_e,N_d4,'gpuArray');
 d1index_ford4_jj=zeros(N_d3*N_a1,N_a,N_semiz,N_e,N_d4,'gpuArray');
 d2index_ford4_jj=zeros(N_d3*N_a1,N_semiz,N_d4,'gpuArray');

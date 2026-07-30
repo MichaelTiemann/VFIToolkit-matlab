@@ -30,10 +30,10 @@ N_z=prod(n_z);
 N_bothz=N_semiz*N_z;
 N_e=prod(n_e);
 
-V=zeros(N_a,N_bothz,N_e,N_j,'gpuArray');
+V=zeros(N_a,N_bothz,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(5,N_a,N_bothz,N_e,N_j,'gpuArray'); % (d1, d2, d3, midpoint, L2ind)
 PolicyL2flag=2*ones(1,N_a,N_bothz,N_e,N_j,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
-Valt=zeros(N_a,N_bothz,N_e,N_j,'gpuArray');
+Valt=zeros(N_a,N_bothz,N_e,N_j,vfoptions.precision,'gpuArray');
 Policyalt=zeros(5,N_a,N_bothz,N_e,N_j,'gpuArray');
 PolicyL2flagalt=2*ones(1,N_a,N_bothz,N_e,N_j,'gpuArray');
 
@@ -61,10 +61,10 @@ elseif vfoptions.lowmemory==3
 end
 
 % Per-d3 arrays (alt=exponential [F+beta*EV], tilde=QH-perceived [F+beta0*beta*EV])
-V_ford3_alt=zeros(N_a,N_bothz,N_e,N_d3,'gpuArray');
+V_ford3_alt=zeros(N_a,N_bothz,N_e,N_d3,vfoptions.precision,'gpuArray');
 Policy4_ford3_alt=zeros(4,N_a,N_bothz,N_e,N_d3,'gpuArray'); % (d1, d2, midpoint, L2ind)
 flag_ford3_alt=2*ones(1,N_a,N_bothz,N_e,N_d3,'gpuArray');
-V_ford3_tilde=zeros(N_a,N_bothz,N_e,N_d3,'gpuArray');
+V_ford3_tilde=zeros(N_a,N_bothz,N_e,N_d3,vfoptions.precision,'gpuArray');
 Policy4_ford3_tilde=zeros(4,N_a,N_bothz,N_e,N_d3,'gpuArray');
 flag_ford3_tilde=2*ones(1,N_a,N_bothz,N_e,N_d3,'gpuArray');
 
@@ -89,7 +89,7 @@ semizBind=shiftdim(gpuArray(0:1:N_semiz-1),-1);
 
 %% j=N_j
 
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0

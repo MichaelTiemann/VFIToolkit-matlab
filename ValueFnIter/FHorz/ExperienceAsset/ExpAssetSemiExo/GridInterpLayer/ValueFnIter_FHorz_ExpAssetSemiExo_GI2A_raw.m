@@ -48,12 +48,12 @@ bothzBind=shiftdim(gpuArray(0:1:N_bothz-1),-1); % already includes -1
 semizBind=shiftdim(gpuArray(0:1:N_semiz-1),-1); % already includes -1
 
 % Preallocate (loop over d3, then max over d3)
-V_ford3_jj=zeros(N_a,N_semiz*N_z,N_d3,'gpuArray');
+V_ford3_jj=zeros(N_a,N_semiz*N_z,N_d3,vfoptions.precision,'gpuArray');
 Policy4_ford3_jj=zeros(4,N_a,N_semiz*N_z,N_d3,'gpuArray'); % 1=d1, 2=d2, 3=joint(a1prime midpoint,a2prime), 4=a1primeL2ind
 flag_ford3_jj=2*ones(N_a,N_semiz*N_z,N_d3,'gpuArray');
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0

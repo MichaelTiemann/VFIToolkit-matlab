@@ -30,16 +30,16 @@ bothz_gridvals_J=[repmat(semiz_gridvals_J,N_z,1,1),repelem(z_gridvals_J,N_semiz,
 
 % Preallocate
 if vfoptions.lowmemory==0
-    V_ford2_jj=zeros(N_a,N_semiz*N_z,N_e,N_d2,'gpuArray');
+    V_ford2_jj=zeros(N_a,N_semiz*N_z,N_e,N_d2,vfoptions.precision,'gpuArray');
     Policy_ford2_jj=zeros(N_a,N_semiz*N_z,N_e,N_d2,'gpuArray');
 elseif vfoptions.lowmemory==1 % loops over e
-    V_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
+    V_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,vfoptions.precision,'gpuArray');
     Policy_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
 elseif vfoptions.lowmemory==2 % outer z / inner e, vectorize semiz
-    V_ford2_jj=zeros(N_a,N_semiz*N_z,N_e,N_d2,'gpuArray');
+    V_ford2_jj=zeros(N_a,N_semiz*N_z,N_e,N_d2,vfoptions.precision,'gpuArray');
     Policy_ford2_jj=zeros(N_a,N_semiz*N_z,N_e,N_d2,'gpuArray');
 elseif vfoptions.lowmemory==3 % joint bothz, inner e
-    V_ford2_jj=zeros(N_a,N_semiz*N_z,N_e,N_d2,'gpuArray');
+    V_ford2_jj=zeros(N_a,N_semiz*N_z,N_e,N_d2,vfoptions.precision,'gpuArray');
     Policy_ford2_jj=zeros(N_a,N_semiz*N_z,N_e,N_d2,'gpuArray');
 end
 

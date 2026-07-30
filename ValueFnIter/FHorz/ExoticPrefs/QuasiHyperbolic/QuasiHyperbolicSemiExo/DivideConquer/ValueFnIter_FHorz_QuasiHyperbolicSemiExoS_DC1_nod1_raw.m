@@ -22,8 +22,8 @@ bothzind=shiftdim(gpuArray(0:1:N_bothz-1),-1);
 
 loweredgesize=[1,1,N_semiz*N_z];
 
-Vhat_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
-Vunderbar_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
+Vhat_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,vfoptions.precision,'gpuArray');
+Vunderbar_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,vfoptions.precision,'gpuArray');
 Policy_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
 
 level1ii=round(linspace(1,n_a,vfoptions.level1n));

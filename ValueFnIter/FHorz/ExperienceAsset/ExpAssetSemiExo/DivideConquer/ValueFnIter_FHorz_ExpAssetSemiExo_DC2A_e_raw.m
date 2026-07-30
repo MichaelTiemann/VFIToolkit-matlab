@@ -22,7 +22,7 @@ N_z=prod(n_z);
 N_bothz=prod(n_bothz);
 N_e=prod(n_e);
 
-V=zeros(N_a,N_semiz*N_z,N_e,N_j,'gpuArray');
+V=zeros(N_a,N_semiz*N_z,N_e,N_j,vfoptions.precision,'gpuArray');
 % For semiz it turns out to be easier to go straight to constructing policy that stores d1,d2,d3,joint(a1prime,a2prime) seperately
 Policy4=zeros(4,N_a,N_semiz*N_z,N_e,N_j,'gpuArray');
 
@@ -58,11 +58,11 @@ a2ind=gpuArray(0:N_a2-1)';
 a3ind=gpuArray(0:N_a3-1)';
 
 % Preallocate (for the EV sections, which loop over d3)
-V_ford3_jj=zeros(N_a,N_semiz*N_z,N_e,N_d3,'gpuArray');
+V_ford3_jj=zeros(N_a,N_semiz*N_z,N_e,N_d3,vfoptions.precision,'gpuArray');
 Policy_ford3_jj=zeros(N_a,N_semiz*N_z,N_e,N_d3,'gpuArray');
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0

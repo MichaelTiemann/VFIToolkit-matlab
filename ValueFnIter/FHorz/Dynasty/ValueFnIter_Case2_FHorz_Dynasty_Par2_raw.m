@@ -20,7 +20,7 @@ if vfoptions.lowmemory>0
     z_gridvals=CreateGridvals(n_z,z_grid,1);
 end
 %%
-Vold=zeros(N_a,N_z,N_j);
+Vold=zeros(N_a,N_z,N_j,vfoptions.precision);
 tempcounter=1;
 currdist=Inf;
 while currdist>vfoptions.tolerance
@@ -29,7 +29,7 @@ while currdist>vfoptions.tolerance
     %%
     if Case2_Type==1 % phi_a'(d,a,z,z')
         if vfoptions.phiaprimedependsonage==0
-            PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames);
+            PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames, vfoptions.precision);
             if vfoptions.lowmemory==0
                 Phi_aprimeMatrix=CreatePhiaprimeMatrix_Case2_Disc_Par2(Phi_aprime, Case2_Type, n_d, n_a, n_z, d_grid, a_grid, z_grid,PhiaprimeParamsVec);
             end
@@ -125,7 +125,7 @@ while currdist>vfoptions.tolerance
 
     if Case2_Type==11 % phi_a'(d,a,z')
         if vfoptions.phiaprimedependsonage==0
-            PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames);
+            PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames, vfoptions.precision);
             if vfoptions.lowmemory==0
                 Phi_aprimeMatrix=CreatePhiaprimeMatrix_Case2_Disc_Par2(Phi_aprime, Case2_Type, n_d, n_a, n_z, d_grid, a_grid, z_grid,PhiaprimeParamsVec);
             end
@@ -224,7 +224,7 @@ while currdist>vfoptions.tolerance
 
     if Case2_Type==12 % phi_a'(d,a,z)
         if vfoptions.phiaprimedependsonage==0
-            PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames);
+            PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames, vfoptions.precision);
             if vfoptions.lowmemory==0
                 Phi_aprimeMatrix=CreatePhiaprimeMatrix_Case2_Disc_Par2(Phi_aprime, Case2_Type, n_d, n_a, n_z, d_grid, a_grid, z_grid,PhiaprimeParamsVec);
             end
@@ -322,7 +322,7 @@ while currdist>vfoptions.tolerance
         aaa=kron(pi_z,ones(N_d,1,'gpuArray'));
 
         if vfoptions.phiaprimedependsonage==0
-            PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames);
+            PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames, vfoptions.precision);
             if vfoptions.lowmemory==0
                 Phi_aprimeMatrix=CreatePhiaprimeMatrix_Case2_Disc_Par2(Phi_aprime, Case2_Type, n_d, n_a, n_z, d_grid, a_grid, z_grid,PhiaprimeParamsVec);
             end
@@ -393,7 +393,7 @@ while currdist>vfoptions.tolerance
 
     if Case2_Type==3  % phi_a'(d,z')
         if vfoptions.phiaprimedependsonage==0
-            PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames);
+            PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames, vfoptions.precision);
             Phi_aprimeMatrix=CreatePhiaprimeMatrix_Case2_Disc_Par2(Phi_aprime, Case2_Type, n_d, n_a, n_z, d_grid, a_grid, z_grid,PhiaprimeParamsVec);
         end
         for reverse_j=0:N_j-1
@@ -476,7 +476,7 @@ while currdist>vfoptions.tolerance
     end
 
     if Case2_Type==4  % phi_a'(d,a)
-        PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames);
+        PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames, vfoptions.precision);
         Phi_aprimeMatrix=CreatePhiaprimeMatrix_Case2_Disc_Par2(Phi_aprime, Case2_Type, n_d, n_a, n_z, d_grid, a_grid, z_grid,PhiaprimeParamsVec);
         aaa=kron(pi_z,ones(N_d,1,'gpuArray'));
 

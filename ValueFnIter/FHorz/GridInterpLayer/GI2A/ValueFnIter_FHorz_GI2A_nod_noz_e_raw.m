@@ -35,7 +35,7 @@ pi_e_J=shiftdim(pi_e_J,-1); % Move to second dimension (normally -2, but no z so
 %% j=N_j
 
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     ReturnMatrix=CreateReturnFnMatrix_Disc_DC2A_nod(ReturnFn,n_e, a1_grid, a2_grid, a1_grid, a2_grid, e_gridvals_J(:,:,N_j), ReturnFnParamsVec,1);

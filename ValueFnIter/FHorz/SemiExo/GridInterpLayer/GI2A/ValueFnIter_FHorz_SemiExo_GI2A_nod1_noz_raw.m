@@ -9,7 +9,7 @@ N_semiz=prod(n_semiz);
 
 V=zeros(N_a,N_semiz,N_j,vfoptions.precision,'gpuArray');
 % Policy: 4 channels [d2, a1prime midpoint, a2prime, a1prime L2]
-Policy=zeros(4,N_a,N_semiz,N_j,vfoption.'gpuArray');
+Policy=zeros(4,N_a,N_semiz,N_j,'gpuArray');
 PolicyL2flag=2*ones(1,N_a,N_semiz,N_j,'gpuArray'); % 1=all weight to lower coarse a1, 2=usual linear weights, 3=all weight to upper coarse a1
 
 %% Split a into a1 and a2 (a1 is interpolated, a2 is on the standard grid)
@@ -47,7 +47,7 @@ L2a2_ford2=zeros(N_a,N_semiz,N_d2,'gpuArray');
 flag_ford2=2*ones(N_a,N_semiz,N_d2,'gpuArray');
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     % No continuation. d2 still appears in ReturnFn — loop over d2_c.
@@ -133,7 +133,7 @@ if ~isfield(vfoptions,'V_Jplus1')
     PolicyL2flag(1,:,:,N_j)=reshape(flag_ford2(idx),[1,N_a,N_semiz]);
 else
     % Using V_Jplus1 — include continuation value
-    DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames, N_j));
+    DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames, N_j, vfoptions.precision));
     V_next=reshape(vfoptions.V_Jplus1,[N_a,N_semiz]);
 
     for d2_c=1:N_d2
@@ -239,8 +239,8 @@ for reverse_j=1:N_j-1
         fprintf('Finite horizon: %i of %i (counting backwards to 1) \n',jj, N_j)
     end
 
-    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, jj);
-    DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames, jj));
+    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, jj, vfoptions.precision);
+    DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames, jj, vfoptions.precision));
 
     V_next=V(:,:,jj+1);
 

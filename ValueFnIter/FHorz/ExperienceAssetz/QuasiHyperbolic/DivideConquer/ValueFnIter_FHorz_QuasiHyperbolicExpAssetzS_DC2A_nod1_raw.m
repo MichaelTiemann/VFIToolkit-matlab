@@ -11,7 +11,7 @@ N_a3=prod(n_a3);
 N_a=N_a1*N_a2*N_a3;
 N_z=prod(n_z);
 
-Vhat=zeros(N_a,N_z,N_j,'gpuArray');
+Vhat=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
 Vunderbar=zeros(N_a,N_z,N_j,'gpuArray');
 Policy=zeros(3,N_a,N_z,N_j,'gpuArray');
 
