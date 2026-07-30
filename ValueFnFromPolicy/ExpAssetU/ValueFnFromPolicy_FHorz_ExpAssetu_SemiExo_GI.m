@@ -176,7 +176,7 @@ for reverse_j=0:N_j-1
     jj=N_j-reverse_j;
 
     % Step 1: a2primeIndex, a2primeProbs at this age -- helper adds the u dim
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames, jj);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames, jj, vfoptions.precision);
     if N_e==0
         Policy_slice=Policy_k(:,:,:,jj); % [size_first, N_a, N_shocks]
     else
@@ -188,7 +188,7 @@ for reverse_j=0:N_j-1
     %   N_e>0:  [N_a, N_shocks*N_e, N_u]
 
     % Step 2: ReturnFn at policy
-    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj);
+    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj,vfoptions.precision);
     if N_e==0
         F_jj=EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell, PolicyValuesPermute(:,:,:,jj), l_daprime, n_a, n_shocks, a_gridvals, joint_gridvals_J(:,:,jj));
     else

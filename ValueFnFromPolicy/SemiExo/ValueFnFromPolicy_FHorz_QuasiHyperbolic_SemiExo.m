@@ -127,7 +127,7 @@ if vfoptions.gridinterplayer==1
     for reverse_j=0:N_j-1
         jj=N_j-reverse_j;
 
-        FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj);
+        FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj,vfoptions.precision);
         if N_e==0
             F_jj=EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell, PolicyValuesPermute(:,:,:,jj), l_daprime, n_a, n_shocks, a_gridvals, joint_gridvals_J(:,:,jj));
             if isNaive
@@ -256,7 +256,7 @@ end
 for reverse_j=0:N_j-1
     jj=N_j-reverse_j;
 
-    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj);
+    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj,vfoptions.precision);
     if N_e==0
         F_jj=EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell, PolicyValuesPermute(:,:,:,jj), l_daprime, n_a, n_shocks, a_gridvals, joint_gridvals_J(:,:,jj));
         if isNaive

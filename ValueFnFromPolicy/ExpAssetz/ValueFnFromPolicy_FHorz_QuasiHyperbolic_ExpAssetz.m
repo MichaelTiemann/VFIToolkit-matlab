@@ -97,10 +97,10 @@ end
 
 %% Two value functions (Vdrive uses beta and drives the recursion; Vrep uses beta0*beta and is reported as V)
 if N_e==0
-    Vdrive=zeros(N_a,N_z,N_j,'gpuArray'); Vrep=zeros(N_a,N_z,N_j,'gpuArray');
+    Vdrive=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray'); Vrep=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
     zidxoffset=N_a*gpuArray(0:N_z-1); % [1,N_z]
 else
-    Vdrive=zeros(N_a,N_z,N_e,N_j,'gpuArray'); Vrep=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+    Vdrive=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray'); Vrep=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
     zidxoffset=reshape(N_a*gpuArray(0:N_z-1),[1,N_z,1]); % [1,N_z,1]
 end
 
@@ -108,8 +108,8 @@ end
 for reverse_j=0:N_j-1
     jj=N_j-reverse_j;
 
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames, jj);
-    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames, jj, vfoptions.precision);
+    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj,vfoptions.precision);
 
     % a2prime interpolation + return, at Policy (and Policyalt if Naive)
     if N_e==0

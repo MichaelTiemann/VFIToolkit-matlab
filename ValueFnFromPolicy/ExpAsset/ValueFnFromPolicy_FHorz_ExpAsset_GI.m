@@ -151,7 +151,7 @@ for reverse_j=0:N_j-1
     jj=N_j-reverse_j;
 
     % Step 1: a2primeIndex, a2primeProbs at this age
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames, jj);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames, jj, vfoptions.precision);
     if N_z==0 && N_e==0
         Policy_slice=Policy_k(:,:,jj); % [size_first, N_a]
     else
@@ -160,7 +160,7 @@ for reverse_j=0:N_j-1
     [a2primeIndex, a2primeProbs]=CreateaprimePolicyExperienceAsset(Policy_slice, aprimeFn, whichisdforexpasset, n_d, n_a1, n_a2, N_ze, d_grid, a2_grid, aprimeFnParamsVec);
 
     % Step 2: ReturnFn at policy
-    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj);
+    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj,vfoptions.precision);
     if N_z==0 && N_e==0
         F_jj=EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell, PolicyValuesPermute(:,:,jj), l_daprime, n_a, 0, a_gridvals, []);
     elseif N_z==0 && N_e>0

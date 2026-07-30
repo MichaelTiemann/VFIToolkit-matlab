@@ -106,7 +106,7 @@ V=zeros(N_a, N_z, N_e, N_j, vfoptions.precision, 'gpuArray');
 for reverse_j=0:N_j-1
     jj=N_j-reverse_j;
 
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames, jj);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames, jj, vfoptions.precision);
     Policy_slice=Policy_k(:,:,:,:,jj); % [size_first, N_a, N_z, N_e]
 
     % Step 1: a2primeIndex, a2primeProbs -- helper handles (a, z, e) natively
@@ -116,7 +116,7 @@ for reverse_j=0:N_j-1
     a2primeProbs=reshape(a2primeProbs,[N_a,N_z,N_e]);
 
     % Step 2: ReturnFn at policy
-    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj);
+    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj,vfoptions.precision);
     F_jj=reshape(EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell, PolicyValuesPermute(:,:,:,jj), l_daprime, n_a, [n_z,vfoptions.n_e], a_gridvals, joint_zegridvals_J(:,:,jj)), [N_a, N_z, N_e]);
 
     if jj==N_j

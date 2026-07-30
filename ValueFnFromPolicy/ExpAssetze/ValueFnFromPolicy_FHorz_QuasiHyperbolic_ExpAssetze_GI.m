@@ -135,16 +135,16 @@ for jj=1:N_j
 end
 
 %% Two value functions (Vdrive uses beta and drives the recursion; Vrep uses beta0*beta and is reported as V)
-Vdrive=zeros(N_a,N_z,N_e,N_j,'gpuArray'); % Naive: Valt (at Policyalt).  Soph: Vunderbar (at Policy).
-Vrep  =zeros(N_a,N_z,N_e,N_j,'gpuArray'); % Naive: Vtilde (at Policy).   Soph: Vhat (at Policy).
+Vdrive=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray'); % Naive: Valt (at Policyalt).  Soph: Vunderbar (at Policy).
+Vrep  =zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray'); % Naive: Vtilde (at Policy).   Soph: Vhat (at Policy).
 zidxoffset=reshape(N_a*gpuArray(0:N_z-1),[1,N_z,1]); % [1,N_z,1]
 
 %% Backward iteration
 for reverse_j=0:N_j-1
     jj=N_j-reverse_j;
 
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames, jj);
-    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames, jj, vfoptions.precision);
+    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj,vfoptions.precision);
 
     % a2prime interpolation + return, at Policy (helper handles (a,z,e) natively -- NO per-e loop)
     [a2primeIndex, a2primeProbs]=CreateaprimePolicyExperienceAssetze(Policy_k(:,:,:,:,jj), aprimeFn, whichisdforexpasset, n_d, n_a1, n_a2, n_z, vfoptions.n_e, 0,N_z,N_e, d_grid, a2_grid, z_gridvals_J(:,:,jj), vfoptions.e_gridvals_J(:,:,jj), aprimeFnParamsVec);

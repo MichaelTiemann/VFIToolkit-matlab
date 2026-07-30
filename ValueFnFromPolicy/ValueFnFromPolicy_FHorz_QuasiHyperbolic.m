@@ -93,17 +93,17 @@ if vfoptions.gridinterplayer==1
             PolicyProbs_alt=zeros(N_a,N_j,2,'gpuArray');
             PolicyProbs_alt(:,:,2)=(L2_alt-1)/(n2short+1);
             PolicyProbs_alt(:,:,1)=1-PolicyProbs_alt(:,:,2);
-            Valt=zeros(N_a,N_j,'gpuArray');
-            Vtilde=zeros(N_a,N_j,'gpuArray');
+            Valt=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
+            Vtilde=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
         else
-            Vunderbar=zeros(N_a,N_j,'gpuArray');
+            Vunderbar=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
             Vhat=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
         end
 
         for reverse_j=0:N_j-1
             jj=N_j-reverse_j;
 
-            FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj);
+            FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj,vfoptions.precision);
             FofPolicy_jj=EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell,PolicyValuesPermute(:,:,jj),l_daprime,n_a,0,a_gridvals,[]);
             if isNaive
                 FofPolicyalt_jj=EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell,PolicyaltValuesPermute(:,:,jj),l_daprime,n_a,0,a_gridvals,[]);
@@ -169,17 +169,17 @@ if vfoptions.gridinterplayer==1
             PolicyProbs_alt=zeros(N_a,N_e,N_j,2,'gpuArray');
             PolicyProbs_alt(:,:,:,2)=(L2_alt-1)/(n2short+1);
             PolicyProbs_alt(:,:,:,1)=1-PolicyProbs_alt(:,:,:,2);
-            Valt=zeros(N_a,N_e,N_j,'gpuArray');
-            Vtilde=zeros(N_a,N_e,N_j,'gpuArray');
+            Valt=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
+            Vtilde=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
         else
-            Vunderbar=zeros(N_a,N_e,N_j,'gpuArray');
+            Vunderbar=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
             Vhat=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
         end
 
         for reverse_j=0:N_j-1
             jj=N_j-reverse_j;
 
-            FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj);
+            FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj,vfoptions.precision);
             FofPolicy_jj=EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell,PolicyValuesPermute(:,:,:,jj),l_daprime,n_a,vfoptions.n_e,a_gridvals,vfoptions.e_gridvals_J(:,:,jj));
             if isNaive
                 FofPolicyalt_jj=EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell,PolicyaltValuesPermute(:,:,:,jj),l_daprime,n_a,vfoptions.n_e,a_gridvals,vfoptions.e_gridvals_J(:,:,jj));
@@ -251,18 +251,18 @@ if vfoptions.gridinterplayer==1
             PolicyProbs_alt=zeros(N_a,N_z,N_j,2,'gpuArray');
             PolicyProbs_alt(:,:,:,2)=(L2_alt-1)/(n2short+1);
             PolicyProbs_alt(:,:,:,1)=1-PolicyProbs_alt(:,:,:,2);
-            Valt=zeros(N_a,N_z,N_j,'gpuArray');
+            Valt=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
             Vtilde=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
         else
-            Vunderbar=zeros(N_a,N_z,N_j,'gpuArray');
-            Vhat=zeros(N_a,N_z,N_j,'gpuArray');
+            Vunderbar=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
+            Vhat=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
         end
         zidxoffset=N_a*gpuArray(0:N_z-1); % (1, N_z)
 
         for reverse_j=0:N_j-1
             jj=N_j-reverse_j;
 
-            FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj);
+            FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj,vfoptions.precision);
             FofPolicy_jj=EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell,PolicyValuesPermute(:,:,:,jj),l_daprime,n_a,n_z,a_gridvals,z_gridvals_J(:,:,jj));
             if isNaive
                 FofPolicyalt_jj=EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell,PolicyaltValuesPermute(:,:,:,jj),l_daprime,n_a,n_z,a_gridvals,z_gridvals_J(:,:,jj));
@@ -330,10 +330,10 @@ if vfoptions.gridinterplayer==1
             PolicyProbs_alt=zeros(N_a,N_z,N_e,N_j,2,'gpuArray');
             PolicyProbs_alt(:,:,:,:,2)=(L2_alt-1)/(n2short+1);
             PolicyProbs_alt(:,:,:,:,1)=1-PolicyProbs_alt(:,:,:,:,2);
-            Valt=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+            Valt=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
             Vtilde=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
         else
-            Vunderbar=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+            Vunderbar=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
             Vhat=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
         end
         zidxoffset=N_a*gpuArray(0:N_z-1); % (1, N_z)
@@ -341,7 +341,7 @@ if vfoptions.gridinterplayer==1
         for reverse_j=0:N_j-1
             jj=N_j-reverse_j;
 
-            FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj);
+            FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj,vfoptions.precision);
             FofPolicy_jj=reshape(EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell,PolicyValuesPermute(:,:,:,jj),l_daprime,n_a,[n_z,vfoptions.n_e],a_gridvals,[repmat(z_gridvals_J(:,:,jj),N_e,1), repelem(vfoptions.e_gridvals_J(:,:,jj),N_z,1)]),[N_a,N_z,N_e]);
             if isNaive
                 FofPolicyalt_jj=reshape(EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell,PolicyaltValuesPermute(:,:,:,jj),l_daprime,n_a,[n_z,vfoptions.n_e],a_gridvals,[repmat(z_gridvals_J(:,:,jj),N_e,1), repelem(vfoptions.e_gridvals_J(:,:,jj),N_z,1)]),[N_a,N_z,N_e]);
@@ -408,17 +408,17 @@ if N_z==0 && N_e==0
         PolicyaltValues=PolicyInd2Val_FHorz(Policyalt,n_d,n_a,0,N_j,d_grid,a_grid,vfoptions,1);
         PolicyaltValuesPermute=permute(PolicyaltValues,[2,1,3]);
         PolicyIndexesKronAlt=KronPolicyIndexes_forValueFnFromPolicy(Policyalt, n_d, n_a, 1, N_j, vfoptions);
-        Valt=zeros(N_a,N_j,'gpuArray');
-        Vtilde=zeros(N_a,N_j,'gpuArray');
+        Valt=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
+        Vtilde=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
     else
-        Vunderbar=zeros(N_a,N_j,'gpuArray');
+        Vunderbar=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
         Vhat=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
     end
 
     for reverse_j=0:N_j-1
         jj=N_j-reverse_j;
 
-        FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj);
+        FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj,vfoptions.precision);
         FofPolicy_jj=EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell,PolicyValuesPermute(:,:,jj),l_daprime,n_a,0,a_gridvals,[]);
         if isNaive
             FofPolicyalt_jj=EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell,PolicyaltValuesPermute(:,:,jj),l_daprime,n_a,0,a_gridvals,[]);
@@ -488,17 +488,17 @@ elseif N_z==0 && N_e>0
         PolicyaltValues=PolicyInd2Val_FHorz(Policyalt,n_d,n_a,n_z,N_j,d_grid,a_grid,vfoptions,1);
         PolicyaltValuesPermute=permute(PolicyaltValues,[2,3,1,4]);
         PolicyIndexesKronAlt=KronPolicyIndexes_forValueFnFromPolicy(Policyalt, n_d, n_a, vfoptions.n_e, N_j, vfoptions);
-        Valt=zeros(N_a,N_e,N_j,'gpuArray');
-        Vtilde=zeros(N_a,N_e,N_j,'gpuArray');
+        Valt=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
+        Vtilde=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
     else
-        Vunderbar=zeros(N_a,N_e,N_j,'gpuArray');
+        Vunderbar=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
         Vhat=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
     end
 
     for reverse_j=0:N_j-1
         jj=N_j-reverse_j;
 
-        FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj);
+        FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj,vfoptions.precision);
         FofPolicy_jj=EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell,PolicyValuesPermute(:,:,:,jj),l_daprime,n_a,vfoptions.n_e,a_gridvals,vfoptions.e_gridvals_J(:,:,jj));
         if isNaive
             FofPolicyalt_jj=EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell,PolicyaltValuesPermute(:,:,:,jj),l_daprime,n_a,vfoptions.n_e,a_gridvals,vfoptions.e_gridvals_J(:,:,jj));
@@ -567,18 +567,18 @@ elseif N_z>0 && N_e==0
         PolicyaltValues=PolicyInd2Val_FHorz(Policyalt,n_d,n_a,n_z,N_j,d_grid,a_grid,vfoptions,1);
         PolicyaltValuesPermute=permute(PolicyaltValues,[2,3,1,4]);
         PolicyIndexesKronAlt=KronPolicyIndexes_forValueFnFromPolicy(Policyalt, n_d, n_a, n_z, N_j, vfoptions);
-        Valt=zeros(N_a,N_z,N_j,'gpuArray');
+        Valt=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
         Vtilde=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
     else
-        Vunderbar=zeros(N_a,N_z,N_j,'gpuArray');
-        Vhat=zeros(N_a,N_z,N_j,'gpuArray');
+        Vunderbar=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
+        Vhat=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
     end
     z_kron=kron((1:1:N_z)',ones(N_a,1,'gpuArray'));
 
     for reverse_j=0:N_j-1
         jj=N_j-reverse_j;
 
-        FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj);
+        FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj,vfoptions.precision);
         FofPolicy_jj=EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell,PolicyValuesPermute(:,:,:,jj),l_daprime,n_a,n_z,a_gridvals,z_gridvals_J(:,:,jj));
         if isNaive
             FofPolicyalt_jj=EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell,PolicyaltValuesPermute(:,:,:,jj),l_daprime,n_a,n_z,a_gridvals,z_gridvals_J(:,:,jj));
@@ -652,10 +652,10 @@ elseif N_z>0 && N_e>0
         PolicyaltValues=PolicyInd2Val_FHorz(Policyalt,n_d,n_a,n_z,N_j,d_grid,a_grid,vfoptions,1);
         PolicyaltValuesPermute=permute(PolicyaltValues,[2,3,1,4]);
         PolicyIndexesKronAlt=KronPolicyIndexes_forValueFnFromPolicy(Policyalt, n_d, n_a, [n_z,vfoptions.n_e], N_j, vfoptions);
-        Valt=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+        Valt=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
         Vtilde=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
     else
-        Vunderbar=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+        Vunderbar=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
         Vhat=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
     end
     zN_e_kron=kron(kron(ones(N_e,1,'gpuArray'),(1:1:N_z)'),ones(N_a,1,'gpuArray'));
@@ -663,7 +663,7 @@ elseif N_z>0 && N_e>0
     for reverse_j=0:N_j-1
         jj=N_j-reverse_j;
 
-        FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj);
+        FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj,vfoptions.precision);
         FofPolicy_jj=reshape(EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell,PolicyValuesPermute(:,:,:,jj),l_daprime,n_a,[n_z,vfoptions.n_e],a_gridvals,[repmat(z_gridvals_J(:,:,jj),N_e,1), repelem(vfoptions.e_gridvals_J(:,:,jj),N_z,1)]),[N_a,N_z,N_e]);
         if isNaive
             FofPolicyalt_jj=reshape(EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell,PolicyaltValuesPermute(:,:,:,jj),l_daprime,n_a,[n_z,vfoptions.n_e],a_gridvals,[repmat(z_gridvals_J(:,:,jj),N_e,1), repelem(vfoptions.e_gridvals_J(:,:,jj),N_z,1)]),[N_a,N_z,N_e]);

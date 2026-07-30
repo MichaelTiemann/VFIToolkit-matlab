@@ -148,7 +148,7 @@ for reverse_j=0:N_j-1
     jj=N_j-reverse_j;
 
     % Step 1: a2primeIndex, a2primeProbs for each state at this age
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames, jj);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames, jj, vfoptions.precision);
     if N_z==0 && N_e==0
         Policy_slice=Policy_k(:,:,jj); % [l_d+l_a1, N_a]
     else
@@ -160,7 +160,7 @@ for reverse_j=0:N_j-1
     % - else: [N_a, N_ze]
 
     % Step 2: ReturnFn at policy
-    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj);
+    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj,vfoptions.precision);
     if N_z==0 && N_e==0
         F_jj=EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell, PolicyValuesPermute(:,:,jj), l_daprime, n_a, 0, a_gridvals, []);
         % F_jj shape: [N_a, 1]

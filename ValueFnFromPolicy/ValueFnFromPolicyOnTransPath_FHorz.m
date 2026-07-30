@@ -108,7 +108,7 @@ for ttr=1:T-1
 
         % Evaluate Return Fn at policy (a, Policy(a,z,jj,tt), z, jj)
         PolicyValuesPermute=permute(PolicyValues_tt(:,:,:,jj),[2,3,1]); %[N_a,N_z,l_d+l_a]
-        FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj);
+        FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj,vfoptions.precision);
         FofPolicy_jj=EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell,PolicyValuesPermute,l_daprime,n_a,n_z,a_gridvals,z_gridvals_J_tt(:,:,jj));
 
         if jj==N_j

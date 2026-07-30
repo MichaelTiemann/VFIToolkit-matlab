@@ -117,7 +117,7 @@ end
 for reverse_j=0:N_j-1
     jj=N_j-reverse_j;
 
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames, jj);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames, jj, vfoptions.precision);
 
     % Step 1: a2primeIndex, a2primeProbs (helper expects Policy shape [L, N_a, N_z]; loop over e when N_e>0)
     if N_e==0
@@ -136,7 +136,7 @@ for reverse_j=0:N_j-1
     end
 
     % Step 2: ReturnFn at policy
-    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj);
+    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj,vfoptions.precision);
     if N_e==0
         F_jj=EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell, PolicyValuesPermute(:,:,:,jj), l_daprime, n_a, n_z, a_gridvals, z_gridvals_J(:,:,jj));
         % [N_a, N_z]
