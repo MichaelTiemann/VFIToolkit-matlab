@@ -38,7 +38,7 @@ nCalibParams=length(ParamNames);
 FullParamNames=fieldnames(Parameters);
 nFields=length(FullParamNames);
 
-VectorOfParamValues=zeros(1,nCalibParams,precision);
+VectorOfParamValues=zeros(1,nCalibParams,precision,'gpuArray');
 if nargin_temp==2
     for iCalibParam = 1:nCalibParams
         found=0;

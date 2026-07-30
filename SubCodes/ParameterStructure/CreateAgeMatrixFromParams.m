@@ -15,7 +15,7 @@ if ~exist('precision','var')
     precision='double';
 end
 
-AgeMatrixOfParamValues=zeros(N_j,nCalibParams,precision);
+AgeMatrixOfParamValues=zeros(N_j,nCalibParams,precision,'gpuArray');
 for iCalibParam = 1:nCalibParams
     found=0;
     for iField=1:nFields
