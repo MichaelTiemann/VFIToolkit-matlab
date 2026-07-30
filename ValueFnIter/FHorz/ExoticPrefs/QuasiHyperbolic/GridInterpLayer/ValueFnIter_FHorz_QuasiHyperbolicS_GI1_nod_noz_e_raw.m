@@ -8,7 +8,6 @@ function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicS_GI1_nod_noz_
 N_a=prod(n_a);
 N_e=prod(n_e);
 
-cast2precision=str2func(vfoptions.precision);
 Vhat=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(2,N_a,N_e,N_j,'gpuArray');
 PolicyL2flag=2*ones(1,N_a,N_e,N_j,'gpuArray'); % 1=all weight to lower coarse pt, 2=usual linear weights, 3=all weight to upper coarse pt

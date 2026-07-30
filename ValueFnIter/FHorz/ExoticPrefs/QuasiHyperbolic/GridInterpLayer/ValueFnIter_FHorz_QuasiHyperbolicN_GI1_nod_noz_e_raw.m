@@ -8,7 +8,6 @@ function [Vtilde,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicN_GI1_n
 N_a=prod(n_a);
 N_e=prod(n_e);
 
-cast2precision=str2func(vfoptions.precision);
 Valt=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
 Vtilde=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(2,N_a,N_e,N_j,'gpuArray');

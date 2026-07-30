@@ -1,9 +1,8 @@
 function [VPath,PolicyIndexesPath]=TransitionPath_FHorz_substeps_Step1_ValueFnIter_ExpAsset(T,PolicyIndexesPath,V_final,Parameters,PricePathOld,ParamPath,PricePathSizeVec,ParamPathSizeVec,PricePathNames,ParamPathNames,n_d1,n_d2,n_a1,n_a2,n_z,n_e,N_j,N_z,N_e,d_gridvals, d2_gridvals, a1_gridvals, a2_grid, z_gridvals_J,e_gridvals_J,pi_z_J,pi_e_J,ReturnFn,aprimeFn,DiscountFactorParamNames,ReturnFnParamNames,aprimeFnParamNames,transpathoptions,vfoptions)
 
-cast2precision=str2func(vfoptions.precision);
 
 % VPath is empty, but I am setting it up so that it can be included as an option later on.
-VPath=cast2precision([]);
+VPath=cast([],vfoptions.precision);
 
 if transpathoptions.fastOLG==0
     if N_z==0 && N_e==0

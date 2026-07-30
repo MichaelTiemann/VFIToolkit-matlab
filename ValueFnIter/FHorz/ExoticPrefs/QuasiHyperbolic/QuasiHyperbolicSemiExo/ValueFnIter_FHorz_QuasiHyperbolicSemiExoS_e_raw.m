@@ -20,7 +20,6 @@ Policy=zeros(3,N_a,N_semiz*N_z,N_e,N_j,'gpuArray');
 %%
 d_gridvals=[repmat(d1_gridvals,N_d2,1),repelem(d2_gridvals,N_d1,1)];
 
-cast2precision=str2func(vfoptions.precision);
 special_n_d=[cast2precision(n_d1),ones(1,length(n_d2),vfoptions.precision)];
 d12_gridvals=permute(reshape(d_gridvals,[N_d1,N_d2,length(n_d1)+length(n_d2)]),[1,3,2]);
 

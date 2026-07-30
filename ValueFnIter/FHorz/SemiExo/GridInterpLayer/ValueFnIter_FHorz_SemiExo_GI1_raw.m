@@ -18,7 +18,6 @@ PolicyL2flag=2*ones(1,N_a,N_semiz*N_z,N_j,'gpuArray'); % 1=all weight to lower c
 % When ReturnFn is -Inf on one of the course grid points, we will allow fine index between that and the neighbouring course grid point, but we use L2flag to record this and so later avoid that -Inf point when simulating/iteration
 
 %%
-cast2precision=str2func(vfoptions.precision);
 special_n_d=[cast2precision(n_d1),ones(1,length(n_d2),vfoptions.precision)];
 d_gridvals=[repmat(d1_gridvals,N_d2,1),repelem(d2_gridvals,N_d1,1)];
 
