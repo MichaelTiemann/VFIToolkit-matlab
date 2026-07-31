@@ -85,7 +85,7 @@ if ~isfield(vfoptions,'V_Jplus1')
                 if maxgap(ii)>0
                     loweredge=min(maxindex1(:,1,ii,:,:),N_a1-maxgap(ii));
                     a1primeindexes=loweredge+(0:1:maxgap(ii));
-                    ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, 0,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,n_bothz, d23_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, bothz_gridvals_J(:,:,N_j), ReturnFnParamsVec,3,0);
+                    ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, 0,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,n_bothz, d23_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(curraindex), a2_gridvals, bothz_gridvals_J(:,:,N_j), ReturnFnParamsVec,3,0);
                     [~,maxindex]=max(ReturnMatrix_ii,[],2);
                     midpoint(:,1,curraindex,:,:)=maxindex+(loweredge-1);
                 else
@@ -136,7 +136,7 @@ if ~isfield(vfoptions,'V_Jplus1')
                     if maxgap(ii)>0
                         loweredge=min(maxindex1(:,1,ii,:,:),N_a1-maxgap(ii));
                         a1primeindexes=loweredge+(0:1:maxgap(ii));
-                        ReturnMatrix_ii_z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, 0,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,[n_semiz,ones(1,length(n_z))], d23_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, z_valblock, ReturnFnParamsVec,3,0);
+                        ReturnMatrix_ii_z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, 0,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,[n_semiz,ones(1,length(n_z))], d23_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(curraindex), a2_gridvals, z_valblock, ReturnFnParamsVec,3,0);
                         [~,maxindex]=max(ReturnMatrix_ii_z,[],2);
                         midpoint(:,1,curraindex,:,:)=maxindex+(loweredge-1);
                     else
@@ -187,7 +187,7 @@ if ~isfield(vfoptions,'V_Jplus1')
                     if maxgap(ii)>0
                         loweredge=min(maxindex1(:,1,ii,:),N_a1-maxgap(ii));
                         a1primeindexes=loweredge+(0:1:maxgap(ii));
-                        ReturnMatrix_ii_z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, 0,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,special_n_bothz, d23_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, z_val, ReturnFnParamsVec,3,0);
+                        ReturnMatrix_ii_z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, 0,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,special_n_bothz, d23_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(curraindex), a2_gridvals, z_val, ReturnFnParamsVec,3,0);
                         [~,maxindex]=max(ReturnMatrix_ii_z,[],2);
                         midpoint(:,1,curraindex,:)=maxindex+(loweredge-1);
                     else
@@ -284,7 +284,7 @@ else
                 if maxgap(ii)>0
                     loweredge=min(maxindex1(:,1,ii,:,:),N_a1-maxgap(ii));
                     a1primeindexes=loweredge+(0:1:maxgap(ii));
-                    ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, 0,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,n_bothz, d23_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, bothz_gridvals_J(:,:,N_j), ReturnFnParamsVec,3,0);
+                    ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, 0,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,n_bothz, d23_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(curraindex), a2_gridvals, bothz_gridvals_J(:,:,N_j), ReturnFnParamsVec,3,0);
                     d2aprimez=(1:1:N_d2)'+N_d2*(a1primeindexes-1)+N_d2*N_a1*a2ind+N_d2*N_a1*N_a2*bothzind;
                     entireRHS_ii_d3=ReturnMatrix_ii_d3+DiscountedEV(d2aprimez);
                     [~,maxindex]=max(entireRHS_ii_d3,[],2);
@@ -358,7 +358,7 @@ else
                     if maxgap(ii)>0
                         loweredge=min(maxindex1(:,1,ii,:,:),N_a1-maxgap(ii));
                         a1primeindexes=loweredge+(0:1:maxgap(ii));
-                        ReturnMatrix_ii_d3z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, 0,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,[n_semiz,ones(1,length(n_z))], d23_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, z_valblock, ReturnFnParamsVec,3,0);
+                        ReturnMatrix_ii_d3z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, 0,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,[n_semiz,ones(1,length(n_z))], d23_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(curraindex), a2_gridvals, z_valblock, ReturnFnParamsVec,3,0);
                         d2aprimez=(1:1:N_d2)'+N_d2*(a1primeindexes-1)+N_d2*N_a1*a2ind+N_d2*N_a1*N_a2*semizind; % linear index into DiscountedEV [N_d2,N_a1,1,N_a2,N_semiz]
                         entireRHS_ii_d3z=ReturnMatrix_ii_d3z+DiscountedEV(d2aprimez);
                         [~,maxindex]=max(entireRHS_ii_d3z,[],2);
@@ -436,7 +436,7 @@ else
                     if maxgap(ii)>0
                         loweredge=min(maxindex1(:,1,ii,:),N_a1-maxgap(ii));
                         a1primeindexes=loweredge+(0:1:maxgap(ii));
-                        ReturnMatrix_ii_d3z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, 0,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,special_n_bothz, d23_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, z_val, ReturnFnParamsVec,3,0);
+                        ReturnMatrix_ii_d3z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, 0,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,special_n_bothz, d23_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(curraindex), a2_gridvals, z_val, ReturnFnParamsVec,3,0);
                         d2aprime=(1:1:N_d2)'+N_d2*(a1primeindexes-1)+N_d2*N_a1*a2ind;
                         entireRHS_ii_d3z=ReturnMatrix_ii_d3z+DiscountedEV_z(d2aprime);
                         [~,maxindex]=max(entireRHS_ii_d3z,[],2);
@@ -545,7 +545,7 @@ for reverse_j=1:N_j-1
                 if maxgap(ii)>0
                     loweredge=min(maxindex1(:,1,ii,:,:),N_a1-maxgap(ii));
                     a1primeindexes=loweredge+(0:1:maxgap(ii));
-                    ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, 0,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,n_bothz, d23_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, bothz_gridvals_J(:,:,jj), ReturnFnParamsVec,3,0);
+                    ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, 0,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,n_bothz, d23_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(curraindex), a2_gridvals, bothz_gridvals_J(:,:,jj), ReturnFnParamsVec,3,0);
                     d2aprimez=(1:1:N_d2)'+N_d2*(a1primeindexes-1)+N_d2*N_a1*a2ind+N_d2*N_a1*N_a2*bothzind;
                     entireRHS_ii_d3=ReturnMatrix_ii_d3+DiscountedEV(d2aprimez);
                     [~,maxindex]=max(entireRHS_ii_d3,[],2);
@@ -619,7 +619,7 @@ for reverse_j=1:N_j-1
                     if maxgap(ii)>0
                         loweredge=min(maxindex1(:,1,ii,:,:),N_a1-maxgap(ii));
                         a1primeindexes=loweredge+(0:1:maxgap(ii));
-                        ReturnMatrix_ii_d3z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, 0,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,[n_semiz,ones(1,length(n_z))], d23_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, z_valblock, ReturnFnParamsVec,3,0);
+                        ReturnMatrix_ii_d3z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, 0,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,[n_semiz,ones(1,length(n_z))], d23_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(curraindex), a2_gridvals, z_valblock, ReturnFnParamsVec,3,0);
                         d2aprimez=(1:1:N_d2)'+N_d2*(a1primeindexes-1)+N_d2*N_a1*a2ind+N_d2*N_a1*N_a2*semizind;
                         entireRHS_ii_d3z=ReturnMatrix_ii_d3z+DiscountedEV(d2aprimez);
                         [~,maxindex]=max(entireRHS_ii_d3z,[],2);
@@ -697,7 +697,7 @@ for reverse_j=1:N_j-1
                     if maxgap(ii)>0
                         loweredge=min(maxindex1(:,1,ii,:),N_a1-maxgap(ii));
                         a1primeindexes=loweredge+(0:1:maxgap(ii));
-                        ReturnMatrix_ii_d3z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, 0,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,special_n_bothz, d23_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, z_val, ReturnFnParamsVec,3,0);
+                        ReturnMatrix_ii_d3z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, 0,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,special_n_bothz, d23_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(curraindex), a2_gridvals, z_val, ReturnFnParamsVec,3,0);
                         d2aprime=(1:1:N_d2)'+N_d2*(a1primeindexes-1)+N_d2*N_a1*a2ind;
                         entireRHS_ii_d3z=ReturnMatrix_ii_d3z+DiscountedEV_z(d2aprime);
                         [~,maxindex]=max(entireRHS_ii_d3z,[],2);
