@@ -408,6 +408,8 @@ for reverse_j=1:N_j-1
             midpoint(:,1,level1ii,:,:)=maxindex1;
 
             maxgap=squeeze(max(max(max(maxindex1(:,1,2:end,:,:)-maxindex1(:,1,1:end-1,:,:),[],5),[],4),[],1));
+
+        if vfoptions.vectorize_ii==0
             for ii=1:(vfoptions.level1n-1)
                 curraindex=(level1ii(ii)+1:1:level1ii(ii+1)-1)';
                 if maxgap(ii)>0
@@ -425,6 +427,69 @@ for reverse_j=1:N_j-1
             end
 
             midpoint=max(min(midpoint,n_a1(1)-1),2);
+        else
+            % 1. Setup global bounds and dimensions
+            num_ii = vfoptions.level1n - 1;
+            N_curra = sum(level1iidiff(1:num_ii));
+
+            % 2. Elegantly construct the 187 absolute indices and their 'ii' mapping
+            % A fast CPU loop is safest here to ensure contiguous blocks are perfectly ordered
+            valid_curra_abs_idx = zeros(N_curra, 1);
+            ii_for_curra = repelem(1:num_ii, reshape(level1iidiff(1:num_ii), 1, []))'; 
+            idx = 1;
+            for ii = 1:num_ii
+                len = level1iidiff(ii);
+                valid_curra_abs_idx(idx : idx+len-1) = (level1ii(ii)+1 : level1ii(ii+1)-1)';
+                idx = idx + len;
+            end
+            a1_gridvals_all_curra = a1_gridvals(valid_curra_abs_idx);
+
+            % --- FULL GRID FUNCTION CALL ---
+            % 3. Evaluate the Return function on the FULL 201 x 187 grid
+            % We pass N_a1 (201) as the n_a1prime size, and the full a1_gridvals array
+            ReturnMatrix_full = CreateReturnFnMatrix_ExpAsset_Disc_d3(ReturnFn, 0, [n_d2,1], ...
+                N_a1, level1iidiff, n_a2, n_bothz, d23_gridvals_val, ...
+                a1_gridvals, a1_gridvals_all_curra, a2_gridvals, bothz_gridvals_J(:,:,N_j), ...
+                ReturnFnParamsVec, 3, 0);
+
+            % --- MASKING PREPARATION ---
+            % 4. Correctly format maxgap to 3D to broadcast across a2 and z
+            maxgap_3D = reshape(maxgap, [1, 1, num_ii, 1, 1]);
+
+            % 5. Get the 4D loweredge array, STRICTLY preserving a2 and z variations!
+            loweredge = min(maxindex1(:, 1, 1:num_ii, :, :), N_a1 - maxgap_3D);
+
+            % 6. Expand loweredge and maxgap to map exactly to the 187 curra states
+            % Size becomes: [1, 1, 187, N_a2, N_bothz]
+            loweredge_expanded = loweredge(:, :, ii_for_curra, :, :); 
+            maxgap_expanded = maxgap_3D(:, :, ii_for_curra, :, :);
+            upperedge_expanded = loweredge_expanded + maxgap_expanded;
+
+            % --- FINAL EVALUATION ---
+            % 7. Calculate d2aprimez for the full 1:201 absolute grid
+            abs_a1prime_row = reshape(1:N_a1, [1, N_a1]);
+            d2aprimez_mat = (1:1:N_d2)' + N_d2*(abs_a1prime_row - 1) + N_d2*N_a1*a2ind + N_d2*N_a1*N_a2*bothzind;
+
+            % 8. Compute entireRHS
+            entireRHS_full = ReturnMatrix_full + DiscountedEV(d2aprimez_mat);
+
+            % 9. APPLY THE MASK: -Inf everything outside the specific (a2, z) dependent window!
+            abs_a1prime_5D = reshape(1:N_a1, [1, N_a1, 1, 1, 1]);
+            valid_mask_5D = (abs_a1prime_5D >= loweredge_expanded) & (abs_a1prime_5D <= upperedge_expanded);
+            entireRHS_full(~valid_mask_5D) = -Inf;
+
+            % 10. Take the max! 
+            % Since dim 2 is simply 1:201, maxindex IS exactly the absolute global index!
+            [~, midpoint_new] = max(entireRHS_full, [], 2);
+
+            % 11. Re-assign directly into the main midpoint tensor
+            midpoint(:, 1, valid_curra_abs_idx, :, :) = midpoint_new;
+            
+            % 12. Final Clamping (OVERWRITE midpoint to prevent the -51 index!)
+            midpoint = max(min(midpoint, n_a1(1)-1), 2);
+            % Now the fine grid math will safely yield 1 as the absolute minimum index
+        end
+
             a1primeindexesfine=(midpoint+(midpoint-1)*n2short)+(-n2short-1:1:1+n2short);
             ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, 0,[n_d2,1],n2long,n_a1,n_a2,n_bothz, d23_gridvals_val, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,jj), ReturnFnParamsVec,2,0);
             d2a1primea2bothz=(1:1:N_d2)'+N_d2*(a1primeindexesfine-1)+N_d2*N_a1prime*a2ind+N_d2*N_a1prime*N_a2*bothzind;
