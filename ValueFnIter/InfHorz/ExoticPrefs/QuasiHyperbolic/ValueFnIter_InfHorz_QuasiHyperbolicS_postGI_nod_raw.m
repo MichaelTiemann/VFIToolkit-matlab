@@ -164,7 +164,8 @@ Policy_a=reshape(Policy,[1,N_a,N_z]);
 % Separate fine-grid Policy_a into L1 and L2
 fineindex=reshape(Policy_a,[N_a*N_z,1]);
 L1a=ceil((fineindex-1)/(n2short+1))-1;
-L1=max(L1a-vfoptions.maxaprimediff+1+aprimeshifter(:)-1,1);
+% the max(L1a,0) matters only at the window's bottom node, where L1a is -1; L2 below is built off the same thing, so L1 has to be too
+L1=max(max(L1a,0)-vfoptions.maxaprimediff+1+aprimeshifter(:)-1,1);
 L1intermediate=max(L1a,0)+1;
 L2=fineindex-(L1intermediate-1)*(n2short+1);
 

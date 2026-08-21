@@ -107,7 +107,8 @@ while currdist>vfoptions.tolerance && tempcounter<=vfoptions.maxiter
         % [N_aprime,...] array each step and then kept one row per state, which at n_a=500, n_z=75
         % came to 13.5GB and ran the GPU out of memory.
         Policy_L1a=ceil((Policy(:)-1)/(n2short+1))-1;
-        Policy_lowerind=max(Policy_L1a-vfoptions.maxaprimediff+aprimeshifter(:),1); % index on the full a_grid
+        % as above, max(Policy_L1a,0) so the lower index and the weight agree at the window's bottom node
+        Policy_lowerind=max(max(Policy_L1a,0)-vfoptions.maxaprimediff+aprimeshifter(:),1); % index on the full a_grid
         Policy_lowerprob=1- ((Policy(:)-max(Policy_L1a,0)*(n2short+1))-1)/(n2short+1);
         for Howards_counter=1:vfoptions.howards
             EVKrontemp=Policy_lowerprob.*VKron(Policy_lowerind)+(1-Policy_lowerprob).*VKron(Policy_lowerind+1); % [N_a,1]
@@ -191,7 +192,7 @@ while vfoptions.postGIrepeat>0
             % [N_aprime,...] array each step and then kept one row per state, which at n_a=500, n_z=75
             % came to 13.5GB and ran the GPU out of memory.
             Policy_L1a=ceil((Policy(:)-1)/(n2short+1))-1;
-            Policy_lowerind=max(Policy_L1a-vfoptions.maxaprimediff+aprimeshifter(:),1); % index on the full a_grid
+            Policy_lowerind=max(max(Policy_L1a,0)-vfoptions.maxaprimediff+aprimeshifter(:),1); % index on the full a_grid
             Policy_lowerprob=1- ((Policy(:)-max(Policy_L1a,0)*(n2short+1))-1)/(n2short+1);
             for Howards_counter=1:vfoptions.howards
                 EVKrontemp=Policy_lowerprob.*VKron(Policy_lowerind)+(1-Policy_lowerprob).*VKron(Policy_lowerind+1); % [N_a,1]
@@ -210,7 +211,8 @@ end
 fineindex=reshape(Policy,[N_a,1]);
 L1a=ceil((fineindex-1)/(n2short+1))-1;  % this ranges -1:0:2*vfoptions.maxaprimediff-1
 % (L1a-vfoptions.maxaprimediff+1) ranges -vfoptions.maxaprimediff:1:vfoptions.maxaprimediff
-L1=max(L1a-vfoptions.maxaprimediff+1+aprimeshifter(:)-1,1); % lower grid point index (on the full grid), so this ranges 0 to n_a-1
+% the max(L1a,0) matters only at the window's bottom node, where L1a is -1; L2 below is built off the same thing, so L1 has to be too
+L1=max(max(L1a,0)-vfoptions.maxaprimediff+1+aprimeshifter(:)-1,1); % lower grid point index (on the full grid), so this ranges 0 to n_a-1
 L1intermediate=max(L1a,0)+1; % lower grid point index (on the small grid, in form so we can get L2)
 L2=fineindex-(L1intermediate-1)*(n2short+1); % L2 index
 

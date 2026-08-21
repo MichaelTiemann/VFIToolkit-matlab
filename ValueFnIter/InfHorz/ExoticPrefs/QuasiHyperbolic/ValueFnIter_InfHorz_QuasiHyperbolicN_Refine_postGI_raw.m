@@ -270,7 +270,8 @@ Policy(1,:,:)=reshape(dstar(temppolicyindex),[N_a,N_z]); % dstar is defined on t
 
 fineindex=reshape(Policy_QH_a,[N_a*N_z,1]);
 L1a=ceil((fineindex-1)/(n2short+1))-1;
-L1=max(L1a-vfoptions.maxaprimediff+1+aprimeshifter(:)-1,1);
+% the max(L1a,0) matters only at the window's bottom node, where L1a is -1; L2 below is built off the same thing, so L1 has to be too
+L1=max(max(L1a,0)-vfoptions.maxaprimediff+1+aprimeshifter(:)-1,1);
 L1intermediate=max(L1a,0)+1;
 L2=fineindex-(L1intermediate-1)*(n2short+1);
 
@@ -294,7 +295,7 @@ Policyalt(1,:,:)=reshape(dstar(temppolicyindex),[N_a,N_z]);
 
 fineindex=reshape(Policy_std_a,[N_a*N_z,1]);
 L1a=ceil((fineindex-1)/(n2short+1))-1;
-L1=max(L1a-vfoptions.maxaprimediff+1+aprimeshifter(:)-1,1);
+L1=max(max(L1a,0)-vfoptions.maxaprimediff+1+aprimeshifter(:)-1,1);
 L1intermediate=max(L1a,0)+1;
 L2=fineindex-(L1intermediate-1)*(n2short+1);
 

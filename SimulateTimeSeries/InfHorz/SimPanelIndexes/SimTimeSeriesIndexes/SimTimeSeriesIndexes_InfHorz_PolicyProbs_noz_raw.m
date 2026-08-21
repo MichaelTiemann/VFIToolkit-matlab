@@ -3,7 +3,7 @@ function SimTimeSeriesKron=SimTimeSeriesIndexes_InfHorz_PolicyProbs_noz_raw(Poli
 
 currstate=seedpoint; % seedpoint is (a)
 
-SimTimeSeriesKron=nan(1,simoptoins.simperiods);
+SimTimeSeriesKron=nan(1,simoptions.simperiods);
 for tt=1:simoptions.simperiods
     SimTimeSeriesKron(1,tt)=currstate(1); % a_c
 
