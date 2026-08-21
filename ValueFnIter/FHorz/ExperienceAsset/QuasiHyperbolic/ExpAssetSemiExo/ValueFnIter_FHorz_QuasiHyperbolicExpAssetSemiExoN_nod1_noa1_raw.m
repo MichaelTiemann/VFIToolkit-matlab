@@ -189,10 +189,10 @@ else
     % Max over d3 (tilde)
     [V_jj,maxindex]=max(V_ford3_tilde,[],3);
     Vtilde(:,:,N_j)=V_jj;
-    Policy2alt(2,:,:,N_j)=shiftdim(maxindex,-1);
+    Policy2(2,:,:,N_j)=shiftdim(maxindex,-1);
     maxindex=reshape(maxindex,[N_a*N_bothz,1]);
     d2_ind=reshape(Policy_ford3_tilde((1:1:N_a*N_bothz)'+(N_a*N_bothz)*(maxindex-1)),[1,N_a,N_bothz]);
-    Policy2alt(1,:,:,N_j)=d2_ind;
+    Policy2(1,:,:,N_j)=d2_ind;
 
 end
 

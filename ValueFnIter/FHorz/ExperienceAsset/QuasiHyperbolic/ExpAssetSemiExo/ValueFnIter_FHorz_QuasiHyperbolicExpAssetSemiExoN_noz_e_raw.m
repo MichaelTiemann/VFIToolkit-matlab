@@ -1,7 +1,11 @@
-function [V,Policy4]=ValueFnIter_FHorz_ExpAssetSemiExo_noz_e_raw(n_d1,n_d2,n_d3,n_a1,n_a2,n_semiz,n_e,N_j, d12_gridvals, d2_gridvals, d3_grid, a1_gridvals, a2_grid, semiz_gridvals_J, e_gridvals_J, pi_semiz_J, pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions)
+function [Vtilde,Policy4,Valt,Policy4alt]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetSemiExoN_noz_e_raw(n_d1,n_d2,n_d3,n_a1,n_a2,n_semiz,n_e,N_j, d12_gridvals, d2_gridvals, d3_grid, a1_gridvals, a2_grid, semiz_gridvals_J, e_gridvals_J, pi_semiz_J, pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions)
 % d2 determines experience asset, d3 determines semi-exog state
 % a is endogenous state, a2 is experience asset
 % semiz is semi-exog state
+% Naive quasi-hyperbolic dual.  Two independent maximisations over the same argmax axis:
+%   Valt/Policy4alt maximise  F + beta*EV        (the exponential value; drives the recursion)
+%   Vtilde/Policy4  maximise  F + beta0*beta*EV  (the QH-perceived value)
+% beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj).
 
 N_d1=prod(n_d1);
 N_d2=prod(n_d2);
@@ -13,8 +17,10 @@ N_a=N_a1*N_a2;
 N_semiz=prod(n_semiz);
 N_e=prod(n_e);
 
-V=zeros(N_a,N_semiz,N_e,N_j,'gpuArray');
+Valt=zeros(N_a,N_semiz,N_e,N_j,'gpuArray');
+Vtilde=zeros(N_a,N_semiz,N_e,N_j,'gpuArray');
 % For semiz it turns out to be easier to go straight to constructing policy that stores d1,d2,d3,a1prime seperately
+Policy4alt=zeros(4,N_a,N_semiz,N_e,N_j,'gpuArray');
 Policy4=zeros(4,N_a,N_semiz,N_e,N_j,'gpuArray');
 
 %%
@@ -34,8 +40,10 @@ if vfoptions.lowmemory>1
 end
 
 % Preallocate
-V_ford3_jj=zeros(N_a,N_semiz,N_e,N_d3,'gpuArray');
-Policy_ford3_jj=zeros(N_a,N_semiz,N_e,N_d3,'gpuArray');
+V_ford3_alt=zeros(N_a,N_semiz,N_e,N_d3,'gpuArray');
+Policy_ford3_alt=zeros(N_a,N_semiz,N_e,N_d3,'gpuArray');
+V_ford3_tilde=zeros(N_a,N_semiz,N_e,N_d3,'gpuArray');
+Policy_ford3_tilde=zeros(N_a,N_semiz,N_e,N_d3,'gpuArray');
 
 
 %% j=N_j
@@ -49,13 +57,13 @@ if ~isfield(vfoptions,'V_Jplus1')
         ReturnMatrix=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,n_d23,n_a1,n_a1,n_a2,n_semiz,n_e, d123_gridvals, a1_gridvals, a1_gridvals, a2_gridvals, semiz_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,0,0); % [N_d*N_a1,N_a1*N_a2,N_bothz,N_e]; Level=0, Refine=0
         % Calc the max and it's index
         [Vtemp,maxindex]=max(ReturnMatrix,[],1);
-        V(:,:,:,N_j)=Vtemp;
+        Valt(:,:,:,N_j)=Vtemp;
         d_ind=rem(maxindex-1,N_d)+1;
         d12_ind=rem(d_ind-1,N_d12)+1;
-        Policy4(1,:,:,:,N_j)=rem(d12_ind-1,N_d1)+1; % d1
-        Policy4(2,:,:,:,N_j)=ceil(d12_ind/N_d1); % d2
-        Policy4(3,:,:,:,N_j)=ceil(d_ind/N_d12); % d3
-        Policy4(4,:,:,:,N_j)=ceil(maxindex/N_d); % d4
+        Policy4alt(1,:,:,:,N_j)=rem(d12_ind-1,N_d1)+1; % d1
+        Policy4alt(2,:,:,:,N_j)=ceil(d12_ind/N_d1); % d2
+        Policy4alt(3,:,:,:,N_j)=ceil(d_ind/N_d12); % d3
+        Policy4alt(4,:,:,:,N_j)=ceil(maxindex/N_d); % d4
 
     elseif vfoptions.lowmemory==1
 
@@ -64,13 +72,13 @@ if ~isfield(vfoptions,'V_Jplus1')
             ReturnMatrix=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,n_d23,n_a1,n_a1,n_a2,n_semiz,special_n_e, d123_gridvals, a1_gridvals, a1_gridvals, a2_gridvals, semiz_gridvals_J(:,:,N_j),e_val, ReturnFnParamsVec,0,0); % [N_d*N_a1,N_a1*N_a2,N_bothz]; Level=0, Refine=0
             % Calc the max and it's index
             [Vtemp,maxindex]=max(ReturnMatrix,[],1);
-            V(:,:,e_c,N_j)=Vtemp;
+            Valt(:,:,e_c,N_j)=Vtemp;
             d_ind=rem(maxindex-1,N_d)+1;
             d12_ind=rem(d_ind-1,N_d12)+1;
-            Policy4(1,:,:,e_c,N_j)=rem(d12_ind-1,N_d1)+1; % d1
-            Policy4(2,:,:,e_c,N_j)=ceil(d12_ind/N_d1); % d2
-            Policy4(3,:,:,e_c,N_j)=ceil(d_ind/N_d12); % d3
-            Policy4(4,:,:,e_c,N_j)=ceil(maxindex/N_d); % d4
+            Policy4alt(1,:,:,e_c,N_j)=rem(d12_ind-1,N_d1)+1; % d1
+            Policy4alt(2,:,:,e_c,N_j)=ceil(d12_ind/N_d1); % d2
+            Policy4alt(3,:,:,e_c,N_j)=ceil(d_ind/N_d12); % d3
+            Policy4alt(4,:,:,e_c,N_j)=ceil(maxindex/N_d); % d4
         end
 
     elseif vfoptions.lowmemory==2
@@ -81,16 +89,19 @@ if ~isfield(vfoptions,'V_Jplus1')
                 ReturnMatrix_z=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,n_d23,n_a1,n_a1,n_a2,special_n_semiz,special_n_e, d123_gridvals, a1_gridvals, a1_gridvals, a2_gridvals, z_val,e_val, ReturnFnParamsVec,0,0); % Level=0, Refine=0
                 % Calc the max and it's index
                 [Vtemp,maxindex]=max(ReturnMatrix_z,[],1);
-                V(:,z_c,e_c,N_j)=Vtemp;
+                Valt(:,z_c,e_c,N_j)=Vtemp;
                 d_ind=rem(maxindex-1,N_d)+1;
                 d12_ind=rem(d_ind-1,N_d12)+1;
-                Policy4(1,:,z_c,e_c,N_j)=rem(d12_ind-1,N_d1)+1;
-                Policy4(2,:,z_c,e_c,N_j)=ceil(d12_ind/N_d1);
-                Policy4(3,:,z_c,e_c,N_j)=ceil(d_ind/N_d12);
-                Policy4(4,:,z_c,e_c,N_j)=ceil(maxindex/N_d);
+                Policy4alt(1,:,z_c,e_c,N_j)=rem(d12_ind-1,N_d1)+1;
+                Policy4alt(2,:,z_c,e_c,N_j)=ceil(d12_ind/N_d1);
+                Policy4alt(3,:,z_c,e_c,N_j)=ceil(d_ind/N_d12);
+                Policy4alt(4,:,z_c,e_c,N_j)=ceil(maxindex/N_d);
             end
         end
     end
+    % Terminal period: no continuation, so the QH-perceived objects equal the exponential ones
+    Vtilde(:,:,:,N_j)=Valt(:,:,:,N_j);
+    Policy4(:,:,:,:,N_j)=Policy4alt(:,:,:,:,N_j);
 else
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
     [a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix(aprimeFn, n_d2, n_a2, d2_gridvals, a2_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
@@ -103,7 +114,9 @@ else
     EVpre=sum(reshape(vfoptions.V_Jplus1,[N_a,N_semiz,N_e]).*shiftdim(pi_e_J(:,N_j+1),-2),3);    % First, switch V_Jplus1 into Kron form
 
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
-    DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
+    beta=prod(DiscountFactorParamsVec);
+    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
+    beta0beta=beta0*beta;
 
     if vfoptions.lowmemory==0
         for d3_c=1:N_d3
@@ -132,13 +145,14 @@ else
             ReturnMatrix_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n_a1,n_a1,n_a2,n_semiz,n_e, d123_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, semiz_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,0,0); % Level=0, Refine=0
             % (d,aprime,a,z)
 
-            entireRHS_d3=ReturnMatrix_d3+DiscountFactorParamsVec*repelem(EV,N_d1,N_a1,1);
-
-            %Calc the max and it's index
-            [Vtemp,maxindex]=max(entireRHS_d3,[],1);
-
-            V_ford3_jj(:,:,:,d3_c)=shiftdim(Vtemp,1);
-            Policy_ford3_jj(:,:,:,d3_c)=shiftdim(maxindex,1);
+            entireRHS_alt=ReturnMatrix_d3+beta*repelem(EV,N_d1,N_a1,1);
+            [Vtemp_alt,maxindex_alt]=max(entireRHS_alt,[],1);
+            V_ford3_alt(:,:,:,d3_c)=shiftdim(Vtemp_alt,1);
+            Policy_ford3_alt(:,:,:,d3_c)=shiftdim(maxindex_alt,1);
+            entireRHS_tilde=ReturnMatrix_d3+beta0beta*repelem(EV,N_d1,N_a1,1);
+            [Vtemp_tilde,maxindex_tilde]=max(entireRHS_tilde,[],1);
+            V_ford3_tilde(:,:,:,d3_c)=shiftdim(Vtemp_tilde,1);
+            Policy_ford3_tilde(:,:,:,d3_c)=shiftdim(maxindex_tilde,1);
         end
 
     elseif vfoptions.lowmemory==1
@@ -169,13 +183,14 @@ else
                 ReturnMatrix_d3e=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n_a1,n_a1,n_a2,n_semiz,special_n_e, d123_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, semiz_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec,0,0); % Level=0, Refine=0
                 % (d,aprime,a,z)
 
-                entireRHS_d3e=ReturnMatrix_d3e+DiscountFactorParamsVec*repelem(EV,N_d1,N_a1,1);
-
-                %Calc the max and it's index
-                [Vtemp,maxindex]=max(entireRHS_d3e,[],1);
-
-                V_ford3_jj(:,:,e_c,d3_c)=shiftdim(Vtemp,1);
-                Policy_ford3_jj(:,:,e_c,d3_c)=shiftdim(maxindex,1);
+                entireRHS_alt=ReturnMatrix_d3e+beta*repelem(EV,N_d1,N_a1,1);
+                [Vtemp_alt,maxindex_alt]=max(entireRHS_alt,[],1);
+                V_ford3_alt(:,:,e_c,d3_c)=shiftdim(Vtemp_alt,1);
+                Policy_ford3_alt(:,:,e_c,d3_c)=shiftdim(maxindex_alt,1);
+                entireRHS_tilde=ReturnMatrix_d3e+beta0beta*repelem(EV,N_d1,N_a1,1);
+                [Vtemp_tilde,maxindex_tilde]=max(entireRHS_tilde,[],1);
+                V_ford3_tilde(:,:,e_c,d3_c)=shiftdim(Vtemp_tilde,1);
+                Policy_ford3_tilde(:,:,e_c,d3_c)=shiftdim(maxindex_tilde,1);
             end
         end
 
@@ -209,29 +224,43 @@ else
                     z_val=semiz_gridvals_J(z_c,:,N_j);
                     EV_z=EV(:,:,z_c);
 
-                    ReturnMatrix_d3ze=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n_a1,n_a1,n_a2, special_n_semiz, special_n_e, d123_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, z_val,e_val, ReturnFnParamsVec,0,0); % Level=0, Refine=0
+                    ReturnMatrix_d3ze=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n_a1,n_a1,n_a2,special_n_semiz,special_n_e, d123_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, z_val,e_val, ReturnFnParamsVec,0,0); % Level=0, Refine=0
 
-                    entireRHS_d3ze=ReturnMatrix_d3ze+DiscountFactorParamsVec*repelem(EV_z,N_d1,N_a1);
-
-                    %Calc the max and it's index
-                    [Vtemp,maxindex]=max(entireRHS_d3ze,[],1);
-                    V_ford3_jj(:,z_c,e_c,d3_c)=Vtemp;
-                    Policy_ford3_jj(:,z_c,e_c,d3_c)=maxindex;
+                    entireRHS_alt=ReturnMatrix_d3ze+beta*repelem(EV_z,N_d1,N_a1);
+                    [Vtemp_alt,maxindex_alt]=max(entireRHS_alt,[],1);
+                    V_ford3_alt(:,z_c,e_c,d3_c)=Vtemp_alt;
+                    Policy_ford3_alt(:,z_c,e_c,d3_c)=maxindex_alt;
+                    entireRHS_tilde=ReturnMatrix_d3ze+beta0beta*repelem(EV_z,N_d1,N_a1);
+                    [Vtemp_tilde,maxindex_tilde]=max(entireRHS_tilde,[],1);
+                    V_ford3_tilde(:,z_c,e_c,d3_c)=Vtemp_tilde;
+                    Policy_ford3_tilde(:,z_c,e_c,d3_c)=maxindex_tilde;
                 end
             end
         end
     end
 
-    % Now we just max over d3, and keep the policy that corresponded to that (including modify the policy to include the d3 decision)
-    [V_jj,maxindex]=max(V_ford3_jj,[],4); % max over d2
-    V(:,:,:,N_j)=V_jj;
+    % Max over d3 (alt)
+    [V_jj,maxindex]=max(V_ford3_alt,[],4); % max over d2
+    Valt(:,:,:,N_j)=V_jj;
+    Policy4alt(3,:,:,:,N_j)=shiftdim(maxindex,-1); % d3 is just maxindex
+    maxindex=reshape(maxindex,[N_a*N_semiz*N_e,1]); % This is the value of d that corresponds, make it this shape for addition just below
+    d12a1prime_ind=reshape(Policy_ford3_alt((1:1:N_a*N_semiz*N_e)'+(N_a*N_semiz*N_e)*(maxindex-1)),[1,N_a,N_semiz,N_e]);
+    d12_ind=rem(d12a1prime_ind-1,N_d12)+1;
+    Policy4alt(1,:,:,:,N_j)=rem(d12_ind-1,N_d1)+1; % d1
+    Policy4alt(2,:,:,:,N_j)=ceil(d12_ind/N_d1); % d2
+    Policy4alt(4,:,:,:,N_j)=ceil(d12a1prime_ind/N_d12); % a1prime
+
+    % Max over d3 (tilde)
+    [V_jj,maxindex]=max(V_ford3_tilde,[],4); % max over d2
+    Vtilde(:,:,:,N_j)=V_jj;
     Policy4(3,:,:,:,N_j)=shiftdim(maxindex,-1); % d3 is just maxindex
     maxindex=reshape(maxindex,[N_a*N_semiz*N_e,1]); % This is the value of d that corresponds, make it this shape for addition just below
-    d12a1prime_ind=reshape(Policy_ford3_jj((1:1:N_a*N_semiz*N_e)'+(N_a*N_semiz*N_e)*(maxindex-1)),[1,N_a,N_semiz,N_e]);
+    d12a1prime_ind=reshape(Policy_ford3_tilde((1:1:N_a*N_semiz*N_e)'+(N_a*N_semiz*N_e)*(maxindex-1)),[1,N_a,N_semiz,N_e]);
     d12_ind=rem(d12a1prime_ind-1,N_d12)+1;
     Policy4(1,:,:,:,N_j)=rem(d12_ind-1,N_d1)+1; % d1
     Policy4(2,:,:,:,N_j)=ceil(d12_ind/N_d1); % d2
     Policy4(4,:,:,:,N_j)=ceil(d12a1prime_ind/N_d12); % a1prime
+
 end
 
 %% Iterate backwards through j.
@@ -246,7 +275,9 @@ for reverse_j=1:N_j-1
     % Create a vector containing all the return function parameters (in order)
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
-    DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
+    beta=prod(DiscountFactorParamsVec);
+    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
+    beta0beta=beta0*beta;
 
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);
     [a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix(aprimeFn, n_d2, n_a2, d2_gridvals, a2_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
@@ -255,7 +286,7 @@ for reverse_j=1:N_j-1
     aprimeIndex=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat((a2primeIndex-1),N_a1,1); % [N_d2*N_a1,N_a2]
     aprimeplus1Index=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat(a2primeIndex,N_a1,1); % [N_d2*N_a1,N_a2]
 
-    EVpre=sum(V(:,:,:,jj+1).*shiftdim(pi_e_J(:,jj+1),-2),3);
+    EVpre=sum(Valt(:,:,:,jj+1).*shiftdim(pi_e_J(:,jj+1),-2),3);
 
     if vfoptions.lowmemory==0
         for d3_c=1:N_d3
@@ -284,13 +315,14 @@ for reverse_j=1:N_j-1
             ReturnMatrix_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n_a1,n_a1,n_a2,n_semiz,n_e, d123_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, semiz_gridvals_J(:,:,jj), e_gridvals_J(:,:,jj), ReturnFnParamsVec,0,0); % Level=0, Refine=0
             % (d,aprime,a,z)
 
-            entireRHS=ReturnMatrix_d3+DiscountFactorParamsVec*repelem(EV,N_d1,N_a1,1);
-
-            %Calc the max and it's index
-            [Vtemp,maxindex]=max(entireRHS,[],1);
-
-            V_ford3_jj(:,:,:,d3_c)=shiftdim(Vtemp,1);
-            Policy_ford3_jj(:,:,:,d3_c)=shiftdim(maxindex,1);
+            entireRHS_alt=ReturnMatrix_d3+beta*repelem(EV,N_d1,N_a1,1);
+            [Vtemp_alt,maxindex_alt]=max(entireRHS_alt,[],1);
+            V_ford3_alt(:,:,:,d3_c)=shiftdim(Vtemp_alt,1);
+            Policy_ford3_alt(:,:,:,d3_c)=shiftdim(maxindex_alt,1);
+            entireRHS_tilde=ReturnMatrix_d3+beta0beta*repelem(EV,N_d1,N_a1,1);
+            [Vtemp_tilde,maxindex_tilde]=max(entireRHS_tilde,[],1);
+            V_ford3_tilde(:,:,:,d3_c)=shiftdim(Vtemp_tilde,1);
+            Policy_ford3_tilde(:,:,:,d3_c)=shiftdim(maxindex_tilde,1);
         end
 
     elseif vfoptions.lowmemory==1
@@ -321,13 +353,14 @@ for reverse_j=1:N_j-1
                 ReturnMatrix_d3e=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n_a1,n_a1,n_a2,n_semiz,special_n_e, d123_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, semiz_gridvals_J(:,:,jj), e_val, ReturnFnParamsVec,0,0); % Level=0, Refine=0
                 % (d,aprime,a,z)
 
-                entireRHSe=ReturnMatrix_d3e+DiscountFactorParamsVec*repelem(EV,N_d1,N_a1,1);
-
-                %Calc the max and it's index
-                [Vtemp,maxindex]=max(entireRHSe,[],1);
-
-                V_ford3_jj(:,:,e_c,d3_c)=shiftdim(Vtemp,1);
-                Policy_ford3_jj(:,:,e_c,d3_c)=shiftdim(maxindex,1);
+                entireRHS_alt=ReturnMatrix_d3e+beta*repelem(EV,N_d1,N_a1,1);
+                [Vtemp_alt,maxindex_alt]=max(entireRHS_alt,[],1);
+                V_ford3_alt(:,:,e_c,d3_c)=shiftdim(Vtemp_alt,1);
+                Policy_ford3_alt(:,:,e_c,d3_c)=shiftdim(maxindex_alt,1);
+                entireRHS_tilde=ReturnMatrix_d3e+beta0beta*repelem(EV,N_d1,N_a1,1);
+                [Vtemp_tilde,maxindex_tilde]=max(entireRHS_tilde,[],1);
+                V_ford3_tilde(:,:,e_c,d3_c)=shiftdim(Vtemp_tilde,1);
+                Policy_ford3_tilde(:,:,e_c,d3_c)=shiftdim(maxindex_tilde,1);
             end
         end
 
@@ -363,28 +396,41 @@ for reverse_j=1:N_j-1
 
                     ReturnMatrix_d3z=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n_a1,n_a1,n_a2,special_n_semiz,special_n_e, d123_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, z_val,e_val, ReturnFnParamsVec,0,0); % Level=0, Refine=0
 
-                    entireRHS_z=ReturnMatrix_d3z+DiscountFactorParamsVec*repelem(EV_z,N_d1,N_a1);
-
-                    % Calc the max and it's index
-                    [Vtemp,maxindex]=max(entireRHS_z,[],1);
-
-                    V_ford3_jj(:,z_c,e_c,d3_c)=shiftdim(Vtemp,1);
-                    Policy_ford3_jj(:,z_c,e_c,d3_c)=shiftdim(maxindex,1);
+                    entireRHS_alt=ReturnMatrix_d3z+beta*repelem(EV_z,N_d1,N_a1);
+                    [Vtemp_alt,maxindex_alt]=max(entireRHS_alt,[],1);
+                    V_ford3_alt(:,z_c,e_c,d3_c)=shiftdim(Vtemp_alt,1);
+                    Policy_ford3_alt(:,z_c,e_c,d3_c)=shiftdim(maxindex_alt,1);
+                    entireRHS_tilde=ReturnMatrix_d3z+beta0beta*repelem(EV_z,N_d1,N_a1);
+                    [Vtemp_tilde,maxindex_tilde]=max(entireRHS_tilde,[],1);
+                    V_ford3_tilde(:,z_c,e_c,d3_c)=shiftdim(Vtemp_tilde,1);
+                    Policy_ford3_tilde(:,z_c,e_c,d3_c)=shiftdim(maxindex_tilde,1);
                 end
             end
         end
     end
 
-    % Now we just max over d3, and keep the policy that corresponded to that (including modify the policy to include the d3 decision)
-    [V_jj,maxindex]=max(V_ford3_jj,[],4); % max over d3
-    V(:,:,:,jj)=V_jj;
+    % Max over d3 (alt)
+    [V_jj,maxindex]=max(V_ford3_alt,[],4); % max over d3
+    Valt(:,:,:,jj)=V_jj;
+    Policy4alt(3,:,:,:,jj)=shiftdim(maxindex,-1); % d3 is just maxindex
+    maxindex=reshape(maxindex,[N_a*N_semiz*N_e,1]); % This is the value of d that corresponds, make it this shape for addition just below
+    d12a1prime_ind=reshape(Policy_ford3_alt((1:1:N_a*N_semiz*N_e)'+(N_a*N_semiz*N_e)*(maxindex-1)),[1,N_a,N_semiz,N_e]);
+    d12_ind=rem(d12a1prime_ind-1,N_d12)+1;
+    Policy4alt(1,:,:,:,jj)=rem(d12_ind-1,N_d1)+1; % d1
+    Policy4alt(2,:,:,:,jj)=ceil(d12_ind/N_d1); % d2
+    Policy4alt(4,:,:,:,jj)=ceil(d12a1prime_ind/N_d12); % a1prime
+
+    % Max over d3 (tilde)
+    [V_jj,maxindex]=max(V_ford3_tilde,[],4); % max over d3
+    Vtilde(:,:,:,jj)=V_jj;
     Policy4(3,:,:,:,jj)=shiftdim(maxindex,-1); % d3 is just maxindex
     maxindex=reshape(maxindex,[N_a*N_semiz*N_e,1]); % This is the value of d that corresponds, make it this shape for addition just below
-    d12a1prime_ind=reshape(Policy_ford3_jj((1:1:N_a*N_semiz*N_e)'+(N_a*N_semiz*N_e)*(maxindex-1)),[1,N_a,N_semiz,N_e]);
+    d12a1prime_ind=reshape(Policy_ford3_tilde((1:1:N_a*N_semiz*N_e)'+(N_a*N_semiz*N_e)*(maxindex-1)),[1,N_a,N_semiz,N_e]);
     d12_ind=rem(d12a1prime_ind-1,N_d12)+1;
     Policy4(1,:,:,:,jj)=rem(d12_ind-1,N_d1)+1; % d1
     Policy4(2,:,:,:,jj)=ceil(d12_ind/N_d1); % d2
     Policy4(4,:,:,:,jj)=ceil(d12a1prime_ind/N_d12); % a1prime
+
 
 end
 

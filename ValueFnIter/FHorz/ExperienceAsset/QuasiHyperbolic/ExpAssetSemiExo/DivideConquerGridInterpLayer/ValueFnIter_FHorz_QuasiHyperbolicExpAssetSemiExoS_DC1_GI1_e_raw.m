@@ -1,4 +1,14 @@
-function [V,Policy]=ValueFnIter_FHorz_ExpAssetSemiExo_DC1_GI1_e_raw(n_d1,n_d2,n_d3,n_a1,n_a2,n_z,n_semiz,n_e,N_j, d12_gridvals, d2_gridvals, d3_grid, a1_gridvals, a2_grid, z_gridvals_J, semiz_gridvals_J, e_gridvals_J, pi_z_J, pi_semiz_J, pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions)
+function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetSemiExoS_DC1_GI1_e_raw(n_d1,n_d2,n_d3,n_a1,n_a2,n_z,n_semiz,n_e,N_j, d12_gridvals, d2_gridvals, d3_grid, a1_gridvals, a2_grid, z_gridvals_J, semiz_gridvals_J, e_gridvals_J, pi_z_J, pi_semiz_J, pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions)
+% Sophisticated quasi-hyperbolic discounting + ExperienceAsset + SemiExo, Divide-and-Conquer (DC1 over a1prime) with grid interpolation layer (GI1) on a1.
+% d2 determines the experience asset a2, a1 is the standard endogenous state.
+% d3 determines the semi-exogenous state semiz.
+% Sophisticated: Vhat_j      = max_{d,a1'} u + beta0*beta*E[Vunderbar_{j+1}]
+%                Vunderbar_j = Vhat_j + (beta - beta0*beta)*EVfine_at_optimal_choice
+% One max under beta0*beta (so a single DC bracket and a single GI midpoint), then the continuation is
+% gathered from EVfine: the (undiscounted) interpolated continuation that was actually added to the
+% layer-2 RHS. The a2 lottery is already resolved inside EV before the interpolation, so the gather
+% needs no lottery handling.
+% The d3 choice is made on the hat values; Vunderbar is then gathered at that same d3.
 % d2 determines experience asset, d3 determines semi-exog state
 % a is endogenous state, a2 is experience asset
 % z is exogenous state, semiz is semi-exog state
@@ -18,7 +28,8 @@ N_z=prod(n_z);
 N_bothz=prod(n_bothz);
 N_e=prod(n_e);
 
-V=zeros(N_a,N_semiz*N_z,N_e,N_j,'gpuArray');
+Vhat=zeros(N_a,N_semiz*N_z,N_e,N_j,'gpuArray');
+Vunderbar=zeros(N_a,N_semiz*N_z,N_e,N_j,'gpuArray');
 PolicyL2flag=2*ones(1,N_a,N_semiz*N_z,N_e,N_j,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
 % For semiz it turns out to be easier to go straight to constructing policy that stores d1,d2,d3,a1prime seperately
 Policy=zeros(5,N_a,N_semiz*N_z,N_e,N_j,'gpuArray');
@@ -49,9 +60,10 @@ elseif vfoptions.lowmemory==3
 end
 
 % Preallocate
-V_ford3_jj=zeros(N_a,N_bothz,N_e,N_d3,'gpuArray');
-Policy4_ford3_jj=zeros(4,N_a,N_bothz,N_e,N_d3,'gpuArray');
-flag_ford3_jj=2*ones(N_a,N_bothz,N_e,N_d3,'gpuArray');
+V_ford3_hat=zeros(N_a,N_bothz,N_e,N_d3,'gpuArray');
+V_ford3_under=zeros(N_a,N_bothz,N_e,N_d3,'gpuArray'); % beta-value gathered at the hat argmax
+Policy4_ford3_hat=zeros(4,N_a,N_bothz,N_e,N_d3,'gpuArray');
+flag_ford3_hat=2*ones(N_a,N_bothz,N_e,N_d3,'gpuArray');
 
 % n-Monotonicity
 level1ii=round(linspace(1,n_a1,vfoptions.level1n));
@@ -118,13 +130,13 @@ if ~isfield(vfoptions,'V_Jplus1')
             % aprime possibilities are n_d12-by-n2long-by-n_a1-by-n_a2-by-n_bothz-by-n_e
             ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n2long,n_a1,n_a2,n_bothz,n_e, d123_gridvals_val, a1prime_grid(aprimeindexes), a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,2,0); % [N_d,N_a1prime,N_a1,N_a2,N_bothz,N_e]; Level=2, Refine=0
             [Vtempii,maxindexL2]=max(ReturnMatrix_ii,[],1);
-            V_ford3_jj(:,:,:,d3_c)=shiftdim(Vtempii,1);
+            V_ford3_hat(:,:,:,d3_c)=shiftdim(Vtempii,1);
             d_ind=rem(maxindexL2-1,N_d12)+1;
             allind=d_ind+N_d12*aind+N_d12*N_a*bothzBind+N_d12*N_a*N_bothz*eBind; % midpoint is n_d12-by-1-by-n_a1-by-n_a2-by-n_bothz-by-n_e
-            Policy4_ford3_jj(1,:,:,:,d3_c)=rem(d_ind-1,N_d1)+1; % d1
-            Policy4_ford3_jj(2,:,:,:,d3_c)=ceil(d_ind/N_d1); % d2
-            Policy4_ford3_jj(3,:,:,:,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
-            Policy4_ford3_jj(4,:,:,:,d3_c)=shiftdim(ceil(maxindexL2/N_d12),-1); % a1primeL2ind
+            Policy4_ford3_hat(1,:,:,:,d3_c)=rem(d_ind-1,N_d1)+1; % d1
+            Policy4_ford3_hat(2,:,:,:,d3_c)=ceil(d_ind/N_d1); % d2
+            Policy4_ford3_hat(3,:,:,:,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+            Policy4_ford3_hat(4,:,:,:,d3_c)=shiftdim(ceil(maxindexL2/N_d12),-1); % a1primeL2ind
 
             % L2 flag for this d3
             L2offset = ceil(maxindexL2/N_d12);
@@ -134,7 +146,7 @@ if ~isfield(vfoptions,'V_Jplus1')
             isInfUpper = (ReturnMatrix_ii(linidx_upper) == -Inf);
             inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
             inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
-            flag_ford3_jj(:,:,:,d3_c) = squeeze(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper));
+            flag_ford3_hat(:,:,:,d3_c) = squeeze(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper));
         end
 
     elseif vfoptions.lowmemory==1
@@ -179,13 +191,13 @@ if ~isfield(vfoptions,'V_Jplus1')
                 % aprime possibilities are n_d12-by-n2long-by-n_a1-by-n_a2-by-n_bothz
                 ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n2long,n_a1,n_a2,n_bothz,special_n_e, d123_gridvals_val, a1prime_grid(aprimeindexes), a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec,2,0); % [N_d,N_a1prime,N_a1,N_a2,N_bothz]; Level=2, Refine=0
                 [Vtempii,maxindexL2]=max(ReturnMatrix_ii,[],1);
-                V_ford3_jj(:,:,e_c,d3_c)=shiftdim(Vtempii,1);
+                V_ford3_hat(:,:,e_c,d3_c)=shiftdim(Vtempii,1);
                 d_ind=rem(maxindexL2-1,N_d12)+1;
                 allind=d_ind+N_d12*aind+N_d12*N_a*bothzBind; % midpoint is n_d12-by-1-by-n_a1-by-n_a2-by-n_bothz
-                Policy4_ford3_jj(1,:,:,e_c,d3_c)=rem(d_ind-1,N_d1)+1; % d1
-                Policy4_ford3_jj(2,:,:,e_c,d3_c)=ceil(d_ind/N_d1); % d2
-                Policy4_ford3_jj(3,:,:,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
-                Policy4_ford3_jj(4,:,:,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d12),-1); % a1primeL2ind
+                Policy4_ford3_hat(1,:,:,e_c,d3_c)=rem(d_ind-1,N_d1)+1; % d1
+                Policy4_ford3_hat(2,:,:,e_c,d3_c)=ceil(d_ind/N_d1); % d2
+                Policy4_ford3_hat(3,:,:,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+                Policy4_ford3_hat(4,:,:,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d12),-1); % a1primeL2ind
 
                 % L2 flag for this (d3, e_c)
                 L2offset = ceil(maxindexL2/N_d12);
@@ -195,7 +207,7 @@ if ~isfield(vfoptions,'V_Jplus1')
                 isInfUpper = (ReturnMatrix_ii(linidx_upper) == -Inf);
                 inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
                 inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
-                flag_ford3_jj(:,:,e_c,d3_c) = squeeze(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper));
+                flag_ford3_hat(:,:,e_c,d3_c) = squeeze(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper));
             end
         end
 
@@ -245,13 +257,13 @@ if ~isfield(vfoptions,'V_Jplus1')
                     % aprime possibilities are n_d12-by-n2long-by-n_a1-by-n_a2-by-n_semiz
                     ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n2long,n_a1,n_a2,special_n_semiz,special_n_e, d123_gridvals_val, a1prime_grid(aprimeindexes), a1_gridvals, a2_gridvals, z_val, e_val, ReturnFnParamsVec,2,0); % [N_d,N_a1prime,N_a1,N_a2,N_semiz]; Level=2, Refine=0
                     [Vtempii,maxindexL2]=max(ReturnMatrix_ii,[],1);
-                    V_ford3_jj(:,zind,e_c,d3_c)=shiftdim(Vtempii,1);
+                    V_ford3_hat(:,zind,e_c,d3_c)=shiftdim(Vtempii,1);
                     d_ind=rem(maxindexL2-1,N_d12)+1;
                     allind=d_ind+N_d12*aind+N_d12*N_a*semizBind; % midpoint is n_d12-by-1-by-n_a1-by-n_a2-by-n_semiz
-                    Policy4_ford3_jj(1,:,zind,e_c,d3_c)=rem(d_ind-1,N_d1)+1; % d1
-                    Policy4_ford3_jj(2,:,zind,e_c,d3_c)=ceil(d_ind/N_d1); % d2
-                    Policy4_ford3_jj(3,:,zind,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
-                    Policy4_ford3_jj(4,:,zind,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d12),-1); % a1primeL2ind
+                    Policy4_ford3_hat(1,:,zind,e_c,d3_c)=rem(d_ind-1,N_d1)+1; % d1
+                    Policy4_ford3_hat(2,:,zind,e_c,d3_c)=ceil(d_ind/N_d1); % d2
+                    Policy4_ford3_hat(3,:,zind,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+                    Policy4_ford3_hat(4,:,zind,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d12),-1); % a1primeL2ind
 
                     % L2 flag for this (d3, z_c, e_c)
                     L2offset = ceil(maxindexL2/N_d12);
@@ -261,7 +273,7 @@ if ~isfield(vfoptions,'V_Jplus1')
                     isInfUpper = (ReturnMatrix_ii(linidx_upper) == -Inf);
                     inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
                     inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
-                    flag_ford3_jj(:,zind,e_c,d3_c) = squeeze(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper));
+                    flag_ford3_hat(:,zind,e_c,d3_c) = squeeze(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper));
                 end
             end
         end
@@ -311,13 +323,13 @@ if ~isfield(vfoptions,'V_Jplus1')
                     % aprime possibilities are n_d12-by-n2long-by-n_a1-by-n_a2
                     ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n2long,n_a1,n_a2,special_n_bothz,special_n_e, d123_gridvals_val, a1prime_grid(aprimeindexes), a1_gridvals, a2_gridvals, z_val, e_val, ReturnFnParamsVec,2,0); % [N_d,N_a1prime,N_a1,N_a2,N_semiz]; Level=2, Refine=0
                     [Vtempii,maxindexL2]=max(ReturnMatrix_ii,[],1);
-                    V_ford3_jj(:,z_c,e_c,d3_c)=shiftdim(Vtempii,1);
+                    V_ford3_hat(:,z_c,e_c,d3_c)=shiftdim(Vtempii,1);
                     d_ind=rem(maxindexL2-1,N_d12)+1;
                     allind=d_ind+N_d12*aind; % midpoint is n_d12-by-1-by-n_a1-by-n_a2
-                    Policy4_ford3_jj(1,:,z_c,e_c,d3_c)=rem(d_ind-1,N_d1)+1; % d1
-                    Policy4_ford3_jj(2,:,z_c,e_c,d3_c)=ceil(d_ind/N_d1); % d2
-                    Policy4_ford3_jj(3,:,z_c,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
-                    Policy4_ford3_jj(4,:,z_c,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d12),-1); % a1primeL2ind
+                    Policy4_ford3_hat(1,:,z_c,e_c,d3_c)=rem(d_ind-1,N_d1)+1; % d1
+                    Policy4_ford3_hat(2,:,z_c,e_c,d3_c)=ceil(d_ind/N_d1); % d2
+                    Policy4_ford3_hat(3,:,z_c,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+                    Policy4_ford3_hat(4,:,z_c,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d12),-1); % a1primeL2ind
 
                     % L2 flag for this (d3, z_c, e_c)
                     L2offset = ceil(maxindexL2/N_d12);
@@ -327,23 +339,24 @@ if ~isfield(vfoptions,'V_Jplus1')
                     isInfUpper = (ReturnMatrix_ii(linidx_upper) == -Inf);
                     inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
                     inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
-                    flag_ford3_jj(:,z_c,e_c,d3_c) = squeeze(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper));
+                    flag_ford3_hat(:,z_c,e_c,d3_c) = squeeze(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper));
                 end
             end
         end
     end
 
     % Now we just max over d3, and keep the policy that corresponded to that (including modify the policy to include the d3 decision)
-    [V_jj,maxindex]=max(V_ford3_jj,[],4); % max over d3
-    V(:,:,:,N_j)=V_jj;
+    [V_jj,maxindex]=max(V_ford3_hat,[],4); % max over d3
+    Vhat(:,:,:,N_j)=V_jj;
     Policy(3,:,:,:,N_j)=shiftdim(maxindex,-1); % d3 is just maxindex
     maxindex=reshape(maxindex,[N_a*N_bothz*N_e,1]); % This is the value of d that corresponds, make it this shape for addition just below
     temp=4*( (1:1:N_a*N_bothz*N_e)'+(N_a*N_bothz*N_e)*(maxindex-1) -1);
-    Policy(1,:,:,:,N_j)=reshape(Policy4_ford3_jj(1+temp),[1,N_a,N_bothz,N_e]);
-    Policy(2,:,:,:,N_j)=reshape(Policy4_ford3_jj(2+temp),[1,N_a,N_bothz,N_e]);
-    Policy(4,:,:,:,N_j)=reshape(Policy4_ford3_jj(3+temp),[1,N_a,N_bothz,N_e]);
-    Policy(5,:,:,:,N_j)=reshape(Policy4_ford3_jj(4+temp),[1,N_a,N_bothz,N_e]);
-    PolicyL2flag(1,:,:,:,N_j)=reshape(flag_ford3_jj((1:1:N_a*N_bothz*N_e)'+(N_a*N_bothz*N_e)*(maxindex-1)),[1,N_a,N_bothz,N_e]);
+    Policy(1,:,:,:,N_j)=reshape(Policy4_ford3_hat(1+temp),[1,N_a,N_bothz,N_e]);
+    Policy(2,:,:,:,N_j)=reshape(Policy4_ford3_hat(2+temp),[1,N_a,N_bothz,N_e]);
+    Policy(4,:,:,:,N_j)=reshape(Policy4_ford3_hat(3+temp),[1,N_a,N_bothz,N_e]);
+    Policy(5,:,:,:,N_j)=reshape(Policy4_ford3_hat(4+temp),[1,N_a,N_bothz,N_e]);
+    PolicyL2flag(1,:,:,:,N_j)=reshape(flag_ford3_hat((1:1:N_a*N_bothz*N_e)'+(N_a*N_bothz*N_e)*(maxindex-1)),[1,N_a,N_bothz,N_e]);
+    Vunderbar(:,:,:,N_j)=Vhat(:,:,:,N_j);
 
 else
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
@@ -358,7 +371,9 @@ else
     EVpre=sum(reshape(vfoptions.V_Jplus1,[N_a,N_bothz,N_e]).*shiftdim(pi_e_J(:,N_j+1),-2),3);    % First, switch V_Jplus1 into Kron form
 
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
-    DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
+    beta=prod(DiscountFactorParamsVec);
+    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
+    beta0beta=beta0*beta;
 
     if vfoptions.lowmemory==0
         for d3_c=1:N_d3
@@ -382,16 +397,16 @@ else
             EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
             % entireEV is (d2,a1prime, a2,z)
 
-            DiscountedEV=DiscountFactorParamsVec*reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % (d2,a1prime,1,a2,zprime)
+            entireEV=reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % (d2,a1prime,1,a2,zprime); undiscounted, beta0beta applied at use sites
             % Interpolate EV over aprime_grid
-            DiscountedEVinterp=permute(interp1(a1_gridvals,permute(DiscountedEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]); % [N_d2,N_a1prime,1,N_a2,N_semiz]
+            entireEVinterp=permute(interp1(a1_gridvals,permute(entireEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]); % [N_d2,N_a1prime,1,N_a2,N_semiz]
 
-            % d1-dim is implicit singleton in DiscountedEV/DiscountedEVinterp, broadcasts at use sites
+            % d1-dim is implicit singleton in entireEV/entireEVinterp, broadcasts at use sites
 
             % n-Monotonicity
             ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n_a1,vfoptions.level1n,n_a2,n_bothz,n_e, d123_gridvals_val, a1_gridvals, a1_gridvals(level1ii), a2_gridvals, bothz_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,1,0); % Level=1, Refine=0
 
-            entireRHS_ii_d3=ReturnMatrix_ii_d3+repelem(DiscountedEV,N_d1,1);
+            entireRHS_ii_d3=ReturnMatrix_ii_d3+repelem(beta0beta*entireEV,N_d1,1);
 
             % First, we want a1prime conditional on (d,1,a)
             [~,maxindex1]=max(entireRHS_ii_d3,[],2);
@@ -409,8 +424,8 @@ else
                     a1primeindexes=loweredge+(0:1:maxgap(ii));
                     % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_a2-by-n_bothz-by-n_e
                     ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,n_bothz,n_e, d123_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, bothz_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,3,0); % Level=3, Refine=0
-                    d2aprimez=d2ind+N_d2*(a1primeindexes-1)+N_d2*N_a1*a2ind+N_d2*N_a1*N_a2*bothzind; % [N_d12,maxgap+1,1,N_a2,N_bothz,N_e]; linear index into DiscountedEV [N_d2,N_a1,1,N_a2,N_bothz]
-                    entireRHS_ii_d3=ReturnMatrix_ii_d3+DiscountedEV(d2aprimez);
+                    d2aprimez=d2ind+N_d2*(a1primeindexes-1)+N_d2*N_a1*a2ind+N_d2*N_a1*N_a2*bothzind; % [N_d12,maxgap+1,1,N_a2,N_bothz,N_e]; linear index into entireEV [N_d2,N_a1,1,N_a2,N_bothz]
+                    entireRHS_ii_d3=ReturnMatrix_ii_d3+beta0beta*entireEV(d2aprimez);
                     [~,maxindex]=max(entireRHS_ii_d3,[],2);
                     midpoint(:,1,curraindex,:,:,:)=maxindex+(loweredge-1);
                 else
@@ -426,15 +441,16 @@ else
             % aprime possibilities are n_d12-by-n2long-by-n_a1-by-n_a2-by-n_bothz-by-n_e
             ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n2long,n_a1,n_a2,n_bothz,n_e, d123_gridvals_val, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,2,0); % [N_d2,N_a1prime,N_a1,N_a2,N_bothz,N_e]; Level=2, Refine=0
             d2a1primea2semiz=d2ind+N_d2*(a1primeindexesfine-1)+N_d2*N_a1prime*a2ind+N_d2*N_a1prime*N_a2*bothzind; % Note: EV does not depend on d1, but this does still have d1 as part of the first dimension
-            entireRHS_ii_d3=ReturnMatrix_ii_d3+reshape(DiscountedEVinterp(d2a1primea2semiz(:)),[N_d12*n2long,N_a1*N_a2,N_bothz,N_e]);
+            EVfine=reshape(entireEVinterp(d2a1primea2semiz(:)),[N_d12*n2long,N_a1*N_a2,N_bothz,N_e]);
+            entireRHS_ii_d3=ReturnMatrix_ii_d3+beta0beta*EVfine;
             [Vtempii,maxindexL2]=max(entireRHS_ii_d3,[],1);
-            V_ford3_jj(:,:,:,d3_c)=shiftdim(Vtempii,1);
+            V_ford3_hat(:,:,:,d3_c)=shiftdim(Vtempii,1);
             d_ind=rem(maxindexL2-1,N_d12)+1;
             allind=d_ind+N_d12*aind+N_d12*N_a*bothzBind+N_d12*N_a*N_bothz*eBind; % midpoint is n_d12-by-1-by-n_a1-by-n_a2-by-n_bothz-by-n_e
-            Policy4_ford3_jj(1,:,:,:,d3_c)=rem(d_ind-1,N_d1)+1; % d1
-            Policy4_ford3_jj(2,:,:,:,d3_c)=ceil(d_ind/N_d1); % d2
-            Policy4_ford3_jj(3,:,:,:,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
-            Policy4_ford3_jj(4,:,:,:,d3_c)=shiftdim(ceil(maxindexL2/N_d12),-1); % a1primeL2ind
+            Policy4_ford3_hat(1,:,:,:,d3_c)=rem(d_ind-1,N_d1)+1; % d1
+            Policy4_ford3_hat(2,:,:,:,d3_c)=ceil(d_ind/N_d1); % d2
+            Policy4_ford3_hat(3,:,:,:,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+            Policy4_ford3_hat(4,:,:,:,d3_c)=shiftdim(ceil(maxindexL2/N_d12),-1); % a1primeL2ind
 
             % L2 flag for this d3
             L2offset = ceil(maxindexL2/N_d12);
@@ -444,7 +460,11 @@ else
             isInfUpper = (ReturnMatrix_ii_d3(linidx_upper) == -Inf);
             inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
             inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
-            flag_ford3_jj(:,:,:,d3_c) = squeeze(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper));
+            flag_ford3_hat(:,:,:,d3_c) = squeeze(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper));
+            % Vunderbar: the interpolated (undiscounted) continuation at the chosen point
+            linidx=reshape(maxindexL2,[1,N_a*N_bothz*N_e])+size(EVfine,1)*(0:N_a*N_bothz*N_e-1);
+            EV_at_policy=reshape(EVfine(linidx),[N_a,N_bothz,N_e]);
+            V_ford3_under(:,:,:,d3_c)=V_ford3_hat(:,:,:,d3_c)+(beta-beta0beta)*EV_at_policy;
         end
 
     elseif vfoptions.lowmemory==1
@@ -469,11 +489,11 @@ else
             EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
             % entireEV is (d2,a1prime, a2,z)
 
-            DiscountedEV=DiscountFactorParamsVec*reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % (d2,a1prime,1,a2,zprime)
+            entireEV=reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % (d2,a1prime,1,a2,zprime); undiscounted, beta0beta applied at use sites
             % Interpolate EV over aprime_grid
-            DiscountedEVinterp=permute(interp1(a1_gridvals,permute(DiscountedEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]); % [N_d2,N_a1prime,1,N_a2,N_semiz]
+            entireEVinterp=permute(interp1(a1_gridvals,permute(entireEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]); % [N_d2,N_a1prime,1,N_a2,N_semiz]
 
-            % d1-dim is implicit singleton in DiscountedEV/DiscountedEVinterp, broadcasts at use sites
+            % d1-dim is implicit singleton in entireEV/entireEVinterp, broadcasts at use sites
 
             for e_c=1:N_e
                 e_val=e_gridvals_J(e_c,:,N_j);
@@ -481,7 +501,7 @@ else
                 % n-Monotonicity
                 ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n_a1,vfoptions.level1n,n_a2,n_bothz,special_n_e, d123_gridvals_val, a1_gridvals, a1_gridvals(level1ii), a2_gridvals, bothz_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec,1,0); % Level=1, Refine=0
 
-                entireRHS_ii_d3=ReturnMatrix_ii_d3+repelem(DiscountedEV,N_d1,1);
+                entireRHS_ii_d3=ReturnMatrix_ii_d3+repelem(beta0beta*entireEV,N_d1,1);
 
                 % First, we want a1prime conditional on (d,1,a)
                 [~,maxindex1]=max(entireRHS_ii_d3,[],2);
@@ -499,8 +519,8 @@ else
                         a1primeindexes=loweredge+(0:1:maxgap(ii));
                         % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_a2-by-n_bothz
                         ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,n_bothz,special_n_e, d123_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, bothz_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec,3,0); % Level=3, Refine=0
-                        d2aprimez=d2ind+N_d2*(a1primeindexes-1)+N_d2*N_a1*a2ind+N_d2*N_a1*N_a2*bothzind; % [N_d12,maxgap+1,1,N_a2,N_bothz]; linear index into DiscountedEV [N_d2,N_a1,1,N_a2,N_bothz]
-                        entireRHS_ii_d3=ReturnMatrix_ii_d3+DiscountedEV(d2aprimez);
+                        d2aprimez=d2ind+N_d2*(a1primeindexes-1)+N_d2*N_a1*a2ind+N_d2*N_a1*N_a2*bothzind; % [N_d12,maxgap+1,1,N_a2,N_bothz]; linear index into entireEV [N_d2,N_a1,1,N_a2,N_bothz]
+                        entireRHS_ii_d3=ReturnMatrix_ii_d3+beta0beta*entireEV(d2aprimez);
                         [~,maxindex]=max(entireRHS_ii_d3,[],2);
                         midpoint(:,1,curraindex,:,:)=maxindex+(loweredge-1);
                     else
@@ -516,15 +536,16 @@ else
                 % aprime possibilities are n_d12-by-n2long-by-n_a1-by-n_a2-by-n_bothz
                 ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n2long,n_a1,n_a2,n_bothz,special_n_e, d123_gridvals_val, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec,2,0); % [N_d2,N_a1prime,N_a1,N_a2,N_bothz]; Level=2, Refine=0
                 d2a1primea2semiz=d2ind+N_d2*(a1primeindexesfine-1)+N_d2*N_a1prime*a2ind+N_d2*N_a1prime*N_a2*bothzind; % Note: EV does not depend on d1, but this does still have d1 as part of the first dimension
-                entireRHS_ii_d3=ReturnMatrix_ii_d3+reshape(DiscountedEVinterp(d2a1primea2semiz(:)),[N_d12*n2long,N_a1*N_a2,N_bothz]);
+                EVfine=reshape(entireEVinterp(d2a1primea2semiz(:)),[N_d12*n2long,N_a1*N_a2,N_bothz]);
+                entireRHS_ii_d3=ReturnMatrix_ii_d3+beta0beta*EVfine;
                 [Vtempii,maxindexL2]=max(entireRHS_ii_d3,[],1);
-                V_ford3_jj(:,:,e_c,d3_c)=shiftdim(Vtempii,1);
+                V_ford3_hat(:,:,e_c,d3_c)=shiftdim(Vtempii,1);
                 d_ind=rem(maxindexL2-1,N_d12)+1;
                 allind=d_ind+N_d12*aind+N_d12*N_a*bothzBind; % midpoint is n_d12-by-1-by-n_a1-by-n_a2-by-n_bothz
-                Policy4_ford3_jj(1,:,:,e_c,d3_c)=rem(d_ind-1,N_d1)+1; % d1
-                Policy4_ford3_jj(2,:,:,e_c,d3_c)=ceil(d_ind/N_d1); % d2
-                Policy4_ford3_jj(3,:,:,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
-                Policy4_ford3_jj(4,:,:,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d12),-1); % a1primeL2ind
+                Policy4_ford3_hat(1,:,:,e_c,d3_c)=rem(d_ind-1,N_d1)+1; % d1
+                Policy4_ford3_hat(2,:,:,e_c,d3_c)=ceil(d_ind/N_d1); % d2
+                Policy4_ford3_hat(3,:,:,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+                Policy4_ford3_hat(4,:,:,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d12),-1); % a1primeL2ind
 
                 % L2 flag for this (d3, e_c)
                 L2offset = ceil(maxindexL2/N_d12);
@@ -534,7 +555,11 @@ else
                 isInfUpper = (ReturnMatrix_ii_d3(linidx_upper) == -Inf);
                 inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
                 inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
-                flag_ford3_jj(:,:,e_c,d3_c) = squeeze(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper));
+                flag_ford3_hat(:,:,e_c,d3_c) = squeeze(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper));
+                % Vunderbar: the interpolated (undiscounted) continuation at the chosen point
+                linidx=reshape(maxindexL2,[1,N_a*N_bothz])+size(EVfine,1)*(0:N_a*N_bothz-1);
+                EV_at_policy=reshape(EVfine(linidx),[N_a,N_bothz]);
+                V_ford3_under(:,:,e_c,d3_c)=V_ford3_hat(:,:,e_c,d3_c)+(beta-beta0beta)*EV_at_policy;
             end
         end
 
@@ -560,17 +585,17 @@ else
             EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
             % entireEV is (d2,a1prime, a2,z)
 
-            DiscountedEV=DiscountFactorParamsVec*reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % (d2,a1prime,1,a2,zprime)
+            entireEV=reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % (d2,a1prime,1,a2,zprime); undiscounted, beta0beta applied at use sites
             % Interpolate EV over aprime_grid
-            DiscountedEVinterp=permute(interp1(a1_gridvals,permute(DiscountedEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]); % [N_d2,N_a1prime,1,N_a2,N_semiz]
+            entireEVinterp=permute(interp1(a1_gridvals,permute(entireEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]); % [N_d2,N_a1prime,1,N_a2,N_semiz]
 
-            % d1-dim is implicit singleton in DiscountedEV/DiscountedEVinterp, broadcasts at use sites
+            % d1-dim is implicit singleton in entireEV/entireEVinterp, broadcasts at use sites
 
             for z_c=1:N_z
                 zind=(1:1:N_semiz)+N_semiz*(z_c-1);
                 z_val=bothz_gridvals_J(zind,:,N_j);
-                DiscountedEV_z=DiscountedEV(:,:,:,:,zind);
-                DiscountedEVinterp_z=DiscountedEVinterp(:,:,:,:,zind);
+                entireEV_z=entireEV(:,:,:,:,zind);
+                entireEVinterp_z=entireEVinterp(:,:,:,:,zind);
 
                 for e_c=1:N_e
                     e_val=e_gridvals_J(e_c,:,N_j);
@@ -578,7 +603,7 @@ else
                     % n-Monotonicity
                     ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n_a1,vfoptions.level1n,n_a2,special_n_semiz,special_n_e, d123_gridvals_val, a1_gridvals, a1_gridvals(level1ii), a2_gridvals, z_val, e_val, ReturnFnParamsVec,1,0); % Level=1, Refine=0
 
-                    entireRHS_ii_d3=ReturnMatrix_ii_d3+repelem(DiscountedEV_z,N_d1,1);
+                    entireRHS_ii_d3=ReturnMatrix_ii_d3+repelem(beta0beta*entireEV_z,N_d1,1);
 
                     % First, we want a1prime conditional on (d,1,a)
                     [~,maxindex1]=max(entireRHS_ii_d3,[],2);
@@ -596,8 +621,8 @@ else
                             a1primeindexes=loweredge+(0:1:maxgap(ii));
                             % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_a2-n_semiz
                             ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,special_n_semiz,special_n_e, d123_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, z_val, e_val, ReturnFnParamsVec,3,0); % Level=3, Refine=0
-                            d2aprimez=d2ind+N_d2*(a1primeindexes-1)+N_d2*N_a1*a2ind+N_d2*N_a1*N_a2*semizind; % [N_d12,maxgap+1,1,N_a2,N_semiz]; linear index into DiscountedEV_z [N_d2,N_a1,1,N_a2,N_semiz]
-                            entireRHS_ii_d3=ReturnMatrix_ii_d3+DiscountedEV_z(d2aprimez);
+                            d2aprimez=d2ind+N_d2*(a1primeindexes-1)+N_d2*N_a1*a2ind+N_d2*N_a1*N_a2*semizind; % [N_d12,maxgap+1,1,N_a2,N_semiz]; linear index into entireEV_z [N_d2,N_a1,1,N_a2,N_semiz]
+                            entireRHS_ii_d3=ReturnMatrix_ii_d3+beta0beta*entireEV_z(d2aprimez);
                             [~,maxindex]=max(entireRHS_ii_d3,[],2);
                             midpoint(:,1,curraindex,:,:)=maxindex+(loweredge-1);
                         else
@@ -613,15 +638,16 @@ else
                     % aprime possibilities are n_d12-by-n2long-by-n_a1-by-n_a2-n_semiz
                     ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n2long,n_a1,n_a2,special_n_semiz,special_n_e, d123_gridvals_val, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, z_val, e_val, ReturnFnParamsVec,2,0); % [N_d2,N_a1prime,N_a1,N_a2,N_semiz]; Level=2, Refine=0
                     d2a1primea2semiz=d2ind+N_d2*(a1primeindexesfine-1)+N_d2*N_a1prime*a2ind+N_d2*N_a1prime*N_a2*semizind; % Note: EV does not depend on d1, but this does still have d1 as part of the first dimension
-                    entireRHS_ii_d3=ReturnMatrix_ii_d3+reshape(DiscountedEVinterp_z(d2a1primea2semiz(:)),[N_d12*n2long,N_a1*N_a2,N_semiz]);
+                    EVfine=reshape(entireEVinterp_z(d2a1primea2semiz(:)),[N_d12*n2long,N_a1*N_a2,N_semiz]);
+                    entireRHS_ii_d3=ReturnMatrix_ii_d3+beta0beta*EVfine;
                     [Vtempii,maxindexL2]=max(entireRHS_ii_d3,[],1);
-                    V_ford3_jj(:,zind,e_c,d3_c)=shiftdim(Vtempii,1);
+                    V_ford3_hat(:,zind,e_c,d3_c)=shiftdim(Vtempii,1);
                     d_ind=rem(maxindexL2-1,N_d12)+1;
                     allind=d_ind+N_d12*aind+N_d12*N_a*semizBind; % midpoint is n_d12-by-1-by-n_a1-by-n_a2-by-n_semiz
-                    Policy4_ford3_jj(1,:,zind,e_c,d3_c)=rem(d_ind-1,N_d1)+1; % d1
-                    Policy4_ford3_jj(2,:,zind,e_c,d3_c)=ceil(d_ind/N_d1); % d2
-                    Policy4_ford3_jj(3,:,zind,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
-                    Policy4_ford3_jj(4,:,zind,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d12),-1); % a1primeL2ind
+                    Policy4_ford3_hat(1,:,zind,e_c,d3_c)=rem(d_ind-1,N_d1)+1; % d1
+                    Policy4_ford3_hat(2,:,zind,e_c,d3_c)=ceil(d_ind/N_d1); % d2
+                    Policy4_ford3_hat(3,:,zind,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+                    Policy4_ford3_hat(4,:,zind,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d12),-1); % a1primeL2ind
 
                     % L2 flag for this (d3, z_c, e_c)
                     L2offset = ceil(maxindexL2/N_d12);
@@ -631,7 +657,11 @@ else
                     isInfUpper = (ReturnMatrix_ii_d3(linidx_upper) == -Inf);
                     inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
                     inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
-                    flag_ford3_jj(:,zind,e_c,d3_c) = squeeze(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper));
+                    flag_ford3_hat(:,zind,e_c,d3_c) = squeeze(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper));
+                    % Vunderbar: the interpolated (undiscounted) continuation at the chosen point
+                    linidx=reshape(maxindexL2,[1,N_a*N_semiz])+size(EVfine,1)*(0:N_a*N_semiz-1);
+                    EV_at_policy=reshape(EVfine(linidx),[N_a,N_semiz]);
+                    V_ford3_under(:,zind,e_c,d3_c)=V_ford3_hat(:,zind,e_c,d3_c)+(beta-beta0beta)*EV_at_policy;
                 end
             end
         end
@@ -658,16 +688,16 @@ else
             EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
             % entireEV is (d2,a1prime, a2,z)
 
-            DiscountedEV=DiscountFactorParamsVec*reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % (d2,a1prime,1,a2,zprime)
+            entireEV=reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % (d2,a1prime,1,a2,zprime); undiscounted, beta0beta applied at use sites
             % Interpolate EV over aprime_grid
-            DiscountedEVinterp=permute(interp1(a1_gridvals,permute(DiscountedEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]); % [N_d2,N_a1prime,1,N_a2,N_semiz]
+            entireEVinterp=permute(interp1(a1_gridvals,permute(entireEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]); % [N_d2,N_a1prime,1,N_a2,N_semiz]
 
-            % d1-dim is implicit singleton in DiscountedEV/DiscountedEVinterp, broadcasts at use sites
+            % d1-dim is implicit singleton in entireEV/entireEVinterp, broadcasts at use sites
 
             for z_c=1:N_bothz
                 z_val=bothz_gridvals_J(z_c,:,N_j);
-                DiscountedEV_z=DiscountedEV(:,:,:,:,z_c);
-                DiscountedEVinterp_z=DiscountedEVinterp(:,:,:,:,z_c);
+                entireEV_z=entireEV(:,:,:,:,z_c);
+                entireEVinterp_z=entireEVinterp(:,:,:,:,z_c);
 
                 for e_c=1:N_e
                     e_val=e_gridvals_J(e_c,:,N_j);
@@ -675,7 +705,7 @@ else
                     % n-Monotonicity
                     ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n_a1,vfoptions.level1n,n_a2,special_n_bothz,special_n_e, d123_gridvals_val, a1_gridvals, a1_gridvals(level1ii), a2_gridvals, z_val, e_val, ReturnFnParamsVec,1,0); % Level=1, Refine=0
 
-                    entireRHS_ii_d3=ReturnMatrix_ii_d3+repelem(DiscountedEV_z,N_d1,1);
+                    entireRHS_ii_d3=ReturnMatrix_ii_d3+repelem(beta0beta*entireEV_z,N_d1,1);
 
                     % First, we want a1prime conditional on (d,1,a)
                     [~,maxindex1]=max(entireRHS_ii_d3,[],2);
@@ -693,8 +723,8 @@ else
                             a1primeindexes=loweredge+(0:1:maxgap(ii));
                             % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_a2
                             ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,special_n_bothz,special_n_e, d123_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, z_val, e_val, ReturnFnParamsVec,3,0); % Level=3, Refine=0
-                            d2aprime=d2ind+N_d2*(a1primeindexes-1)+N_d2*N_a1*a2ind; % [N_d12,maxgap+1,1,N_a2]; linear index into DiscountedEV_z [N_d2,N_a1,1,N_a2]
-                            entireRHS_ii_d3=ReturnMatrix_ii_d3+DiscountedEV_z(d2aprime);
+                            d2aprime=d2ind+N_d2*(a1primeindexes-1)+N_d2*N_a1*a2ind; % [N_d12,maxgap+1,1,N_a2]; linear index into entireEV_z [N_d2,N_a1,1,N_a2]
+                            entireRHS_ii_d3=ReturnMatrix_ii_d3+beta0beta*entireEV_z(d2aprime);
                             [~,maxindex]=max(entireRHS_ii_d3,[],2);
                             midpoint(:,1,curraindex,:)=maxindex+(loweredge-1);
                         else
@@ -710,15 +740,16 @@ else
                     % aprime possibilities are n_d12-by-n2long-by-n_a1-by-n_a2
                     ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n2long,n_a1,n_a2,special_n_bothz,special_n_e, d123_gridvals_val, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, z_val, e_val, ReturnFnParamsVec,2,0); % [N_d2,N_a1prime,N_a1,N_a2,N_semiz]; Level=2, Refine=0
                     d2a1primea2semiz=d2ind+N_d2*(a1primeindexesfine-1)+N_d2*N_a1prime*a2ind; % Note: EV does not depend on d1, but this does still have d1 as part of the first dimension
-                    entireRHS_ii_d3=ReturnMatrix_ii_d3+reshape(DiscountedEVinterp_z(d2a1primea2semiz(:)),[N_d12*n2long,N_a1*N_a2]);
+                    EVfine=reshape(entireEVinterp_z(d2a1primea2semiz(:)),[N_d12*n2long,N_a1*N_a2]);
+                    entireRHS_ii_d3=ReturnMatrix_ii_d3+beta0beta*EVfine;
                     [Vtempii,maxindexL2]=max(entireRHS_ii_d3,[],1);
-                    V_ford3_jj(:,z_c,e_c,d3_c)=shiftdim(Vtempii,1);
+                    V_ford3_hat(:,z_c,e_c,d3_c)=shiftdim(Vtempii,1);
                     d_ind=rem(maxindexL2-1,N_d12)+1;
                     allind=d_ind+N_d12*aind; % midpoint is n_d12-by-1-by-n_a1-by-n_a2
-                    Policy4_ford3_jj(1,:,z_c,e_c,d3_c)=rem(d_ind-1,N_d1)+1; % d1
-                    Policy4_ford3_jj(2,:,z_c,e_c,d3_c)=ceil(d_ind/N_d1); % d2
-                    Policy4_ford3_jj(3,:,z_c,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
-                    Policy4_ford3_jj(4,:,z_c,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d12),-1); % a1primeL2ind
+                    Policy4_ford3_hat(1,:,z_c,e_c,d3_c)=rem(d_ind-1,N_d1)+1; % d1
+                    Policy4_ford3_hat(2,:,z_c,e_c,d3_c)=ceil(d_ind/N_d1); % d2
+                    Policy4_ford3_hat(3,:,z_c,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+                    Policy4_ford3_hat(4,:,z_c,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d12),-1); % a1primeL2ind
 
                     % L2 flag for this (d3, z_c, e_c)
                     L2offset = ceil(maxindexL2/N_d12);
@@ -728,23 +759,29 @@ else
                     isInfUpper = (ReturnMatrix_ii_d3(linidx_upper) == -Inf);
                     inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
                     inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
-                    flag_ford3_jj(:,z_c,e_c,d3_c) = squeeze(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper));
+                    flag_ford3_hat(:,z_c,e_c,d3_c) = squeeze(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper));
+                    % Vunderbar: the interpolated (undiscounted) continuation at the chosen point
+                    linidx=reshape(maxindexL2,[1,N_a])+size(EVfine,1)*(0:N_a-1);
+                    EV_at_policy=reshape(EVfine(linidx),[N_a,1]);
+                    V_ford3_under(:,z_c,e_c,d3_c)=V_ford3_hat(:,z_c,e_c,d3_c)+(beta-beta0beta)*EV_at_policy;
                 end
             end
         end
     end
 
     % Now we just max over d3, and keep the policy that corresponded to that (including modify the policy to include the d3 decision)
-    [V_jj,maxindex]=max(V_ford3_jj,[],4); % max over d3
-    V(:,:,:,N_j)=V_jj;
+    [V_jj,maxindex]=max(V_ford3_hat,[],4); % max over d3
+    Vhat(:,:,:,N_j)=V_jj;
     Policy(3,:,:,:,N_j)=shiftdim(maxindex,-1); % d3 is just maxindex
     maxindex=reshape(maxindex,[N_a*N_bothz*N_e,1]); % This is the value of d that corresponds, make it this shape for addition just below
     temp=4*( (1:1:N_a*N_bothz*N_e)'+(N_a*N_bothz*N_e)*(maxindex-1) -1);
-    Policy(1,:,:,:,N_j)=reshape(Policy4_ford3_jj(1+temp),[1,N_a,N_bothz,N_e]);
-    Policy(2,:,:,:,N_j)=reshape(Policy4_ford3_jj(2+temp),[1,N_a,N_bothz,N_e]);
-    Policy(4,:,:,:,N_j)=reshape(Policy4_ford3_jj(3+temp),[1,N_a,N_bothz,N_e]);
-    Policy(5,:,:,:,N_j)=reshape(Policy4_ford3_jj(4+temp),[1,N_a,N_bothz,N_e]);
-    PolicyL2flag(1,:,:,:,N_j)=reshape(flag_ford3_jj((1:1:N_a*N_bothz*N_e)'+(N_a*N_bothz*N_e)*(maxindex-1)),[1,N_a,N_bothz,N_e]);
+    Policy(1,:,:,:,N_j)=reshape(Policy4_ford3_hat(1+temp),[1,N_a,N_bothz,N_e]);
+    Policy(2,:,:,:,N_j)=reshape(Policy4_ford3_hat(2+temp),[1,N_a,N_bothz,N_e]);
+    Policy(4,:,:,:,N_j)=reshape(Policy4_ford3_hat(3+temp),[1,N_a,N_bothz,N_e]);
+    Policy(5,:,:,:,N_j)=reshape(Policy4_ford3_hat(4+temp),[1,N_a,N_bothz,N_e]);
+    PolicyL2flag(1,:,:,:,N_j)=reshape(flag_ford3_hat((1:1:N_a*N_bothz*N_e)'+(N_a*N_bothz*N_e)*(maxindex-1)),[1,N_a,N_bothz,N_e]);
+    % Vunderbar at the d3 chosen by the hat max
+    Vunderbar(:,:,:,N_j)=reshape(V_ford3_under((1:1:N_a*N_bothz*N_e)'+(N_a*N_bothz*N_e)*(maxindex-1)),[N_a,N_bothz,N_e]);
 
 end
 
@@ -760,7 +797,9 @@ for reverse_j=1:N_j-1
     % Create a vector containing all the return function parameters (in order)
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
-    DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
+    beta=prod(DiscountFactorParamsVec);
+    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
+    beta0beta=beta0*beta;
 
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);
     [a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix(aprimeFn, n_d2, n_a2, d2_gridvals, a2_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
@@ -770,7 +809,7 @@ for reverse_j=1:N_j-1
     aprimeplus1Index=repelem(gpuArray(1:1:N_a1)',N_d2,N_a2)+N_a1*repmat(a2primeIndex,N_a1,1); % [N_d2*N_a1,N_a2]
     aprimeProbs=repmat(a2primeProbs,N_a1,1,N_bothz);  % [N_d2*N_a1,N_a2,N_bothz]
 
-    EVpre=sum(V(:,:,:,jj+1).*shiftdim(pi_e_J(:,jj+1),-2),3);
+    EVpre=sum(Vunderbar(:,:,:,jj+1).*shiftdim(pi_e_J(:,jj+1),-2),3);
 
     if vfoptions.lowmemory==0
         for d3_c=1:N_d3
@@ -794,16 +833,16 @@ for reverse_j=1:N_j-1
             EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
             % entireEV is (d2,a1prime, a2,z)
 
-            DiscountedEV=DiscountFactorParamsVec*reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % (d2,a1prime,1,a2,zprime)
+            entireEV=reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % (d2,a1prime,1,a2,zprime); undiscounted, beta0beta applied at use sites
             % Interpolate EV over aprime_grid
-            DiscountedEVinterp=permute(interp1(a1_gridvals,permute(DiscountedEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]); % [N_d2,N_a1prime,1,N_a2,N_semiz]
+            entireEVinterp=permute(interp1(a1_gridvals,permute(entireEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]); % [N_d2,N_a1prime,1,N_a2,N_semiz]
 
-            % d1-dim is implicit singleton in DiscountedEV/DiscountedEVinterp, broadcasts at use sites
+            % d1-dim is implicit singleton in entireEV/entireEVinterp, broadcasts at use sites
 
             % n-Monotonicity
             ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n_a1,vfoptions.level1n,n_a2,n_bothz,n_e, d123_gridvals_val, a1_gridvals, a1_gridvals(level1ii), a2_gridvals, bothz_gridvals_J(:,:,jj), e_gridvals_J(:,:,jj), ReturnFnParamsVec,1,0); % Level=1, Refine=0
 
-            entireRHS_ii_d3=ReturnMatrix_ii_d3+repelem(DiscountedEV,N_d1,1);
+            entireRHS_ii_d3=ReturnMatrix_ii_d3+repelem(beta0beta*entireEV,N_d1,1);
 
             % First, we want a1prime conditional on (d,1,a)
             [~,maxindex1]=max(entireRHS_ii_d3,[],2);
@@ -821,8 +860,8 @@ for reverse_j=1:N_j-1
                     a1primeindexes=loweredge+(0:1:maxgap(ii));
                     % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_a2-by-n_bothz-by-n_e
                     ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,n_bothz,n_e, d123_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, bothz_gridvals_J(:,:,jj), e_gridvals_J(:,:,jj), ReturnFnParamsVec,3,0); % Level=3, Refine=0
-                    d2aprimez=d2ind+N_d2*(a1primeindexes-1)+N_d2*N_a1*a2ind+N_d2*N_a1*N_a2*bothzind; % [N_d12,maxgap+1,1,N_a2,N_bothz,N_e]; linear index into DiscountedEV [N_d2,N_a1,1,N_a2,N_bothz]
-                    entireRHS_ii_d3=ReturnMatrix_ii_d3+DiscountedEV(d2aprimez);
+                    d2aprimez=d2ind+N_d2*(a1primeindexes-1)+N_d2*N_a1*a2ind+N_d2*N_a1*N_a2*bothzind; % [N_d12,maxgap+1,1,N_a2,N_bothz,N_e]; linear index into entireEV [N_d2,N_a1,1,N_a2,N_bothz]
+                    entireRHS_ii_d3=ReturnMatrix_ii_d3+beta0beta*entireEV(d2aprimez);
                     [~,maxindex]=max(entireRHS_ii_d3,[],2);
                     midpoint(:,1,curraindex,:,:,:)=maxindex+(loweredge-1);
                 else
@@ -838,15 +877,16 @@ for reverse_j=1:N_j-1
             % aprime possibilities are n_d12-by-n2long-by-n_a1-by-n_a2-by-n_bothz-by-n_e
             ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n2long,n_a1,n_a2,n_bothz,n_e, d123_gridvals_val, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,jj), e_gridvals_J(:,:,jj), ReturnFnParamsVec,2,0); % [N_d2,N_a1prime,N_a1,N_a2,N_bothz,N_e]; Level=2, Refine=0
             d2a1primea2semiz=d2ind+N_d2*(a1primeindexesfine-1)+N_d2*N_a1prime*a2ind+N_d2*N_a1prime*N_a2*bothzind; % Note: EV does not depend on d1, but this does still have d1 as part of the first dimension
-            entireRHS_ii_d3=ReturnMatrix_ii_d3+reshape(DiscountedEVinterp(d2a1primea2semiz(:)),[N_d12*n2long,N_a1*N_a2,N_bothz,N_e]);
+            EVfine=reshape(entireEVinterp(d2a1primea2semiz(:)),[N_d12*n2long,N_a1*N_a2,N_bothz,N_e]);
+            entireRHS_ii_d3=ReturnMatrix_ii_d3+beta0beta*EVfine;
             [Vtempii,maxindexL2]=max(entireRHS_ii_d3,[],1);
-            V_ford3_jj(:,:,:,d3_c)=shiftdim(Vtempii,1);
+            V_ford3_hat(:,:,:,d3_c)=shiftdim(Vtempii,1);
             d_ind=rem(maxindexL2-1,N_d12)+1;
             allind=d_ind+N_d12*aind+N_d12*N_a*bothzBind+N_d12*N_a*N_bothz*eBind; % midpoint is n_d12-by-1-by-n_a1-by-n_a2-by-n_bothz-by-n_e
-            Policy4_ford3_jj(1,:,:,:,d3_c)=rem(d_ind-1,N_d1)+1; % d1
-            Policy4_ford3_jj(2,:,:,:,d3_c)=ceil(d_ind/N_d1); % d2
-            Policy4_ford3_jj(3,:,:,:,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
-            Policy4_ford3_jj(4,:,:,:,d3_c)=shiftdim(ceil(maxindexL2/N_d12),-1); % a1primeL2ind
+            Policy4_ford3_hat(1,:,:,:,d3_c)=rem(d_ind-1,N_d1)+1; % d1
+            Policy4_ford3_hat(2,:,:,:,d3_c)=ceil(d_ind/N_d1); % d2
+            Policy4_ford3_hat(3,:,:,:,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+            Policy4_ford3_hat(4,:,:,:,d3_c)=shiftdim(ceil(maxindexL2/N_d12),-1); % a1primeL2ind
 
             % L2 flag for this d3
             L2offset = ceil(maxindexL2/N_d12);
@@ -856,7 +896,11 @@ for reverse_j=1:N_j-1
             isInfUpper = (ReturnMatrix_ii_d3(linidx_upper) == -Inf);
             inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
             inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
-            flag_ford3_jj(:,:,:,d3_c) = squeeze(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper));
+            flag_ford3_hat(:,:,:,d3_c) = squeeze(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper));
+            % Vunderbar: the interpolated (undiscounted) continuation at the chosen point
+            linidx=reshape(maxindexL2,[1,N_a*N_bothz*N_e])+size(EVfine,1)*(0:N_a*N_bothz*N_e-1);
+            EV_at_policy=reshape(EVfine(linidx),[N_a,N_bothz,N_e]);
+            V_ford3_under(:,:,:,d3_c)=V_ford3_hat(:,:,:,d3_c)+(beta-beta0beta)*EV_at_policy;
         end
 
     elseif vfoptions.lowmemory==1
@@ -881,11 +925,11 @@ for reverse_j=1:N_j-1
             EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
             % entireEV is (d2,a1prime, a2,z)
 
-            DiscountedEV=DiscountFactorParamsVec*reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % (d2,a1prime,1,a2,zprime)
+            entireEV=reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % (d2,a1prime,1,a2,zprime); undiscounted, beta0beta applied at use sites
             % Interpolate EV over aprime_grid
-            DiscountedEVinterp=permute(interp1(a1_gridvals,permute(DiscountedEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]); % [N_d2,N_a1prime,1,N_a2,N_semiz]
+            entireEVinterp=permute(interp1(a1_gridvals,permute(entireEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]); % [N_d2,N_a1prime,1,N_a2,N_semiz]
 
-            % d1-dim is implicit singleton in DiscountedEV/DiscountedEVinterp, broadcasts at use sites
+            % d1-dim is implicit singleton in entireEV/entireEVinterp, broadcasts at use sites
 
             for e_c=1:N_e
                 e_val=e_gridvals_J(e_c,:,jj);
@@ -893,7 +937,7 @@ for reverse_j=1:N_j-1
                 % n-Monotonicity
                 ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n_a1,vfoptions.level1n,n_a2,n_bothz,special_n_e, d123_gridvals_val, a1_gridvals, a1_gridvals(level1ii), a2_gridvals, bothz_gridvals_J(:,:,jj), e_val, ReturnFnParamsVec,1,0); % Level=1, Refine=0
 
-                entireRHS_ii_d3=ReturnMatrix_ii_d3+repelem(DiscountedEV,N_d1,1);
+                entireRHS_ii_d3=ReturnMatrix_ii_d3+repelem(beta0beta*entireEV,N_d1,1);
 
                 % First, we want a1prime conditional on (d,1,a)
                 [~,maxindex1]=max(entireRHS_ii_d3,[],2);
@@ -911,8 +955,8 @@ for reverse_j=1:N_j-1
                         a1primeindexes=loweredge+(0:1:maxgap(ii));
                         % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_a2-by-n_bothz
                         ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,n_bothz,special_n_e, d123_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, bothz_gridvals_J(:,:,jj), e_val, ReturnFnParamsVec,3,0); % Level=3, Refine=0
-                        d2aprimez=d2ind+N_d2*(a1primeindexes-1)+N_d2*N_a1*a2ind+N_d2*N_a1*N_a2*bothzind; % [N_d12,maxgap+1,1,N_a2,N_bothz]; linear index into DiscountedEV [N_d2,N_a1,1,N_a2,N_bothz]
-                        entireRHS_ii_d3=ReturnMatrix_ii_d3+DiscountedEV(d2aprimez);
+                        d2aprimez=d2ind+N_d2*(a1primeindexes-1)+N_d2*N_a1*a2ind+N_d2*N_a1*N_a2*bothzind; % [N_d12,maxgap+1,1,N_a2,N_bothz]; linear index into entireEV [N_d2,N_a1,1,N_a2,N_bothz]
+                        entireRHS_ii_d3=ReturnMatrix_ii_d3+beta0beta*entireEV(d2aprimez);
                         [~,maxindex]=max(entireRHS_ii_d3,[],2);
                         midpoint(:,1,curraindex,:,:)=maxindex+(loweredge-1);
                     else
@@ -928,15 +972,16 @@ for reverse_j=1:N_j-1
                 % aprime possibilities are n_d12-by-n2long-by-n_a1-by-n_a2-by-n_bothz
                 ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n2long,n_a1,n_a2,n_bothz,special_n_e, d123_gridvals_val, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,jj), e_val, ReturnFnParamsVec,2,0); % [N_d2,N_a1prime,N_a1,N_a2,N_bothz]; Level=2, Refine=0
                 d2a1primea2semiz=d2ind+N_d2*(a1primeindexesfine-1)+N_d2*N_a1prime*a2ind+N_d2*N_a1prime*N_a2*bothzind; % Note: EV does not depend on d1, but this does still have d1 as part of the first dimension
-                entireRHS_ii_d3=ReturnMatrix_ii_d3+reshape(DiscountedEVinterp(d2a1primea2semiz(:)),[N_d12*n2long,N_a1*N_a2,N_bothz]);
+                EVfine=reshape(entireEVinterp(d2a1primea2semiz(:)),[N_d12*n2long,N_a1*N_a2,N_bothz]);
+                entireRHS_ii_d3=ReturnMatrix_ii_d3+beta0beta*EVfine;
                 [Vtempii,maxindexL2]=max(entireRHS_ii_d3,[],1);
-                V_ford3_jj(:,:,e_c,d3_c)=shiftdim(Vtempii,1);
+                V_ford3_hat(:,:,e_c,d3_c)=shiftdim(Vtempii,1);
                 d_ind=rem(maxindexL2-1,N_d12)+1;
                 allind=d_ind+N_d12*aind+N_d12*N_a*bothzBind; % midpoint is n_d12-by-1-by-n_a1-by-n_a2-by-n_bothz
-                Policy4_ford3_jj(1,:,:,e_c,d3_c)=rem(d_ind-1,N_d1)+1; % d1
-                Policy4_ford3_jj(2,:,:,e_c,d3_c)=ceil(d_ind/N_d1); % d2
-                Policy4_ford3_jj(3,:,:,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
-                Policy4_ford3_jj(4,:,:,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d12),-1); % a1primeL2ind
+                Policy4_ford3_hat(1,:,:,e_c,d3_c)=rem(d_ind-1,N_d1)+1; % d1
+                Policy4_ford3_hat(2,:,:,e_c,d3_c)=ceil(d_ind/N_d1); % d2
+                Policy4_ford3_hat(3,:,:,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+                Policy4_ford3_hat(4,:,:,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d12),-1); % a1primeL2ind
 
                 % L2 flag for this (d3, e_c)
                 L2offset = ceil(maxindexL2/N_d12);
@@ -946,7 +991,11 @@ for reverse_j=1:N_j-1
                 isInfUpper = (ReturnMatrix_ii_d3(linidx_upper) == -Inf);
                 inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
                 inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
-                flag_ford3_jj(:,:,e_c,d3_c) = squeeze(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper));
+                flag_ford3_hat(:,:,e_c,d3_c) = squeeze(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper));
+                % Vunderbar: the interpolated (undiscounted) continuation at the chosen point
+                linidx=reshape(maxindexL2,[1,N_a*N_bothz])+size(EVfine,1)*(0:N_a*N_bothz-1);
+                EV_at_policy=reshape(EVfine(linidx),[N_a,N_bothz]);
+                V_ford3_under(:,:,e_c,d3_c)=V_ford3_hat(:,:,e_c,d3_c)+(beta-beta0beta)*EV_at_policy;
             end
         end
 
@@ -972,17 +1021,17 @@ for reverse_j=1:N_j-1
             EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
             % entireEV is (d2,a1prime, a2,z)
 
-            DiscountedEV=DiscountFactorParamsVec*reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % (d2,a1prime,1,a2,zprime)
+            entireEV=reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % (d2,a1prime,1,a2,zprime); undiscounted, beta0beta applied at use sites
             % Interpolate EV over aprime_grid
-            DiscountedEVinterp=permute(interp1(a1_gridvals,permute(DiscountedEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]); % [N_d2,N_a1prime,1,N_a2,N_semiz]
+            entireEVinterp=permute(interp1(a1_gridvals,permute(entireEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]); % [N_d2,N_a1prime,1,N_a2,N_semiz]
 
-            % d1-dim is implicit singleton in DiscountedEV/DiscountedEVinterp, broadcasts at use sites
+            % d1-dim is implicit singleton in entireEV/entireEVinterp, broadcasts at use sites
 
             for z_c=1:N_z
                 zind=(1:1:N_semiz)+N_semiz*(z_c-1);
                 z_val=bothz_gridvals_J(zind,:,jj);
-                DiscountedEV_z=DiscountedEV(:,:,:,:,zind);
-                DiscountedEVinterp_z=DiscountedEVinterp(:,:,:,:,zind);
+                entireEV_z=entireEV(:,:,:,:,zind);
+                entireEVinterp_z=entireEVinterp(:,:,:,:,zind);
 
                 for e_c=1:N_e
                     e_val=e_gridvals_J(e_c,:,jj);
@@ -990,7 +1039,7 @@ for reverse_j=1:N_j-1
                     % n-Monotonicity
                     ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n_a1,vfoptions.level1n,n_a2,special_n_semiz,special_n_e, d123_gridvals_val, a1_gridvals, a1_gridvals(level1ii), a2_gridvals, z_val, e_val, ReturnFnParamsVec,1,0); % Level=1, Refine=0
 
-                    entireRHS_ii_d3=ReturnMatrix_ii_d3+repelem(DiscountedEV_z,N_d1,1);
+                    entireRHS_ii_d3=ReturnMatrix_ii_d3+repelem(beta0beta*entireEV_z,N_d1,1);
 
                     % First, we want a1prime conditional on (d,1,a)
                     [~,maxindex1]=max(entireRHS_ii_d3,[],2);
@@ -1008,8 +1057,8 @@ for reverse_j=1:N_j-1
                             a1primeindexes=loweredge+(0:1:maxgap(ii));
                             % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_a2-n_semiz
                             ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,special_n_semiz,special_n_e, d123_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, z_val, e_val, ReturnFnParamsVec,3,0); % Level=3, Refine=0
-                            d2aprimez=d2ind+N_d2*(a1primeindexes-1)+N_d2*N_a1*a2ind+N_d2*N_a1*N_a2*semizind; % [N_d12,maxgap+1,1,N_a2,N_semiz]; linear index into DiscountedEV_z [N_d2,N_a1,1,N_a2,N_semiz]
-                            entireRHS_ii_d3=ReturnMatrix_ii_d3+DiscountedEV_z(d2aprimez);
+                            d2aprimez=d2ind+N_d2*(a1primeindexes-1)+N_d2*N_a1*a2ind+N_d2*N_a1*N_a2*semizind; % [N_d12,maxgap+1,1,N_a2,N_semiz]; linear index into entireEV_z [N_d2,N_a1,1,N_a2,N_semiz]
+                            entireRHS_ii_d3=ReturnMatrix_ii_d3+beta0beta*entireEV_z(d2aprimez);
                             [~,maxindex]=max(entireRHS_ii_d3,[],2);
                             midpoint(:,1,curraindex,:,:)=maxindex+(loweredge-1);
                         else
@@ -1025,15 +1074,16 @@ for reverse_j=1:N_j-1
                     % aprime possibilities are n_d12-by-n2long-by-n_a1-by-n_a2-n_semiz
                     ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n2long,n_a1,n_a2,special_n_semiz,special_n_e, d123_gridvals_val, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, z_val, e_val, ReturnFnParamsVec,2,0); % [N_d2,N_a1prime,N_a1,N_a2,N_semiz]; Level=2, Refine=0
                     d2a1primea2semiz=d2ind+N_d2*(a1primeindexesfine-1)+N_d2*N_a1prime*a2ind+N_d2*N_a1prime*N_a2*semizind; % Note: EV does not depend on d1, but this does still have d1 as part of the first dimension
-                    entireRHS_ii_d3=ReturnMatrix_ii_d3+reshape(DiscountedEVinterp_z(d2a1primea2semiz(:)),[N_d12*n2long,N_a1*N_a2,N_semiz]);
+                    EVfine=reshape(entireEVinterp_z(d2a1primea2semiz(:)),[N_d12*n2long,N_a1*N_a2,N_semiz]);
+                    entireRHS_ii_d3=ReturnMatrix_ii_d3+beta0beta*EVfine;
                     [Vtempii,maxindexL2]=max(entireRHS_ii_d3,[],1);
-                    V_ford3_jj(:,zind,e_c,d3_c)=shiftdim(Vtempii,1);
+                    V_ford3_hat(:,zind,e_c,d3_c)=shiftdim(Vtempii,1);
                     d_ind=rem(maxindexL2-1,N_d12)+1;
                     allind=d_ind+N_d12*aind+N_d12*N_a*semizBind; % midpoint is n_d12-by-1-by-n_a1-by-n_a2-by-n_semiz
-                    Policy4_ford3_jj(1,:,zind,e_c,d3_c)=rem(d_ind-1,N_d1)+1; % d1
-                    Policy4_ford3_jj(2,:,zind,e_c,d3_c)=ceil(d_ind/N_d1); % d2
-                    Policy4_ford3_jj(3,:,zind,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
-                    Policy4_ford3_jj(4,:,zind,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d12),-1); % a1primeL2ind
+                    Policy4_ford3_hat(1,:,zind,e_c,d3_c)=rem(d_ind-1,N_d1)+1; % d1
+                    Policy4_ford3_hat(2,:,zind,e_c,d3_c)=ceil(d_ind/N_d1); % d2
+                    Policy4_ford3_hat(3,:,zind,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+                    Policy4_ford3_hat(4,:,zind,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d12),-1); % a1primeL2ind
 
                     % L2 flag for this (d3, z_c, e_c)
                     L2offset = ceil(maxindexL2/N_d12);
@@ -1043,7 +1093,11 @@ for reverse_j=1:N_j-1
                     isInfUpper = (ReturnMatrix_ii_d3(linidx_upper) == -Inf);
                     inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
                     inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
-                    flag_ford3_jj(:,zind,e_c,d3_c) = squeeze(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper));
+                    flag_ford3_hat(:,zind,e_c,d3_c) = squeeze(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper));
+                    % Vunderbar: the interpolated (undiscounted) continuation at the chosen point
+                    linidx=reshape(maxindexL2,[1,N_a*N_semiz])+size(EVfine,1)*(0:N_a*N_semiz-1);
+                    EV_at_policy=reshape(EVfine(linidx),[N_a,N_semiz]);
+                    V_ford3_under(:,zind,e_c,d3_c)=V_ford3_hat(:,zind,e_c,d3_c)+(beta-beta0beta)*EV_at_policy;
                 end
             end
         end
@@ -1070,16 +1124,16 @@ for reverse_j=1:N_j-1
             EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
             % entireEV is (d2,a1prime, a2,z)
 
-            DiscountedEV=DiscountFactorParamsVec*reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % (d2,a1prime,1,a2,zprime)
+            entireEV=reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % (d2,a1prime,1,a2,zprime); undiscounted, beta0beta applied at use sites
             % Interpolate EV over aprime_grid
-            DiscountedEVinterp=permute(interp1(a1_gridvals,permute(DiscountedEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]); % [N_d2,N_a1prime,1,N_a2,N_semiz]
+            entireEVinterp=permute(interp1(a1_gridvals,permute(entireEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]); % [N_d2,N_a1prime,1,N_a2,N_semiz]
 
-            % d1-dim is implicit singleton in DiscountedEV/DiscountedEVinterp, broadcasts at use sites
+            % d1-dim is implicit singleton in entireEV/entireEVinterp, broadcasts at use sites
 
             for z_c=1:N_bothz
                 z_val=bothz_gridvals_J(z_c,:,jj);
-                DiscountedEV_z=DiscountedEV(:,:,:,:,z_c);
-                DiscountedEVinterp_z=DiscountedEVinterp(:,:,:,:,z_c);
+                entireEV_z=entireEV(:,:,:,:,z_c);
+                entireEVinterp_z=entireEVinterp(:,:,:,:,z_c);
 
                 for e_c=1:N_e
                     e_val=e_gridvals_J(e_c,:,jj);
@@ -1087,7 +1141,7 @@ for reverse_j=1:N_j-1
                     % n-Monotonicity
                     ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n_a1,vfoptions.level1n,n_a2,special_n_bothz,special_n_e, d123_gridvals_val, a1_gridvals, a1_gridvals(level1ii), a2_gridvals, z_val, e_val, ReturnFnParamsVec,1,0); % Level=1, Refine=0
 
-                    entireRHS_ii_d3=ReturnMatrix_ii_d3+repelem(DiscountedEV_z,N_d1,1);
+                    entireRHS_ii_d3=ReturnMatrix_ii_d3+repelem(beta0beta*entireEV_z,N_d1,1);
 
                     % First, we want a1prime conditional on (d,1,a)
                     [~,maxindex1]=max(entireRHS_ii_d3,[],2);
@@ -1105,8 +1159,8 @@ for reverse_j=1:N_j-1
                             a1primeindexes=loweredge+(0:1:maxgap(ii));
                             % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_a2
                             ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,special_n_bothz,special_n_e, d123_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, z_val, e_val, ReturnFnParamsVec,3,0); % Level=3, Refine=0
-                            d2aprime=d2ind+N_d2*(a1primeindexes-1)+N_d2*N_a1*a2ind; % [N_d12,maxgap+1,1,N_a2]; linear index into DiscountedEV_z [N_d2,N_a1,1,N_a2]
-                            entireRHS_ii_d3=ReturnMatrix_ii_d3+DiscountedEV_z(d2aprime);
+                            d2aprime=d2ind+N_d2*(a1primeindexes-1)+N_d2*N_a1*a2ind; % [N_d12,maxgap+1,1,N_a2]; linear index into entireEV_z [N_d2,N_a1,1,N_a2]
+                            entireRHS_ii_d3=ReturnMatrix_ii_d3+beta0beta*entireEV_z(d2aprime);
                             [~,maxindex]=max(entireRHS_ii_d3,[],2);
                             midpoint(:,1,curraindex,:)=maxindex+(loweredge-1);
                         else
@@ -1122,15 +1176,16 @@ for reverse_j=1:N_j-1
                     % aprime possibilities are n_d12-by-n2long-by-n_a1-by-n_a2
                     ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n2long,n_a1,n_a2,special_n_bothz,special_n_e, d123_gridvals_val, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, z_val, e_val, ReturnFnParamsVec,2,0); % [N_d2,N_a1prime,N_a1,N_a2,N_semiz]; Level=2, Refine=0
                     d2a1primea2semiz=d2ind+N_d2*(a1primeindexesfine-1)+N_d2*N_a1prime*a2ind; % Note: EV does not depend on d1, but this does still have d1 as part of the first dimension
-                    entireRHS_ii_d3=ReturnMatrix_ii_d3+reshape(DiscountedEVinterp_z(d2a1primea2semiz(:)),[N_d12*n2long,N_a1*N_a2]);
+                    EVfine=reshape(entireEVinterp_z(d2a1primea2semiz(:)),[N_d12*n2long,N_a1*N_a2]);
+                    entireRHS_ii_d3=ReturnMatrix_ii_d3+beta0beta*EVfine;
                     [Vtempii,maxindexL2]=max(entireRHS_ii_d3,[],1);
-                    V_ford3_jj(:,z_c,e_c,d3_c)=shiftdim(Vtempii,1);
+                    V_ford3_hat(:,z_c,e_c,d3_c)=shiftdim(Vtempii,1);
                     d_ind=rem(maxindexL2-1,N_d12)+1;
                     allind=d_ind+N_d12*aind; % midpoint is n_d12-by-1-by-n_a1-by-n_a2
-                    Policy4_ford3_jj(1,:,z_c,e_c,d3_c)=rem(d_ind-1,N_d1)+1; % d1
-                    Policy4_ford3_jj(2,:,z_c,e_c,d3_c)=ceil(d_ind/N_d1); % d2
-                    Policy4_ford3_jj(3,:,z_c,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
-                    Policy4_ford3_jj(4,:,z_c,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d12),-1); % a1primeL2ind
+                    Policy4_ford3_hat(1,:,z_c,e_c,d3_c)=rem(d_ind-1,N_d1)+1; % d1
+                    Policy4_ford3_hat(2,:,z_c,e_c,d3_c)=ceil(d_ind/N_d1); % d2
+                    Policy4_ford3_hat(3,:,z_c,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+                    Policy4_ford3_hat(4,:,z_c,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d12),-1); % a1primeL2ind
 
                     % L2 flag for this (d3, z_c, e_c)
                     L2offset = ceil(maxindexL2/N_d12);
@@ -1140,23 +1195,29 @@ for reverse_j=1:N_j-1
                     isInfUpper = (ReturnMatrix_ii_d3(linidx_upper) == -Inf);
                     inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
                     inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
-                    flag_ford3_jj(:,z_c,e_c,d3_c) = squeeze(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper));
+                    flag_ford3_hat(:,z_c,e_c,d3_c) = squeeze(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper));
+                    % Vunderbar: the interpolated (undiscounted) continuation at the chosen point
+                    linidx=reshape(maxindexL2,[1,N_a])+size(EVfine,1)*(0:N_a-1);
+                    EV_at_policy=reshape(EVfine(linidx),[N_a,1]);
+                    V_ford3_under(:,z_c,e_c,d3_c)=V_ford3_hat(:,z_c,e_c,d3_c)+(beta-beta0beta)*EV_at_policy;
                 end
             end
         end
     end
 
     % Now we just max over d3, and keep the policy that corresponded to that (including modify the policy to include the d3 decision)
-    [V_jj,maxindex]=max(V_ford3_jj,[],4); % max over d3
-    V(:,:,:,jj)=V_jj;
+    [V_jj,maxindex]=max(V_ford3_hat,[],4); % max over d3
+    Vhat(:,:,:,jj)=V_jj;
     Policy(3,:,:,:,jj)=shiftdim(maxindex,-1); % d3 is just maxindex
     maxindex=reshape(maxindex,[N_a*N_bothz*N_e,1]); % This is the value of d that corresponds, make it this shape for addition just below
     temp=4*( (1:1:N_a*N_bothz*N_e)'+(N_a*N_bothz*N_e)*(maxindex-1) -1);
-    Policy(1,:,:,:,jj)=reshape(Policy4_ford3_jj(1+temp),[1,N_a,N_bothz,N_e]);
-    Policy(2,:,:,:,jj)=reshape(Policy4_ford3_jj(2+temp),[1,N_a,N_bothz,N_e]);
-    Policy(4,:,:,:,jj)=reshape(Policy4_ford3_jj(3+temp),[1,N_a,N_bothz,N_e]);
-    Policy(5,:,:,:,jj)=reshape(Policy4_ford3_jj(4+temp),[1,N_a,N_bothz,N_e]);
-    PolicyL2flag(1,:,:,:,jj)=reshape(flag_ford3_jj((1:1:N_a*N_bothz*N_e)'+(N_a*N_bothz*N_e)*(maxindex-1)),[1,N_a,N_bothz,N_e]);
+    Policy(1,:,:,:,jj)=reshape(Policy4_ford3_hat(1+temp),[1,N_a,N_bothz,N_e]);
+    Policy(2,:,:,:,jj)=reshape(Policy4_ford3_hat(2+temp),[1,N_a,N_bothz,N_e]);
+    Policy(4,:,:,:,jj)=reshape(Policy4_ford3_hat(3+temp),[1,N_a,N_bothz,N_e]);
+    Policy(5,:,:,:,jj)=reshape(Policy4_ford3_hat(4+temp),[1,N_a,N_bothz,N_e]);
+    PolicyL2flag(1,:,:,:,jj)=reshape(flag_ford3_hat((1:1:N_a*N_bothz*N_e)'+(N_a*N_bothz*N_e)*(maxindex-1)),[1,N_a,N_bothz,N_e]);
+    % Vunderbar at the d3 chosen by the hat max
+    Vunderbar(:,:,:,jj)=reshape(V_ford3_under((1:1:N_a*N_bothz*N_e)'+(N_a*N_bothz*N_e)*(maxindex-1)),[N_a,N_bothz,N_e]);
 
 
 end

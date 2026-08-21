@@ -1,0 +1,668 @@
+function [Vhat,Policy3,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetSemiExoS_DC1_noz_raw(n_d1,n_d2,n_d3,n_a1,n_a2,n_semiz,N_j, d12_gridvals, d2_gridvals, d3_grid, a1_gridvals, a2_grid, semiz_gridvals_J, pi_semiz_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions)
+% Sophisticated quasi-hyperbolic discounting + ExperienceAsset + SemiExo, Divide-and-Conquer (DC1 over a1prime).
+% d2 determines the experience asset a2, d3 determines the semi-exogenous state, a1 is the standard endogenous state.
+% Sophisticated: a single maximisation under beta0*beta,
+%   Vhat/Policy3 come from the  F + beta0*beta*EV  argmax (QH-perceived).
+%   Vunderbar is the  F + beta*EV  RHS GATHERED at that same argmax (NOT re-maximised) -- both at the
+%   inner divide-and-conquer argmax and again at the max over d3.
+% The a2 lottery is resolved inside EV before the max, so the gather returns R(policy)+beta*E[V(policy)] exactly.
+% beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj).
+% The backward continuation value is Vunderbar.
+% d2 determines experience asset, d3 determines semi-exog state
+% a is endogenous state, a2 is experience asset
+% semiz is semi-exog state
+
+N_d1=prod(n_d1);
+N_d2=prod(n_d2);
+N_d12=N_d1*N_d2;
+d2ind=repelem((1:1:N_d2)',N_d1,1); % [N_d12,1]; maps full d12-index to d2-component
+N_d3=prod(n_d3);
+N_a1=prod(n_a1);
+N_a2=prod(n_a2);
+N_a=N_a1*N_a2;
+N_semiz=prod(n_semiz);
+
+Vhat=zeros(N_a,N_semiz,N_j,'gpuArray');
+Vunderbar=zeros(N_a,N_semiz,N_j,'gpuArray');
+% For semiz it turns out to be easier to go straight to constructing policy that stores d1,d2,d3,a1prime seperately
+Policy3=zeros(4,N_a,N_semiz,N_j,'gpuArray');
+
+%%
+a2_gridvals=CreateGridvals(n_a2,a2_grid,1);
+
+% For the return function we just want (I'm just guessing that as I need them N_j times it will be fractionally faster to put them together now)
+n_d=[n_d1,n_d2,n_d3];
+N_d=prod(n_d);
+d_gridvals=[repmat(d12_gridvals,N_d3,1),repelem(CreateGridvals(n_d3,d3_grid,1),N_d12,1)];
+
+if vfoptions.lowmemory>0
+    special_n_semiz=ones(1,length(n_semiz));
+else
+    % precompute
+    semizind=shiftdim((0:1:N_semiz-1),-1); % already includes -1
+end
+
+% Preallocate
+V_ford3_hat=zeros(N_a,N_semiz,N_d3,'gpuArray');
+V_ford3_under=zeros(N_a,N_semiz,N_d3,'gpuArray');
+Policy_ford3_hat=zeros(N_a,N_semiz,N_d3,'gpuArray');
+
+% n-Monotonicity
+level1ii=round(linspace(1,n_a1,vfoptions.level1n));
+level1iidiff=level1ii(2:end)-level1ii(1:end-1)-1;
+
+
+%% j=N_j
+
+% Create a vector containing all the return function parameters (in order)
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+
+if ~isfield(vfoptions,'V_Jplus1')
+    if vfoptions.lowmemory==0
+
+        % n-Monotonicity
+        ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,[n_d2,n_d3],n_a1,vfoptions.level1n,n_a2,n_semiz, d_gridvals, a1_gridvals, a1_gridvals(level1ii), a2_gridvals, semiz_gridvals_J(:,:,N_j), ReturnFnParamsVec,1,0); % Level=1, Refine=0
+
+        % First, we want a1prime conditional on (d,1,a)
+        [~,maxindex1]=max(ReturnMatrix_ii,[],2);
+
+        % Now, get and store the full (d,aprime)
+        [Vtempii,maxindex2]=max(reshape(ReturnMatrix_ii,[N_d*N_a1,vfoptions.level1n*N_a2,N_semiz]),[],1);
+
+        % Store
+        curraindex=repmat(level1ii',N_a2,1)+N_a1*repelem((0:1:N_a2-1)',vfoptions.level1n,1);
+        Vhat(curraindex,:,N_j)=shiftdim(Vtempii,1);
+        dind=rem(maxindex2-1,N_d)+1; % Do I need this shiftdim(), can probably delete all these
+        d12_ind=rem(dind-1,N_d12)+1;
+        Policy3(1,curraindex,:,N_j)=rem(d12_ind-1,N_d1)+1; % d1
+        Policy3(2,curraindex,:,N_j)=ceil(d12_ind/N_d1); % d2
+        Policy3(3,curraindex,:,N_j)=ceil(dind/N_d12); % d3
+        Policy3(4,curraindex,:,N_j)=ceil(maxindex2/N_d); % d4
+
+        % Attempt for improved version
+        maxgap=squeeze(max(max(max(maxindex1(:,1,2:end,:,:)-maxindex1(:,1,1:end-1,:,:),[],5),[],4),[],1));
+        for ii=1:(vfoptions.level1n-1)
+            curraindex=repmat((level1ii(ii)+1:1:level1ii(ii+1)-1)',N_a2,1)+N_a1*repelem((0:1:N_a2-1)',level1iidiff(ii),1);
+            if maxgap(ii)>0
+                loweredge=min(maxindex1(:,1,ii,:,:),N_a1-maxgap(ii)); % maxindex1(ii,:), but avoid going off top of grid when we add maxgap(ii) points
+                % loweredge is n_d-by-1-by-n_a2-by-1-by-n_a2-by-n_z
+                a1primeindexes=loweredge+(0:1:maxgap(ii));
+                % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_a2-by-n_z
+                ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,[n_d2,n_d3],maxgap(ii)+1,level1iidiff(ii),n_a2,n_semiz, d_gridvals, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, semiz_gridvals_J(:,:,N_j), ReturnFnParamsVec,2,0); % Level=2, Refine=0
+                [Vtempii,maxindex]=max(ReturnMatrix_ii,[],1);
+                Vhat(curraindex,:,N_j)=shiftdim(Vtempii,1);
+                % maxindex does not need reworking, as with expasset there is no a2prime
+                %  the a1prime is relative to loweredge(allind), need to 'add' the loweredge
+                dind=(rem(maxindex-1,N_d)+1);
+                a2ind=repelem((0:1:N_a2-1),1,level1iidiff(ii)); % already includes -1
+                allind=dind+N_d*a2ind+N_d*N_a2*semizind; % loweredge is n_d-by-1-by-1-by-n_a2-by-n_a2
+                d12_ind=rem(dind-1,N_d12)+1;
+                Policy3(1,curraindex,:,N_j)=rem(d12_ind-1,N_d1)+1; % d1
+                Policy3(2,curraindex,:,N_j)=ceil(d12_ind/N_d1); % d2
+                Policy3(3,curraindex,:,N_j)=ceil(dind/N_d12); % d3
+                Policy3(4,curraindex,:,N_j)=ceil(maxindex/N_d+loweredge(allind)-1); % d4
+            else
+                loweredge=maxindex1(:,1,ii,:,:);
+                % Just use aprime(ii) for everything
+                ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,[n_d2,n_d3],1,level1iidiff(ii),n_a2,n_semiz, d_gridvals, a1_gridvals(loweredge), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, semiz_gridvals_J(:,:,N_j), ReturnFnParamsVec,2,0); % Level=2, Refine=0
+                [Vtempii,maxindex]=max(ReturnMatrix_ii,[],1);
+                Vhat(curraindex,:,N_j)=shiftdim(Vtempii,1);
+                % maxindex does not need reworking, as with expasset there is no a2prime
+                %  the a1prime is relative to loweredge(allind), need to 'add' the loweredge
+                dind=(rem(maxindex-1,N_d)+1);
+                a2ind=repelem((0:1:N_a2-1),1,level1iidiff(ii)); % already includes -1
+                allind=dind+N_d*a2ind+N_d*N_a2*semizind; % loweredge is n_d-by-1-by-1-by-n_a2-by-n_z
+                d12_ind=rem(dind-1,N_d12)+1;
+                Policy3(1,curraindex,:,N_j)=rem(d12_ind-1,N_d1)+1; % d1
+                Policy3(2,curraindex,:,N_j)=ceil(d12_ind/N_d1); % d2
+                Policy3(3,curraindex,:,N_j)=ceil(dind/N_d12); % d3
+                Policy3(4,curraindex,:,N_j)=ceil(maxindex/N_d+loweredge(allind)-1); % d4
+            end
+        end
+
+
+    elseif vfoptions.lowmemory==1
+
+        for z_c=1:N_semiz
+            z_val=semiz_gridvals_J(z_c,:,N_j);
+
+            % n-Monotonicity
+            ReturnMatrix_ii_z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,[n_d2,n_d3],n_a1,vfoptions.level1n,n_a2,special_n_semiz, d_gridvals, a1_gridvals, a1_gridvals(level1ii), a2_gridvals, z_val, ReturnFnParamsVec,1,0); % Level=1, Refine=0
+
+            % First, we want a1prime conditional on (d,1,a)
+            [~,maxindex1]=max(ReturnMatrix_ii_z,[],2);
+
+            % Now, get and store the full (d,aprime)
+            [Vtempii,maxindex2]=max(reshape(ReturnMatrix_ii_z,[N_d*N_a1,vfoptions.level1n*N_a2]),[],1);
+
+            % Store
+            curraindex=repmat(level1ii',N_a2,1)+N_a1*repelem((0:1:N_a2-1)',vfoptions.level1n,1);
+            Vhat(curraindex,z_c,N_j)=shiftdim(Vtempii,1);
+            dind=rem(maxindex2-1,N_d)+1; % Do I need this shiftdim(), can probably delete all these
+            d12_ind=rem(dind-1,N_d12)+1;
+            Policy3(1,curraindex,z_c,N_j)=rem(d12_ind-1,N_d1)+1; % d1
+            Policy3(2,curraindex,z_c,N_j)=ceil(d12_ind/N_d1); % d2
+            Policy3(3,curraindex,z_c,N_j)=ceil(dind/N_d12); % d3
+            Policy3(4,curraindex,z_c,N_j)=ceil(maxindex2/N_d); % d4
+
+            % Attempt for improved version
+            maxgap=squeeze(max(max(maxindex1(:,1,2:end,:)-maxindex1(:,1,1:end-1,:),[],4),[],1));
+            for ii=1:(vfoptions.level1n-1)
+                curraindex=repmat((level1ii(ii)+1:1:level1ii(ii+1)-1)',N_a2,1)+N_a1*repelem((0:1:N_a2-1)',level1iidiff(ii),1);
+                if maxgap(ii)>0
+                    loweredge=min(maxindex1(:,1,ii,:),N_a1-maxgap(ii)); % maxindex1(ii,:), but avoid going off top of grid when we add maxgap(ii) points
+                    % loweredge is n_d-by-1-by-n_a2-by-1-by-n_a2
+                    a1primeindexes=loweredge+(0:1:maxgap(ii));
+                    % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_a2
+                    ReturnMatrix_ii_z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,[n_d2,n_d3],maxgap(ii)+1,level1iidiff(ii),n_a2,special_n_semiz, d_gridvals, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, z_val, ReturnFnParamsVec,2,0); % Level=2, Refine=0
+                    [Vtempii,maxindex]=max(ReturnMatrix_ii_z,[],1);
+                    Vhat(curraindex,z_c,N_j)=shiftdim(Vtempii,1);
+                    % maxindex does not need reworking, as with expasset there is no a2prime
+                    %  the a1prime is relative to loweredge(allind), need to 'add' the loweredge
+                    dind=(rem(maxindex-1,N_d)+1);
+                    a2ind=repelem((0:1:N_a2-1),1,level1iidiff(ii)); % already includes -1
+                    allind=dind+N_d*a2ind; % loweredge is n_d-by-1-by-1-by-n_a2-by-n_a2
+                    d12_ind=rem(dind-1,N_d12)+1;
+                    Policy3(1,curraindex,z_c,N_j)=rem(d12_ind-1,N_d1)+1; % d1
+                    Policy3(2,curraindex,z_c,N_j)=ceil(d12_ind/N_d1); % d2
+                    Policy3(3,curraindex,z_c,N_j)=ceil(dind/N_d12); % d3
+                    Policy3(4,curraindex,z_c,N_j)=ceil(maxindex/N_d+loweredge(allind)-1); % d4
+                else
+                    loweredge=maxindex1(:,1,ii,:);
+                    % Just use aprime(ii) for everything
+                    ReturnMatrix_ii_z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,[n_d2,n_d3],1,level1iidiff(ii),n_a2,special_n_semiz, d_gridvals, a1_gridvals(loweredge), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, z_val, ReturnFnParamsVec,2,0); % Level=2, Refine=0
+                    [Vtempii,maxindex]=max(ReturnMatrix_ii_z,[],1);
+                    Vhat(curraindex,z_c,N_j)=shiftdim(Vtempii,1);
+                    % maxindex does not need reworking, as with expasset there is no a2prime
+                    %  the a1prime is relative to loweredge(allind), need to 'add' the loweredge
+                    dind=(rem(maxindex-1,N_d)+1);
+                    a2ind=repelem((0:1:N_a2-1),1,level1iidiff(ii)); % already includes -1
+                    allind=dind+N_d*a2ind; % loweredge is n_d-by-1-by-1-by-n_a2
+                    d12_ind=rem(dind-1,N_d12)+1;
+                    Policy3(1,curraindex,z_c,N_j)=rem(d12_ind-1,N_d1)+1; % d1
+                    Policy3(2,curraindex,z_c,N_j)=ceil(d12_ind/N_d1); % d2
+                    Policy3(3,curraindex,z_c,N_j)=ceil(dind/N_d12); % d3
+                    Policy3(4,curraindex,z_c,N_j)=ceil(maxindex/N_d+loweredge(allind)-1); % d4
+                end
+            end
+        end
+    end
+    % Terminal period: no continuation, so Vunderbar equals Vhat
+    Vunderbar(:,:,N_j)=Vhat(:,:,N_j);
+else
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    [a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix(aprimeFn, n_d2, n_a2, d2_gridvals, a2_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
+    % Note: aprimeIndex is [N_d2,N_a2], whereas aprimeProbs is [N_d2,N_a2]
+
+    aprimeIndex=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat((a2primeIndex-1),N_a1,1); % [N_d2*N_a1,N_a2]
+    aprimeplus1Index=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat(a2primeIndex,N_a1,1); % [N_d2*N_a1,N_a2]
+    if vfoptions.lowmemory>0
+        aprimeProbs=repmat(a2primeProbs,N_a1,1); % [N_d2*N_a1,N_a2]
+    else % lowmemory=0
+        aprimeProbs=repmat(a2primeProbs,N_a1,1,N_semiz);  % [N_d2*N_a1,N_a2,N_semiz]
+    end
+
+    % Using V_Jplus1
+    V_Jplus1=reshape(vfoptions.V_Jplus1,[N_a,N_semiz]);    % First, switch V_Jplus1 into Kron form
+
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+    beta=prod(DiscountFactorParamsVec);
+    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
+    beta0beta=beta0*beta;
+
+    if vfoptions.lowmemory==0
+        for d3_c=1:N_d3
+            d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
+            % Note: By definition V_Jplus1 does not depend on d (only aprime)
+            pi_semiz_d3=pi_semiz_J(:,:,d3_c,N_j);
+
+            EV=V_Jplus1.*shiftdim(pi_semiz_d3',-1);
+            EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+            EV=sum(EV,2); % sum over z', leaving a singular second dimension
+
+            % Switch EV from being in terms of aprime to being in terms of d and a
+            EV1=reshape(EV(aprimeIndex,:),[N_d2*N_a1,N_a2,N_semiz]); % (d2,a1prime,a2,z), the lower aprime
+            EV2=reshape(EV(aprimeplus1Index,:),[N_d2*N_a1,N_a2,N_semiz]); % (d2,a1prime,a2,z), the upper aprime
+
+            % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
+            skipinterp=(EV1==EV2);
+            aprimeProbs(skipinterp)=0; % effectively skips interpolation
+
+            % Apply the aprimeProbs
+            entireEV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
+            % entireEV is (d2,a1prime, a2,z)
+
+            DiscountedEV_hat=beta0beta*reshape(entireEV,[N_d2,N_a1,1,N_a2,N_semiz]); % (d2,a1prime,1,a2,zprime); d1-dim is implicit singleton, broadcasts at use sites   % QH-perceived
+            DiscountedEV_under=beta*reshape(entireEV,[N_d2,N_a1,1,N_a2,N_semiz]);   % exponential
+
+            % n-Monotonicity
+            ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,[n_d2,1],n_a1,vfoptions.level1n,n_a2,n_semiz, d123_gridvals_val, a1_gridvals, a1_gridvals(level1ii), a2_gridvals, semiz_gridvals_J(:,:,N_j), ReturnFnParamsVec,1,0); % Level=1, Refine=0
+
+            entireRHS_ii_d3=ReturnMatrix_ii_d3+repelem(DiscountedEV_hat,N_d1,1,1,1,1);
+            entireRHS_ii_d3_under=ReturnMatrix_ii_d3+repelem(DiscountedEV_under,N_d1,1,1,1,1);
+
+            % First, we want a1prime conditional on (d,1,a)
+            [~,maxindex1]=max(entireRHS_ii_d3,[],2);
+
+            % Now, get and store the full (d,aprime)
+            entireRHS_ii_d3_flat=reshape(entireRHS_ii_d3,[N_d1*N_d2*N_a1,vfoptions.level1n*N_a2,N_semiz]);
+            [Vtempii,maxindex2]=max(entireRHS_ii_d3_flat,[],1);
+
+            % Store
+            curraindex=repmat(level1ii',N_a2,1)+N_a1*repelem((0:1:N_a2-1)',vfoptions.level1n,1);
+            V_ford3_hat(curraindex,:,d3_c)=shiftdim(Vtempii,1);
+            entireRHS_ii_d3_under_flat=reshape(entireRHS_ii_d3_under,[N_d1*N_d2*N_a1,vfoptions.level1n*N_a2,N_semiz]);
+            maxindexfull=maxindex2+N_d1*N_d2*N_a1*(0:vfoptions.level1n*N_a2-1)+N_d1*N_d2*N_a1*vfoptions.level1n*N_a2*shiftdim((0:N_semiz-1),-1);
+            Vtempii_under=entireRHS_ii_d3_under_flat(maxindexfull);
+            V_ford3_under(curraindex,:,d3_c)=shiftdim(Vtempii_under,1);
+            Policy_ford3_hat(curraindex,:,d3_c)=shiftdim(maxindex2,1);
+
+            % a1-dim stays singleton in DiscountedEV_hat; broadcasts at use sites
+
+            % Attempt for improved version
+            maxgap=squeeze(max(max(max(maxindex1(:,1,2:end,:,:)-maxindex1(:,1,1:end-1,:,:),[],5),[],4),[],1));
+            for ii=1:(vfoptions.level1n-1)
+                curraindex=repmat((level1ii(ii)+1:1:level1ii(ii+1)-1)',N_a2,1)+N_a1*repelem((0:1:N_a2-1)',level1iidiff(ii),1);
+                if maxgap(ii)>0
+                    loweredge=min(maxindex1(:,1,ii,:,:),N_a1-maxgap(ii)); % maxindex1(ii,:), but avoid going off top of grid when we add maxgap(ii) points
+                    % loweredge is n_d-by-1-by-n_a2-by-1-by-n_a2-by-n_z
+                    a1primeindexes=loweredge+(0:1:maxgap(ii));
+                    % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_a2-by-n_z
+                    ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,n_semiz, d123_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, semiz_gridvals_J(:,:,N_j), ReturnFnParamsVec,3,0); % Level=2, Refine=0
+                    d2aprimez=d2ind+N_d2*(a1primeindexes-1)+N_d2*N_a1*shiftdim((0:1:N_a2-1),-2)+N_d2*N_a1*N_a2*shiftdim((0:1:N_semiz-1),-3); % [N_d12,maxgap+1,1,N_a2,N_semiz]; linear index into DiscountedEV_hat [N_d2,N_a1,1,N_a2,N_semiz]
+                    entireRHS_ii=reshape(ReturnMatrix_ii_d3+DiscountedEV_hat(d2aprimez),[N_d12*(maxgap(ii)+1),level1iidiff(ii)*N_a2,N_semiz]);
+                    entireRHS_ii_under=reshape(ReturnMatrix_ii_d3+DiscountedEV_under(d2aprimez),[N_d12*(maxgap(ii)+1),level1iidiff(ii)*N_a2,N_semiz]);
+                    [Vtempii,maxindex]=max(entireRHS_ii,[],1);
+                    V_ford3_hat(curraindex,:,d3_c)=shiftdim(Vtempii,1);
+                    maxindexfull=maxindex+N_d12*(maxgap(ii)+1)*(0:level1iidiff(ii)*N_a2-1)+N_d12*(maxgap(ii)+1)*level1iidiff(ii)*N_a2*shiftdim((0:N_semiz-1),-1);
+                    Vtempii_under=entireRHS_ii_under(maxindexfull);
+                    V_ford3_under(curraindex,:,d3_c)=shiftdim(Vtempii_under,1);
+                    % maxindex does not need reworking, as with expasset there is no a2prime
+                    %  the a1prime is relative to loweredge(allind), need to 'add' the loweredge
+                    dind=(rem(maxindex-1,N_d1*N_d2)+1);
+                    a2ind=repelem((0:1:N_a2-1),1,level1iidiff(ii)); % already includes -1
+                    allind=dind+N_d1*N_d2*a2ind+N_d1*N_d2*N_a2*semizind; % loweredge is n_d-by-1-by-1-by-n_a2-by-n_a2
+                    Policy_ford3_hat(curraindex,:,d3_c)=shiftdim(maxindex+N_d1*N_d2*(loweredge(allind)-1),1);
+                else
+                    loweredge=maxindex1(:,1,ii,:,:);
+                    % Just use aprime(ii) for everything
+                    ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,[n_d2,1],1,level1iidiff(ii),n_a2,n_semiz, d123_gridvals_val, a1_gridvals(loweredge), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, semiz_gridvals_J(:,:,N_j), ReturnFnParamsVec,3,0); % Level=2, Refine=0
+                    d2aprimez=d2ind+N_d2*(loweredge-1)+N_d2*N_a1*shiftdim((0:1:N_a2-1),-2)+N_d2*N_a1*N_a2*shiftdim((0:1:N_semiz-1),-3); % [N_d12,1,1,N_a2,N_semiz]; linear index into DiscountedEV_hat [N_d2,N_a1,1,N_a2,N_semiz]
+                    entireRHS_ii=reshape(ReturnMatrix_ii_d3+DiscountedEV_hat(d2aprimez),[N_d12,level1iidiff(ii)*N_a2,N_semiz]);
+                    entireRHS_ii_under=reshape(ReturnMatrix_ii_d3+DiscountedEV_under(d2aprimez),[N_d12,level1iidiff(ii)*N_a2,N_semiz]);
+                    [Vtempii,maxindex]=max(entireRHS_ii,[],1);
+                    V_ford3_hat(curraindex,:,d3_c)=shiftdim(Vtempii,1);
+                    maxindexfull=maxindex+N_d12*(0:level1iidiff(ii)*N_a2-1)+N_d12*level1iidiff(ii)*N_a2*shiftdim((0:N_semiz-1),-1);
+                    Vtempii_under=entireRHS_ii_under(maxindexfull);
+                    V_ford3_under(curraindex,:,d3_c)=shiftdim(Vtempii_under,1);
+                    % maxindex does not need reworking, as with expasset there is no a2prime
+                    %  the a1prime is relative to loweredge(allind), need to 'add' the loweredge
+                    dind=(rem(maxindex-1,N_d1*N_d2)+1);
+                    a2ind=repelem((0:1:N_a2-1),1,level1iidiff(ii)); % already includes -1
+                    allind=dind+N_d1*N_d2*a2ind+N_d1*N_d2*N_a2*semizind; % loweredge is n_d-by-1-by-1-by-n_a2-by-n_z
+                    Policy_ford3_hat(curraindex,:,d3_c)=shiftdim(maxindex+N_d1*N_d2*(loweredge(allind)-1),1);
+                end
+            end
+        end
+
+    elseif vfoptions.lowmemory==1
+        for d3_c=1:N_d3
+            d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
+            % Note: By definition V_Jplus1 does not depend on d2 (only aprime)
+            pi_semiz_d3=pi_semiz_J(:,:,d3_c,N_j);
+
+            for z_c=1:N_semiz
+                z_val=semiz_gridvals_J(z_c,:,N_j);
+
+                %Calc the condl expectation term (except beta), which depends on z but not on control variables
+                EV_z=V_Jplus1.*shiftdim(pi_semiz_d3(z_c,:)',1);
+                EV_z(isnan(EV_z))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+                EV_z=sum(EV_z,2);
+
+                % Switch EV_z from being in terms of aprime to being in terms of d and a
+                EV1=reshape(EV_z(aprimeIndex),[N_d2*N_a1,N_a2]); % (d2,a1prime,a2), the lower aprime
+                EV2=reshape(EV_z(aprimeplus1Index),[N_d2*N_a1,N_a2]); % (d2,a1prime,a2), the upper aprime
+
+                % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
+                skipinterp=(EV1==EV2);
+                aprimeProbs(skipinterp)=0; % effectively skips interpolation
+
+                % Apply the aprimeProbs
+                entireEV_z=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
+                % entireEV_z is (d,a1prime, a2)
+
+                DiscountedEV_z_hat=beta0beta*reshape(entireEV_z,[N_d2,N_a1,1,N_a2]); % (d2,a1prime,1,a2); d1-dim is implicit singleton, broadcasts at use sites   % QH-perceived
+                DiscountedEV_z_under=beta*reshape(entireEV_z,[N_d2,N_a1,1,N_a2]);   % exponential
+
+                % n-Monotonicity
+                ReturnMatrix_ii_z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,[n_d2,1],n_a1,vfoptions.level1n,n_a2,special_n_semiz, d123_gridvals_val, a1_gridvals, a1_gridvals(level1ii), a2_gridvals, z_val, ReturnFnParamsVec,1,0); % Level=1, Refine=0
+
+                entireRHS_ii_z=ReturnMatrix_ii_z+repelem(DiscountedEV_z_hat,N_d1,1,1,1);
+                entireRHS_ii_z_under=ReturnMatrix_ii_z+repelem(DiscountedEV_z_under,N_d1,1,1,1);
+
+                % First, we want a1prime conditional on (d,1,a)
+                [~,maxindex1]=max(entireRHS_ii_z,[],2);
+
+                % Now, get and store the full (d,aprime)
+                entireRHS_ii_z_flat=reshape(entireRHS_ii_z,[N_d1*N_d2*N_a1,vfoptions.level1n*N_a2]);
+                [Vtempii,maxindex2]=max(entireRHS_ii_z_flat,[],1);
+
+                % Store
+                curraindex=repmat(level1ii',N_a2,1)+N_a1*repelem((0:1:N_a2-1)',vfoptions.level1n,1);
+                V_ford3_hat(curraindex,z_c,d3_c)=shiftdim(Vtempii,1);
+                entireRHS_ii_z_under_flat=reshape(entireRHS_ii_z_under,[N_d1*N_d2*N_a1,vfoptions.level1n*N_a2]);
+                maxindexfull=maxindex2+N_d1*N_d2*N_a1*(0:vfoptions.level1n*N_a2-1);
+                Vtempii_under=entireRHS_ii_z_under_flat(maxindexfull);
+                V_ford3_under(curraindex,z_c,d3_c)=shiftdim(Vtempii_under,1);
+                Policy_ford3_hat(curraindex,z_c,d3_c)=shiftdim(maxindex2,1);
+
+                % a1-dim stays singleton in DiscountedEV_z_hat; broadcasts at use sites
+                % Attempt for improved version
+                maxgap=squeeze(max(max(maxindex1(:,1,2:end,:)-maxindex1(:,1,1:end-1,:),[],4),[],1));
+                for ii=1:(vfoptions.level1n-1)
+                    curraindex=repmat((level1ii(ii)+1:1:level1ii(ii+1)-1)',N_a2,1)+N_a1*repelem((0:1:N_a2-1)',level1iidiff(ii),1);
+                    if maxgap(ii)>0
+                        loweredge=min(maxindex1(:,1,ii,:),N_a1-maxgap(ii)); % maxindex1(ii,:), but avoid going off top of grid when we add maxgap(ii) points
+                        % loweredge is n_d-by-1-by-n_a2-by-1-by-n_a2
+                        a1primeindexes=loweredge+(0:1:maxgap(ii));
+                        % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_a2
+                        ReturnMatrix_ii_z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,special_n_semiz, d123_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, z_val, ReturnFnParamsVec,3,0); % Level=2, Refine=0
+                        d2aprime=d2ind+N_d2*(a1primeindexes-1)+N_d2*N_a1*shiftdim((0:1:N_a2-1),-2); % [N_d12,maxgap+1,1,N_a2]; linear index into DiscountedEV_z_hat [N_d2,N_a1,1,N_a2]
+                        entireRHS_ii_z=reshape(ReturnMatrix_ii_z+DiscountedEV_z_hat(d2aprime),[N_d12*(maxgap(ii)+1),level1iidiff(ii)*N_a2]);
+                        entireRHS_ii_z_under=reshape(ReturnMatrix_ii_z+DiscountedEV_z_under(d2aprime),[N_d12*(maxgap(ii)+1),level1iidiff(ii)*N_a2]);
+                        [Vtempii,maxindex]=max(entireRHS_ii_z,[],1);
+                        V_ford3_hat(curraindex,z_c,d3_c)=shiftdim(Vtempii,1);
+                        maxindexfull=maxindex+N_d12*(maxgap(ii)+1)*(0:level1iidiff(ii)*N_a2-1);
+                        Vtempii_under=entireRHS_ii_z_under(maxindexfull);
+                        V_ford3_under(curraindex,z_c,d3_c)=shiftdim(Vtempii_under,1);
+                        % maxindex does not need reworking, as with expasset there is no a2prime
+                        %  the a1prime is relative to loweredge(allind), need to 'add' the loweredge
+                        dind=(rem(maxindex-1,N_d1*N_d2)+1);
+                        a2ind=repelem((0:1:N_a2-1),1,level1iidiff(ii)); % already includes -1
+                        allind=dind+N_d1*N_d2*a2ind; % loweredge is n_d-by-1-by-1-by-n_a2
+                        Policy_ford3_hat(curraindex,z_c,d3_c)=shiftdim(maxindex+N_d1*N_d2*(loweredge(allind)-1),1);
+                    else
+                        loweredge=maxindex1(:,1,ii,:);
+                        % Just use aprime(ii) for everything
+                        ReturnMatrix_ii_z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,[n_d2,1],1,level1iidiff(ii),n_a2,special_n_semiz, d123_gridvals_val, a1_gridvals(loweredge), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, z_val, ReturnFnParamsVec,3,0); % Level=2, Refine=0
+                        d2aprime=d2ind+N_d2*(loweredge-1)+N_d2*N_a1*shiftdim((0:1:N_a2-1),-2); % [N_d12,1,1,N_a2]; linear index into DiscountedEV_z_hat [N_d2,N_a1,1,N_a2]
+                        entireRHS_ii_z=reshape(ReturnMatrix_ii_z+DiscountedEV_z_hat(d2aprime),[N_d12,level1iidiff(ii)*N_a2]);
+                        entireRHS_ii_z_under=reshape(ReturnMatrix_ii_z+DiscountedEV_z_under(d2aprime),[N_d12,level1iidiff(ii)*N_a2]);
+                        [Vtempii,maxindex]=max(entireRHS_ii_z,[],1);
+                        V_ford3_hat(curraindex,z_c,d3_c)=shiftdim(Vtempii,1);
+                        maxindexfull=maxindex+N_d12*(0:level1iidiff(ii)*N_a2-1);
+                        Vtempii_under=entireRHS_ii_z_under(maxindexfull);
+                        V_ford3_under(curraindex,z_c,d3_c)=shiftdim(Vtempii_under,1);
+                        % maxindex does not need reworking, as with expasset there is no a2prime
+                        %  the a1prime is relative to loweredge(allind), need to 'add' the loweredge
+                        dind=(rem(maxindex-1,N_d1*N_d2)+1);
+                        a2ind=repelem((0:1:N_a2-1),1,level1iidiff(ii)); % already includes -1
+                        allind=dind+N_d1*N_d2*a2ind; % loweredge is n_d-by-1-by-1-by-n_a2
+                        Policy_ford3_hat(curraindex,z_c,d3_c)=shiftdim(maxindex+N_d1*N_d2*(loweredge(allind)-1),1);
+                    end
+                end
+            end
+        end
+    end
+
+    % Now we just max over d3, and keep the policy that corresponded to that (including modify the policy to include the d3 decision)
+    [V_jj,maxindex]=max(V_ford3_hat,[],3); % max over d2
+    Vhat(:,:,N_j)=V_jj;
+    Policy3(3,:,:,N_j)=shiftdim(maxindex,-1); % d3 is just maxindex
+    maxindex=reshape(maxindex,[N_a*N_semiz,1]); % This is the value of d that corresponds, make it this shape for addition just below
+    d12a1prime_ind=reshape(Policy_ford3_hat((1:1:N_a*N_semiz)'+(N_a*N_semiz)*(maxindex-1)),[1,N_a,N_semiz]);
+    d12_ind=rem(d12a1prime_ind-1,N_d12)+1;
+    Policy3(1,:,:,N_j)=rem(d12_ind-1,N_d1)+1; % d1
+    Policy3(2,:,:,N_j)=ceil(d12_ind/N_d1); % d2
+    Policy3(4,:,:,N_j)=ceil(d12a1prime_ind/N_d12); % a1prime
+
+    % Vunderbar: gather the beta-RHS (already inner-gathered) at the same chosen d3
+    Vunderbar(:,:,N_j)=reshape(V_ford3_under((1:1:N_a*N_semiz)'+(N_a*N_semiz)*(maxindex-1)),[N_a,N_semiz]);
+end
+
+%% Iterate backwards through j.
+for reverse_j=1:N_j-1
+    jj=N_j-reverse_j;
+
+    if vfoptions.verbose==1
+        fprintf('Finite horizon: %i of %i \n',jj, N_j)
+    end
+
+
+    % Create a vector containing all the return function parameters (in order)
+    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
+    beta=prod(DiscountFactorParamsVec);
+    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
+    beta0beta=beta0*beta;
+
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);
+    [a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix(aprimeFn, n_d2, n_a2, d2_gridvals, a2_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
+    % Note: aprimeIndex is [N_d2,N_a2], whereas aprimeProbs is [N_d2,N_a2]
+
+    aprimeIndex=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat((a2primeIndex-1),N_a1,1); % [N_d2*N_a1,N_a2]
+    aprimeplus1Index=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat(a2primeIndex,N_a1,1); % [N_d2*N_a1,N_a2]
+    if vfoptions.lowmemory>0
+        aprimeProbs=repmat(a2primeProbs,N_a1,1); % [N_d2*N_a1,N_a2]
+    else % lowmemory=0
+        aprimeProbs=repmat(a2primeProbs,N_a1,1,N_semiz);  % [N_d2*N_a1,N_a2,N_semiz]
+    end
+
+    EVpre=Vunderbar(:,:,jj+1);
+
+    if vfoptions.lowmemory==0
+        for d3_c=1:N_d3
+            d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
+
+            % Note: By definition V_Jplus1 does not depend on d (only aprime)
+            pi_semiz_d3=pi_semiz_J(:,:,d3_c,jj);
+
+            EV=EVpre.*shiftdim(pi_semiz_d3',-1);
+            EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+            EV=sum(EV,2); % sum over z', leaving a singular second dimension
+
+            % Switch EV from being in terms of aprime to being in terms of d and a
+            EV1=reshape(EV(aprimeIndex,:),[N_d2*N_a1,N_a2,N_semiz]); % (d2,a1prime,a2,z), the lower aprime
+            EV2=reshape(EV(aprimeplus1Index,:),[N_d2*N_a1,N_a2,N_semiz]); % (d2,a1prime,a2,z), the upper aprime
+
+            % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
+            skipinterp=(EV1==EV2);
+            aprimeProbs(skipinterp)=0; % effectively skips interpolation
+
+            % Apply the aprimeProbs
+            entireEV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
+            % entireEV is (d,a1prime, a2,z)
+
+            DiscountedEV_hat=beta0beta*reshape(entireEV,[N_d2,N_a1,1,N_a2,N_semiz]); % (d2,a1prime,1,a2,zprime); d1-dim is implicit singleton, broadcasts at use sites   % QH-perceived
+            DiscountedEV_under=beta*reshape(entireEV,[N_d2,N_a1,1,N_a2,N_semiz]);   % exponential
+
+            % n-Monotonicity
+            ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,[n_d2,1],n_a1,vfoptions.level1n,n_a2,n_semiz, d123_gridvals_val, a1_gridvals, a1_gridvals(level1ii), a2_gridvals, semiz_gridvals_J(:,:,jj), ReturnFnParamsVec,1,0); % Level=1, Refine=0
+
+            entireRHS_ii_d3=ReturnMatrix_ii_d3+repelem(DiscountedEV_hat,N_d1,1,1,1,1);
+            entireRHS_ii_d3_under=ReturnMatrix_ii_d3+repelem(DiscountedEV_under,N_d1,1,1,1,1);
+
+            % First, we want a1prime conditional on (d,1,a)
+            [~,maxindex1]=max(entireRHS_ii_d3,[],2);
+
+            % Now, get and store the full (d,aprime)
+            entireRHS_ii_d3_flat=reshape(entireRHS_ii_d3,[N_d1*N_d2*N_a1,vfoptions.level1n*N_a2,N_semiz]);
+            [Vtempii,maxindex2]=max(entireRHS_ii_d3_flat,[],1);
+
+            % Store
+            curraindex=repmat(level1ii',N_a2,1)+N_a1*repelem((0:1:N_a2-1)',vfoptions.level1n,1);
+            V_ford3_hat(curraindex,:,d3_c)=shiftdim(Vtempii,1);
+            entireRHS_ii_d3_under_flat=reshape(entireRHS_ii_d3_under,[N_d1*N_d2*N_a1,vfoptions.level1n*N_a2,N_semiz]);
+            maxindexfull=maxindex2+N_d1*N_d2*N_a1*(0:vfoptions.level1n*N_a2-1)+N_d1*N_d2*N_a1*vfoptions.level1n*N_a2*shiftdim((0:N_semiz-1),-1);
+            Vtempii_under=entireRHS_ii_d3_under_flat(maxindexfull);
+            V_ford3_under(curraindex,:,d3_c)=shiftdim(Vtempii_under,1);
+            Policy_ford3_hat(curraindex,:,d3_c)=shiftdim(maxindex2,1);
+
+            % a1-dim stays singleton in DiscountedEV_hat; broadcasts at use sites
+
+            % Attempt for improved version
+            maxgap=squeeze(max(max(max(maxindex1(:,1,2:end,:,:)-maxindex1(:,1,1:end-1,:,:),[],5),[],4),[],1));
+            for ii=1:(vfoptions.level1n-1)
+                curraindex=repmat((level1ii(ii)+1:1:level1ii(ii+1)-1)',N_a2,1)+N_a1*repelem((0:1:N_a2-1)',level1iidiff(ii),1);
+                if maxgap(ii)>0
+                    loweredge=min(maxindex1(:,1,ii,:,:),N_a1-maxgap(ii)); % maxindex1(ii,:), but avoid going off top of grid when we add maxgap(ii) points
+                    % loweredge is n_d-by-1-by-n_a2-by-1-by-n_a2-by-n_z
+                    a1primeindexes=loweredge+(0:1:maxgap(ii));
+                    % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_a2-by-n_z
+                    ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,n_semiz, d123_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, semiz_gridvals_J(:,:,jj), ReturnFnParamsVec,3,0); % Level=2, Refine=0
+                    d2aprimez=d2ind+N_d2*(a1primeindexes-1)+N_d2*N_a1*shiftdim((0:1:N_a2-1),-2)+N_d2*N_a1*N_a2*shiftdim((0:1:N_semiz-1),-3); % [N_d12,maxgap+1,1,N_a2,N_semiz]; linear index into DiscountedEV_hat [N_d2,N_a1,1,N_a2,N_semiz]
+                    entireRHS_ii=reshape(ReturnMatrix_ii_d3+DiscountedEV_hat(d2aprimez),[N_d12*(maxgap(ii)+1),level1iidiff(ii)*N_a2,N_semiz]);
+                    entireRHS_ii_under=reshape(ReturnMatrix_ii_d3+DiscountedEV_under(d2aprimez),[N_d12*(maxgap(ii)+1),level1iidiff(ii)*N_a2,N_semiz]);
+                    [Vtempii,maxindex]=max(entireRHS_ii,[],1);
+                    V_ford3_hat(curraindex,:,d3_c)=shiftdim(Vtempii,1);
+                    maxindexfull=maxindex+N_d12*(maxgap(ii)+1)*(0:level1iidiff(ii)*N_a2-1)+N_d12*(maxgap(ii)+1)*level1iidiff(ii)*N_a2*shiftdim((0:N_semiz-1),-1);
+                    Vtempii_under=entireRHS_ii_under(maxindexfull);
+                    V_ford3_under(curraindex,:,d3_c)=shiftdim(Vtempii_under,1);
+                    % maxindex does not need reworking, as with expasset there is no a2prime
+                    %  the a1prime is relative to loweredge(allind), need to 'add' the loweredge
+                    dind=(rem(maxindex-1,N_d1*N_d2)+1);
+                    a2ind=repelem((0:1:N_a2-1),1,level1iidiff(ii)); % already includes -1
+                    allind=dind+N_d1*N_d2*a2ind+N_d1*N_d2*N_a2*semizind; % loweredge is n_d-by-1-by-1-by-n_a2-by-n_a2
+                    Policy_ford3_hat(curraindex,:,d3_c)=shiftdim(maxindex+N_d1*N_d2*(loweredge(allind)-1),1);
+                else
+                    loweredge=maxindex1(:,1,ii,:,:);
+                    % Just use aprime(ii) for everything
+                    ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,[n_d2,1],1,level1iidiff(ii),n_a2,n_semiz, d123_gridvals_val, a1_gridvals(loweredge), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, semiz_gridvals_J(:,:,jj), ReturnFnParamsVec,3,0); % Level=2, Refine=0
+                    d2aprimez=d2ind+N_d2*(loweredge-1)+N_d2*N_a1*shiftdim((0:1:N_a2-1),-2)+N_d2*N_a1*N_a2*shiftdim((0:1:N_semiz-1),-3); % [N_d12,1,1,N_a2,N_semiz]; linear index into DiscountedEV_hat [N_d2,N_a1,1,N_a2,N_semiz]
+                    entireRHS_ii=reshape(ReturnMatrix_ii_d3+DiscountedEV_hat(d2aprimez),[N_d12,level1iidiff(ii)*N_a2,N_semiz]);
+                    entireRHS_ii_under=reshape(ReturnMatrix_ii_d3+DiscountedEV_under(d2aprimez),[N_d12,level1iidiff(ii)*N_a2,N_semiz]);
+                    [Vtempii,maxindex]=max(entireRHS_ii,[],1);
+                    V_ford3_hat(curraindex,:,d3_c)=shiftdim(Vtempii,1);
+                    maxindexfull=maxindex+N_d12*(0:level1iidiff(ii)*N_a2-1)+N_d12*level1iidiff(ii)*N_a2*shiftdim((0:N_semiz-1),-1);
+                    Vtempii_under=entireRHS_ii_under(maxindexfull);
+                    V_ford3_under(curraindex,:,d3_c)=shiftdim(Vtempii_under,1);
+                    % maxindex does not need reworking, as with expasset there is no a2prime
+                    %  the a1prime is relative to loweredge(allind), need to 'add' the loweredge
+                    dind=(rem(maxindex-1,N_d1*N_d2)+1);
+                    a2ind=repelem((0:1:N_a2-1),1,level1iidiff(ii)); % already includes -1
+                    allind=dind+N_d1*N_d2*a2ind+N_d1*N_d2*N_a2*semizind; % loweredge is n_d-by-1-by-1-by-n_a2-by-n_z
+                    Policy_ford3_hat(curraindex,:,d3_c)=shiftdim(maxindex+N_d1*N_d2*(loweredge(allind)-1),1);
+                end
+            end
+        end
+
+    elseif vfoptions.lowmemory==1
+        for d3_c=1:N_d3
+            d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
+            % Note: By definition V_Jplus1 does not depend on d2 (only aprime)
+            pi_semiz_d3=pi_semiz_J(:,:,d3_c,jj);
+
+            for z_c=1:N_semiz
+                z_val=semiz_gridvals_J(z_c,:,jj);
+
+                %Calc the condl expectation term (except beta), which depends on z but not on control variables
+                EV_z=EVpre.*shiftdim(pi_semiz_d3(z_c,:)',-1);
+                EV_z(isnan(EV_z))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+                EV_z=sum(EV_z,2);
+
+                % Switch EV_z from being in terms of aprime to being in terms of d and a
+                EV1=reshape(EV_z(aprimeIndex),[N_d2*N_a1,N_a2]); % (d2,a1prime,a2), the lower aprime
+                EV2=reshape(EV_z(aprimeplus1Index),[N_d2*N_a1,N_a2]); % (d2,a1prime,a2), the upper aprime
+
+                % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
+                skipinterp=(EV1==EV2);
+                aprimeProbs(skipinterp)=0; % effectively skips interpolation
+
+                % Apply the aprimeProbs
+                entireEV_z=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
+                % entireEV_z is (d,a1prime, a2)
+
+                DiscountedEV_z_hat=beta0beta*reshape(entireEV_z,[N_d2,N_a1,1,N_a2]); % (d2,a1prime,1,a2); d1-dim is implicit singleton, broadcasts at use sites   % QH-perceived
+                DiscountedEV_z_under=beta*reshape(entireEV_z,[N_d2,N_a1,1,N_a2]);   % exponential
+
+                % n-Monotonicity
+                ReturnMatrix_ii_z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,[n_d2,1],n_a1,vfoptions.level1n,n_a2,special_n_semiz, d123_gridvals_val, a1_gridvals, a1_gridvals(level1ii), a2_gridvals, z_val, ReturnFnParamsVec,1,0); % Level=1, Refine=0
+
+                entireRHS_ii_z=ReturnMatrix_ii_z+repelem(DiscountedEV_z_hat,N_d1,1,1,1);
+                entireRHS_ii_z_under=ReturnMatrix_ii_z+repelem(DiscountedEV_z_under,N_d1,1,1,1);
+
+                % First, we want a1prime conditional on (d,1,a)
+                [~,maxindex1]=max(entireRHS_ii_z,[],2);
+
+                % Now, get and store the full (d,aprime)
+                entireRHS_ii_z_flat=reshape(entireRHS_ii_z,[N_d1*N_d2*N_a1,vfoptions.level1n*N_a2]);
+                [Vtempii,maxindex2]=max(entireRHS_ii_z_flat,[],1);
+
+                % Store
+                curraindex=repmat(level1ii',N_a2,1)+N_a1*repelem((0:1:N_a2-1)',vfoptions.level1n,1);
+                V_ford3_hat(curraindex,z_c,d3_c)=shiftdim(Vtempii,1);
+                entireRHS_ii_z_under_flat=reshape(entireRHS_ii_z_under,[N_d1*N_d2*N_a1,vfoptions.level1n*N_a2]);
+                maxindexfull=maxindex2+N_d1*N_d2*N_a1*(0:vfoptions.level1n*N_a2-1);
+                Vtempii_under=entireRHS_ii_z_under_flat(maxindexfull);
+                V_ford3_under(curraindex,z_c,d3_c)=shiftdim(Vtempii_under,1);
+                Policy_ford3_hat(curraindex,z_c,d3_c)=shiftdim(maxindex2,1);
+
+                % a1-dim stays singleton in DiscountedEV_z_hat; broadcasts at use sites
+                % Attempt for improved version
+                maxgap=squeeze(max(max(maxindex1(:,1,2:end,:)-maxindex1(:,1,1:end-1,:),[],4),[],1));
+                for ii=1:(vfoptions.level1n-1)
+                    curraindex=repmat((level1ii(ii)+1:1:level1ii(ii+1)-1)',N_a2,1)+N_a1*repelem((0:1:N_a2-1)',level1iidiff(ii),1);
+                    if maxgap(ii)>0
+                        loweredge=min(maxindex1(:,1,ii,:),N_a1-maxgap(ii)); % maxindex1(ii,:), but avoid going off top of grid when we add maxgap(ii) points
+                        % loweredge is n_d-by-1-by-n_a2-by-1-by-n_a2
+                        a1primeindexes=loweredge+(0:1:maxgap(ii));
+                        % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_a2
+                        ReturnMatrix_ii_z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,[n_d2,1],maxgap(ii)+1,level1iidiff(ii),n_a2,special_n_semiz, d123_gridvals_val, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, z_val, ReturnFnParamsVec,3,0); % Level=2, Refine=0
+                        d2aprime=d2ind+N_d2*(a1primeindexes-1)+N_d2*N_a1*shiftdim((0:1:N_a2-1),-2); % [N_d12,maxgap+1,1,N_a2]; linear index into DiscountedEV_z_hat [N_d2,N_a1,1,N_a2]
+                        entireRHS_ii_z=reshape(ReturnMatrix_ii_z+DiscountedEV_z_hat(d2aprime),[N_d12*(maxgap(ii)+1),level1iidiff(ii)*N_a2]);
+                        entireRHS_ii_z_under=reshape(ReturnMatrix_ii_z+DiscountedEV_z_under(d2aprime),[N_d12*(maxgap(ii)+1),level1iidiff(ii)*N_a2]);
+                        [Vtempii,maxindex]=max(entireRHS_ii_z,[],1);
+                        V_ford3_hat(curraindex,z_c,d3_c)=shiftdim(Vtempii,1);
+                        maxindexfull=maxindex+N_d12*(maxgap(ii)+1)*(0:level1iidiff(ii)*N_a2-1);
+                        Vtempii_under=entireRHS_ii_z_under(maxindexfull);
+                        V_ford3_under(curraindex,z_c,d3_c)=shiftdim(Vtempii_under,1);
+                        % maxindex does not need reworking, as with expasset there is no a2prime
+                        %  the a1prime is relative to loweredge(allind), need to 'add' the loweredge
+                        dind=(rem(maxindex-1,N_d1*N_d2)+1);
+                        a2ind=repelem((0:1:N_a2-1),1,level1iidiff(ii)); % already includes -1
+                        allind=dind+N_d1*N_d2*a2ind; % loweredge is n_d-by-1-by-1-by-n_a2
+                        Policy_ford3_hat(curraindex,z_c,d3_c)=shiftdim(maxindex+N_d1*N_d2*(loweredge(allind)-1),1);
+                    else
+                        loweredge=maxindex1(:,1,ii,:);
+                        % Just use aprime(ii) for everything
+                        ReturnMatrix_ii_z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,[n_d2,1],1,level1iidiff(ii),n_a2,special_n_semiz, d123_gridvals_val, a1_gridvals(loweredge), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, z_val, ReturnFnParamsVec,3,0); % Level=2, Refine=0
+                        d2aprime=d2ind+N_d2*(loweredge-1)+N_d2*N_a1*shiftdim((0:1:N_a2-1),-2); % [N_d12,1,1,N_a2]; linear index into DiscountedEV_z_hat [N_d2,N_a1,1,N_a2]
+                        entireRHS_ii_z=reshape(ReturnMatrix_ii_z+DiscountedEV_z_hat(d2aprime),[N_d12,level1iidiff(ii)*N_a2]);
+                        entireRHS_ii_z_under=reshape(ReturnMatrix_ii_z+DiscountedEV_z_under(d2aprime),[N_d12,level1iidiff(ii)*N_a2]);
+                        [Vtempii,maxindex]=max(entireRHS_ii_z,[],1);
+                        V_ford3_hat(curraindex,z_c,d3_c)=shiftdim(Vtempii,1);
+                        maxindexfull=maxindex+N_d12*(0:level1iidiff(ii)*N_a2-1);
+                        Vtempii_under=entireRHS_ii_z_under(maxindexfull);
+                        V_ford3_under(curraindex,z_c,d3_c)=shiftdim(Vtempii_under,1);
+                        % maxindex does not need reworking, as with expasset there is no a2prime
+                        %  the a1prime is relative to loweredge(allind), need to 'add' the loweredge
+                        dind=(rem(maxindex-1,N_d1*N_d2)+1);
+                        a2ind=repelem((0:1:N_a2-1),1,level1iidiff(ii)); % already includes -1
+                        allind=dind+N_d1*N_d2*a2ind; % loweredge is n_d-by-1-by-1-by-n_a2
+                        Policy_ford3_hat(curraindex,z_c,d3_c)=shiftdim(maxindex+N_d1*N_d2*(loweredge(allind)-1),1);
+                    end
+                end
+            end
+        end
+    end
+
+    % Now we just max over d3, and keep the policy that corresponded to that (including modify the policy to include the d3 decision)
+    [V_jj,maxindex]=max(V_ford3_hat,[],3); % max over d3
+    Vhat(:,:,jj)=V_jj;
+    Policy3(3,:,:,jj)=shiftdim(maxindex,-1); % d3 is just maxindex
+    maxindex=reshape(maxindex,[N_a*N_semiz,1]); % This is the value of d that corresponds, make it this shape for addition just below
+    d12a1prime_ind=reshape(Policy_ford3_hat((1:1:N_a*N_semiz)'+(N_a*N_semiz)*(maxindex-1)),[1,N_a,N_semiz]);
+    d12_ind=rem(d12a1prime_ind-1,N_d12)+1;
+    Policy3(1,:,:,jj)=rem(d12_ind-1,N_d1)+1; % d1
+    Policy3(2,:,:,jj)=ceil(d12_ind/N_d1); % d2
+    Policy3(4,:,:,jj)=ceil(d12a1prime_ind/N_d12); % a1prime
+
+    % Vunderbar: gather the beta-RHS (already inner-gathered) at the same chosen d3
+    Vunderbar(:,:,jj)=reshape(V_ford3_under((1:1:N_a*N_semiz)'+(N_a*N_semiz)*(maxindex-1)),[N_a,N_semiz]);
+end
+
+
+%% For experience asset, just output Policy as is and then use Case2 to UnKron
+
+
+end
