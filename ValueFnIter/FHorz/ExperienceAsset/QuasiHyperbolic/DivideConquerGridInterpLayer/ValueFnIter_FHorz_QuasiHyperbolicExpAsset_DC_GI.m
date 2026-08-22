@@ -27,8 +27,143 @@ if ~isfield(vfoptions,'level1n')
 end
 vfoptions.level1n=min(vfoptions.level1n,n_a1);
 
+%% DC2A+GI2A path: multi-dim n_a1 (first standard endo state is DC and GI'd, remaining N-2 are folded; n_a2 is expasset)
 if length(n_a1)>1
-    error('Quasi-hyperbolic discounting with ExpAsset does not yet support DC2A+GI2A (multiple standard endogenous states with divide-and-conquer plus grid interpolation layer)')
+    n_a1DC=n_a1(1);
+    n_a1fold=n_a1(2:end);
+    N_a1DC=prod(n_a1DC);
+    % Split a1_gridvals (rows cycle DC fastest) into the DC grid and the folded-states gridvals
+    a1DC_grid=a1_gridvals(1:N_a1DC,1);
+    a1fold_gridvals=a1_gridvals(1:N_a1DC:end,2:end);
+
+    if length(vfoptions.level1n)>1
+        if vfoptions.level1n(2)>=n_a1(2) % only DC on the first endo state
+            vfoptions.level1n=vfoptions.level1n(1);
+        else
+            error('With ExpAsset DC2A+GI2A, can only do divide-and-conquer on the first standard endogenous state')
+        end
+    end
+
+    if N_e==0 % no e variable
+        if N_d1==0
+            if N_z==0
+                if isNaive
+                    [V1Kron,PolicyKron,ValtKron,PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetN_DC2A_GI2A_nod1_noz_raw(n_d2, n_a1DC, n_a1fold, n_a2, N_j, d2_gridvals, a1DC_grid, a1fold_gridvals, a2_grid, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions);
+                else
+                    [V1Kron,PolicyKron,ValtKron]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetS_DC2A_GI2A_nod1_noz_raw(n_d2, n_a1DC, n_a1fold, n_a2, N_j, d2_gridvals, a1DC_grid, a1fold_gridvals, a2_grid, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions);
+                end
+                nDPolicyChannel=n_d2;
+            else
+                if isNaive
+                    [V1Kron,PolicyKron,ValtKron,PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetN_DC2A_GI2A_nod1_raw(n_d2, n_a1DC, n_a1fold, n_a2, n_z, N_j, d2_gridvals, a1DC_grid, a1fold_gridvals, a2_grid, z_gridvals_J, pi_z_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions);
+                else
+                    [V1Kron,PolicyKron,ValtKron]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetS_DC2A_GI2A_nod1_raw(n_d2, n_a1DC, n_a1fold, n_a2, n_z, N_j, d2_gridvals, a1DC_grid, a1fold_gridvals, a2_grid, z_gridvals_J, pi_z_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions);
+                end
+                nDPolicyChannel=n_d2;
+            end
+        else % d1 variable
+            if N_z==0
+                if isNaive
+                    [V1Kron,PolicyKron,ValtKron,PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetN_DC2A_GI2A_noz_raw(n_d1, n_d2, n_a1DC, n_a1fold, n_a2, N_j, d_gridvals, d2_gridvals, a1DC_grid, a1fold_gridvals, a2_grid, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions);
+                else
+                    [V1Kron,PolicyKron,ValtKron]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetS_DC2A_GI2A_noz_raw(n_d1, n_d2, n_a1DC, n_a1fold, n_a2, N_j, d_gridvals, d2_gridvals, a1DC_grid, a1fold_gridvals, a2_grid, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions);
+                end
+                nDPolicyChannel=[n_d1,n_d2];
+            else
+                if isNaive
+                    [V1Kron,PolicyKron,ValtKron,PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetN_DC2A_GI2A_raw(n_d1, n_d2, n_a1DC, n_a1fold, n_a2, n_z, N_j, d_gridvals, d2_gridvals, a1DC_grid, a1fold_gridvals, a2_grid, z_gridvals_J, pi_z_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions);
+                else
+                    [V1Kron,PolicyKron,ValtKron]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetS_DC2A_GI2A_raw(n_d1, n_d2, n_a1DC, n_a1fold, n_a2, n_z, N_j, d_gridvals, d2_gridvals, a1DC_grid, a1fold_gridvals, a2_grid, z_gridvals_J, pi_z_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions);
+                end
+                nDPolicyChannel=[n_d1,n_d2];
+            end
+        end
+    else % N_e
+        if N_d1==0
+            if N_z==0
+                if isNaive
+                    [V1Kron,PolicyKron,ValtKron,PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetN_DC2A_GI2A_nod1_noz_e_raw(n_d2, n_a1DC, n_a1fold, n_a2, vfoptions.n_e, N_j, d2_gridvals, a1DC_grid, a1fold_gridvals, a2_grid, vfoptions.e_gridvals_J, vfoptions.pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions);
+                else
+                    [V1Kron,PolicyKron,ValtKron]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetS_DC2A_GI2A_nod1_noz_e_raw(n_d2, n_a1DC, n_a1fold, n_a2, vfoptions.n_e, N_j, d2_gridvals, a1DC_grid, a1fold_gridvals, a2_grid, vfoptions.e_gridvals_J, vfoptions.pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions);
+                end
+                nDPolicyChannel=n_d2;
+            else
+                if isNaive
+                    [V1Kron,PolicyKron,ValtKron,PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetN_DC2A_GI2A_nod1_e_raw(n_d2, n_a1DC, n_a1fold, n_a2, n_z, vfoptions.n_e, N_j, d2_gridvals, a1DC_grid, a1fold_gridvals, a2_grid, z_gridvals_J, vfoptions.e_gridvals_J, pi_z_J, vfoptions.pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions);
+                else
+                    [V1Kron,PolicyKron,ValtKron]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetS_DC2A_GI2A_nod1_e_raw(n_d2, n_a1DC, n_a1fold, n_a2, n_z, vfoptions.n_e, N_j, d2_gridvals, a1DC_grid, a1fold_gridvals, a2_grid, z_gridvals_J, vfoptions.e_gridvals_J, pi_z_J, vfoptions.pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions);
+                end
+                nDPolicyChannel=n_d2;
+            end
+        else % d1 variable
+            if N_z==0
+                if isNaive
+                    [V1Kron,PolicyKron,ValtKron,PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetN_DC2A_GI2A_noz_e_raw(n_d1, n_d2, n_a1DC, n_a1fold, n_a2, vfoptions.n_e, N_j, d_gridvals, d2_gridvals, a1DC_grid, a1fold_gridvals, a2_grid, vfoptions.e_gridvals_J, vfoptions.pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions);
+                else
+                    [V1Kron,PolicyKron,ValtKron]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetS_DC2A_GI2A_noz_e_raw(n_d1, n_d2, n_a1DC, n_a1fold, n_a2, vfoptions.n_e, N_j, d_gridvals, d2_gridvals, a1DC_grid, a1fold_gridvals, a2_grid, vfoptions.e_gridvals_J, vfoptions.pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions);
+                end
+                nDPolicyChannel=[n_d1,n_d2];
+            else
+                if isNaive
+                    [V1Kron,PolicyKron,ValtKron,PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetN_DC2A_GI2A_e_raw(n_d1, n_d2, n_a1DC, n_a1fold, n_a2, n_z, vfoptions.n_e, N_j, d_gridvals, d2_gridvals, a1DC_grid, a1fold_gridvals, a2_grid, z_gridvals_J, vfoptions.e_gridvals_J, pi_z_J, vfoptions.pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions);
+                else
+                    [V1Kron,PolicyKron,ValtKron]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetS_DC2A_GI2A_e_raw(n_d1, n_d2, n_a1DC, n_a1fold, n_a2, n_z, vfoptions.n_e, N_j, d_gridvals, d2_gridvals, a1DC_grid, a1fold_gridvals, a2_grid, z_gridvals_J, vfoptions.e_gridvals_J, pi_z_J, vfoptions.pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions);
+                end
+                nDPolicyChannel=[n_d1,n_d2];
+            end
+        end
+    end
+
+    if vfoptions.outputkron==1
+        V1=V1Kron;
+        Policy=PolicyKron;
+        Valt=ValtKron;
+        if isNaive
+            Policyalt=PolicyaltKron;
+        end
+    else
+        n_a=[n_a1,n_a2];
+        if N_e==0
+            if N_z==0
+                V1=reshape(V1Kron,[n_a,N_j]);
+                Policy=UnKronPolicyIndexes3_FHorz_noz(PolicyKron, nDPolicyChannel, n_a1DC, n_a1fold, n_a, N_j, vfoptions);
+                Valt=reshape(ValtKron,[n_a,N_j]);
+                if isNaive
+                    Policyalt=UnKronPolicyIndexes3_FHorz_noz(PolicyaltKron, nDPolicyChannel, n_a1DC, n_a1fold, n_a, N_j, vfoptions);
+                end
+            else
+                V1=reshape(V1Kron,[n_a,n_z,N_j]);
+                Policy=UnKronPolicyIndexes3_FHorz_z(PolicyKron, nDPolicyChannel, n_a1DC, n_a1fold, n_a, n_z, N_j, vfoptions);
+                Valt=reshape(ValtKron,[n_a,n_z,N_j]);
+                if isNaive
+                    Policyalt=UnKronPolicyIndexes3_FHorz_z(PolicyaltKron, nDPolicyChannel, n_a1DC, n_a1fold, n_a, n_z, N_j, vfoptions);
+                end
+            end
+        else
+            if N_z==0
+                V1=reshape(V1Kron,[n_a,vfoptions.n_e,N_j]);
+                Policy=UnKronPolicyIndexes3_FHorz_z(PolicyKron, nDPolicyChannel, n_a1DC, n_a1fold, n_a, vfoptions.n_e, N_j, vfoptions); % Treat e as z (because no z)
+                Valt=reshape(ValtKron,[n_a,vfoptions.n_e,N_j]);
+                if isNaive
+                    Policyalt=UnKronPolicyIndexes3_FHorz_z(PolicyaltKron, nDPolicyChannel, n_a1DC, n_a1fold, n_a, vfoptions.n_e, N_j, vfoptions); % Treat e as z (because no z)
+                end
+            else
+                V1=reshape(V1Kron,[n_a,n_z,vfoptions.n_e,N_j]);
+                Policy=UnKronPolicyIndexes3_FHorz_z_e(PolicyKron, nDPolicyChannel, n_a1DC, n_a1fold, n_a, n_z, vfoptions.n_e, N_j, vfoptions);
+                Valt=reshape(ValtKron,[n_a,n_z,vfoptions.n_e,N_j]);
+                if isNaive
+                    Policyalt=UnKronPolicyIndexes3_FHorz_z_e(PolicyaltKron, nDPolicyChannel, n_a1DC, n_a1fold, n_a, n_z, vfoptions.n_e, N_j, vfoptions);
+                end
+            end
+        end
+    end
+
+    if isNaive
+        varargout={V1, Policy, Valt, Policyalt};
+    else
+        varargout={V1, Policy, Valt, []};
+    end
+    return
 end
 
 %% Dispatch (single DC dim — the DC1+GI1 path)
