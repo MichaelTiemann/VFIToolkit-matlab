@@ -332,7 +332,7 @@ for ii=1:PTypeStructure.N_i
         if ~isempty(vfoptions)
             PTypeStructure.(iistr).vfoptions=PType_Options(vfoptions,iistr); % some vfoptions will differ by permanent type, will clean these up as we go before they are passed
         else
-            PTypeStructure.(iistr).simoptions.verbose=0;
+            PTypeStructure.(iistr).vfoptions.verbose=0;
         end
     else
         PTypeStructure.(iistr).vfoptions.verbose=0;
@@ -349,6 +349,14 @@ for ii=1:PTypeStructure.N_i
     end
 
     PTypeStructure.(iistr).simoptions.outputasstructure=0; % Used by AggVars (in heteroagent subfn)
+
+    % Note: the grid interpolation layer must be set in both vfoptions and simoptions; if it is only set in
+    % vfoptions then Policy has an extra row that the agent dist would silently ignore (giving a wrong answer)
+    if isfield(PTypeStructure.(iistr).vfoptions,'gridinterplayer') && PTypeStructure.(iistr).vfoptions.gridinterplayer==1
+        if ~isfield(PTypeStructure.(iistr).simoptions,'gridinterplayer')
+            error(['When setting vfoptions.gridinterplayer you must also set simoptions.gridinterplayer, permanent type: ',iistr])
+        end
+    end
 
     if heteroagentoptions.verbose==1
         fprintf('Setting up, Permanent type: %i of %i \n',ii, PTypeStructure.N_i)

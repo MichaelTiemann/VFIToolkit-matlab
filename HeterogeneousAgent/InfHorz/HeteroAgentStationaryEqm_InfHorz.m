@@ -83,17 +83,19 @@ else
     if ~isfield(simoptions,'parallel')
         simoptions.parallel=1+(gpuDeviceCount>0);
     end
-    if isfield(vfoptions,'gridinterplayer')
-        if ~isfield(simoptions,'gridinterplayer')
-            error('When setting vfoptions.gridinterplayer you must also set simoptions.gridinterplayer')
-        end
-    end
     % Exogenous shocks
     if ~isfield(simoptions,'n_e')
         simoptions.n_e=0;
     end
     if ~isfield(simoptions,'n_semiz')
         simoptions.n_semiz=0;
+    end
+end
+% Note: the grid interpolation layer must be set in both vfoptions and simoptions; if it is only set in
+% vfoptions then Policy has an extra row that the agent dist would silently ignore (giving a wrong answer)
+if isfield(vfoptions,'gridinterplayer') && vfoptions.gridinterplayer==1
+    if ~isfield(simoptions,'gridinterplayer')
+        error('When setting vfoptions.gridinterplayer you must also set simoptions.gridinterplayer')
     end
 end
 
