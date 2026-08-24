@@ -30,23 +30,19 @@ else
     end
 end
 
-%% Some setups need Parameters, PricePath and ParamPath to be input
-if simoptions.experienceasset>=1
-    if ~exist('Parameters','var') || ~exist('PricePath','var') || ~exist('ParamPath','var')
-        error('When using AgentDistOnTransPath_Case1() with experienceasset you must include Parameters, PricePath, ParamPath as inputs after simoptions')
-    end
-
-    %%
-    % Note: Internally PricePath is matrix of size T-by-'number of prices'.
-    % ParamPath is matrix of size T-by-'number of parameters that change over the transition path'.
-    [PricePath,ParamPath,PricePathNames,ParamPathNames,PricePathSizeVec,ParamPathSizeVec]=PricePathParamPath_StructToMatrix(PricePath,ParamPath,T);
-end
+%% Note: Internally PricePath is matrix of size T-by-'number of prices'.
+% ParamPath is matrix of size T-by-'number of parameters that change over the transition path'.
+[PricePath,ParamPath,PricePathNames,ParamPathNames,PricePathSizeVec,ParamPathSizeVec]=PricePathParamPath_StructToMatrix(PricePath,ParamPath,T);
 
 %% Because of Tan improvement the AgentDist is done as a spare cpu matrix, and only afterwards do we store it on gpu
 AgentDistPath=zeros(N_a*N_z,T,'gpuArray');
 % Call AgentDist the current periods distn
 AgentDist=gather(sparse(reshape(AgentDist_initial,[N_a*N_z,1])));
-pi_z_sparse=sparse(gather(pi_z));
+% gridpiboth=2: the agent dist wants the transition probabilities (including the sparse copy) and
+% not the grid, which is why z_grid is passed as []. transpathoptions is local: this command does
+% not take one, and the setup only uses it to report back zpathtrivial and pi_z_T.
+transpathoptions=struct();
+[~, pi_z, pi_z_sparse, ~, ~, ~, ~, transpathoptions, simoptions]=ExogShockSetup_InfHorz_TPath(n_z,[],pi_z,Parameters,PricePathNames,ParamPathNames,T,transpathoptions,simoptions,2);
 AgentDistPath(:,1)=gpuArray(full(AgentDist));
 
 if simoptions.experienceasset==0
@@ -68,6 +64,9 @@ if simoptions.experienceasset==0
         II1=(1:1:N_a*N_z); % Index for this period (a,z)
         IIones=ones(N_a*N_z,1); % Next period 'probabilities'
         for tt=1:T-1
+            if transpathoptions.zpathtrivial==0
+                pi_z_sparse=sparse(gather(transpathoptions.pi_z_T(:,:,tt)));
+            end
             AgentDist=AgentDist_InfHorz_TPath_SingleStep_raw(AgentDist,PolicyaprimezPath(:,tt),II1,IIones,N_a,N_z,pi_z_sparse);
             AgentDistPath(:,tt+1)=gpuArray(full(AgentDist));
         end
@@ -83,6 +82,9 @@ if simoptions.experienceasset==0
         PolicyProbsPath(:,1,:)=1-PolicyProbsPath(:,2,:); % probability of lower grid point
 
         for tt=1:T-1
+            if transpathoptions.zpathtrivial==0
+                pi_z_sparse=sparse(gather(transpathoptions.pi_z_T(:,:,tt)));
+            end
             AgentDist=AgentDist_InfHorz_TPath_SingleStep_nProbs_raw(AgentDist,PolicyaprimezPath(:,:,tt),II2,PolicyProbsPath(:,:,tt),N_a,N_z,pi_z_sparse);
             AgentDistPath(:,tt+1)=gpuArray(full(AgentDist));
         end
@@ -140,6 +142,10 @@ elseif simoptions.experienceasset>=1
     if simoptions.gridinterplayer==0
 
         for tt=1:T-1
+            if transpathoptions.zpathtrivial==0
+                pi_z_sparse=sparse(gather(transpathoptions.pi_z_T(:,:,tt)));
+            end
+
             % Get the current optimal policy, and iterate the agent dist
             Policy=PolicyPath(:,:,:,tt);
 
@@ -174,7 +180,13 @@ elseif simoptions.experienceasset>=1
         end
 
     elseif simoptions.gridinterplayer==1
-
+        % Not yet implemented. experienceasset already splits the mass over two a2prime points and the
+        % grid interpolation layer splits it over two a1prime points, so this branch needs the 2-by-2
+        % product of the two, rather than a copy of either neighbouring branch.
+        % Erroring rather than falling through: AgentDistPath is preallocated to zeros and only the
+        % t=1 column is filled before this point, so an empty branch here returns an all-zero agent
+        % distribution for every later period, which looks like a converged answer.
+        error('AgentDistOnTransPath_InfHorz(): experienceasset together with vfoptions.gridinterplayer=1 is not yet implemented')
     end
 end
 

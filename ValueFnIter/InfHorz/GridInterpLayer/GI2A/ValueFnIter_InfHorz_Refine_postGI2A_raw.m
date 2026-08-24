@@ -200,7 +200,7 @@ while currdist>vfoptions.tolerance && tempcounter<=vfoptions.maxiter
         Policy_fine2=ceil(Policy_a(:)/N_a1prime); % a2prime index, on the coarse a2 grid
         Policy_L1a=ceil((Policy_fine1-1)/(n2short+1))-1;
         % as above, max(Policy_L1a,0) so the lower index and the weight agree at the window's bottom node
-        Policy_lowerind=max(max(Policy_L1a,0)-vfoptions.maxaprimediff+a1primeshifter(:),1)+N_a1*(Policy_fine2-1); % joint index over a is a1+N_a1*(a2-1), so the upper point is the next one along
+        Policy_lowerind=(max(Policy_L1a,0)-vfoptions.maxaprimediff+a1primeshifter(:))+N_a1*(Policy_fine2-1); % joint index over a is a1+N_a1*(a2-1), so the upper point is the next one along
         Policy_lowerprob=1- ((Policy_fine1-max(Policy_L1a,0)*(n2short+1))-1)/(n2short+1);
         for Howards_counter=1:vfoptions.howards
             EVKrontemp=Policy_lowerprob.*VKron(Policy_lowerind,:)+(1-Policy_lowerprob).*VKron(Policy_lowerind+1,:); % [N_a*N_z,N_z], last dimension is zprime
@@ -316,7 +316,7 @@ while vfoptions.postGIrepeat>0
         Policy_fine1=rem(Policy_a(:)-1,N_a1prime)+1; % a1prime, in the post-GI (fine, within-window) index
         Policy_fine2=ceil(Policy_a(:)/N_a1prime); % a2prime index, on the coarse a2 grid
         Policy_L1a=ceil((Policy_fine1-1)/(n2short+1))-1;
-        Policy_lowerind=max(max(Policy_L1a,0)-vfoptions.maxaprimediff+a1primeshifter(:),1)+N_a1*(Policy_fine2-1); % joint index over a is a1+N_a1*(a2-1), so the upper point is the next one along
+        Policy_lowerind=(max(Policy_L1a,0)-vfoptions.maxaprimediff+a1primeshifter(:))+N_a1*(Policy_fine2-1); % joint index over a is a1+N_a1*(a2-1), so the upper point is the next one along
         Policy_lowerprob=1- ((Policy_fine1-max(Policy_L1a,0)*(n2short+1))-1)/(n2short+1);
         for Howards_counter=1:vfoptions.howards
             EVKrontemp=Policy_lowerprob.*VKron(Policy_lowerind,:)+(1-Policy_lowerprob).*VKron(Policy_lowerind+1,:); % [N_a*N_z,N_z], last dimension is zprime
@@ -341,7 +341,7 @@ fineindexvec1=reshape(fineindexvec1,[N_a*N_z,1]);
 L1a=ceil((fineindexvec1-1)/(n2short+1))-1; % this ranges -1:0:2*vfoptions.maxaprimediff-1
 % (L1a-vfoptions.maxaprimediff+1) ranges -vfoptions.maxaprimediff:1:vfoptions.maxaprimediff
 % the max(L1a,0) matters only at the window's bottom node, where L1a is -1; L2 below is built off the same thing, so L1 has to be too
-L1=max(max(L1a,0)-vfoptions.maxaprimediff+1+a1primeshifter(:)-1,1); % lower grid point index (on the full grid), so this ranges 0 to n_a-1
+L1=max(L1a,0)-vfoptions.maxaprimediff+a1primeshifter(:); % lower grid point index on the full grid; the window bounds put this in 1:N_a1-1, so no clamp is needed
 L1intermediate=max(L1a,0)+1; % lower grid point index (on the small grid, in form so we can get L2)
 L2=fineindexvec1-(L1intermediate-1)*(n2short+1); % L2 index
 

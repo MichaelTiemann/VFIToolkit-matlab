@@ -18,7 +18,7 @@ l_z=length(n_z);
 a_gridvals=CreateGridvals(n_a,a_grid,1);
 z_gridvals=z_grid; % On cpu, only basics are allowed. No e.
 
-l_daprime=size(Policy,1)-2*simoptions.gridinterplayer; % gridinterplayer=1 carries an extra L2 index and L2flag (matches FHorz convention)
+l_daprime=size(Policy,1); % the cpu paths do not support the grid interpolation layer
 
 %% Implement new way of handling FnsToEvaluate
 if isstruct(FnsToEvaluate)

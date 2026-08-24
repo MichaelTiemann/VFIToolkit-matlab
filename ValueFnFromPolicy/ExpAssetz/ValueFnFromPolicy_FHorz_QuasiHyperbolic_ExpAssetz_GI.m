@@ -105,34 +105,36 @@ if isNaive
     Policyalt_k=reshape(Policyalt,[size_first, N_a, N_ze, N_j]);
 end
 
-%% Extract a1prime midpoint (lower) and L2 from Policy (2x2 GI indices)
+%% Extract a1prime lower grid index and L2 from Policy (2x2 GI indices)
 cumprods_a1=[1, cumprod(n_a1(1:end-1))];
-a1_mid=shiftdim(Policy_k(l_d+1,:,:,:),1);
+% ValueFnIter converts the midpoint to the lower grid index before returning Policy (the adjust
+% block at the end of the GI raws), so this row is the lower index and not the midpoint.
+a1_lowerind=shiftdim(Policy_k(l_d+1,:,:,:),1);
 L2=shiftdim(Policy_k(l_d+l_a1+1,:,:,:),1);
 w_a1_upper=(L2-1)/(n2short+1); % weight on upper a1 grid point
 w_a1_lower=1-w_a1_upper;
-a1_lower=a1_mid;
+a1_lower=a1_lowerind;
 for ii=2:l_a1
     comp=shiftdim(Policy_k(l_d+ii,:,:,:),1);
     a1_lower=a1_lower+cumprods_a1(ii)*(comp-1);
 end
 a1_upper=a1_lower+1;
-a1_top_clamp=(a1_mid>=n_a1(1));
+a1_top_clamp=(a1_lowerind>=n_a1(1));
 a1_upper(a1_top_clamp)=a1_lower(a1_top_clamp);
 
 %% Same GI-index extraction for Policyalt when Naive
 if isNaive
-    a1_mid_alt=shiftdim(Policyalt_k(l_d+1,:,:,:),1);
+    a1_lowerind_alt=shiftdim(Policyalt_k(l_d+1,:,:,:),1);
     L2_alt=shiftdim(Policyalt_k(l_d+l_a1+1,:,:,:),1);
     w_a1_upper_alt=(L2_alt-1)/(n2short+1);
     w_a1_lower_alt=1-w_a1_upper_alt;
-    a1_lower_alt=a1_mid_alt;
+    a1_lower_alt=a1_lowerind_alt;
     for ii=2:l_a1
         comp=shiftdim(Policyalt_k(l_d+ii,:,:,:),1);
         a1_lower_alt=a1_lower_alt+cumprods_a1(ii)*(comp-1);
     end
     a1_upper_alt=a1_lower_alt+1;
-    a1_top_clamp_alt=(a1_mid_alt>=n_a1(1));
+    a1_top_clamp_alt=(a1_lowerind_alt>=n_a1(1));
     a1_upper_alt(a1_top_clamp_alt)=a1_lower_alt(a1_top_clamp_alt);
 end
 

@@ -177,35 +177,37 @@ if isNaive
     end
 end
 
-%% a1prime: midpoint (position l_d+1) + L2 (last position). Other a1 components are at l_d+2..l_d+l_a1.
+%% a1prime: lower grid index (position l_d+1) + L2 (last position). Other a1 components are at l_d+2..l_d+l_a1.
 cumprods_a1=[1, cumprod(n_a1(1:end-1))];
-a1_mid=shiftdim(Policy_k(l_d+1,:,:,:,:),1);
+% ValueFnIter converts the midpoint to the lower grid index before returning Policy (the adjust
+% block at the end of the GI raws), so this row is the lower index and not the midpoint.
+a1_lowerind=shiftdim(Policy_k(l_d+1,:,:,:,:),1);
 L2    =shiftdim(Policy_k(l_d+l_a1+1,:,:,:,:),1);
 w_a1_upper=(L2-1)/(n2short+1); % weight on upper a1 grid point
 w_a1_lower=1-w_a1_upper;
 
 % Build the lower a1 joint Kron index (includes a1mid as first contribution + other a1 components)
-a1_lower=a1_mid; % first a1 component contribution
+a1_lower=a1_lowerind; % first a1 component contribution
 for ii=2:l_a1
     comp=shiftdim(Policy_k(l_d+ii,:,:,:,:),1);
     a1_lower=a1_lower+cumprods_a1(ii)*(comp-1);
 end
 a1_upper=a1_lower+1;
 % clamp at top of grid (no-op since both go to same place when at top)
-a1_top_clamp=(a1_mid>=n_a1(1));
+a1_top_clamp=(a1_lowerind>=n_a1(1));
 a1_upper(a1_top_clamp)=a1_lower(a1_top_clamp);
 if isNaive
-    a1_mid_alt=shiftdim(Policyalt_k(l_d+1,:,:,:,:),1);
+    a1_lowerind_alt=shiftdim(Policyalt_k(l_d+1,:,:,:,:),1);
     L2_alt    =shiftdim(Policyalt_k(l_d+l_a1+1,:,:,:,:),1);
     w_a1_upper_alt=(L2_alt-1)/(n2short+1);
     w_a1_lower_alt=1-w_a1_upper_alt;
-    a1_lower_alt=a1_mid_alt;
+    a1_lower_alt=a1_lowerind_alt;
     for ii=2:l_a1
         comp=shiftdim(Policyalt_k(l_d+ii,:,:,:,:),1);
         a1_lower_alt=a1_lower_alt+cumprods_a1(ii)*(comp-1);
     end
     a1_upper_alt=a1_lower_alt+1;
-    a1_top_clamp_alt=(a1_mid_alt>=n_a1(1));
+    a1_top_clamp_alt=(a1_lowerind_alt>=n_a1(1));
     a1_upper_alt(a1_top_clamp_alt)=a1_lower_alt(a1_top_clamp_alt);
 end
 

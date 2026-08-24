@@ -84,7 +84,7 @@ ReturnFnParamNames=ReturnFnParamNamesFn(ReturnFn,n_d,n_a,n_z,N_j,vfoptions,Param
 
 a_gridvals=CreateGridvals(n_a,a_grid,1);
 
-%% PolicyValues (PolicyInd2Val_FHorz handles experienceasset + GI internally: drops a2prime, combines a1prime midpoint + L2 into fine index)
+%% PolicyValues (PolicyInd2Val_FHorz handles experienceasset + GI internally: drops a2prime, combines a1prime lower grid index + L2 into fine index)
 PolicyValues=PolicyInd2Val_FHorz(Policy,n_d,n_a,n_z,N_j,d_grid,a_grid,vfoptions,1);
 l_daprime=size(PolicyValues,1); % = l_d + l_a1
 if N_z==0 && N_e==0
@@ -138,34 +138,36 @@ if isNaive
     end
 end
 
-%% Extract a1prime midpoint (lower) and L2 from Policy
-% Position l_d+1 is a1prime midpoint (first a1 component); l_d+2 .. l_d+l_a1 are other a1prime indices; l_d+l_a1+1 is L2
+%% Extract a1prime lower grid index and L2 from Policy
+% Position l_d+1 is the a1prime lower grid index (first a1 component); l_d+2 .. l_d+l_a1 are other a1prime indices; l_d+l_a1+1 is L2
 cumprods_a1=[1, cumprod(n_a1(1:end-1))];
-a1_mid=shiftdim(Policy_k(l_d+1,:,:,:),1);
+% ValueFnIter converts the midpoint to the lower grid index before returning Policy (the adjust
+% block at the end of the GI raws), so this row is the lower index and not the midpoint.
+a1_lowerind=shiftdim(Policy_k(l_d+1,:,:,:),1);
 L2=shiftdim(Policy_k(l_d+l_a1+1,:,:,:),1);
 w_a1_upper=(L2-1)/(n2short+1); % weight on upper a1 grid point
 w_a1_lower=1-w_a1_upper;
-a1_lower=a1_mid; % first dim contribution (1*(a1_mid-1)+1 = a1_mid)
+a1_lower=a1_lowerind; % first dim contribution (1*(a1_lowerind-1)+1 = a1_lowerind)
 for ii=2:l_a1
     comp=shiftdim(Policy_k(l_d+ii,:,:,:),1);
     a1_lower=a1_lower+cumprods_a1(ii)*(comp-1);
 end
 % upper a1 differs only in the first a1 component (clamp at top of grid)
 a1_upper=a1_lower+1;
-a1_top_clamp=(a1_mid>=n_a1(1));
+a1_top_clamp=(a1_lowerind>=n_a1(1));
 a1_upper(a1_top_clamp)=a1_lower(a1_top_clamp); % no-op when at top
 if isNaive
-    a1_mid_alt=shiftdim(Policyalt_k(l_d+1,:,:,:),1);
+    a1_lowerind_alt=shiftdim(Policyalt_k(l_d+1,:,:,:),1);
     L2_alt=shiftdim(Policyalt_k(l_d+l_a1+1,:,:,:),1);
     w_a1_upper_alt=(L2_alt-1)/(n2short+1);
     w_a1_lower_alt=1-w_a1_upper_alt;
-    a1_lower_alt=a1_mid_alt;
+    a1_lower_alt=a1_lowerind_alt;
     for ii=2:l_a1
         comp=shiftdim(Policyalt_k(l_d+ii,:,:,:),1);
         a1_lower_alt=a1_lower_alt+cumprods_a1(ii)*(comp-1);
     end
     a1_upper_alt=a1_lower_alt+1;
-    a1_top_clamp_alt=(a1_mid_alt>=n_a1(1));
+    a1_top_clamp_alt=(a1_lowerind_alt>=n_a1(1));
     a1_upper_alt(a1_top_clamp_alt)=a1_lower_alt(a1_top_clamp_alt);
 end
 

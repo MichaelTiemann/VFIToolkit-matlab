@@ -141,18 +141,20 @@ for ii=1:l_dsemiz
 end
 
 %% a1prime lower fine-grid index and GI weights (positions l_d+1 .. l_d+l_a1, plus L2 at l_d+l_a1+1)
-a1_mid=shiftdim(Policy_k(l_d+1,:,:,:,:),1);            % lower index in first a1 dimension
+% ValueFnIter converts the midpoint to the lower grid index before returning Policy (the adjust
+% block at the end of the GI raws), so this row is the lower index and not the midpoint.
+a1_lowerind=shiftdim(Policy_k(l_d+1,:,:,:,:),1);            % lower index in first a1 dimension
 L2=shiftdim(Policy_k(l_d+l_a1+1,:,:,:,:),1);          % L2 fine-grid index
 w_a1_upper=(L2-1)/(n2short+1);
 w_a1_lower=1-w_a1_upper;
 cumprods_a1=[1, cumprod(n_a1(1:end-1))];
-a1_lower=a1_mid;
+a1_lower=a1_lowerind;
 for ii=2:l_a1
     comp=shiftdim(Policy_k(l_d+ii,:,:,:,:),1);
     a1_lower=a1_lower+cumprods_a1(ii)*(comp-1);
 end
 a1_upper=a1_lower+1;
-a1_top_clamp=(a1_mid>=n_a1(1));
+a1_top_clamp=(a1_lowerind>=n_a1(1));
 a1_upper(a1_top_clamp)=a1_lower(a1_top_clamp);
 % shapes: [N_a, N_shocks, N_j] (N_e==0) or [N_a, N_shocks, N_e, N_j] (N_e>0)
 

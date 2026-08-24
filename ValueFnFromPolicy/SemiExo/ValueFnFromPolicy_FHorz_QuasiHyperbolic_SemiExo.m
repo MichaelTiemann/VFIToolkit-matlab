@@ -402,7 +402,7 @@ end
 
 
 function [a1_lower, a1_upper, a1_weight, d_semiz_idx]=extract_gi_indices(Policy, l_d, l_dsemiz, l_aprime, n_a, n_dsemiz, n2short, N_a, N_shocks, N_e, N_j)
-% Decompose GI1/GI2A Policy: a1 (midpoint) + L2 (fine-grid index) → lower/upper indices + interpolation weight.
+% Decompose GI1/GI2A Policy: a1 (lower grid index) + L2 (fine-grid index) → lower/upper indices + interpolation weight.
 % Also returns d_semiz_idx (joint index into n_dsemiz).
 % l_a==1: a1_lower/a1_upper are indices into n_a(1)==N_a.
 % l_a>=2 (GI2A): interpolation is on a1 only, so the a2prime channel (l_d+2) is folded in as
@@ -427,14 +427,17 @@ for ii=1:l_dsemiz
     d_semiz_idx=d_semiz_idx+cumprods_dsemiz(ii)*(comp-1);
 end
 
-a1_mid=shiftdim(Policy_k(l_d+1, :, :, :, :), 1);
+% Policy's a1 row is the lower grid index: ValueFnIter's adjust block converts the midpoint before returning.
+a1_lowerind=shiftdim(Policy_k(l_d+1, :, :, :, :), 1);
 L2_idx=shiftdim(Policy_k(l_d+l_aprime+1, :, :, :, :), 1);
 
 % Fine-grid index then fractional position in original a1 grid
-a1_fine_idx=(n2short+1)*(a1_mid-1)+L2_idx;
+a1_fine_idx=(n2short+1)*(a1_lowerind-1)+L2_idx;
 a1_frac=1+(a1_fine_idx-1)/(n2short+1);
 a1_lower=floor(a1_frac);
 a1_weight=a1_frac-a1_lower; % weight on upper
+% a1_frac is a1_lowerind+(L2_idx-1)/(n2short+1), so floor gives a1_lowerind while L2_idx<=n2short+1,
+% and a1_lowerind+1 with zero weight at L2_idx==n2short+2 (which is the upper grid point). Both correct.
 a1_upper=min(a1_lower+1, n_a(1));
 a1_upper(a1_lower>=n_a(1))=n_a(1);
 a1_lower(a1_lower<1)=1;

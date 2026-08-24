@@ -146,7 +146,7 @@ while currdist>vfoptions.tolerance && tempcounter<=vfoptions.maxiter
 
         Policy_L1a=ceil((Policy(:)-1)/(n2short+1))-1;
         % as above, max(Policy_L1a,0) so the lower index and the weight agree at the window's bottom node
-        Policy_lowerind=max(max(Policy_L1a,0)-vfoptions.maxaprimediff+aprimeshifter(:),1); % Policy_L1a is the index within the +-maxaprimediff window, so +aprimeshifter converts it to the index on the full a_grid
+        Policy_lowerind=max(Policy_L1a,0)-vfoptions.maxaprimediff+aprimeshifter(:); % Policy_L1a is the index within the +-maxaprimediff window, so +aprimeshifter converts it to the index on the full a_grid
         Policy_lowerprob=1- ((Policy(:)-max(Policy_L1a,0)*(n2short+1))-1)/(n2short+1); % Policy-(Policy_lowerind-1)*(n2short+1) is 2nd layer index
         indp = Policy_lowerind+N_a_times_zind; % with all tomorrows z (a-z,zprime) [T_E is over N_a*N_z, so the z stride is N_a]
 
@@ -249,7 +249,7 @@ while vfoptions.postGIrepeat>0
             Ftemp=reshape(ReturnMatrixfine(tempmaxindex),[N_a*N_z,1]); % keep return function of optimal policy for using in Howards
 
             Policy_L1a=ceil((Policy(:)-1)/(n2short+1))-1;
-            Policy_lowerind=max(max(Policy_L1a,0)-vfoptions.maxaprimediff+aprimeshifter(:),1); % Policy_L1a is the index within the +-maxaprimediff window, so +aprimeshifter converts it to the index on the full a_grid
+            Policy_lowerind=max(Policy_L1a,0)-vfoptions.maxaprimediff+aprimeshifter(:); % Policy_L1a is the index within the +-maxaprimediff window, so +aprimeshifter converts it to the index on the full a_grid
             Policy_lowerprob=1- ((Policy(:)-max(Policy_L1a,0)*(n2short+1))-1)/(n2short+1); % Policy-(Policy_lowerind-1)*(n2short+1) is 2nd layer index
             indp = Policy_lowerind+N_a_times_zind; % with all tomorrows z (a-z,zprime) [T_E is over N_a*N_z, so the z stride is N_a]
 
@@ -272,7 +272,7 @@ end
 fineindex=reshape(Policy,[N_a*N_z,1]);
 L1a=ceil((fineindex-1)/(n2short+1))-1; % this ranges -vfoptions.maxaprimediff:1:vfoptions.maxaprimediff
 % the max(L1a,0) matters only at the window's bottom node, where L1a is -1; L2 below is built off the same thing, so L1 has to be too
-L1=max(max(L1a,0)-vfoptions.maxaprimediff+1+aprimeshifter(:)-1,1); % lower grid point index (on the full grid), so this ranges 0 to n_a-1
+L1=max(L1a,0)-vfoptions.maxaprimediff+aprimeshifter(:); % lower grid point index on the full grid; the window bounds put this in 1:N_a-1, so no clamp is needed
 L1intermediate=max(L1a,0)+1; % lower grid point index (on the small grid, in form so we can get L2)
 L2=fineindex-(L1intermediate-1)*(n2short+1); % L2 index
 

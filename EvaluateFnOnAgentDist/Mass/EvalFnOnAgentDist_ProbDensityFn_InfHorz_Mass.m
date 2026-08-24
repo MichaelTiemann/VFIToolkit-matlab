@@ -19,10 +19,7 @@ end
 l_a=length(n_a);
 l_z=length(n_z);
 
-l_daprime=size(Policy,1);
-if simoptions.gridinterplayer==1
-    l_daprime=l_daprime-1;
-end
+l_daprime=size(Policy,1)-2*simoptions.gridinterplayer; % gridinterplayer=1 carries an extra L2 index and L2flag
 
 %% Implement new way of handling FnsToEvaluate
 if isstruct(FnsToEvaluate)
@@ -53,7 +50,6 @@ if Parallel==2
     n_z=gpuArray(n_z);
     d_grid=gpuArray(d_grid);
     a_grid=gpuArray(a_grid);
-    l_daprime=size(Policy,1);
     a_gridvals=CreateGridvals(n_a,gpuArray(a_grid),1);
     z_gridvals=CreateGridvals(n_z,gpuArray(z_grid),1);
 
