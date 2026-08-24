@@ -137,7 +137,10 @@ elseif simoptions.experienceasset>=1
     end
 
 end
-[z_gridvals, ~, simoptions]=ExogShockSetup_InfHorz(n_z,z_grid,[],Parameters,simoptions,1);
+% The TPath variant of the setup, so that a z_grid which varies along the path is picked up
+% (transpathoptions is local; this command does not take one)
+transpathoptions=struct();
+[z_gridvals, ~, ~, ~, ~, ~, ~, transpathoptions, simoptions]=ExogShockSetup_InfHorz_TPath(n_z,z_grid,[],Parameters,PricePathNames,ParamPathNames,T,transpathoptions,simoptions,1);
 
 
 %% If there are any conditional restrictions, set up for these
@@ -180,6 +183,10 @@ for tt=1:T
     end
     for kk=1:length(ParamPathNames)
         Parameters.(ParamPathNames{kk})=ParamPath(tt,ParamPathSizeVec(1,kk):ParamPathSizeVec(2,kk));
+    end
+
+    if transpathoptions.zpathtrivial==0
+        z_gridvals=transpathoptions.z_gridvals_T(:,:,tt);
     end
     if use_tminus1price==1
         for pp=1:length(tminus1priceNames)

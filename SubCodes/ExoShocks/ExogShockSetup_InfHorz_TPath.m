@@ -1,4 +1,4 @@
-function [z_gridvals, pi_z, pi_z_sparse, e_gridvals, pi_e, pi_e_sparse, ze_gridvals, transpathoptions, options]=ExogShockSetup_InfHorz_TPath(n_z,z_grid,pi_z,Parameters,PricePathNames,ParamPathNames,transpathoptions,options,gridpiboth)
+function [z_gridvals, pi_z, pi_z_sparse, e_gridvals, pi_e, pi_e_sparse, ze_gridvals, transpathoptions, options]=ExogShockSetup_InfHorz_TPath(n_z,z_grid,pi_z,Parameters,PricePathNames,ParamPathNames,T,transpathoptions,options,gridpiboth)
 % Convert z and e to joint-grids and transition matrix
 % output: z_gridvals, pi_z, pi_z_sparse, e_gridvals, pi_e, pi_e_sparse, ze_gridvals, transpathoptions, options
 
@@ -44,7 +44,7 @@ function [z_gridvals, pi_z, pi_z_sparse, e_gridvals, pi_e, pi_e_sparse, ze_gridv
 % code reads the full path from transpathoptions.*_T. Same convention for e
 % (transpathoptions.epathtrivial, transpathoptions.e_gridvals_T,
 % transpathoptions.pi_e_T; the placeholders are options.e_gridvals and
-% options.pi_e). T is inferred from the trailing dimension of the input.
+% options.pi_e). T is an input; the trailing dimension of a time-varying input is checked against it.
 %
 % Variation along the transition path can also be introduced if
 % options.ExogShockFn / options.EiidShockFn depends on a name listed in
@@ -105,7 +105,7 @@ function [z_gridvals, pi_z, pi_z_sparse, e_gridvals, pi_e, pi_e_sparse, ze_gridv
 %   .pi_e_T         [prod(n_e), T]
 % When zepathtrivial==0:
 %   .ze_gridvals_T  [prod(n_z)*prod(n_e), length(n_z)+length(n_e), T]
-% T is inferred from the trailing dimension of whichever time-varying input is supplied.
+% T is an input; the trailing dimension of a time-varying input is checked against it.
 
 %% Check basic setup
 if isempty(n_z)
@@ -198,18 +198,13 @@ if N_z>0
         pi_z_timevarying = (ndims(pi_z)==3);
 
         if z_grid_timevarying || pi_z_timevarying
-            % Infer T from whichever input is time-varying
-            if pi_z_timevarying
-                T=size(pi_z,3);
-            elseif ndims(z_grid)==3
-                T=size(z_grid,3);
-            else
-                T=size(z_grid,2); % 2D stacked-column time-varying
-            end
             transpathoptions.zpathtrivial=0;
 
             % Build transpathoptions.z_gridvals_T as [prod(n_z),length(n_z),T]
-            if z_grid_timevarying
+            if gridpiboth==2
+                % The agent dist never uses the grid, so z_grid can be [] and there is nothing to
+                % build here
+            elseif z_grid_timevarying
                 if ndims(z_grid)==3
                     if all(size(z_grid)==[prod(n_z),length(n_z),T])
                         transpathoptions.z_gridvals_T=gpuArray(z_grid);
@@ -239,7 +234,10 @@ if N_z>0
             end
 
             % Build transpathoptions.pi_z_T as [prod(n_z),prod(n_z),T]
-            if pi_z_timevarying
+            if gridpiboth==1
+                % FnsToEvaluate never use the transition matrix, so pi_z can be [] and there is
+                % nothing to build here
+            elseif pi_z_timevarying
                 if all(size(pi_z)==[prod(n_z),prod(n_z),T])
                     transpathoptions.pi_z_T=gpuArray(pi_z);
                 else
@@ -389,14 +387,6 @@ if N_e>0
         end
 
         if e_grid_timevarying || pi_e_timevarying
-            % Infer T from whichever input is time-varying
-            if pi_e_timevarying
-                T=size(options.pi_e,2);
-            elseif ndims(options.e_grid)==3
-                T=size(options.e_grid,3);
-            else
-                T=size(options.e_grid,2);
-            end
             transpathoptions.epathtrivial=0;
 
             % Build transpathoptions.e_gridvals_T as [prod(n_e),length(n_e),T]

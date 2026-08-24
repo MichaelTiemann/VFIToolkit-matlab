@@ -79,13 +79,12 @@ PolicyPath=reshape(PolicyPath,[size(PolicyPath,1),N_a,N_z,T]);
 PolicyValuesPath=PolicyInd2Val_InfHorz_TPath(PolicyPath,n_d,n_a,n_z,T,d_grid,a_grid,simoptions,1);
 PolicyValuesPath=permute(reshape(PolicyValuesPath,[size(PolicyValuesPath,1),N_a,N_z,T]),[2,3,1,4]); %[N_a,N_z,l_d+l_a,T-1]
 
-%% Switch to z_gridvals
-l_z=length(n_z);
-if all(size(z_grid)==[sum(n_z),1])
-    z_gridvals=CreateGridvals(n_z,z_grid,1); % The 1 at end indicates want output in form of matrix.
-elseif all(size(z_grid)==[prod(n_z),l_z])
-    z_gridvals=z_grid;
-end
+%% Set up exogenous shock processes
+% gridpiboth=1: FnsToEvaluate use the grid and not the transition matrix, which is why pi_z is
+% passed as []. transpathoptions is local: this command does not take one, and the setup only uses
+% it to report back zpathtrivial and z_gridvals_T.
+transpathoptions=struct();
+[z_gridvals, ~, ~, ~, ~, ~, ~, transpathoptions, simoptions]=ExogShockSetup_InfHorz_TPath(n_z,z_grid,[],Parameters,PricePathNames,ParamPathNames,T,transpathoptions,simoptions,1);
 
 %%
 AgentDistPath=reshape(AgentDistPath,[N_a,N_z,T]);
@@ -98,6 +97,10 @@ for tt=1:T
     end
     for kk=1:length(ParamPathNames)
         Parameters.(ParamPathNames{kk})=ParamPath(tt,ParamPathSizeVec(1,kk):ParamPathSizeVec(2,kk));
+    end
+
+    if transpathoptions.zpathtrivial==0
+        z_gridvals=transpathoptions.z_gridvals_T(:,:,tt);
     end
     if use_tminus1price==1
         for pp=1:length(tminus1priceNames)

@@ -1,4 +1,4 @@
-function AgeConditionalStatsPath=LifeCycleProfiles_TransPath_FHorz_Case1(FnsToEvaluate, AgentDistPath,PolicyPath, PricePath, ParamPath, Parameters,T,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid,simoptions)
+function AgeConditionalStatsPath=LifeCycleProfiles_TransPath_FHorz_Case1(FnsToEvaluate, AgentDistPath,PolicyPath, PricePath, ParamPath, Parameters,T,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid,transpathoptions,simoptions)
 % Changing z or e over the transition is not supported.
 %
 % Works from AgentDistPath to calculate life-cycle profiles over the transition.
@@ -14,6 +14,19 @@ function AgeConditionalStatsPath=LifeCycleProfiles_TransPath_FHorz_Case1(FnsToEv
 % For 'initialage', for Mean it is a matrix in which first dimension indexes age in period 1 of transtion, second dimension is current age
 %                   for LorenzCurve, QuantileCuttoffs, QuantileMeans, these are the second & third dimensions
 % For 'bornduringtranstion', for Mean it is a matrix in which first dimension indexes period of transition in which born (age period 1), second dimension is current age
+
+%% Check which transpathoptions have been used, set all others to defaults
+if exist('transpathoptions','var')==0
+    disp('No transpathoptions given, using defaults')
+    transpathoptions.verbose=0;
+else
+    if ~isfield(transpathoptions,'verbose')
+        transpathoptions.verbose=0;
+    end
+end
+% As with EvalFnOnTransPath_AggVars_Case1_FHorz, this command requires the fastOLG=0 form of
+% z_gridvals_J
+transpathoptions.fastOLG=0;
 
 if ~exist('simoptions','var')
     simoptions.nquantiles=20; % by default gives ventiles
@@ -111,7 +124,7 @@ end
 
 if simoptions.alreadygridvals==0
     % gridpiboth=3: need both z_gridvals_J and pi_z_J
-    [z_gridvals_J,pi_z_J,~,~,~,~,~,transpathoptions,simoptions]=ExogShockSetup_FHorz_TPath(n_z,z_grid,pi_z,prod(n_a),N_j,Parameters,PricePathNames,ParamPathNames,transpathoptions,simoptions,3);
+    [z_gridvals_J,pi_z_J,~,~,~,~,~,transpathoptions,simoptions]=ExogShockSetup_FHorz_TPath(n_z,z_grid,pi_z,prod(n_a),N_j,T,Parameters,PricePathNames,ParamPathNames,transpathoptions,simoptions,3);
 elseif simoptions.alreadygridvals==1
     z_gridvals_J=z_grid;
     pi_z_J=pi_z;
@@ -174,7 +187,7 @@ for tt=1:T
     if use_tplus1price==1
         for pp=1:length(tplus1priceNames)
             kk=tplus1pricePathkk(pp);
-            Parameters.([tplus1priceNames{pp},'_tplus1'])=PricePathOld(tt+1,PricePathSizeVec(1,kk):PricePathSizeVec(2,kk)); % Make is so that the time t+1 variables can be used
+            Parameters.([tplus1priceNames{pp},'_tplus1'])=PricePath(tt+1,PricePathSizeVec(1,kk):PricePathSizeVec(2,kk)); % Make is so that the time t+1 variables can be used
         end
     end
     if use_tminus1AggVars==1
@@ -189,14 +202,11 @@ for tt=1:T
     end
 
     % Get current shocks (if applicable)
-    if transpathoptions.zpathprecomputed==1
-        if transpathoptions.zpathtrivial==0
-            simoptions.pi_z_J=transpathoptions.pi_z_J_T(:,:,:,tt);
-            simoptions.z_grid_J=transpathoptions.z_gridvals_J_T(:,:,:,tt);
-        end
-        % transpathoptions.zpathtrivial==1 % Does not depend on T, so is just in simoptions already
+    if transpathoptions.zpathtrivial==0
+        simoptions.pi_z_J=transpathoptions.pi_z_J_T(:,:,:,tt);
+        simoptions.z_gridvals_J=transpathoptions.z_gridvals_J_T(:,:,:,tt);
     end
-    % transpathoptions.zpathprecomputed==0 % Depends on the price path  parameters, so just have to use simoptions.ExogShockFn within  ValueFnIter command
+    % transpathoptions.zpathtrivial==1: does not vary over the path, so it is already in simoptions
 
     tempAgeConditionalStats=LifeCycleProfiles_FHorz_Case1(AgentDist,Policy,FnsToEvaluate,[],Parameters,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid,simoptions);
 

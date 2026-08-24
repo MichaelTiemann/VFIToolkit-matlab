@@ -27,12 +27,17 @@ end
 if ~isfield(vfoptions,'postGIrepeat')
     vfoptions.postGIrepeat=0; % Do multiple post-GI layers (this is the number of additional layers)
     % In practice, the local optima appears to get stuck in a 'local basin', and so setting postGIrepeat>0 fails to achieve anything because each repeat remains stuck in the basin and does not get any closer to the global. This is not true for small values of maxaprimediff, but at the default value of maxaprimediff anything other than postGIrepeat=0 seems pointless. And setting a larger maxaprimediff gives much more robust behaviour than pairing a smaller maxaprimediff with postGIrepeat>0
-    % We therefore set a default of postGIrepeat=0. This can be increased but in tests ran there was nothing to be gained from doing so: without a decision variable postGI was already exact (even for maxaprimediff as small as 3), and with a decision variable the conservatively large default maxaprimediff already reaches the global optimum.
+    % We therefore set a default of postGIrepeat=0. This can be increased but in tests ran there was nothing to be gained from doing so: without a decision variable postGI was already exact (even for maxaprimediff as small as 3), and with a decision variable the conservatively large default maxaprimediff already reaches the global optimum. Having a second endogenous state is treated like having a decision variable in the sense of requiring a large maxaprimediff for the same reason.
 end
 
 % Set the maximum 'rough grid' change in aprime allowed when solving fine problem, in terms of moving from what was optimal when only solving the rough grid problem.
 if ~isfield(vfoptions,'maxaprimediff')
-    if prod(n_d)==0
+    if prod(n_d)==0 && length(n_a)==1
+        % The small default is only safe when a1prime is the sole choice. As soon as something else
+        % is chosen jointly with it (a decision variable d, or a second endogenous asset a2prime)
+        % the a1prime objective can be flat or multimodal conditional on that other choice, and the
+        % coarse argmax can then sit a long way from the fine one, which is what the window is
+        % centred on.
         vfoptions.maxaprimediff=5; % only used for postGI (for vfoptions.preGI=0)
     else
         if n_a(1)<300

@@ -109,10 +109,6 @@ end
 % end
 % VPath=zeros([n_a,n_z,N_j,T-1],'gpuArray'); %Periods 1 to T-1
 
-% This code will work for all transition paths except those that involve at
-% change in the transition matrix pi_z (can handle a change in pi_z, but
-% only if it is a 'surprise', not anticipated changes)
-
 % PricePath is matrix of size T-by-'number of prices'
 % ParamPath is matrix of size T-by-'number of parameters that change over path'
 
@@ -160,13 +156,12 @@ VKronPath=zeros(N_a,N_z,T);
 VKronPath(:,:,T)=V_final;
 
 
-%% Switch to z_gridvals
-l_z=length(n_z);
-if all(size(z_grid)==[sum(n_z),1])
-    z_gridvals=CreateGridvals(n_z,gpuArray(z_grid),1); % The 1 at end indicates want output in form of matrix.
-elseif all(size(z_grid)==[prod(n_z),l_z])
-    z_gridvals=gpuArray(z_grid);
-end
+%% Set up exogenous shock processes
+% Handles the time-invariant and the path-varying input shapes alike, and sets
+% transpathoptions.zpathtrivial (=0 when z_gridvals/pi_z vary along the path, in which case the
+% full paths are put in transpathoptions.z_gridvals_T and transpathoptions.pi_z_T and the plain
+% z_gridvals/pi_z returned here are only the tt=1 placeholders).
+[z_gridvals, pi_z, ~, ~, ~, ~, ~, transpathoptions, vfoptions]=ExogShockSetup_InfHorz_TPath(n_z,z_grid,pi_z,Parameters,PricePathNames,ParamPathNames,T,transpathoptions,vfoptions,3);
 
 %%
 if N_d==0
@@ -193,6 +188,11 @@ if vfoptions.experienceasset==0
         end
         for kk=1:length(ParamPathNames)
             Parameters.(ParamPathNames{kk})=ParamPath(T-ttr,kk);
+        end
+
+        if transpathoptions.zpathtrivial==0
+            z_gridvals=transpathoptions.z_gridvals_T(:,:,T-ttr);
+            pi_z=transpathoptions.pi_z_T(:,:,T-ttr);
         end
 
         [V, Policy]=ValueFnIter_InfHorz_TPath_SingleStep(Vnext,n_d,n_a,n_z,d_gridvals, a_grid, z_gridvals, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
@@ -249,6 +249,11 @@ else
         end
         for kk=1:length(ParamPathNames)
             Parameters.(ParamPathNames{kk})=ParamPath(T-ttr,kk);
+        end
+
+        if transpathoptions.zpathtrivial==0
+            z_gridvals=transpathoptions.z_gridvals_T(:,:,T-ttr);
+            pi_z=transpathoptions.pi_z_T(:,:,T-ttr);
         end
 
         [V, Policy]=ValueFnIter_InfHorz_TPath_SingleStep_ExpAsset(Vnext,n_d1,n_d2,n_a1,n_a2,n_z, d1_grid, d2_grid, a1_grid, a2_grid, z_gridvals, pi_z, ReturnFn, vfoptions.aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions);

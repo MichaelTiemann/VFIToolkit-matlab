@@ -122,7 +122,7 @@ end
 
 
 %% Set up exogenous shock processes
-[~, pi_z_J, pi_z_J_sim, ~, pi_e_J, pi_e_J_sim, ~, transpathoptions, simoptions]=ExogShockSetup_FHorz_TPath(n_z,[],pi_z,N_a,N_j,Parameters,PricePathNames,ParamPathNames,transpathoptions,simoptions,2);
+[~, pi_z_J, pi_z_J_sim, ~, pi_e_J, pi_e_J_sim, ~, transpathoptions, simoptions]=ExogShockSetup_FHorz_TPath(n_z,[],pi_z,N_a,N_j,T,Parameters,PricePathNames,ParamPathNames,transpathoptions,simoptions,2);
 % Convert z and e to age-dependent joint-grids and transtion matrix
 % output: z_gridvals_J, pi_z_J, e_gridvals_J, pi_e_J, transpathoptions,vfoptions,simoptions
 

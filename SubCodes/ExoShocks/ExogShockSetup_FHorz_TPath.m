@@ -1,4 +1,4 @@
-function [z_gridvals_J, pi_z_J, pi_z_J_sim, e_gridvals_J, pi_e_J, pi_e_J_sim, ze_gridvals_J_fastOLG, transpathoptions, options]=ExogShockSetup_FHorz_TPath(n_z,z_grid,pi_z,N_a,N_j,Parameters,PricePathNames,ParamPathNames,transpathoptions,options,gridpiboth)
+function [z_gridvals_J, pi_z_J, pi_z_J_sim, e_gridvals_J, pi_e_J, pi_e_J_sim, ze_gridvals_J_fastOLG, transpathoptions, options]=ExogShockSetup_FHorz_TPath(n_z,z_grid,pi_z,N_a,N_j,T,Parameters,PricePathNames,ParamPathNames,transpathoptions,options,gridpiboth)
 % Convert z and e to age-dependent joint-grids and transtion matrix
 % Can input vfoptions OR simoptions
 % output: z_gridvals_J, pi_z_J, pi_z_J_sim, e_gridvals_J, pi_e_J, pi_e_J_sim, ze_gridvals_J_fastOLG, transpathoptions, options
@@ -53,9 +53,9 @@ function [z_gridvals_J, pi_z_J, pi_z_J_sim, e_gridvals_J, pi_e_J, pi_e_J_sim, ze
 %     [prod(n_e), T]                      iid distribution, time-varying (no age, last dim is T)
 %     [prod(n_e), N_j, T]                 iid distribution, age-dependent and time-varying
 %
-% T always comes after N_j when both are in the input shape. T is inferred
-% from the trailing dimension of the input (and N_j vs T is distinguished
-% by comparing against the known N_j argument).
+% T always comes after N_j when both are in the input shape. T is an input;
+% the trailing dimension of a time-varying input is checked against it (and
+% N_j vs T is distinguished by comparing against the known N_j argument).
 %
 % When a time-varying input is supplied for z, transpathoptions.zpathtrivial
 % is set to 0 and the full path is stored in transpathoptions.z_gridvals_J_T
@@ -288,12 +288,6 @@ if N_z>0
         end
 
         if z_grid_timevarying || pi_z_timevarying
-            % Infer T from whichever input is time-varying
-            if pi_z_timevarying
-                T=size(pi_z,ndims(pi_z));
-            else
-                T=size(z_grid,ndims(z_grid));
-            end
             transpathoptions.zpathtrivial=0;
 
             % Build transpathoptions.z_gridvals_J_T as [prod(n_z), length(n_z), N_j, T]
@@ -664,12 +658,6 @@ if N_e>0
         end
 
         if e_grid_timevarying || pi_e_timevarying
-            % Infer T from whichever input is time-varying
-            if pi_e_timevarying
-                T=size(options.pi_e,ndims(options.pi_e));
-            else
-                T=size(options.e_grid,ndims(options.e_grid));
-            end
             transpathoptions.epathtrivial=0;
 
             % Build transpathoptions.e_gridvals_J_T as [prod(n_e), length(n_e), N_j, T]
