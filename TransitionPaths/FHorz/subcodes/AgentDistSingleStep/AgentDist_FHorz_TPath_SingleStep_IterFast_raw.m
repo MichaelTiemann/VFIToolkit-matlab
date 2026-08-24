@@ -15,7 +15,7 @@ function AgentDist=AgentDist_FHorz_TPath_SingleStep_IterFast_raw(AgentDist,Polic
 AgentDist_tt=sparse(gather(reshape(AgentDist(exceptlastj),[N_a*(N_j-1)*N_z,1]))); % end-N_a*N_z is avoiding those that correspond to jj=N_j
 
 % Tan improvement Step 1
-Gammatranspose=sparse(Policy_aprimejz,II1,II2,N_a*(N_j-1)*N_z,N_a*(N_j-1)*N_z);
+Gammatranspose=sparse(gather(Policy_aprimejz),II1,II2,N_a*(N_j-1)*N_z,N_a*(N_j-1)*N_z);
 % Note: N_j-1, not N_j
 
 AgentDist_tt=reshape(Gammatranspose*AgentDist_tt,[N_a,(N_j-1)*N_z]);
