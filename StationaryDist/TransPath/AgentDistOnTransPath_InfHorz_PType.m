@@ -1,4 +1,5 @@
-function AgentDistPath=AgentDistOnTransPath_InfHorz_PType(AgentDist_initial,PricePath, ParamPath, PolicyPath,n_d,n_a,n_z,Names_i,pi_z, T,Parameters, simoptions)
+function AgentDistPath=AgentDistOnTransPath_InfHorz_PType(AgentDist_initial,PricePath, ParamPath, PolicyPath,n_d,n_a,n_z,Names_i,pi_z, T,Parameters, transpathoptions, simoptions)
+% transpathoptions and simoptions are optional inputs
 % Remark to self: No real need for T as input, as this is anyway the length of PricePath
 
 AgentDistPath=struct();
@@ -24,7 +25,21 @@ end
 for ii=1:N_i
     iistr=Names_i{ii};
 
-    % First set up simoptions
+    % First set up transpathoptions
+    if exist('transpathoptions','var')
+        transpathoptions_temp=PType_Options(transpathoptions,iistr);
+        if ~isfield(transpathoptions_temp,'verbose')
+            transpathoptions_temp.verbose=0;
+        end
+        if ~isfield(transpathoptions_temp,'verboseparams')
+            transpathoptions_temp.verboseparams=0;
+        end
+    else
+        transpathoptions_temp.verbose=0;
+        transpathoptions_temp.verboseparams=0;
+    end
+
+    % Then set up simoptions
     simoptions_temp=PType_Options(simoptions,iistr);
     if ~isfield(simoptions_temp,'verbose')
         simoptions_temp.verbose=0;
@@ -85,7 +100,7 @@ for ii=1:N_i
     end
 
     % Compute the agent distribution path for permanent type ii
-    AgentDistPath_ii=AgentDistOnTransPath_InfHorz(AgentDist_initial_temp, PricePath_temp, ParamPath_temp, PolicyPath_temp,n_d_temp,n_a_temp,n_z_temp,pi_z_temp, T, Parameters_temp, simoptions_temp);
+    AgentDistPath_ii=AgentDistOnTransPath_InfHorz(AgentDist_initial_temp, PricePath_temp, ParamPath_temp, PolicyPath_temp,n_d_temp,n_a_temp,n_z_temp,pi_z_temp, T, Parameters_temp, transpathoptions_temp, simoptions_temp);
     % Note: T cannot depend on ptype, nor can PricePath depend on ptype
 
     AgentDistPath.(iistr)=AgentDistPath_ii;

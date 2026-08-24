@@ -1,4 +1,5 @@
-function AgentDistPath=AgentDistOnTransPath_InfHorz(AgentDist_initial, PricePath,ParamPath, PolicyPath,n_d,n_a,n_z,pi_z,T,Parameters,simoptions)
+function AgentDistPath=AgentDistOnTransPath_InfHorz(AgentDist_initial, PricePath,ParamPath, PolicyPath,n_d,n_a,n_z,pi_z,T,Parameters,transpathoptions,simoptions)
+% transpathoptions and simoptions are optional inputs
 n_e=0; % NOT YET IMPLEMENTED FOR TRANSITION PATHS
 
 N_d=prod(n_d);
@@ -11,6 +12,17 @@ else
     l_d=length(n_d);
 end
 l_a=length(n_a);
+
+%% Check which transpathoptions have been used, set all others to defaults
+if exist('transpathoptions','var')==0
+    %If transpathoptions is not given, just use all the defaults
+    transpathoptions.verbose=0;
+else
+    %Check transpathoptions for missing fields, if there are some fill them with the defaults
+    if ~isfield(transpathoptions,'verbose')
+        transpathoptions.verbose=0;
+    end
+end
 
 %% Check which simoptions have been used, set all others to defaults
 if exist('simoptions','var')==0
@@ -39,9 +51,8 @@ AgentDistPath=zeros(N_a*N_z,T,'gpuArray');
 % Call AgentDist the current periods distn
 AgentDist=gather(sparse(reshape(AgentDist_initial,[N_a*N_z,1])));
 % gridpiboth=2: the agent dist wants the transition probabilities (including the sparse copy) and
-% not the grid, which is why z_grid is passed as []. transpathoptions is local: this command does
-% not take one, and the setup only uses it to report back zpathtrivial and pi_z_T.
-transpathoptions=struct();
+% not the grid, which is why z_grid is passed as []. The setup overwrites zpathtrivial and pi_z_T
+% in transpathoptions, which is how the path-varying z is passed on to the loops below.
 [~, pi_z, pi_z_sparse, ~, ~, ~, ~, transpathoptions, simoptions]=ExogShockSetup_InfHorz_TPath(n_z,[],pi_z,Parameters,PricePathNames,ParamPathNames,T,transpathoptions,simoptions,2);
 AgentDistPath(:,1)=gpuArray(full(AgentDist));
 
