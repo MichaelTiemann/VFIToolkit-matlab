@@ -23,6 +23,14 @@ if isNaive
     Policyalt=gpuArray(vfoptions.Policyalt);
 end
 
+%% Dispatch to ExpAssetsemiz subfn if experienceassetsemiz>=1
+% ExpAssetsemiz is its own family (aprimeFn is driven by semiz), not semiz layered onto ExpAsset,
+% so it must be caught before the generic SemiExo dispatch below (n_semiz>0 always holds here).
+if vfoptions.experienceassetsemiz>=1
+    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetsemiz(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    return
+end
+
 %% Dispatch to SemiExo subfn if n_semiz>0
 if prod(vfoptions.n_semiz)>0
     [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_SemiExo(Policy,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
