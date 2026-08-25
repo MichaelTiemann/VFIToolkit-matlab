@@ -71,6 +71,13 @@ if isfield(vfoptions,'exoticpreferences') && strcmp(vfoptions.exoticpreferences,
     return
 end
 
+%% Dispatch to EpsteinZin subfn if exoticpreferences=='EpsteinZin'
+if isfield(vfoptions,'exoticpreferences') && strcmp(vfoptions.exoticpreferences,'EpsteinZin')
+    V=ValueFnFromPolicy_FHorz_EpsteinZin(Policy,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    varargout={V};
+    return
+end
+
 %% Dispatch to ExpAsset subfn if experienceasset==1
 if vfoptions.experienceasset>=1
     V=ValueFnFromPolicy_FHorz_ExpAsset(Policy,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
@@ -211,7 +218,7 @@ elseif N_z==0 && N_e>0
             V(:,:,jj)=FofPolicy_jj;
         else
             beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-            EVnext=sum(V(:,:,jj+1).*shiftdim(vfoptions.pi_e_J(:,jj),-1),2); % expectation over iid
+            EVnext=sum(V(:,:,jj+1).*shiftdim(vfoptions.pi_e_J(:,jj+1),-1),2); % expectation over iid
 
             if N_d==0
                 optaprime=PolicyIndexesKron(1,:,:,jj);
@@ -295,7 +302,7 @@ elseif N_z>0 && N_e>0
             V(:,:,:,jj)=FofPolicy_jj;
         else
             beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-            EVnext=sum(V(:,:,:,jj+1).*shiftdim(vfoptions.pi_e_J(:,jj),-2),3); % expectation over iid
+            EVnext=sum(V(:,:,:,jj+1).*shiftdim(vfoptions.pi_e_J(:,jj+1),-2),3); % expectation over iid
             EVnext=EVnext.*shiftdim(pi_z_J(:,:,jj)',-1); % size N_z-by-1
             EVnext(isnan(EVnext))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
             EVnext=sum(EVnext,2); % sum over z', leaving a singular second dimension

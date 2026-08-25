@@ -247,7 +247,7 @@ if ~isfield(vfoptions,'V_Jplus1')
 
 else
     % Using V_Jplus1
-    EV=sum(reshape(vfoptions.V_Jplus1,[N_a,N_semiz,N_e]).*pi_e_J(1,1,:,N_j),3);    % First, switch V_Jplus1 into Kron form
+    EV=sum(reshape(vfoptions.V_Jplus1,[N_a,N_semiz,N_e]).*pi_e_J(1,1,:,N_j+1),3);    % First, switch V_Jplus1 into Kron form
 
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
@@ -387,12 +387,12 @@ else
                 entireRHS_ii=ReturnMatrix_d2ii+DiscountFactorParamsVec*reshape(EVinterp_d2(aprimez),[N_d1*n2long,N_a,N_semiz]);
                 [Vtemp,maxindex]=max(entireRHS_ii,[],1);
 
-                V_ford2_jj(:,:,:,d2_c)=shiftdim(Vtemp,1);
-                Policy_ford2_jj(:,:,:,d2_c)=shiftdim(maxindex,1);
+                V_ford2_jj(:,:,e_c,d2_c)=shiftdim(Vtemp,1);
+                Policy_ford2_jj(:,:,e_c,d2_c)=shiftdim(maxindex,1);
 
                 d1_ind=rem(maxindex-1,N_d1)+1;
                 allind=d1_ind+N_d1*aind+N_d1*N_a*semizind; % loweredge is n_d-by-1-by-n_a-by-n_semiz
-                midpoint_ford2_jj(:,:,:,d2_c)=squeeze(midpoints_jj(allind));
+                midpoint_ford2_jj(:,:,e_c,d2_c)=squeeze(midpoints_jj(allind));
 
                 % L2 flag for this (d2, e_c)
                 L2offset_d2 = ceil(maxindex/N_d1);
@@ -402,7 +402,7 @@ else
                 isInfUpper = (ReturnMatrix_d2ii(linidx_upper) == -Inf);
                 inLowerStrict = (L2offset_d2 >= 2)         & (L2offset_d2 <= n2short+1);
                 inUpperStrict = (L2offset_d2 >= n2short+3) & (L2offset_d2 <= n2long-1);
-                PolicyL2flag_ford2_jj(:,:,:,d2_c) = squeeze(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper));
+                PolicyL2flag_ford2_jj(:,:,e_c,d2_c) = squeeze(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper));
             end
         end
         % Now we just max over d2, and keep the policy that corresponded to that (including modify the policy to include the d2 decision)
@@ -520,7 +520,7 @@ for reverse_j=1:N_j-1
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    EV=sum(V(:,:,:,jj+1).*pi_e_J(1,1,:,jj),3);
+    EV=sum(V(:,:,:,jj+1).*pi_e_J(1,1,:,jj+1),3);
 
     if vfoptions.lowmemory==0
         for d2_c=1:N_d2

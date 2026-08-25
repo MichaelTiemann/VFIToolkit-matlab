@@ -55,8 +55,8 @@ d3ind=gpuArray(1:1:N_d3)';
 if vfoptions.lowmemory>=1
     special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
-if vfoptions.lowmemory==2
-    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision,'gpuArray');
+if vfoptions.lowmemory>=2
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision);
 end
 
 V_ford4_jj=zeros(N_a,N_semiz,N_e,N_d4,vfoptions.precision,'gpuArray');
@@ -84,7 +84,7 @@ else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
     V_Jplus1=reshape(vfoptions.V_Jplus1,[N_a,N_semiz,N_e]);
-    EVpre=sum(V_Jplus1.*shiftdim(pi_e_J(:,N_j),-2),3);
+    EVpre=sum(V_Jplus1.*shiftdim(pi_e_J(:,N_j+1),-2),3);
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a2, n_u, d23_grid, a2_grid, u_grid, aprimeFnParamsVec,2);
 
@@ -254,7 +254,7 @@ else
                 linlookup=d3part+N_d3*(a1mid-1)+N_d3*N_a1*(zidx-1);
                 d2_ford4_jj(:,:,e_c,d4_c)=d2index_resh(linlookup);
             end
-        elseif vfoptions.lowmemory==2
+        elseif vfoptions.lowmemory>=2 % lm2 already does the most-looped variant, so it also serves the higher lowmemory values
             % Loop over semiz (outer) and e (inner) to reduce memory footprint
             special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
             for z_c=1:N_semiz
@@ -360,7 +360,7 @@ for reverse_j=1:N_j-1
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a2, n_u, d23_grid, a2_grid, u_grid, aprimeFnParamsVec,2);
 
-    EVnext=sum(V(:,:,:,jj+1).*shiftdim(pi_e_J(:,jj),-2),3);
+    EVnext=sum(V(:,:,:,jj+1).*shiftdim(pi_e_J(:,jj+1),-2),3);
 
     if isstruct(pi_semiz_J)
         pi_semiz=gpuArray(reshape(full(pi_semiz_J.(['j',num2str(jj)])),[N_semiz,N_semiz,N_d4]));
@@ -527,7 +527,7 @@ for reverse_j=1:N_j-1
                 linlookup=d3part+N_d3*(a1mid-1)+N_d3*N_a1*(zidx-1);
                 d2_ford4_jj(:,:,e_c,d4_c)=d2index_resh(linlookup);
             end
-        elseif vfoptions.lowmemory==2
+        elseif vfoptions.lowmemory>=2 % lm2 already does the most-looped variant, so it also serves the higher lowmemory values
             % Loop over semiz (outer) and e (inner) to reduce memory footprint
             special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
             for z_c=1:N_semiz

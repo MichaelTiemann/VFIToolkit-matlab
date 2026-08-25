@@ -50,7 +50,7 @@ if ~isfield(vfoptions,'V_Jplus1')
         Policy(2,:,:,N_j)=1; % is meaningless anyway
         Policy(3,:,:,N_j)=shiftdim(ceil(maxindex/N_d1),-1);
 
-    elseif vfoptions.lowmemory==1
+    elseif vfoptions.lowmemory>=1 % lm1 already does the most-looped variant, so it also serves the higher lowmemory values
         for e_c=1:N_e
             e_val=e_gridvals_J(e_c,:,N_j);
             ReturnMatrix_e=CreateReturnFnMatrix_Case2_Disc(ReturnFn, n_d13, n_a, special_n_e, d13_gridvals, a_gridvals, e_val, ReturnFnParamsVec);
@@ -64,7 +64,7 @@ if ~isfield(vfoptions,'V_Jplus1')
     end
 else
     % Using V_Jplus1
-    V_Jplus1=sum(reshape(vfoptions.V_Jplus1,[N_a,N_e]).*pi_e_J(:,N_j)',2);    % First, switch V_Jplus1 into Kron form ,take expectation over e
+    V_Jplus1=sum(reshape(vfoptions.V_Jplus1,[N_a,N_e]).*pi_e_J(:,N_j+1)',2);    % First, switch V_Jplus1 into Kron form ,take expectation over e
 
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
@@ -101,13 +101,13 @@ else
         Policy(1,:,:,N_j)=shiftdim(d1index(maxindex+N_d3*aind+N_d3*N_a*eind),1);
         Policy(2,:,:,N_j)=shiftdim(d2index(maxindex),1);
 
-    elseif vfoptions.lowmemory==1
+    elseif vfoptions.lowmemory>=1 % lm1 already does the most-looped variant, so it also serves the higher lowmemory values
         % Time to refine
         % Second (out of order): EV, we can refine out d2
         [EV_onlyd3,d2index]=max(reshape(EV,[N_d2,N_d3,1]),[],1);
        for e_c=1:N_e
            e_val=e_gridvals_J(e_c,:,N_j);
-           ReturnMatrix_e=CreateReturnFnMatrix_Case2_Disc(ReturnFn, n_d13, n_a, n_e, special_n_e, d13_gridvals, a_gridvals, e_val, ReturnFnParamsVec);
+           ReturnMatrix_e=CreateReturnFnMatrix_Case2_Disc(ReturnFn, n_d13, n_a, special_n_e, d13_gridvals, a_gridvals, e_val, ReturnFnParamsVec);
 
            % Time to refine
            % First: ReturnMatrix, we can refine out d1
@@ -139,7 +139,7 @@ for reverse_j=1:N_j-1
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    EV=sum(V(:,:,jj+1).*pi_e_J(:,jj)',2); % Expectation over e
+    EV=sum(V(:,:,jj+1).*pi_e_J(:,jj+1)',2); % Expectation over e
 
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj,vfoptions.precision);
     [aprimeIndex,aprimeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a, n_u, d23_grid, a_grid, u_grid, aprimeFnParamsVec,1); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
@@ -174,7 +174,7 @@ for reverse_j=1:N_j-1
         Policy(1,:,:,jj)=shiftdim(d1index(maxindex+N_d3*aind+N_d3*N_a*eind),1);
         Policy(2,:,:,jj)=shiftdim(d2index(maxindex),1);
 
-    elseif vfoptions.lowmemory==1
+    elseif vfoptions.lowmemory>=1 % lm1 already does the most-looped variant, so it also serves the higher lowmemory values
 
        % Time to refine
        % Second (out of order): EV, we can refine out d2

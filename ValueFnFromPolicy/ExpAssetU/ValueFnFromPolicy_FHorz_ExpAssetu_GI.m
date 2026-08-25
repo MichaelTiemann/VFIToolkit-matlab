@@ -106,24 +106,26 @@ else
     Policy_k=reshape(Policy,[size_first, N_a, N_z*N_e, N_j]);
 end
 
-%% Extract a1prime midpoint (lower) and L2
+%% Extract a1prime lower grid index and L2
 if N_z==0 && N_e==0
     a1_lower=ones(N_a, N_j, 'gpuArray');
 else
     a1_lower=ones(N_a, N_ze, N_j, 'gpuArray');
 end
-a1_mid=shiftdim(Policy_k(l_d+1,:,:,:),1);
+% ValueFnIter converts the midpoint to the lower grid index before returning Policy (the adjust
+% block at the end of the GI raws), so this row is the lower index and not the midpoint.
+a1_lowerind=shiftdim(Policy_k(l_d+1,:,:,:),1);
 L2=shiftdim(Policy_k(l_d+l_a1+1,:,:,:),1);
 w_a1_upper=(L2-1)/(n2short+1);
 w_a1_lower=1-w_a1_upper;
 cumprods_a1=[1, cumprod(n_a1(1:end-1))];
-a1_lower=a1_mid;
+a1_lower=a1_lowerind;
 for ii=2:l_a1
     comp=shiftdim(Policy_k(l_d+ii,:,:,:),1);
     a1_lower=a1_lower+cumprods_a1(ii)*(comp-1);
 end
 a1_upper=a1_lower+1;
-a1_top_clamp=(a1_mid>=n_a1(1));
+a1_top_clamp=(a1_lowerind>=n_a1(1));
 a1_upper(a1_top_clamp)=a1_lower(a1_top_clamp);
 
 %% Joint z+e gridvals for ReturnFn when both present
@@ -189,12 +191,12 @@ for reverse_j=0:N_j-1
         if N_z==0 && N_e==0
             EVnext=V(:,jj+1);
         elseif N_z==0 && N_e>0
-            EVnext=sum(V(:,:,jj+1) .* shiftdim(vfoptions.pi_e_J(:,jj), -1), 2);
+            EVnext=sum(V(:,:,jj+1) .* shiftdim(vfoptions.pi_e_J(:,jj+1), -1), 2);
         elseif N_z>0 && N_e==0
             EVnext=V(:,:,jj+1)*pi_z_J(:,:,jj)';
             EVnext(isnan(EVnext))=0;
         else
-            EVnext=sum(V(:,:,:,jj+1) .* shiftdim(vfoptions.pi_e_J(:,jj), -2), 3);
+            EVnext=sum(V(:,:,:,jj+1) .* shiftdim(vfoptions.pi_e_J(:,jj+1), -2), 3);
             EVnext=reshape(EVnext,[N_a,N_z]) * pi_z_J(:,:,jj)';
             EVnext(isnan(EVnext))=0;
         end

@@ -11,6 +11,7 @@ if ~exist('vfoptions','var')
     disp('No vfoptions given, using defaults')
     % If vfoptions is not given, just use all the defaults
     vfoptions.verbose=0;
+    vfoptions.verbose_advice=1; % =1 sounds advisory warnings (e.g. the postGI maxaprimediff advice); set =0 to silence them (e.g. inside general-eqm / transition-path loops)
     vfoptions.tolerance=10^(-9); % Convergence tolerance (for ||V_n - V_{n-1}|| )
     vfoptions.parallel=1+(gpuDeviceCount>0); % GPU where available, otherwise parallel CPU.
     vfoptions.maxiter=10^4; % Can be used to stop the VFI after a finite number of iterations
@@ -19,17 +20,35 @@ if ~exist('vfoptions','var')
     vfoptions.divideandconquer=0;
     vfoptions.gridinterplayer=0; % grid interpolation layer
     vfoptions.lowmemory=0;
-    % Howards improvement
+    % Howards improvement: when doing Howards iterations, there are various suboptions.
+    % Defaults for Howards are set based on runtimes from CoreInfHorzVFIAlgoTests.m in the VFI Toolkit Test Bank: https://github.com/vfitoolkit/vfitoolkitTests/blob/main/CoreInfHorzTests/with_CoreInfHorzVFIAlgoTests/CoreInfHorzVFIAlgoTests.m
     vfoptions.howardsgreedy=0; % =0 iterated (aka modified-Policy Fn Iteration) or =1 greedy (aka Policy Fn Iteration)
-        % Note: for small models, Howards greedy is faster, but cannot handle that V takes -Inf.
-    % When doing Howards iterations, the following are some suboptions
-    vfoptions.howards=150; % based on some tests, 80 to 150 was fastest, but 150 was best on average
-    vfoptions.maxhowards=500; % Turn howards off after this many times (just so it cannot cause convergence to fail if thing are going wrong)
-    if N_a>1200 && N_z>100
-        vfoptions.howardssparse=1; % Do Howards iteration using a sparse matrix (rather than indexing). Sparse is only faster for bigger models.
+    % First the Howards method. With the grid interpolation layer the sparse matrix version won every
+    % model and grid size tried, by 1.1x to 2x, so it is used whenever it exists there (it is
+    % implemented for postGI only; the preGI branches all error). Without the grid interpolation
+    % layer what matters is N_z rather than the total number of states: the sparse transition matrix
+    % has N_a*N_z*N_z non-zeros, so what it buys scales with how much mixing over z there is. Sparse
+    % won by 2x to 6x at n_z of 75 and 150 (as long as N_a was at least 500), and was a tie at n_z of
+    % 25 or less no matter how big N_a was. Two endogenous state models with N_a over 10000 and a
+    % small n_z are still ties, which is what rules out setting this on N_a*N_z.
+    if vfoptions.gridinterplayer==1 && vfoptions.preGI==1
+        vfoptions.howardssparse=0; % sparse is not implemented for preGI
+    elseif vfoptions.gridinterplayer==1
+        vfoptions.howardssparse=1; % Do Howards iteration using a sparse matrix (rather than indexing).
+    elseif N_z>=50 && N_a>=500
+        vfoptions.howardssparse=1;
     else
         vfoptions.howardssparse=0;
     end
+    % Then the number of Howards steps, which follows from the method rather than from the grid size.
+    % A sparse matrix multiply is cheap per step so more steps pay for themselves, while the indexed
+    % version is dearer per step and 40 beat 80 in every model and grid size tried.
+    if vfoptions.howardssparse==1
+        vfoptions.howards=80;
+    else
+        vfoptions.howards=40;
+    end
+    vfoptions.maxhowards=500; % Turn howards off after this many times (just so it cannot cause convergence to fail if thing are going wrong)
     % Different asset types
     vfoptions.endogenousexit=0;
     vfoptions.incrementaltype=0; % (vector indicating endogenous state is an incremental endogenous state variable)
@@ -52,6 +71,9 @@ else
     % Check vfoptions for missing fields, if there are some fill them with the defaults
     if ~isfield(vfoptions,'verbose')
         vfoptions.verbose=0;
+    end
+    if ~isfield(vfoptions,'verbose_advice')
+        vfoptions.verbose_advice=1;
     end
     if ~isfield(vfoptions,'tolerance')
         vfoptions.tolerance=10^(-9);
@@ -81,25 +103,43 @@ else
     if ~isfield(vfoptions,'lowmemory')
         vfoptions.lowmemory=0;
     end
-    % Howards improvement
+    % Howards improvement: when doing Howards iterations, there are various suboptions.
+    % Defaults for Howards are set based on runtimes from CoreInfHorzVFIAlgoTests.m in the VFI Toolkit Test Bank: https://github.com/vfitoolkit/vfitoolkitTests/blob/main/CoreInfHorzTests/with_CoreInfHorzVFIAlgoTests/CoreInfHorzVFIAlgoTests.m
     if ~isfield(vfoptions,'howardsgreedy')
         vfoptions.howardsgreedy=0; % =0 iterated (aka modified-Policy Fn Iteration) or =1 greedy (aka Policy Fn Iteration)
-        % Note: for small models, Howards greedy is faster, but cannot handle that V takes -Inf.
         % Note: Howards greedy =1 can only be used without grid interpolation layer (gridinterplayer=0)
     end
-    % When doing Howards iterations, the following are some suboptions
-    if ~isfield(vfoptions,'howards')
-        vfoptions.howards=150; % based on some tests, 80 to 150 was fastest, but 150 was best on average
-    end
-    if ~isfield(vfoptions,'maxhowards')
-        vfoptions.maxhowards=500; % Turn howards off after this many times (just so it cannot cause convergence to fail if thing are going wrong)
-    end
     if ~isfield(vfoptions,'howardssparse')
-        if N_a>1200 && N_z>100
-            vfoptions.howardssparse=1; % Do Howards iteration using a sparse matrix (rather than indexing). Sparse is only faster for bigger models.
+        % First the Howards method. With the grid interpolation layer the sparse matrix version won every
+        % model and grid size tried, by 1.1x to 2x, so it is used whenever it exists there (it is
+        % implemented for postGI only; the preGI branches all error). Without the grid interpolation
+        % layer what matters is N_z rather than the total number of states: the sparse transition matrix
+        % has N_a*N_z*N_z non-zeros, so what it buys scales with how much mixing over z there is. Sparse
+        % won by 2x to 6x at n_z of 75 and 150 (as long as N_a was at least 500), and was a tie at n_z of
+        % 25 or less no matter how big N_a was. Two endogenous state models with N_a over 10000 and a
+        % small n_z are still ties, which is what rules out setting this on N_a*N_z.
+        if vfoptions.gridinterplayer==1 && vfoptions.preGI==1
+            vfoptions.howardssparse=0; % sparse is not implemented for preGI
+        elseif vfoptions.gridinterplayer==1
+            vfoptions.howardssparse=1; % Do Howards iteration using a sparse matrix (rather than indexing).
+        elseif N_z>=50 && N_a>=500
+            vfoptions.howardssparse=1;
         else
             vfoptions.howardssparse=0;
         end
+    end
+    if ~isfield(vfoptions,'howards')
+        % Then the number of Howards steps, which follows from the method rather than from the grid size.
+        % A sparse matrix multiply is cheap per step so more steps pay for themselves, while the indexed
+        % version is dearer per step and 40 beat 80 in every model and grid size tried.
+        if vfoptions.howardssparse==1
+            vfoptions.howards=80;
+        else
+            vfoptions.howards=40;
+        end
+    end
+    if ~isfield(vfoptions,'maxhowards')
+        vfoptions.maxhowards=500; % Turn howards off after this many times (just so it cannot cause convergence to fail if thing are going wrong)
     end
     % Different asset types
     if ~isfield(vfoptions,'endogenousexit')
@@ -177,10 +217,10 @@ end
 
 %% V0 (initial guess)
 if isfield(vfoptions,'V0')
-    V0=reshape(gpuArray(vfoptions.V0),[N_a,N_z]);
+    V0=reshape(gpuArray(vfoptions.V0),[N_a,max(N_z,1)]); % Note: max(N_z,1) is N_z, or if N_z=0 then it is 1
     vfoptions.actualV0=1;
 else
-    V0=zeros([N_a,N_z], vfoptions.precision, 'gpuArray');
+    V0=zeros([N_a,max(N_z,1)], vfoptions.precision, 'gpuArray');
     vfoptions.actualV0=0; % DC2 has different way of creating initial guess so this will be ignored
 end
 
@@ -284,7 +324,6 @@ end
 % But this changes if you have e, semiz, or just multiple d, and if you use riskyasset, expasset, etc.
 % So figure out which setup we have, and get the relevant ReturnFnParamNames
 
-
 %% Entry and Exit
 if vfoptions.endogenousexit==1
     % ExitPolicy is binary decision to exit (1 is exit, 0 is 'not exit').
@@ -313,9 +352,6 @@ else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec); % Infinite horizon, so just do this once.
 end
-
-
-
 
 
 %% Exotic Preferences
@@ -453,6 +489,20 @@ if strcmp(vfoptions.solnmethod,'purediscretization_relativeVFI')
     % Note: have only implemented Relative VFI on the GPU
     warning('Relative VFI is unstable if you have substantial discretization (has difficulty converging if you dont use enough points)')
     [VKron,Policy]=ValueFnIter_InfHorz_RelativeVFI(V0,n_d,n_a,n_z,d_gridvals,a_grid,z_grid,pi_z,ReturnFn,ReturnFnParamsVec,DiscountFactorParamsVec,vfoptions,n_SDP,SDP1,SDP2,SDP3);
+    % Relative VFI still returns Kron form, so clean up here. The other solnmethods each do their own.
+    if vfoptions.outputkron==0
+        V=reshape(VKron,[n_a,n_z]);
+        if N_d==0
+            Policy=UnKronPolicyIndexes1_z(Policy, n_a, n_a, n_z, vfoptions);
+        else
+            Policy=UnKronPolicyIndexes2_z(Policy, n_d, n_a, n_a, n_z, vfoptions);
+        end
+        varargout={V,Policy};
+    else
+        Policy=reshape(Policy,[1,N_a,N_z]);
+        varargout={VKron,Policy};
+    end
+    return
 end
 
 %%
@@ -462,20 +512,18 @@ if strcmp(vfoptions.solnmethod,'purediscretization_endogenousVFI')
 %     [VKron,Policy]=ValueFnIter_InfHorz_EndoVFI(V0,n_d,n_a,n_z,d_grid,a_grid,z_grid,pi_z,ReturnFn,ReturnFnParamsVec,DiscountFactorParamsVec,vfoptions,n_SDP,SDP1,SDP2,SDP3);
 end
 
-
-%% Divide-and-conquer together with grid interpolation layer is not yet done in InfHorz. It is assumed you just want the grid interpolation layer
-if vfoptions.divideandconquer==1 && vfoptions.gridinterplayer==1
-    vfoptions.divideandconquer=0;
-    warning('Cannot yet use divide-and-conquer with grid interpolation layer for InfHorz, so just ignoring the divide-and-conquer (and doing the grid interpolation layer)')
-end
-
 %% Divide-and-conquer
-if vfoptions.divideandconquer==1
-    warning('Divide-and-Conquer tends to be a slow option in Infinite Horizon problems')
-    [V,Policy]=ValueFnIter_InfHorz_DivideConquer(V0, n_d, n_a, n_z, d_gridvals, a_grid, z_gridvals, pi_z, ReturnFn, DiscountFactorParamsVec, ReturnFnParamsVec, vfoptions);
-    varargout={V,Policy};
-    return
+if vfoptions.divideandconquer>=1
+    warning('Ignoring Divide-and-Conquer as it just slows everything down in Infinite Horizon problems (set =2 to force using it)')
+    if vfoptions.divideandconquer==2 && vfoptions.gridinterplayer==0
+        [V,Policy]=ValueFnIter_InfHorz_DivideConquer(V0, n_d, n_a, n_z, d_gridvals, a_grid, z_gridvals, pi_z, ReturnFn, DiscountFactorParamsVec, ReturnFnParamsVec, vfoptions);
+        varargout={V,Policy};
+        return
+    elseif vfoptions.divideandconquer==2 && vfoptions.gridinterplayer==1
+        error('Cannot use both Divide-and-Conquer and Grid-Interpolation-Layer together in InfHorz (has not been implemented as DC just slows things down in InfHorz)')
+    end
 end
+
 %% Grid interpolation layer
 if vfoptions.gridinterplayer==1
     [V,Policy]=ValueFnIter_InfHorz_GridInterpLayer(V0, n_d, n_a, n_z, d_gridvals, a_grid, z_gridvals, pi_z, ReturnFn, DiscountFactorParamsVec, ReturnFnParamsVec, vfoptions);
@@ -483,92 +531,21 @@ if vfoptions.gridinterplayer==1
     return
 end
 
-
-%%
+%% Pure Discretization
 if strcmp(vfoptions.solnmethod,'purediscretization')
-
-    N_d=prod(n_d);
-
-    if vfoptions.lowmemory==0
-
-        %% CreateReturnFnMatrix_Disc_CPU creates a matrix of dimension (d and aprime)-by-a-by-z.
-        % Since the return function is independent of time creating it once and
-        % then using it every iteration is good for speed, but it does use a lot of memory.
-
-        if vfoptions.verbose==1
-            disp('Creating return fn matrix')
-        end
-
-        if N_d==0
-            ReturnMatrix=CreateReturnFnMatrix_Disc(ReturnFn, 0, n_a, n_z, [], a_grid, z_gridvals, ReturnFnParamsVec,0);
-        else
-            ReturnMatrix=CreateReturnFnMatrix_Disc(ReturnFn, n_d, n_a, n_z, d_gridvals, a_grid, z_gridvals, ReturnFnParamsVec,0);
-        end
-
-        if vfoptions.verbose==1
-            fprintf('Starting Value Function \n')
-        end
-
-        if N_d==0
-            if vfoptions.howardsgreedy==1
-                [VKron,Policy]=ValueFnIter_InfHorz_HowardGreedy_nod_raw(V0, N_a, N_z, pi_z, DiscountFactorParamsVec, ReturnMatrix, vfoptions.maxhowards, vfoptions.tolerance, vfoptions.maxiter);
-            elseif vfoptions.howardsgreedy==0
-                if vfoptions.howardssparse==0
-                    [VKron,Policy]=ValueFnIter_InfHorz_nod_raw(V0, N_a, N_z, pi_z, DiscountFactorParamsVec, ReturnMatrix, vfoptions.howards, vfoptions.maxhowards, vfoptions.tolerance, vfoptions.maxiter);
-                elseif vfoptions.howardssparse==1
-                    [VKron,Policy]=ValueFnIter_InfHorz_sparse_nod_raw(V0, N_a, N_z, pi_z, DiscountFactorParamsVec, ReturnMatrix, vfoptions.howards, vfoptions.maxhowards, vfoptions.tolerance, vfoptions.maxiter);
-                end
-            end
-        else
-            % Can't be bothered implementing HowardGreedy here, as for good runtimes you should anyway be doing Refine so wouldn't get here
-            [VKron, Policy]=ValueFnIter_InfHorz_raw(V0, n_d,n_a,n_z, pi_z, DiscountFactorParamsVec, ReturnMatrix,vfoptions.howards, vfoptions.maxhowards,vfoptions.tolerance, vfoptions.maxiter);
-        end
-
-    elseif vfoptions.lowmemory==1
-
-        if vfoptions.verbose==1
-            disp('Starting Value Function')
-        end
-
-        if N_d==0
-            if vfoptions.howardssparse==0
-                [VKron,Policy]=ValueFnIter_InfHorz_LowMem_nod_raw(V0, n_a, n_z, a_grid, z_gridvals, pi_z, DiscountFactorParamsVec, ReturnFn, ReturnFnParamsVec, vfoptions.howards, vfoptions.maxhowards, vfoptions.tolerance, vfoptions.maxiter);
-            elseif vfoptions.howardssparse==1
-                [VKron,Policy]=ValueFnIter_InfHorz_LowMem_sparse_nod_raw(V0, n_a, n_z, a_grid, z_gridvals, pi_z, DiscountFactorParamsVec, ReturnFn, ReturnFnParamsVec, vfoptions.howards, vfoptions.maxhowards, vfoptions.tolerance, vfoptions.maxiter);
-            end
-        else
-            [VKron, Policy]=ValueFnIter_InfHorz_LowMem_raw(V0, n_d,n_a,n_z, d_gridvals, a_grid, z_gridvals, pi_z, DiscountFactorParamsVec, ReturnFn, ReturnFnParamsVec,vfoptions.howards, vfoptions.maxhowards,vfoptions.tolerance, vfoptions.maxiter);
-        end
-    end
-end
-
-%% VFI with Refine
-% If we get to refinement then there must be d variable
-if strcmp(vfoptions.solnmethod,'purediscretization_refinement')
-    % Refinement: Presolve for dstar(aprime,a,z). Then solve value function for just aprime,a,z.
-    [VKron,Policy]=ValueFnIter_InfHorz_Refine(V0,n_d,n_a,n_z,d_gridvals,a_grid,z_gridvals,pi_z,ReturnFn,ReturnFnParamsVec,DiscountFactorParamsVec,vfoptions);
-end
-
-
-if vfoptions.verbose==1
-    disp('Transforming Value Fn and Optimal Policy matrices back out of Kronecker Form')
-    tic;
-end
-
-%% Cleaning up the output
-if vfoptions.outputkron==0
-    V=reshape(VKron,[n_a,n_z]);
-    if N_d==0
-        Policy=UnKronPolicyIndexes1_z(Policy, n_a, n_a, n_z, vfoptions);
-    else
-        Policy=UnKronPolicyIndexes2_z(Policy, n_d, n_a, n_a, n_z, vfoptions);
-    end
-else
-    Policy=reshape(Policy,[1,N_a,N_z]);
-    varargout={VKron,Policy};
+    [V,Policy]=ValueFnIter_InfHorz_PureDiscretization(V0,n_d,n_a,n_z,d_gridvals,a_grid,z_gridvals,pi_z,ReturnFn,ReturnFnParamsVec,DiscountFactorParamsVec,vfoptions);
+    varargout={V,Policy};
     return
 end
 
-varargout={V,Policy};
+%% Refine the decision variable, otherwise is just Pure Discretization
+% If we get to refinement then there must be d variable
+if strcmp(vfoptions.solnmethod,'purediscretization_refinement')
+    % Refinement: Presolve for dstar(aprime,a,z). Then solve value function for just aprime,a,z.
+    [V,Policy]=ValueFnIter_InfHorz_Refine(V0,n_d,n_a,n_z,d_gridvals,a_grid,z_gridvals,pi_z,ReturnFn,ReturnFnParamsVec,DiscountFactorParamsVec,vfoptions);
+    varargout={V,Policy};
+    return
+end
+
 
 end

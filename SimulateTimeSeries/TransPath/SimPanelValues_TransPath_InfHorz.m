@@ -169,6 +169,10 @@ end
 
 %% Simulate the indexes
 % Can just pretend this is a standard FHorz model and use that to implement the simulation
+simoptions.simpanelindexkron=1; % Keep the output as kron form as will want this later anyway for assigning the values
+% (without this, SimPanelIndexes_FHorz returns the a index split across l_a rows and the z index
+% split across l_z rows, but everything below reads row 1 as the kron a index and row 2 as the
+% kron z index. Those coincide only when l_a==1 and l_z==1.)
 SimPanelIndexes=SimPanelIndexes_FHorz(gather(AgentDist_initial),gather(PolicyPath),n_d,n_a,n_z,T,pi_z_T, simoptions);
 
 %% Check if using _tminus1 and/or _tplus1 variables.
@@ -188,11 +192,9 @@ end
 
 
 %% Implement new way of handling FnsToEvaluate
-% Figure out l_daprime from Policy
-l_daprime=size(PolicyPath,1);
-if simoptions.gridinterplayer==1
-    l_daprime=l_daprime-1;
-end
+% Figure out l_daprime and l_aprime
+l_daprime=size(PolicyPath,1)-2*simoptions.gridinterplayer; % gridinterplayer=1 carries an extra L2 index and L2flag
+l_aprime=l_daprime-l_d;
 
 % Note: l_semizze
 if isstruct(FnsToEvaluate)
@@ -229,10 +231,6 @@ else
 end
 
 % Note that dPolicy and aprimePolicy will depend on age
-l_aprime=l_a;
-if simoptions.experienceasset>=1 || simoptions.experienceassetu>=1
-    l_aprime=l_aprime-1;
-end
 if N_d==0
     if N_semizze==0
         daprimePolicy_gridvals=zeros(N_a,l_aprime,T);

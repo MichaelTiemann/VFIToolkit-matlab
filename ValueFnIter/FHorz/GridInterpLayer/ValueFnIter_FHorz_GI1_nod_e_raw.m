@@ -128,7 +128,7 @@ else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    EV=sum(reshape(vfoptions.V_Jplus1,[N_a,N_z,N_e]).*pi_e_J(1,1,:,N_j),3);
+    EV=sum(reshape(vfoptions.V_Jplus1,[N_a,N_z,N_e]).*pi_e_J(1,1,:,N_j+1),3);
 
     EV=EV.*shiftdim(pi_z_J(:,:,N_j)',-1);
     EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
@@ -170,7 +170,7 @@ else
     elseif vfoptions.lowmemory==1
 
         for e_c=1:N_e
-            e_val=e_gridvals_J(e_c,:);
+            e_val=e_gridvals_J(e_c,:,N_j);
             ReturnMatrix_e=CreateReturnFnMatrix_Disc_e(ReturnFn, 0, n_a, n_z, special_n_e, 0, a_grid, z_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec,0);
 
             entireRHS_e=ReturnMatrix_e+DiscountFactorParamsVec*EV;
@@ -204,7 +204,7 @@ else
     elseif vfoptions.lowmemory==2
 
         for z_c=1:N_z
-            z_val=z_gridvals_J(z_c,:);
+            z_val=z_gridvals_J(z_c,:,N_j);
             EV_z=EV(:,:,z_c);
             EVinterp_z=EVinterp(:,:,z_c);
 
@@ -256,7 +256,7 @@ for reverse_j=1:N_j-1
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    EV=sum(V(:,:,:,jj+1).*pi_e_J(1,1,:,jj),3);
+    EV=sum(V(:,:,:,jj+1).*pi_e_J(1,1,:,jj+1),3);
 
     EV=EV.*shiftdim(pi_z_J(:,:,jj)',-1);
     EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
@@ -297,7 +297,7 @@ for reverse_j=1:N_j-1
 
     elseif vfoptions.lowmemory==1
         for e_c=1:N_e
-            e_val=e_gridvals_J(e_c,:);
+            e_val=e_gridvals_J(e_c,:,jj);
             ReturnMatrix_e=CreateReturnFnMatrix_Disc_e(ReturnFn, 0, n_a, n_z, special_n_e, 0, a_grid, z_gridvals_J(:,:,jj), e_val, ReturnFnParamsVec,0);
 
             entireRHS_e=ReturnMatrix_e+DiscountFactorParamsVec*EV;
@@ -331,7 +331,7 @@ for reverse_j=1:N_j-1
     elseif vfoptions.lowmemory==2
 
         for z_c=1:N_z
-            z_val=z_gridvals_J(z_c,:);
+            z_val=z_gridvals_J(z_c,:,jj);
             EV_z=EV(:,:,z_c);
             EVinterp_z=EVinterp(:,:,z_c);
 

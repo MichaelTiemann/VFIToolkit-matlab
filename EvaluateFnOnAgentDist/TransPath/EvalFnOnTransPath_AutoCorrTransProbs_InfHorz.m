@@ -137,6 +137,7 @@ if simoptions.experienceasset==0
             % n_aprime=[N_a1prime,n_a(2:end)];
         end
         % aprime_gridvals=CreateGridvals(n_aprime,aprime_grid,1);
+        simoptions.policyind2val_finegridinput=1; % aprime_grid contains the fine grid for the first asset (tells PolicyInd2Val_InfHorz_TPath)
     else
         aprime_grid=a_grid;
         % aprime_gridvals=a_gridvals;
@@ -154,6 +155,7 @@ elseif simoptions.experienceasset>=1
             % n_aprime=[N_a1prime,n_a(2:end-1)];
         end
         % aprime_gridvals=CreateGridvals(n_aprime,aprime_grid,1);
+        simoptions.policyind2val_finegridinput=1; % aprime_grid contains the fine grid for the first asset (tells PolicyInd2Val_InfHorz_TPath)
     else
         aprime_grid=a_grid;
         % aprime_gridvals=CreateGridvals(n_a(1:end-1),a_grid(1:sum(n_a(1:end-1))),1); % omit a2
@@ -178,6 +180,11 @@ for ff=1:length(FnsToEvalNames)
     CorrTransProbsPath.(FnsToEvalNames{ff}).AutoCorrelation=zeros(1,T);
     % cannot preallocate for TransProbs, as do not yet know size, instead do it in t==2 of loop over tt below
 end
+
+% The lag of each FnToEvaluate has to be kept per FnToEvaluate, one column each.
+Values_all=zeros(N_a*N_z,length(FnsToEvalNames));
+meanV_all=zeros(1,length(FnsToEvalNames));
+stddevV_all=zeros(1,length(FnsToEvalNames));
 
 
 
@@ -226,9 +233,9 @@ for tt=1:T
     %% Can only calculate most stats from period 2 on
     for ff=1:length(FnsToEvalNames)
         if tt>1
-            Values_lag=Values;
-            meanV_lag=meanV;
-            stddevV_lag=stddevV;
+            Values_lag=Values_all(:,ff);
+            meanV_lag=meanV_all(ff);
+            stddevV_lag=stddevV_all(ff);
         end
 
         FnToEvaluateParamsCell=CreateCellFromParams(Parameters,FnsToEvaluateParamNames(ff).Names);
@@ -245,11 +252,19 @@ for tt=1:T
         stddevV=sqrt(sum(AgentDist.*(Values-meanV).^2));
         CorrTransProbsPath.(FnsToEvalNames{ff}).Mean(tt)=meanV;
         CorrTransProbsPath.(FnsToEvalNames{ff}).StdDeviation(tt)=stddevV;
+        % Keep this period's values for use as the lag when tt+1 comes round to this same ff
+        Values_all(:,ff)=Values;
+        meanV_all(ff)=meanV;
+        stddevV_all(ff)=stddevV;
 
         % For autocovar and autocorr we can do them from tt=2 on
         if tt>1
             % Calculate covariance between this period and next period values
-            Covar=(AgentDist_lag.*Values_lag)'*P_lag*Values - meanV_lag*meanV; % AgentDist or AgentDist_lag??
+            % Covar is E[x_{t-1} y_t]-E[x_{t-1}]E[y_t]. The joint mass on the state pair (ii,jj) is
+            % AgentDist_lag(ii)*P_lag(ii,jj), so the lag distribution is the correct weight here:
+            % P_lag already carries the step from tt-1 to tt, and weighting by AgentDist instead
+            % would apply that step twice.
+            Covar=(AgentDist_lag.*Values_lag)'*P_lag*Values - meanV_lag*meanV;
             % Calculate the correlation
             Corr=Covar/(stddevV_lag*stddevV);
             CorrTransProbsPath.(FnsToEvalNames{ff}).AutoCovariance(tt-1)=Covar;
@@ -262,7 +277,7 @@ for tt=1:T
             if simoptions.transprobs(ff)==1
                 [vv,~,indexes]=unique(Values);
                 [vv2,~,indexes_lag]=unique(Values_lag);
-                if all(vv==vv2) % cannot handle the case where it is not just same list of values every period (e.g., cannot handle that in some period we don't see one of the values)
+                if isequal(vv,vv2) % cannot handle the case where it is not just same list of values every period (e.g., cannot handle that in some period we don't see one of the values)
                     n_fvals=length(vv); % number of unique values of the FnsToEvaluate{ff}
                     % Pintermediate: sum transition probabilities for next period based accumulating the unique values
                     Pintermediate=zeros(N_a*N_z,n_fvals);
@@ -273,7 +288,12 @@ for tt=1:T
                     P_v=zeros(n_fvals,n_fvals); % transition probabilities for the values
                     Pintermediate=AgentDist_lag.*Pintermediate;
                     for kk=1:n_fvals
-                        P_v(:,kk)=accumarray(indexes,Pintermediate(:,kk))./accumarray(indexes_lag,AgentDist_lag);
+                        % indexes_lag, not indexes: the rows of P_v are conditioned on the period
+                        % tt-1 value, so the lag states must be grouped by their lag value bin --
+                        % the same bins the denominator uses. (indexes is correct up in
+                        % Pintermediate, where it bins jj, the period tt destination.) With this,
+                        % sum(P_v,2) is one by construction.
+                        P_v(:,kk)=accumarray(indexes_lag,Pintermediate(:,kk))./accumarray(indexes_lag,AgentDist_lag);
                     end
 
                     if tt==2
@@ -281,6 +301,8 @@ for tt=1:T
                     else
                         CorrTransProbsPath.(FnsToEvalNames{ff}).TransitionProbs(:,:,tt-1)=P_v;
                     end
+                else
+                    warning('EvalFnOnTransPath_AutoCorrTransProbs_InfHorz: not returning TransitionProbs for %s, as the distinct values it takes in period %i differ from those in period %i (not implemented)',FnsToEvalNames{ff},tt,tt-1)
                 end
             end
         end

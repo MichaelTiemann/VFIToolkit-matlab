@@ -232,11 +232,14 @@ else
             % Interpolate EV over aprime_grid
             DiscountedEVinterp=permute(interp1(a1_gridvals,permute(DiscountedEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]); % [N_d2,N_a1prime,1,N_a2,N_bothz]
 
+            DiscountedEV=repelem(DiscountedEV,N_d1,1,1,1,1);
+            DiscountedEVinterp=repelem(DiscountedEVinterp,N_d1,1,1,1,1);
+
 
             ReturnMatrix_d3=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,[n_d2,1],n_a1,n_a1,n_a2,n_bothz, d123_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,N_j), ReturnFnParamsVec,1,0); % Level=1, Refine=0
             % (d,aprime,a,z)
 
-            entireRHS_d3=ReturnMatrix_d3+repelem(DiscountedEV,N_d1,1,1,1,1); % autofill a1 dim
+            entireRHS_d3=ReturnMatrix_d3+DiscountedEV; % autofill a1 dim
 
             % Calc the max and it's index
             [~,maxindex]=max(entireRHS_d3,[],2);

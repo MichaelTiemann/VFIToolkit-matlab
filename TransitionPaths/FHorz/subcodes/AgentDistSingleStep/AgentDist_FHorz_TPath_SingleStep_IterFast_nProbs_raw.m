@@ -16,7 +16,7 @@ function AgentDist=AgentDist_FHorz_TPath_SingleStep_IterFast_nProbs_raw(AgentDis
 AgentDist_tt=sparse(gather(reshape(AgentDist(exceptlastj),[N_a*(N_j-1)*N_z,1]))); % end-N_a*N_z is avoiding those that correspond to jj=N_j
 
 % Tan improvement Step 1
-Gammatranspose=sparse(Policy_aprimejz,II,PolicyProbs,N_a*(N_j-1)*N_z,N_a*(N_j-1)*N_z);
+Gammatranspose=sparse(gather(Policy_aprimejz),II,gather(PolicyProbs),N_a*(N_j-1)*N_z,N_a*(N_j-1)*N_z);
 % Note: N_j-1, not N_j
 
 AgentDist_tt=reshape(Gammatranspose*AgentDist_tt,[N_a,(N_j-1)*N_z]);
@@ -24,7 +24,7 @@ AgentDist_tt=reshape(Gammatranspose*AgentDist_tt,[N_a,(N_j-1)*N_z]);
 % Tan improvement Step 2
 
 % NOTE: Following four lines are precomputed and passed as inputs
-% pi_z_J_sim=gather(reshape(permute(pi_z_J(:,:,1:end-1),[3,1,2]),[(N_j-1)*N_z,N_z]));
+% pi_z_J_sim=gather(reshape(permute(pi_z_J,[3,1,2]),[(N_j-1)*N_z,N_z])); % pi_z_J has N_j-1 slices (slice jj is the transition from period jj to jj+1)
 % II3=repmat(1:1:(N_j-1)*N_z,1,N_z);
 % II4=repmat(1:1:(N_j-1),1,N_z*N_z)+repelem((N_j-1)*(0:1:N_z-1),1,N_z*(N_j-1));
 % pi_z_J_sim=sparse(II3,II4,pi_z_J_sim,(N_j-1)*N_z,(N_j-1)*N_z);

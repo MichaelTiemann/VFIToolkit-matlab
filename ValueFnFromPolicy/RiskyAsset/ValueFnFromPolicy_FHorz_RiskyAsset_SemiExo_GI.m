@@ -68,10 +68,7 @@ N_a1=prod(n_a1);
 l_a1=length(n_a1);
 n_a2=n_a(end);
 N_a2=prod(n_a2);
-a1_grid=a_grid(1:sum(n_a1));
 a2_grid=a_grid(sum(n_a1)+1:end);
-l_a2=length(n_a2);
-l_aprime=l_a1; % Policy stores a1prime (lower fine-grid index) only; a2prime implicit
 
 % Which d feed the aprimeFn (d2,d3), under the 'refine' split:
 whichisdforriskyasset=(refine_d(1)+1):sum(refine_d(1:3));
@@ -115,11 +112,7 @@ l_daprime=size(PolicyValues,1); % = n_d1 + n_d3 + n_d4 + l_a1
 % PolicyValues shape:
 % - N_e==0: [l_daprime, N_a, N_shocks, N_j]
 % - N_e>0:  [l_daprime, N_a, N_shocks*N_e, N_j]
-if N_e==0
-    PolicyValuesPermute=permute(PolicyValues,[2,3,1,4]);
-else
-    PolicyValuesPermute=permute(PolicyValues,[2,3,1,4]);
-end
+PolicyValuesPermute=permute(PolicyValues,[2,3,1,4]); % same permute with or without e (shock dims kept combined)
 
 %% Strip trailing L2flag channel if present, then reshape Policy to canonical Kron form
 % Under GI, Policy rows are [d..., a1prime_low (l_a1 rows), L2] (+ optional trailing L2flag).
@@ -148,18 +141,20 @@ for ii=1:l_dsemiz
 end
 
 %% a1prime lower fine-grid index and GI weights (positions l_d+1 .. l_d+l_a1, plus L2 at l_d+l_a1+1)
-a1_mid=shiftdim(Policy_k(l_d+1,:,:,:,:),1);            % lower index in first a1 dimension
+% ValueFnIter converts the midpoint to the lower grid index before returning Policy (the adjust
+% block at the end of the GI raws), so this row is the lower index and not the midpoint.
+a1_lowerind=shiftdim(Policy_k(l_d+1,:,:,:,:),1);            % lower index in first a1 dimension
 L2=shiftdim(Policy_k(l_d+l_a1+1,:,:,:,:),1);          % L2 fine-grid index
 w_a1_upper=(L2-1)/(n2short+1);
 w_a1_lower=1-w_a1_upper;
 cumprods_a1=[1, cumprod(n_a1(1:end-1))];
-a1_lower=a1_mid;
+a1_lower=a1_lowerind;
 for ii=2:l_a1
     comp=shiftdim(Policy_k(l_d+ii,:,:,:,:),1);
     a1_lower=a1_lower+cumprods_a1(ii)*(comp-1);
 end
 a1_upper=a1_lower+1;
-a1_top_clamp=(a1_mid>=n_a1(1));
+a1_top_clamp=(a1_lowerind>=n_a1(1));
 a1_upper(a1_top_clamp)=a1_lower(a1_top_clamp);
 % shapes: [N_a, N_shocks, N_j] (N_e==0) or [N_a, N_shocks, N_e, N_j] (N_e>0)
 
@@ -222,7 +217,8 @@ for reverse_j=0:N_j-1
             V_next=V(:,:,jj+1);
         else
             V_next=V(:,:,:,jj+1);
-            V_next=sum(V_next .* shiftdim(vfoptions.pi_e_J(:,jj), -2), 3);
+            V_next=sum(V_next .* shiftdim(vfoptions.pi_e_J(:,jj+1), -2), 3);
+            V_next(isnan(V_next))=0; % zero pi_e entries times -Inf give NaN
             V_next=reshape(V_next, [N_a, N_shocks]);
         end
 

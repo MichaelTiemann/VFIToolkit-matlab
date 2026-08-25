@@ -59,8 +59,13 @@ l_d=length(n_d);
 l_z=length(n_z);
 l_e=length(vfoptions.n_e);
 
+% noa1 case (n_a is scalar -- experience asset is the only endogenous state): GI refines a1, which
+% doesn't apply when there's no a1. Fall back to non-GI version (which handles noa1 correctly).
+% Matches the upstream VFI convention (noa1 has no GI/DC/DC+GI raw files).
 if isscalar(n_a)
-    error('ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetze_SemiExo_GI: case with no a1 (experience asset as only asset) not yet implemented')
+    vfoptions.gridinterplayer=0;
+    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetze_SemiExo(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    return
 end
 n_a1=n_a(1:end-1);
 N_a1=prod(n_a1);
@@ -139,34 +144,36 @@ if isNaive
     end
 end
 
-%% a1prime GI indices: midpoint (position l_d+1) + L2 (last). Other a1 components at l_d+2..l_d+l_a1.
-a1_mid=shiftdim(Policy_k(l_d+1,:,:,:,:),1);
+%% a1prime GI indices: lower grid index (position l_d+1) + L2 (last). Other a1 components at l_d+2..l_d+l_a1.
+% ValueFnIter converts the midpoint to the lower grid index before returning Policy (the adjust
+% block at the end of the GI raws), so this row is the lower index and not the midpoint.
+a1_lowerind=shiftdim(Policy_k(l_d+1,:,:,:,:),1);
 L2    =shiftdim(Policy_k(l_d+l_a1+1,:,:,:,:),1);
 w_a1_upper=(L2-1)/(n2short+1);
 w_a1_lower=1-w_a1_upper;
 cumprods_a1=[1, cumprod(n_a1(1:end-1))];
-a1_lower=a1_mid;
+a1_lower=a1_lowerind;
 for ii=2:l_a1
     comp=shiftdim(Policy_k(l_d+ii,:,:,:,:),1);
     a1_lower=a1_lower+cumprods_a1(ii)*(comp-1);
 end
 a1_upper=a1_lower+1;
-a1_top_clamp=(a1_mid>=n_a1(1));
+a1_top_clamp=(a1_lowerind>=n_a1(1));
 a1_upper(a1_top_clamp)=a1_lower(a1_top_clamp);
 
 %% Same GI-index extraction for Policyalt when Naive
 if isNaive
-    a1_mid_alt=shiftdim(Policyalt_k(l_d+1,:,:,:,:),1);
+    a1_lowerind_alt=shiftdim(Policyalt_k(l_d+1,:,:,:,:),1);
     L2_alt    =shiftdim(Policyalt_k(l_d+l_a1+1,:,:,:,:),1);
     w_a1_upper_alt=(L2_alt-1)/(n2short+1);
     w_a1_lower_alt=1-w_a1_upper_alt;
-    a1_lower_alt=a1_mid_alt;
+    a1_lower_alt=a1_lowerind_alt;
     for ii=2:l_a1
         comp=shiftdim(Policyalt_k(l_d+ii,:,:,:,:),1);
         a1_lower_alt=a1_lower_alt+cumprods_a1(ii)*(comp-1);
     end
     a1_upper_alt=a1_lower_alt+1;
-    a1_top_clamp_alt=(a1_mid_alt>=n_a1(1));
+    a1_top_clamp_alt=(a1_lowerind_alt>=n_a1(1));
     a1_upper_alt(a1_top_clamp_alt)=a1_lower_alt(a1_top_clamp_alt);
 end
 
@@ -218,7 +225,7 @@ for reverse_j=0:N_j-1
         % EVnext from the recursion-driver value (Vdrive):
         % Step a: integrate next-period value over e' (iid)
         V_next=Vdrive(:,:,:,jj+1);
-        V_next=sum(V_next .* shiftdim(vfoptions.pi_e_J(:,jj), -2), 3);
+        V_next=sum(V_next .* shiftdim(vfoptions.pi_e_J(:,jj+1), -2), 3);
         V_next=reshape(V_next, [N_a, N_shocks]);
 
         % Step b: integrate over z' (markov, does not depend on d_semiz)

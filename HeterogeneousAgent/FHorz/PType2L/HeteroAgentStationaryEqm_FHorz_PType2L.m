@@ -208,6 +208,14 @@ for k=1:N_pairs
     PTypeStructure.(iistr).simoptions=PType_Options(simoptions_top,iistr_bot);
     PTypeStructure.(iistr).simoptions.outputasstructure=0;
 
+    % Note: the grid interpolation layer must be set in both vfoptions and simoptions; if it is only set in
+    % vfoptions then Policy has an extra row that the agent dist would silently ignore (giving a wrong answer)
+    if isfield(PTypeStructure.(iistr).vfoptions,'gridinterplayer') && PTypeStructure.(iistr).vfoptions.gridinterplayer==1
+        if ~isfield(PTypeStructure.(iistr).simoptions,'gridinterplayer')
+            error(['When setting vfoptions.gridinterplayer you must also set simoptions.gridinterplayer, permanent type pair: ',iistr])
+        end
+    end
+
     if heteroagentoptions.verbose==1
         fprintf('Setting up, pair %i of %i: %s\n',k,N_pairs,iistr)
     end

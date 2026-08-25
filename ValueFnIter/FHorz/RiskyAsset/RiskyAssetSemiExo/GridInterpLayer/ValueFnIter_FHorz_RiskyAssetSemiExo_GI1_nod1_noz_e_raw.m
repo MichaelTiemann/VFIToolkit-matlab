@@ -20,7 +20,7 @@ n_d23=[n_d2,n_d3];
 N_d23=N_d2*N_d3;
 d23_grid=[d2_grid; d3_grid];
 
-special_n_d4=ones(1,length(n_d4),vfoptions.precision); %#ok<NASGU>
+special_n_d4=ones(1,length(n_d4),vfoptions.precision);
 d4_gridvals=CreateGridvals(n_d4,d4_grid,1);
 
 V=zeros(N_a,N_semiz,N_e,N_j,vfoptions.precision,'gpuArray');
@@ -40,8 +40,8 @@ pi_u_col=pi_u(:);
 if vfoptions.lowmemory>=1
     special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
-if vfoptions.lowmemory==2
-    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision,'gpuArray');
+if vfoptions.lowmemory>=2
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision);
 end
 
 n2short=vfoptions.ngridinterp;
@@ -53,7 +53,6 @@ aind=gpuArray(0:1:N_a-1);
 zind=shiftdim(gpuArray(0:1:N_semiz-1),-3);
 zindB=shiftdim(gpuArray(0:1:N_semiz-1),-1);
 zeindB=zindB+N_semiz*shiftdim((0:1:N_e-1),-2);
-a2ind=shiftdim(gpuArray(0:1:N_a2-1),-2);
 
 V_ford4_jj=zeros(N_a,N_semiz,N_e,N_d4,vfoptions.precision,'gpuArray');
 Policy_ford4_jj=zeros(N_a,N_semiz,N_e,N_d4,'gpuArray');
@@ -120,7 +119,7 @@ if ~isfield(vfoptions,'V_Jplus1')
                 d2index_ford4_jj(:,:,e_c,d4_c)=1;
             end
         end
-    elseif vfoptions.lowmemory==2
+    elseif vfoptions.lowmemory>=2
         for d4_c=1:N_d4
             d3_with_d4=[d3_gridvals,repmat(d4_gridvals(d4_c,:),N_d3,1)];
             for z_c=1:N_semiz
@@ -178,7 +177,7 @@ else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
     V_Jplus1=reshape(vfoptions.V_Jplus1,[N_a,N_semiz,N_e]);
-    EVpre=sum(V_Jplus1.*shiftdim(pi_e_J(:,N_j),-2),3); % [N_a,N_semiz]
+    EVpre=sum(V_Jplus1.*shiftdim(pi_e_J(:,N_j+1),-2),3); % [N_a,N_semiz]
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a2, n_u, d23_grid, a2_grid, u_grid, aprimeFnParamsVec,2);
 
@@ -358,7 +357,7 @@ for reverse_j=1:N_j-1
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a2, n_u, d23_grid, a2_grid, u_grid, aprimeFnParamsVec,2);
 
-    EVnext=sum(V(:,:,:,jj+1).*shiftdim(pi_e_J(:,jj),-2),3); % [N_a,N_semiz]
+    EVnext=sum(V(:,:,:,jj+1).*shiftdim(pi_e_J(:,jj+1),-2),3); % [N_a,N_semiz]
 
     if isstruct(pi_semiz_J)
         pi_semiz=gpuArray(reshape(full(pi_semiz_J.(['j',num2str(jj)])),[N_semiz,N_semiz,N_d4]));

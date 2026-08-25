@@ -139,7 +139,7 @@ else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    EVpre=sum(pi_e_J(:,N_j)'.*reshape(vfoptions.V_Jplus1,[N_a,N_e]),2);
+    EVpre=sum(pi_e_J(:,N_j+1)'.*reshape(vfoptions.V_Jplus1,[N_a,N_e]),2);
 
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a3primeIndex,a3primeProbs]=CreateExperienceAssetFnMatrix(aprimeFn, n_d2, n_a3, d2_gridvals, a3_grid, aprimeFnParamsVec,2);
@@ -258,7 +258,7 @@ else
                     loweredge=maxindex1(:,1,:,ii,:,:);
                     ReturnMatrix_ii_e=CreateReturnFnMatrix_ExpAsset_Disc_DC2A(ReturnFn, 0, n_d2, n_a2, n_a3, special_n_e, d2_gridvals, a1_grid(loweredge), a2_gridvals, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, a3_grid, e_val, ReturnFnParamsVec, 3);
                     d2aprime=(1:1:N_d2)' + N_d2*(loweredge-1) + N_d2*N_a1*shiftdim((0:1:N_a2-1),-1) + N_d2*N_a1*N_a2*shiftdim((0:1:N_a3-1),-4);
-                    entireRHS_ii_e=reshape(ReturnMatrix_ii_e+DiscountedEV(d2aprime),[N_d2,level1iidiff(ii)*N_a2*N_a3]);
+                    entireRHS_ii_e=reshape(ReturnMatrix_ii_e+DiscountedEV(d2aprime),[N_d2*N_a2,level1iidiff(ii)*N_a2*N_a3]);
                     [Vtempii,maxindex]=max(entireRHS_ii_e,[],1);
                     V(curraindex,e_c,N_j)=shiftdim(Vtempii,1);
                     d2ind  =rem(maxindex-1,N_d2)+1;
@@ -288,7 +288,7 @@ for reverse_j=1:N_j-1
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    EVpre=sum(pi_e_J(:,jj)'.*reshape(V(:,:,jj+1),[N_a,N_e]),2);
+    EVpre=sum(pi_e_J(:,jj+1)'.*reshape(V(:,:,jj+1),[N_a,N_e]),2);
 
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj,vfoptions.precision);
     [a3primeIndex,a3primeProbs]=CreateExperienceAssetFnMatrix(aprimeFn, n_d2, n_a3, d2_gridvals, a3_grid, aprimeFnParamsVec,2);
@@ -407,7 +407,7 @@ for reverse_j=1:N_j-1
                     loweredge=maxindex1(:,1,:,ii,:,:);
                     ReturnMatrix_ii_e=CreateReturnFnMatrix_ExpAsset_Disc_DC2A(ReturnFn, 0, n_d2, n_a2, n_a3, special_n_e, d2_gridvals, a1_grid(loweredge), a2_gridvals, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, a3_grid, e_val, ReturnFnParamsVec, 3);
                     d2aprime=(1:1:N_d2)' + N_d2*(loweredge-1) + N_d2*N_a1*shiftdim((0:1:N_a2-1),-1) + N_d2*N_a1*N_a2*shiftdim((0:1:N_a3-1),-4);
-                    entireRHS_ii_e=reshape(ReturnMatrix_ii_e+DiscountedEV(d2aprime),[N_d2,level1iidiff(ii)*N_a2*N_a3]);
+                    entireRHS_ii_e=reshape(ReturnMatrix_ii_e+DiscountedEV(d2aprime),[N_d2*N_a2,level1iidiff(ii)*N_a2*N_a3]);
                     [Vtempii,maxindex]=max(entireRHS_ii_e,[],1);
                     V(curraindex,e_c,jj)=shiftdim(Vtempii,1);
                     d2ind  =rem(maxindex-1,N_d2)+1;

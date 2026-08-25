@@ -215,7 +215,7 @@ while TransPathConvergence>1 && pathcounter<recursiveeqmoptions.maxiter
             PolicyaprimezPath=reshape(PolicyaprimezPath,[N_a*N_z,1,(T-1)]); % reinterpret this as lower grid index
             PolicyaprimezPath=repelem(PolicyaprimezPath,1,2,1); % create copy that will be the upper grid index
             PolicyaprimezPath(:,2,:)=PolicyaprimezPath(:,2,:)+1; % upper grid index
-            PolicyProbsPath_slowOLG(:,2,:)=reshape(permute(reshape(PolicyIndexesPath(l_aprime+1,:,1:T-1,:),[N_a,(T-1),N_z]),[1,3,2]),[N_a*N_z,1,T-1]); % L2 index
+            PolicyProbsPath_slowOLG(:,2,:)=reshape(permute(reshape(PolicyIndexesPath(l_d+l_aprime+1,:,1:T-1,:),[N_a,(T-1),N_z]),[1,3,2]),[N_a*N_z,1,T-1]); % L2 index
             PolicyProbsPath_slowOLG(:,2,:)=(PolicyProbsPath_slowOLG(:,2,:)-1)/(1+simoptions.ngridinterp); % probability of upper grid point
             PolicyProbsPath_slowOLG(:,1,:)=1-PolicyProbsPath_slowOLG(:,2,:); % probability of lower grid point
         end

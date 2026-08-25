@@ -38,8 +38,8 @@ if vfoptions.lowmemory==0
     V_ford2_jj=zeros(N_a,N_semiz*N_z,N_e,N_d2,vfoptions.precision,'gpuArray');
     Policy_ford2_jj=zeros(N_a,N_semiz*N_z,N_e,N_d2,'gpuArray');
 elseif vfoptions.lowmemory==1 % loops over e
-    V_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,vfoptions.precision,'gpuArray');
-    Policy_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
+    V_ford2_jj=zeros(N_a,N_semiz*N_z,N_e,N_d2,vfoptions.precision,'gpuArray');
+    Policy_ford2_jj=zeros(N_a,N_semiz*N_z,N_e,N_d2,'gpuArray');
 elseif vfoptions.lowmemory==2 % outer z / inner e, vectorize semiz
     V_ford2_jj=zeros(N_a,N_semiz*N_z,N_e,N_d2,vfoptions.precision,'gpuArray');
     Policy_ford2_jj=zeros(N_a,N_semiz*N_z,N_e,N_d2,'gpuArray');
@@ -121,7 +121,7 @@ else
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
     EV=reshape(vfoptions.V_Jplus1,[N_a,N_semiz*N_z,N_e]);    % First, switch V_Jplus1 into Kron form
-    EV=sum(EV.*pi_e_J(1,1,:,N_j),3);
+    EV=sum(EV.*pi_e_J(1,1,:,N_j+1),3);
 
     if vfoptions.lowmemory==0
         for d2_c=1:N_d2
@@ -149,9 +149,9 @@ else
         V(:,:,:,N_j)=V_jj;
         Policy3(2,:,:,:,N_j)=shiftdim(maxindex,-1); % d2 is just maxindex
         maxindex=reshape(maxindex,[N_a*N_semiz*N_z*N_e,1]); % This is the value of d that corresponds, make it this shape for addition just below
-        d1aprime_ind=reshape(Policy_ford2_jj((1:1:N_a*N_semiz*N_z*N_e)'+(N_a*N_semiz*N_z*N_e)*(maxindex-1)),[N_a,N_semiz*N_z*N_e]);
-        Policy3(1,:,:,:,N_j)=rem(d1aprime_ind-1,N_d1)+1;
-        Policy3(3,:,:,:,N_j)=ceil(d1aprime_ind/N_d1);
+        d1aprime_ind=reshape(Policy_ford2_jj((1:1:N_a*N_semiz*N_z*N_e)'+(N_a*N_semiz*N_z*N_e)*(maxindex-1)),[1,N_a,N_semiz*N_z*N_e]);
+        Policy3(1,:,:,:,N_j)=reshape(rem(d1aprime_ind-1,N_d1)+1,[N_a,N_semiz*N_z,N_e]);
+        Policy3(3,:,:,:,N_j)=reshape(ceil(d1aprime_ind/N_d1),[N_a,N_semiz*N_z,N_e]);
 
     elseif vfoptions.lowmemory==1
         for d2_c=1:N_d2
@@ -184,8 +184,8 @@ else
         Policy3(2,:,:,:,N_j)=shiftdim(maxindex,-1); % d2 is just maxindex
         maxindex=reshape(maxindex,[N_a*N_semiz*N_z*N_e,1]); % This is the value of d that corresponds, make it this shape for addition just below
         d1aprime_ind=reshape(Policy_ford2_jj((1:1:N_a*N_semiz*N_z*N_e)'+(N_a*N_semiz*N_z*N_e)*(maxindex-1)),[1,N_a,N_semiz*N_z*N_e]);
-        Policy3(1,:,:,:,N_j)=shiftdim(rem(d1aprime_ind-1,N_d1)+1,-1);
-        Policy3(3,:,:,:,N_j)=shiftdim(ceil(d1aprime_ind/N_d1),-1);
+        Policy3(1,:,:,:,N_j)=reshape(rem(d1aprime_ind-1,N_d1)+1,[N_a,N_semiz*N_z,N_e]);
+        Policy3(3,:,:,:,N_j)=reshape(ceil(d1aprime_ind/N_d1),[N_a,N_semiz*N_z,N_e]);
 
     elseif vfoptions.lowmemory==2 % outer z / inner e, vectorize semiz
         for d2_c=1:N_d2
@@ -215,9 +215,9 @@ else
         V(:,:,:,N_j)=V_jj;
         Policy3(2,:,:,:,N_j)=shiftdim(maxindex,-1); % d2 is just maxindex
         maxindex=reshape(maxindex,[N_a*N_semiz*N_z*N_e,1]); % This is the value of d that corresponds, make it this shape for addition just below
-        d1aprime_ind=reshape(Policy_ford2_jj((1:1:N_a*N_semiz*N_z*N_e)'+(N_a*N_semiz*N_z*N_e)*(maxindex-1)),[N_a,N_semiz*N_z*N_e]);
-        Policy3(1,:,:,:,N_j)=rem(d1aprime_ind-1,N_d1)+1;
-        Policy3(3,:,:,:,N_j)=ceil(d1aprime_ind/N_d1);
+        d1aprime_ind=reshape(Policy_ford2_jj((1:1:N_a*N_semiz*N_z*N_e)'+(N_a*N_semiz*N_z*N_e)*(maxindex-1)),[1,N_a,N_semiz*N_z*N_e]);
+        Policy3(1,:,:,:,N_j)=reshape(rem(d1aprime_ind-1,N_d1)+1,[N_a,N_semiz*N_z,N_e]);
+        Policy3(3,:,:,:,N_j)=reshape(ceil(d1aprime_ind/N_d1),[N_a,N_semiz*N_z,N_e]);
 
     elseif vfoptions.lowmemory==3 % joint bothz, inner e
         for d2_c=1:N_d2
@@ -246,9 +246,9 @@ else
         V(:,:,:,N_j)=V_jj;
         Policy3(2,:,:,:,N_j)=shiftdim(maxindex,-1); % d2 is just maxindex
         maxindex=reshape(maxindex,[N_a*N_semiz*N_z*N_e,1]); % This is the value of d that corresponds, make it this shape for addition just below
-        d1aprime_ind=reshape(Policy_ford2_jj((1:1:N_a*N_semiz*N_z*N_e)'+(N_a*N_semiz*N_z*N_e)*(maxindex-1)),[N_a,N_semiz*N_z*N_e]);
-        Policy3(1,:,:,:,N_j)=rem(d1aprime_ind-1,N_d1)+1;
-        Policy3(3,:,:,:,N_j)=ceil(d1aprime_ind/N_d1);
+        d1aprime_ind=reshape(Policy_ford2_jj((1:1:N_a*N_semiz*N_z*N_e)'+(N_a*N_semiz*N_z*N_e)*(maxindex-1)),[1,N_a,N_semiz*N_z*N_e]);
+        Policy3(1,:,:,:,N_j)=reshape(rem(d1aprime_ind-1,N_d1)+1,[N_a,N_semiz*N_z,N_e]);
+        Policy3(3,:,:,:,N_j)=reshape(ceil(d1aprime_ind/N_d1),[N_a,N_semiz*N_z,N_e]);
     end
 end
 
@@ -267,7 +267,7 @@ for reverse_j=1:N_j-1
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
     EV=V(:,:,:,jj+1);
-    EV=sum(EV.*pi_e_J(1,1,:,jj),3);
+    EV=sum(EV.*pi_e_J(1,1,:,jj+1),3);
 
     if vfoptions.lowmemory==0
         for d2_c=1:N_d2

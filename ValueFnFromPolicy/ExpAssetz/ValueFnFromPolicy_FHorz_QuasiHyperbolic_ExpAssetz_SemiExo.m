@@ -17,9 +17,10 @@ function [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetz_SemiExo(Poli
 % Convention on d ordering with semiz: d = [...other d..., d_expasset, d_semiz]. d_semiz is the last
 % l_dsemiz components; d_expasset is the l_d2 components immediately before them.
 
-%% Scope guard
+%% Dispatch to GI subfn if gridinterplayer==1
 if vfoptions.gridinterplayer==1
-    error('ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetz_SemiExo: gridinterplayer not yet implemented for experienceassetz+SemiExo QH')
+    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetz_SemiExo_GI(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    return
 end
 
 %% Setup (mirrors ValueFnFromPolicy_FHorz_ExpAssetz_SemiExo)
@@ -61,13 +62,17 @@ l_z=length(n_z);
 
 % Split a into a1 (standard) and a2 (experience asset)
 if isscalar(n_a)
-    error('ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetz_SemiExo: case with no a1 (experience asset as only asset) not yet implemented')
+    % noa1: the experience asset is the only endogenous state
+    n_a1=0;
+    N_a1=1; % so aprime_low=a1p+N_a1*(a2pIdx-1) reduces to the a2primeIndex lookup (a1p stays 1)
+    l_a1=0; % Policy contains only the d channels
+else
+    n_a1=n_a(1:end-1);
+    N_a1=prod(n_a1);
+    l_a1=length(n_a1);
 end
-n_a1=n_a(1:end-1);
-N_a1=prod(n_a1);
 n_a2=n_a(end);
 a2_grid=a_grid(sum(n_a1)+1:end);
-l_a1=length(n_a1);
 l_a2=length(n_a2);
 
 % Which d drives the experience asset. With semiz, d ordering is [...other, d_expasset, d_semiz];
@@ -236,7 +241,7 @@ for reverse_j=0:N_j-1
             V_next=Vdrive(:,:,jj+1);
         else
             V_next=Vdrive(:,:,:,jj+1);
-            V_next=sum(V_next .* shiftdim(vfoptions.pi_e_J(:,jj), -2), 3);
+            V_next=sum(V_next .* shiftdim(vfoptions.pi_e_J(:,jj+1), -2), 3);
             V_next=reshape(V_next, [N_a, N_shocks]);
         end
 

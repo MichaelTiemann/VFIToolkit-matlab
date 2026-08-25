@@ -68,7 +68,7 @@ if ~isfield(vfoptions,'V_Jplus1')
                 % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_e
                 ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, n_d, n_e, d_gridvals, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,3);
                 [~,maxindex]=max(ReturnMatrix_ii,[],2);
-                midpoints_jj(:,1,curraindex,:)=shiftdim(maxindex+(loweredge-1),0);
+                midpoints_jj(:,1,curraindex,:)=maxindex+(loweredge-1);
             else
                 loweredge=maxindex1(:,1,ii,:);
                 midpoints_jj(:,1,curraindex,:)=repelem(loweredge,1,1,length(curraindex),1);
@@ -121,7 +121,7 @@ if ~isfield(vfoptions,'V_Jplus1')
                     % aprime possibilities are n_d-by-maxgap(ii)+1-by-1
                     ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, n_d, special_n_e, d_gridvals, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), e_val, ReturnFnParamsVec,3);
                     [~,maxindex]=max(ReturnMatrix_ii,[],2);
-                    midpoints_jj(:,1,curraindex)=shiftdim(maxindex+(loweredge-1),1);
+                    midpoints_jj(:,1,curraindex)=maxindex+(loweredge-1);
                 else
                     loweredge=maxindex1(:,1,ii,:);
                     midpoints_jj(:,1,curraindex)=repelem(loweredge,1,1,length(curraindex),1);
@@ -160,7 +160,7 @@ else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    EV=sum(reshape(vfoptions.V_Jplus1,[N_a,N_e]).*pi_e_J(1,:,N_j),2); % Use V_Jplus1
+    EV=sum(reshape(vfoptions.V_Jplus1,[N_a,N_e]).*pi_e_J(1,:,N_j+1),2); % Use V_Jplus1
 
     % Interpolate EV over aprime_grid
     EVinterp=interp1(a_grid,EV,aprime_grid);
@@ -296,7 +296,7 @@ for reverse_j=1:N_j-1
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    EV=sum(V(:,:,jj+1).*pi_e_J(1,:,jj),2);
+    EV=sum(V(:,:,jj+1).*pi_e_J(1,:,jj+1),2);
 
     % Interpolate EV over aprime_grid
     EVinterp=interp1(a_grid,EV,aprime_grid);

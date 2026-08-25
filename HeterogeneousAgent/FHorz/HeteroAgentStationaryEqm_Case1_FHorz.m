@@ -198,6 +198,13 @@ else
     end
 end
 simoptions.outputasstructure=0;
+% Note: the grid interpolation layer must be set in both vfoptions and simoptions; if it is only set in
+% vfoptions then Policy has an extra row that the agent dist would silently ignore (giving a wrong answer)
+if isfield(vfoptions,'gridinterplayer') && vfoptions.gridinterplayer==1
+    if ~isfield(simoptions,'gridinterplayer')
+        error('When setting vfoptions.gridinterplayer you must also set simoptions.gridinterplayer')
+    end
+end
 if ~isfield(simoptions,'n_e')
     simoptions.n_e=0;
 end
