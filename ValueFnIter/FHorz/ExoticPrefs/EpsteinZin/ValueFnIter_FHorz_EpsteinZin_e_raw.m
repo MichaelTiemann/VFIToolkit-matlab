@@ -54,9 +54,9 @@ if warmglow==1
         end
     else
         if vfoptions.lowmemory==0 || vfoptions.lowmemory==1
-            WGmatrix=kron(WGmatrix,ones(N_d,1)).*ones(1,N_a);
+            WGmatrix=kron(WGmatrix,ones(N_d,1)).*ones(1,1,N_z); % (d-aprime,1,z), matching temp4 (spans z at lowmemory 0 and 1, as only e is looped)
         elseif vfoptions.lowmemory==2
-            WGmatrix=kron(WGmatrix,ones(N_d,1));
+            WGmatrix=kron(WGmatrix,ones(N_d,1)); % (d-aprime,1) column, matching the per-z temp4
         end
     end
 else
@@ -278,10 +278,10 @@ for reverse_j=1:N_j-1
         WGmatrix(isfinite(WGmatrixraw))=(ezc4*WGmatrixraw(isfinite(WGmatrixraw))).^ezc5(jj);
         WGmatrix(WGmatrixraw==0)=0; % otherwise zero to negative power is set to infinity
         % Now just make it the right shape (currently has aprime, needs the d,a,z dimensions)
-        if vfoptions.lowmemory==0
-            WGmatrix=kron(WGmatrix,ones(N_d,1)).*ones(1,1,N_z);
-        elseif vfoptions.lowmemory==1 || vfoptions.lowmemory==2
-            WGmatrix=kron(WGmatrix,ones(N_d,1));
+        if vfoptions.lowmemory==0 || vfoptions.lowmemory==1
+            WGmatrix=kron(WGmatrix,ones(N_d,1)).*ones(1,1,N_z); % (d-aprime,1,z), matching temp4 (spans z at lowmemory 0 and 1, as only e is looped)
+        elseif vfoptions.lowmemory==2
+            WGmatrix=kron(WGmatrix,ones(N_d,1)); % (d-aprime,1) column, matching the per-z temp4
         end
     end
 

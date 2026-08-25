@@ -46,9 +46,7 @@ if warmglow==1
             WGmatrix=kron(WGmatrix,ones(N_d,1)).*ones(1,N_a);
         end
     else
-        if vfoptions.lowmemory==0 || vfoptions.lowmemory==1
-            WGmatrix=kron(WGmatrix,ones(N_d,1)).*ones(1,N_a);
-        end
+        WGmatrix=kron(WGmatrix,ones(N_d,1)); % (d-aprime,1) column, matching temp4 (same shaping as the main loop)
     end
 else
     WGmatrix=0;

@@ -50,7 +50,11 @@ if warmglow==1
             WGmatrix=kron(WGmatrix,ones(N_d,1)).*ones(1,N_a);
         end
     else
-        WGmatrix=kron(WGmatrix,ones(N_d,1)).*ones(1,N_a);
+        if vfoptions.lowmemory==0
+            WGmatrix=kron(WGmatrix,ones(N_d,1)).*ones(1,1,N_z); % (d-aprime,1,z), matching temp4 (same shaping as the main loop)
+        elseif vfoptions.lowmemory==1
+            WGmatrix=kron(WGmatrix,ones(N_d,1)); % (d-aprime,1) column, matching the per-z temp4
+        end
     end
 else
     WGmatrix=0;
@@ -110,7 +114,7 @@ else
         EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
         EV=sum(EV,2); % sum over z', leaving a singular second dimension
 
-        entireEV=kron(EV,ones(N_d,1));
+        entireEV=repelem(EV,N_d,1,1); % EV is [N_a,1,N_z] (3-D), so repelem not kron (matches the main loop)
         temp4=entireEV;
         if warmglow==1
             becareful=logical(isfinite(temp4).*isfinite(WGmatrix)); % both are finite

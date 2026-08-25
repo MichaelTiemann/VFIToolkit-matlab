@@ -44,7 +44,9 @@ if warmglow==1
             WGmatrix=WGmatrix.*ones(1,N_a);
         end
     else
-        WGmatrix=WGmatrix.*ones(1,N_a);
+        if vfoptions.lowmemory==0
+            WGmatrix=WGmatrix.*ones(1,1,N_z); % (aprime,1,z), matching temp4 (same shaping as the main loop; lowmemory==1 keeps the column)
+        end
     end
 else
     WGmatrix=0;

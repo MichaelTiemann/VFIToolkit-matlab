@@ -33,13 +33,16 @@ else
     d2_gridvals=CreateGridvals(n_d2,d2_grid,1);
 end
 
-%% Divide-and-conquer and/or grid interpolation route to their own subfns (steps 2 and 3 of the EZ-SemiExo build)
+%% Divide-and-conquer and/or grid interpolation route to their own subfns (mirrors ValueFnIter_FHorz_QuasiHyperbolicSemiExo)
 if vfoptions.divideandconquer==1 && vfoptions.gridinterplayer==1
-    error('Epstein-Zin with semi-exogenous shocks plus divide-and-conquer plus the grid interpolation layer is not yet implemented')
+    [V,Policy]=ValueFnIter_FHorz_EpsteinZin_SemiExo_DC_GI(n_d1,n_d2, n_a, n_semiz, n_z, N_j, d1_gridvals,d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, sj, warmglow, ezc1,ezc2,ezc3,ezc4,ezc5,ezc6,ezc7,ezc8);
+    return
 elseif vfoptions.divideandconquer==1
-    error('Epstein-Zin with semi-exogenous shocks plus divide-and-conquer is not yet implemented')
+    [V,Policy]=ValueFnIter_FHorz_EpsteinZin_SemiExo_DC(n_d1,n_d2, n_a, n_semiz, n_z, N_j, d1_gridvals,d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, sj, warmglow, ezc1,ezc2,ezc3,ezc4,ezc5,ezc6,ezc7,ezc8);
+    return
 elseif vfoptions.gridinterplayer==1
-    error('Epstein-Zin with semi-exogenous shocks plus the grid interpolation layer is not yet implemented')
+    [V,Policy]=ValueFnIter_FHorz_EpsteinZin_SemiExo_GI(n_d1,n_d2, n_a, n_semiz, n_z, N_j, d1_gridvals,d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, sj, warmglow, ezc1,ezc2,ezc3,ezc4,ezc5,ezc6,ezc7,ezc8);
+    return
 end
 
 %%
