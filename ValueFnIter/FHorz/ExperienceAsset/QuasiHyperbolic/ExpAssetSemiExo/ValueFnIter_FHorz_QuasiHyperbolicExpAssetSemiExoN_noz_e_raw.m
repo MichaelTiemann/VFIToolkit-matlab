@@ -224,7 +224,7 @@ else
                     z_val=semiz_gridvals_J(z_c,:,N_j);
                     EV_z=EV(:,:,z_c);
 
-                    ReturnMatrix_d3ze=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n_a1,n_a1,n_a2,special_n_semiz,special_n_e, d123_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, z_val,e_val, ReturnFnParamsVec,0,0); % Level=0, Refine=0
+                    ReturnMatrix_d3ze=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n_a1,n_a1,n_a2, special_n_semiz, special_n_e, d123_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, z_val,e_val, ReturnFnParamsVec,0,0); % Level=0, Refine=0
 
                     entireRHS_alt=ReturnMatrix_d3ze+beta*repelem(EV_z,N_d1,N_a1);
                     [Vtemp_alt,maxindex_alt]=max(entireRHS_alt,[],1);

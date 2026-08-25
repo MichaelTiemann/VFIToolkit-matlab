@@ -5,7 +5,7 @@ function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetSemiEx
 % Sophisticated: Vhat_j      = max_{d,a1'} u + beta_0*beta*E[Vunderbar_{j+1}]
 %                Vunderbar_j = Vhat_j + (beta - beta_0*beta)*EVfine_at_optimal_choice
 % EVfine is the (undiscounted) interpolated continuation actually added to the layer-2 RHS, so
-% the a2 lottery is already baked in and the gather needs no lottery handling. The gather is
+% the a3 lottery is already baked in and the gather needs no lottery handling. The gather is
 % taken at the FINAL layer-2 argmax (maxindexL2), and then at the chosen d3.
 % beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj).
 % SemiExo graft of ValueFnIter_FHorz_ExpAsset_GI2A_nod1_noz_raw (no d1, no exogenous z, no e; only shock is semiz).

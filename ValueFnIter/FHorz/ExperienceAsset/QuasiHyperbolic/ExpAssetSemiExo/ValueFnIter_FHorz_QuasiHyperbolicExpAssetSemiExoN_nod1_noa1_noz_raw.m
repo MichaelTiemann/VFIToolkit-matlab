@@ -129,7 +129,6 @@ else
         end
     end
 
-    % Max over d3
     % Max over d3 (alt)
     [V_jj,maxindex]=max(V_ford3_alt,[],3);
     Valt(:,:,N_j)=V_jj;
@@ -232,7 +231,6 @@ for reverse_j=1:N_j-1
         end
     end
 
-    % Max over d3
     % Max over d3 (alt)
     [V_jj,maxindex]=max(V_ford3_alt,[],3);
     Valt(:,:,jj)=V_jj;

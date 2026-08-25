@@ -126,7 +126,6 @@ else
         end
     end
 
-    % Max over d3
     % Max over d3 using the hat (QH-perceived) values
     [V_jj,maxindex]=max(V_ford3_hat,[],3);
     Vhat(:,:,N_j)=V_jj;
@@ -224,7 +223,6 @@ for reverse_j=1:N_j-1
         end
     end
 
-    % Max over d3
     % Max over d3 using the hat (QH-perceived) values
     [V_jj,maxindex]=max(V_ford3_hat,[],3);
     Vhat(:,:,jj)=V_jj;
