@@ -83,7 +83,7 @@ if ~isfield(vfoptions,'V_Jplus1')
                 % loweredge is n_d-by-1-by-n_semiz-by-n_e
                 aprimeindexes=loweredge+(0:1:maxgap(ii));
                 % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_semiz-by-n_e
-                ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn, n_d2, n_semiz, n_e, d2_gridvals, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), semiz_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,3);
+                ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn, n_d2, n_semiz, n_e, d2_gridvals, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), semiz_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,6);
                 [~,maxindex]=max(ReturnMatrix_ii,[],2);
                 midpoints_Nj(:,1,curraindex,:,:)=maxindex+(loweredge-1);
             else
@@ -139,7 +139,7 @@ if ~isfield(vfoptions,'V_Jplus1')
                     % loweredge is n_d-by-1-by-n_semiz
                     aprimeindexes=loweredge+(0:1:maxgap(ii));
                     % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_semiz
-                    ReturnMatrix_ii_e=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn, n_d2, n_semiz, special_n_e, d2_gridvals, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), semiz_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec,3);
+                    ReturnMatrix_ii_e=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn, n_d2, n_semiz, special_n_e, d2_gridvals, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), semiz_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec,6);
                     [~,maxindex]=max(ReturnMatrix_ii_e,[],2);
                     midpoints_Nj(:,1,curraindex,:)=maxindex+(loweredge-1);
                 else
@@ -199,7 +199,7 @@ if ~isfield(vfoptions,'V_Jplus1')
                         % loweredge is n_d-by-1-by-1
                         aprimeindexes=loweredge+(0:1:maxgap(ii));
                         % aprime possibilities are n_d-by-maxgap(ii)+1-by-1
-                        ReturnMatrix_ii_semize=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn, n_d2, special_n_semiz, special_n_e, d2_gridvals, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), semiz_val, e_val, ReturnFnParamsVec,3);
+                        ReturnMatrix_ii_semize=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn, n_d2, special_n_semiz, special_n_e, d2_gridvals, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), semiz_val, e_val, ReturnFnParamsVec,6);
                         [~,maxindex]=max(ReturnMatrix_ii_semize,[],2);
                         midpoints_Nj(:,1,curraindex)=maxindex+(loweredge-1);
                     else

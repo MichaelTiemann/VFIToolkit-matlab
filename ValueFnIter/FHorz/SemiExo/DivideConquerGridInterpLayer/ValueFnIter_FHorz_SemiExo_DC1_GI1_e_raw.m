@@ -107,7 +107,7 @@ if ~isfield(vfoptions,'V_Jplus1')
                 % loweredge is n_d-by-1-by-n_bothz-by-n_e
                 aprimeindexes=loweredge+(0:1:maxgap(ii));
                 % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_bothz-by-n_e
-                ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn, n_d, n_bothz, n_e, d_gridvals, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), bothz_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,3);
+                ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn, n_d, n_bothz, n_e, d_gridvals, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), bothz_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,6);
                 [~,maxindex]=max(ReturnMatrix_ii,[],2); % ,2) as GI
                 midpoints_Nj(:,1,curraindex,:,:)=maxindex+(loweredge-1);
             else
@@ -167,7 +167,7 @@ if ~isfield(vfoptions,'V_Jplus1')
                     % loweredge is n_d-by-1-by-n_bothz
                     aprimeindexes=loweredge+(0:1:maxgap(ii));
                     % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_bothz
-                    ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn, n_d, n_bothz, special_n_e, d_gridvals, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), bothz_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec,3);
+                    ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn, n_d, n_bothz, special_n_e, d_gridvals, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), bothz_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec,6);
                     [~,maxindex]=max(ReturnMatrix_ii,[],2); % ,2) as GI
                     midpoints_Nj(:,1,curraindex,:)=maxindex+(loweredge-1);
                 else
@@ -231,7 +231,7 @@ if ~isfield(vfoptions,'V_Jplus1')
                         % loweredge is n_d-by-1-by-n_semiz
                         aprimeindexes=loweredge+(0:1:maxgap(ii));
                         % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_semiz
-                        ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn, n_d, [n_semiz,special_n_z], special_n_e, d_gridvals, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_valblock, e_val, ReturnFnParamsVec,3);
+                        ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn, n_d, [n_semiz,special_n_z], special_n_e, d_gridvals, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_valblock, e_val, ReturnFnParamsVec,6);
                         [~,maxindex]=max(ReturnMatrix_ii,[],2); % ,2) as GI
                         midpoints_Nj(:,1,curraindex,:)=maxindex+(loweredge-1);
                     else
@@ -293,7 +293,7 @@ if ~isfield(vfoptions,'V_Jplus1')
                     if maxgap(ii)>0
                         loweredge=min(maxindex1(:,1,ii),n_a-maxgap(ii)); % maxindex1(ii,:), but avoid going off top of grid when we add maxgap(ii) points
                         aprimeindexes=loweredge+(0:1:maxgap(ii));
-                        ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn, n_d, special_n_bothz, special_n_e, d_gridvals, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_val, e_val, ReturnFnParamsVec,3);
+                        ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn, n_d, special_n_bothz, special_n_e, d_gridvals, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_val, e_val, ReturnFnParamsVec,6);
                         [~,maxindex]=max(ReturnMatrix_ii,[],2); % ,2) as GI
                         midpoints_Nj(:,1,curraindex)=maxindex+(loweredge-1);
                     else

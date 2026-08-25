@@ -68,9 +68,9 @@ if ~isfield(vfoptions,'V_Jplus1')
         curraindex=level1ii(ii)+1:1:level1ii(ii+1)-1;
         if maxgap(ii)>0
             loweredge=min(maxindex1(:,1,ii,:),n_a-maxgap(ii)); % maxindex1(ii,:), but avoid going off top of grid when we add maxgap(ii) points
-            % loweredge is 1-by-1-by-n_z
-            aprimeindexes=loweredge+(0:1:maxgap(ii))';
-            % aprime possibilities are maxgap(ii)+1-by-1-by-n_z
+            % loweredge is n_d-by-1-by-1-by-n_semiz
+            aprimeindexes=loweredge+(0:1:maxgap(ii));
+            % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_semiz
             ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, n_d2, n_semiz, d2_gridvals, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), semiz_gridvals_J(:,:,N_j), ReturnFnParamsVec,3);
             [~,maxindex]=max(ReturnMatrix_ii,[],2);
             midpoints_Nj(:,1,curraindex,:)=maxindex+(loweredge-1);
@@ -124,7 +124,7 @@ if ~isfield(vfoptions,'V_Jplus1')
                 if maxgap(ii)>0
                     loweredge=min(maxindex1(:,1,ii,:),n_a-maxgap(ii)); % maxindex1(ii,:), but avoid going off top of grid when we add maxgap(ii) points
                     % loweredge is n_d-by-1
-                    aprimeindexes=loweredge+(0:1:maxgap(ii))';
+                    aprimeindexes=loweredge+(0:1:maxgap(ii));
                     % aprime possibilities are n_d-by-maxgap(ii)+1
                     ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, n_d2, special_n_semiz, d2_gridvals, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), semiz_val, ReturnFnParamsVec,3);
                     [~,maxindex]=max(ReturnMatrix_ii,[],2);
