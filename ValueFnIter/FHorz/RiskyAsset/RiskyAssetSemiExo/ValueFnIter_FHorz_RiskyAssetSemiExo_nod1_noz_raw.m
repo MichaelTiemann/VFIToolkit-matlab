@@ -101,12 +101,13 @@ else
             EV(isnan(EV))=0;
             EV=sum(EV,2);
 
-            skipinterp=logical(EV(aprimeIndex+N_a*((1:1:N_semiz)-1))==EV(aprimeplus1Index+N_a*((1:1:N_semiz)-1)));
-            aprimeProbs=repmat(a2primeProbs,N_a1,1);
+            skipinterp=logical(EV(aprimeIndex(:)+N_a*((1:1:N_semiz)-1))==EV(aprimeplus1Index(:)+N_a*((1:1:N_semiz)-1)));
+            aprimeProbs=repmat(a2primeProbs,N_a1,N_semiz);
             aprimeProbs(skipinterp)=0;
+            aprimeProbs=reshape(aprimeProbs,[N_d23*N_a1,N_u,N_semiz]);
 
-            EV1=EV(aprimeIndex+N_a*((1:1:N_semiz)-1));
-            EV2=EV((aprimeplus1Index)+N_a*((1:1:N_semiz)-1));
+            EV1=EV(aprimeIndex(:)+N_a*((1:1:N_semiz)-1));
+            EV2=EV(aprimeplus1Index(:)+N_a*((1:1:N_semiz)-1));
 
             EV1=reshape(EV1,[N_d23*N_a1,N_u,N_semiz]).*aprimeProbs;
             EV2=reshape(EV2,[N_d23*N_a1,N_u,N_semiz]).*(1-aprimeProbs);

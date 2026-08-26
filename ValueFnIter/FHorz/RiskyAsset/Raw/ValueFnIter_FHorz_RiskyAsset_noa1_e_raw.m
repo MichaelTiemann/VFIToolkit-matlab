@@ -166,7 +166,7 @@ else
 
             % Time to refine
             % First: ReturnMatrix, we can refine out d1
-            [ReturnMatrix_onlyd3,d1index]=max(reshape(ReturnMatrix,[N_d1,N_d3,N_a,N_z]),[],1);
+            [ReturnMatrix_onlyd3,d1index]=max(reshape(ReturnMatrix_e,[N_d1,N_d3,N_a,N_z]),[],1);
             % Now put together entireRHS, which just depends on d3
             entireRHS_e=shiftdim(ReturnMatrix_onlyd3+DiscountFactorParamsVec*EV_onlyd3,1);
 
