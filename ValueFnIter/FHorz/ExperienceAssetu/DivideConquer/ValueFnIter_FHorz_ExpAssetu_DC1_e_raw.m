@@ -217,7 +217,7 @@ else
     % Switch EV from being in terms of a2prime to being in terms of d2 and a2
     EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper; % (d2,a1prime,a2,u,zprime)
     % Already applied the probabilities from interpolating onto grid
-    EV=sum((EV.*pi_u),3); % (d2,a1prime,a2,zprime)
+    EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,zprime)
 
     EV=EV.*shiftdim(pi_z_J(:,:,N_j)',-2);
     EV(isnan(EV))=0; % remove nan created where value fn is -Inf but probability is zero
@@ -265,7 +265,7 @@ else
                 allind=dind+N_d1*N_d2*repelem(a2Bind,1,level1iidiff(ii))+N_d1*N_d2*N_a2*zBind+N_d1*N_d2*N_a2*N_z*eBind; % loweredge is n_d-by-1-by-1-by-n_a2-by-n_z-by-n_e
                 Policy(curraindex,:,:,N_j)=shiftdim(maxindex+N_d1*N_d2*(loweredge(allind)-1),1);
             else
-                loweredge=maxindex1(:,1,ii,:,:);
+                loweredge=maxindex1(:,1,ii,:,:,:);
                 % Just use aprime(ii) for everything
                 ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,n_d2,1,level1iidiff(ii),n_a2,n_z,n_e, d_gridvals, a1_gridvals(loweredge), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, z_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,3,0); % Level=2, Refine=0
                 d2aprimez=d2ind+N_d2*(loweredge-1)+N_d2*N_a1*a2ind+N_d2*N_a1*N_a2*zind; % [N_d,1,1,N_a2,N_z,N_e]; linear index into DiscountedEV [N_d2,N_a1,1,N_a2,N_z]

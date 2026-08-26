@@ -407,8 +407,18 @@ if vfoptions.experienceasset>=1 || vfoptions.experienceassetu>=1 || vfoptions.ex
             [V,Policy]=ValueFnIter_FHorz_ExpAsset(n_d1,n_d2,n_a1,n_a2,n_z, N_j, d1_grid , d2_grid, a1_grid, a2_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
         end
     elseif vfoptions.experienceassetu>=1
-        if prod(vfoptions.n_semiz)>0
+        if prod(vfoptions.n_semiz)>0 && strcmp(vfoptions.exoticpreferences,'QuasiHyperbolic')
+            error('ValueFnIter_FHorz: QuasiHyperbolic with experienceassetu and a semi-exogenous state is not yet implemented (the ExpAssetuSemiExo QH raws are not written). QuasiHyperbolic experienceassetu without semiz is supported.')
+        elseif prod(vfoptions.n_semiz)>0
             [V,Policy]=ValueFnIter_FHorz_ExpAssetuSemiExo(n_d1,n_d2,n_d3,n_a1,n_a2,n_z,vfoptions.n_semiz, N_j, d1_grid , d2_grid, d3_grid, a1_grid, a2_grid, z_gridvals_J, vfoptions.semiz_gridvals_J, pi_z_J, vfoptions.pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+        elseif strcmp(vfoptions.exoticpreferences,'QuasiHyperbolic')
+            [V,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetu(n_d1,n_d2,n_a1,n_a2,n_z, N_j, d1_grid , d2_grid, a1_grid, a2_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+            if strcmp(vfoptions.quasi_hyperbolic,'Naive')
+                varargout={V, Policy, Valt, Policyalt};
+            else
+                varargout={V, Policy, Valt};
+            end
+            return
         else
             [V,Policy]=ValueFnIter_FHorz_ExpAssetu(n_d1,n_d2,n_a1,n_a2,n_z, N_j, d1_grid , d2_grid, a1_grid, a2_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
         end
