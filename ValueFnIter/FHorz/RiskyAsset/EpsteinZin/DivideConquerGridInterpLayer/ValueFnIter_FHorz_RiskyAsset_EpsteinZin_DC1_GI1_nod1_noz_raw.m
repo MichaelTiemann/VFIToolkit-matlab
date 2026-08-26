@@ -94,8 +94,10 @@ if warmglow==1
     WGmatrix=sum((WG1.*pi_u'),2)+sum((WG2.*pi_u'),2); % [N_d23,1]
 
     if ~isfield(vfoptions,'V_Jplus1')
+        % The warm-glow enters INSIDE the ^ezc7 root at the terminal age: build the
+        % temp4-analogue of the main loop (with no EV term)
         becareful=(WGmatrix==0);
-        WGmatrix(isfinite(WGmatrix))=ezc3*DiscountFactorParamsVec*(((1-sj(N_j))*WGmatrix(isfinite(WGmatrix)).^ezc8(N_j)).^ezc6(N_j));
+        WGmatrix(isfinite(WGmatrix))=((1-sj(N_j))*WGmatrix(isfinite(WGmatrix)).^ezc8(N_j)).^ezc6(N_j);
         WGmatrix(becareful)=0;
     end
 else
@@ -104,20 +106,27 @@ end
 
 if ~isfield(vfoptions,'V_Jplus1')
     if warmglow==1
-        % Refine d2 out of the warm-glow (the only continuation term in the terminal period)
-        [WGmatrix_onlyd3,d2index]=max(ezc9*reshape((~isinf(WGmatrix)).*WGmatrix,[N_d2,N_d3]),[],1);
-        WGcol=ezc9*reshape(WGmatrix_onlyd3(d3ind),[N_d3,1]); % constant in a1prime (and a,z)
+        % Refine d2 out of the (pre-root) warm-glow (the only continuation term in the terminal period)
+        [WGmatrix_onlyd3,d2index]=max(ezc9*ezc3*reshape((~isinf(WGmatrix)).*WGmatrix,[N_d2,N_d3]),[],1);
+        % Discounted warm-glow (the interior's DiscountedEV with the EV term absent); constant in a1prime (and a,z)
+        DiscountedWG=DiscountFactorParamsVec*ezc9*reshape(WGmatrix_onlyd3(d3ind),[N_d3,1]);
     else
-        WGcol=zeros(N_d3,1,'gpuArray');
+        DiscountedWG=zeros(N_d3,1,'gpuArray');
     end
 
     % Layer 1
     ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc_noz(ReturnFn, 0,n_d3,n_a1,vfoptions.level1n,n_a2, d3_gridvals, a1_gridvals, a1_gridvals(level1ii), a2_gridvals, ReturnFnParamsVec,1,0);
     % Modify the Return Function appropriately for Epstein-Zin Preferences
     becareful=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0)); % finite but not zero
-    ReturnMatrix_ii(becareful)=(ezc1*ReturnMatrix_ii(becareful).^ezc2(N_j)).^ezc7(N_j);
-    ReturnMatrix_ii(ReturnMatrix_ii==0)=-Inf;
-    entireRHS_ii=ReturnMatrix_ii+WGcol; % warm-glow (zero if not using); constant in a1prime so does not affect the layer maxes over a1prime
+    temp2_ii=ReturnMatrix_ii;
+    temp2_ii(becareful)=ReturnMatrix_ii(becareful).^ezc2(N_j);
+    temp2_ii(ReturnMatrix_ii==0)=-Inf;
+
+    % Compose the warm-glow INSIDE the ^ezc7 root (the V_Jplus1 composition with the EV term absent)
+    entireRHS_ii=ezc1*temp2_ii+DiscountedWG; % warm-glow (zero if not using)
+    temp5=logical(isfinite(entireRHS_ii).*(entireRHS_ii~=0));
+    entireRHS_ii(temp5)=entireRHS_ii(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
+    entireRHS_ii(entireRHS_ii==0)=-Inf;
 
     [~,maxindex1]=max(entireRHS_ii,[],2);
     midpoint_jj(:,1,level1ii,:)=maxindex1;
@@ -131,9 +140,13 @@ if ~isfield(vfoptions,'V_Jplus1')
             a1primeindexes=loweredge+(0:1:maxgap(ii));
             ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc_noz(ReturnFn, 0,n_d3,maxgap(ii)+1,level1iidiff(ii),n_a2, d3_gridvals, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, ReturnFnParamsVec,3,0);
             becareful=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0)); % finite but not zero
-            ReturnMatrix_ii(becareful)=(ezc1*ReturnMatrix_ii(becareful).^ezc2(N_j)).^ezc7(N_j);
-            ReturnMatrix_ii(ReturnMatrix_ii==0)=-Inf;
-            entireRHS_ii=ReturnMatrix_ii+WGcol;
+            temp2_ii=ReturnMatrix_ii;
+            temp2_ii(becareful)=ReturnMatrix_ii(becareful).^ezc2(N_j);
+            temp2_ii(ReturnMatrix_ii==0)=-Inf;
+            entireRHS_ii=ezc1*temp2_ii+DiscountedWG;
+            temp5=logical(isfinite(entireRHS_ii).*(entireRHS_ii~=0));
+            entireRHS_ii(temp5)=entireRHS_ii(temp5).^ezc7(N_j);
+            entireRHS_ii(entireRHS_ii==0)=-Inf;
             [~,maxindex]=max(entireRHS_ii,[],2);
             midpoint_jj(:,1,curraindex,:)=maxindex+(loweredge-1);
         else
@@ -147,9 +160,13 @@ if ~isfield(vfoptions,'V_Jplus1')
     a1primeindexesfine=(midpoint_jj+(midpoint_jj-1)*n2short)+(-n2short-1:1:1+n2short);
     ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc_noz(ReturnFn, 0,n_d3,n2long,n_a1,n_a2, d3_gridvals, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, ReturnFnParamsVec,2,0);
     becareful=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0)); % finite but not zero
-    ReturnMatrix_ii(becareful)=(ezc1*ReturnMatrix_ii(becareful).^ezc2(N_j)).^ezc7(N_j);
-    ReturnMatrix_ii(ReturnMatrix_ii==0)=-Inf;
-    entireRHS_ii=reshape(reshape(ReturnMatrix_ii,[N_d3,n2long,N_a1,N_a2])+WGcol,[N_d3*n2long,N_a1*N_a2]);
+    temp2_ii=ReturnMatrix_ii;
+    temp2_ii(becareful)=ReturnMatrix_ii(becareful).^ezc2(N_j);
+    temp2_ii(ReturnMatrix_ii==0)=-Inf;
+    entireRHS_ii=reshape(ezc1*reshape(temp2_ii,[N_d3,n2long,N_a1,N_a2])+DiscountedWG,[N_d3*n2long,N_a1*N_a2]);
+    temp5=logical(isfinite(entireRHS_ii).*(entireRHS_ii~=0));
+    entireRHS_ii(temp5)=entireRHS_ii(temp5).^ezc7(N_j);
+    entireRHS_ii(entireRHS_ii==0)=-Inf;
     [Vtempii,maxindexL2]=max(entireRHS_ii,[],1);
     V(:,N_j)=shiftdim(Vtempii,1);
     d3_ind=rem(maxindexL2-1,N_d3)+1;
@@ -162,7 +179,7 @@ if ~isfield(vfoptions,'V_Jplus1')
     L2offset      = ceil(maxindexL2/N_d3);
     linidx_lower  = d3_ind                   + N_d3*n2long*aind;
     linidx_upper  = d3_ind + N_d3*(n2long-1) + N_d3*n2long*aind;
-    ReturnMatrix_ii_resh=reshape(ReturnMatrix_ii,[N_d3,n2long,N_a1,N_a2]);
+    ReturnMatrix_ii_resh=reshape(temp2_ii,[N_d3,n2long,N_a1,N_a2]);
     isInfLower    = (ReturnMatrix_ii_resh(linidx_lower) == -Inf);
     isInfUpper    = (ReturnMatrix_ii_resh(linidx_upper) == -Inf);
     inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);

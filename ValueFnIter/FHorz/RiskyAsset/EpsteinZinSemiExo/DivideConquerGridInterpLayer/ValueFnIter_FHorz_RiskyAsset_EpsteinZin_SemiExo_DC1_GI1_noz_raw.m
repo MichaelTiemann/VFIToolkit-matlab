@@ -117,8 +117,9 @@ if warmglow==1
     WGmatrix=sum((WG1.*pi_u_col'),2)+sum((WG2.*pi_u_col'),2); % [N_d23,1]
 
     if ~isfield(vfoptions,'V_Jplus1')
+        % Terminal age: the warm-glow enters INSIDE the ^ezc7 root, so build the temp4-analogue of the main loop (with no EV term)
         becareful=(WGmatrix==0);
-        WGmatrix(isfinite(WGmatrix))=ezc3*DiscountFactorParamsVec*(((1-sj(N_j))*WGmatrix(isfinite(WGmatrix)).^ezc8(N_j)).^ezc6(N_j));
+        WGmatrix(isfinite(WGmatrix))=((1-sj(N_j))*WGmatrix(isfinite(WGmatrix)).^ezc8(N_j)).^ezc6(N_j);
         WGmatrix(becareful)=0;
     end
 else
@@ -128,17 +129,20 @@ end
 if ~isfield(vfoptions,'V_Jplus1')
     ReturnMatrix=CreateReturnFnMatrix_Case2_Disc(ReturnFn, [n_d1,n_d3,n_d4,n_a1], [n_a1,n_a2], n_semiz, d1d3d4a1_gridvals, a1a2_gridvals, semiz_gridvals_J(:,:,N_j), ReturnFnParamsVec);
 
-    % Modify the Return Function appropriately for Epstein-Zin Preferences
-    becareful=logical(isfinite(ReturnMatrix).*(ReturnMatrix~=0)); % finite but not zero
-    ReturnMatrix(becareful)=(ezc1*ReturnMatrix(becareful).^ezc2(N_j)).^ezc7(N_j);
-    ReturnMatrix(ReturnMatrix==0)=-Inf;
-
     if warmglow==1
-        % Refine d2 out of the warm-glow (the only continuation term in the terminal period)
-        [WGmatrix_onlyd3,d2index]=max(ezc9*reshape((~isinf(WGmatrix)).*WGmatrix,[N_d2,N_d3]),[],1);
-        % Rows of ReturnMatrix are (d1,d3,d4,a1prime): spread the refined warm-glow over d1, d4 and a1prime (it is constant in all three)
-        WGcol=ezc9*repmat(reshape(WGmatrix_onlyd3(d3ind),[N_d13,1]),N_d4*N_a1,1); % [N_d13*N_d4*N_a1,1]
-        entireRHS=ReturnMatrix+WGcol;
+        % Modify the Return Function appropriately for Epstein-Zin Preferences (pre-root; the warm-glow enters INSIDE the ^ezc7 root)
+        becareful=logical(isfinite(ReturnMatrix).*(ReturnMatrix~=0)); % finite but not zero
+        temp2=ReturnMatrix;
+        temp2(becareful)=ReturnMatrix(becareful).^ezc2(N_j);
+        temp2(ReturnMatrix==0)=-Inf;
+        % Refine d2 out of the warm-glow (the only continuation term in the terminal period) [ezc9 handles the sign for the max]
+        [WGmatrix_onlyd3,d2index]=max(ezc9*ezc3*reshape((~isinf(WGmatrix)).*WGmatrix,[N_d2,N_d3]),[],1);
+        % Rows of temp2 are (d1,d3,d4,a1prime): spread the refined warm-glow over d1, d4 and a1prime (it is constant in all three)
+        DiscountedWGcol=DiscountFactorParamsVec*ezc9*repmat(reshape(WGmatrix_onlyd3(d3ind),[N_d13,1]),N_d4*N_a1,1); % [N_d13*N_d4*N_a1,1]
+        entireRHS=ezc1*temp2+DiscountedWGcol;
+        temp5=logical(isfinite(entireRHS).*(entireRHS~=0));
+        entireRHS(temp5)=entireRHS(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
+        entireRHS(entireRHS==0)=-Inf;
         [Vtemp,maxindex]=max(entireRHS,[],1);
         V(:,:,N_j)=shiftdim(Vtemp,1);
         dindex=rem(maxindex-1,N_d1*N_d3*N_d4)+1;
@@ -153,6 +157,10 @@ if ~isfield(vfoptions,'V_Jplus1')
         d4Policy(1,:,:,N_j)=shiftdim(d4part,-1);
         d2Policy(1,:,:,N_j)=d2index(d3part); % d2 comes from refining the warm-glow (no a nor semiz in WGmatrix)
     else
+        % Modify the Return Function appropriately for Epstein-Zin Preferences
+        becareful=logical(isfinite(ReturnMatrix).*(ReturnMatrix~=0)); % finite but not zero
+        ReturnMatrix(becareful)=(ezc1*ReturnMatrix(becareful).^ezc2(N_j)).^ezc7(N_j);
+        ReturnMatrix(ReturnMatrix==0)=-Inf;
         [Vtemp,maxindex]=max(ReturnMatrix,[],1);
         V(:,:,N_j)=shiftdim(Vtemp,1);
         dindex=rem(maxindex-1,N_d1*N_d3*N_d4)+1;
