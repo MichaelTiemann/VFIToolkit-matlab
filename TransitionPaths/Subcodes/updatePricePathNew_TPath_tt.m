@@ -1,5 +1,5 @@
-function [PricePathNew_tt,GEcondnPath_tt]=updatePricePathNew_TPath_tt(Parameters,GeneralEqmEqnsCell,GeneralEqmEqnParamNames,PricePathOld_tt,itercount,transpathoptions)
-% itercount is the current shooting iteration (1 on the first), used for the additional-factor ramp
+function [PricePathNew_tt,GEcondnPath_tt]=updatePricePathNew_TPath_tt(Parameters,GeneralEqmEqnsCell,GeneralEqmEqnParamNames,PricePathOld_tt,itercounter,transpathoptions)
+% itercounter is the current shooting iteration (1 on the first), used for the additional-factor ramp
 % Input size: PricePathOld_tt is 1-by-prices
 
 p_i=zeros(1,length(GeneralEqmEqnsCell));
@@ -24,7 +24,7 @@ elseif transpathoptions.GEnewprice==3 % Version of shooting algorithm where the 
     % min(...,f_add) so that f_add<1, damping the step down over iterations, works as well as
     % f_add>1. t2_add>t1_add is enforced in setupGEnewprice3_shooting, so the denominator is never
     % zero, and the max(...,0) is what holds the weight at zero before t1_add.
-    rampweight=min(max((itercount-transpathoptions.GEnewprice3.t1_add)./(transpathoptions.GEnewprice3.t2_add-transpathoptions.GEnewprice3.t1_add),0),1);
+    rampweight=min(max((itercounter-transpathoptions.GEnewprice3.t1_add)./(transpathoptions.GEnewprice3.t2_add-transpathoptions.GEnewprice3.t1_add),0),1);
     factor_iter=transpathoptions.GEnewprice3.factor.*(1+(transpathoptions.GEnewprice3.f_add-1).*rampweight);
     % keepold is 0 exactly on the rows where the user gave factor=Inf, which means replace the price
     % outright rather than take a step from it (the setup turns that Inf into factor=1, keepold=0).

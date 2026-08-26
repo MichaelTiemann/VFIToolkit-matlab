@@ -21,8 +21,8 @@ GEcondnPath=zeros(T-1,length(GEeqnNames),'gpuArray');
 
 %%
 PricePathDist=Inf;
-pathcounter=1;
-while PricePathDist>transpathoptions.tolerance && pathcounter<transpathoptions.maxiter
+itercounter=1;
+while PricePathDist>transpathoptions.tolerance && itercounter<=transpathoptions.maxiter
 
     %% Go from T-1 to 1 calculating the Value function and Optimal policy function at each step.
     [~,PolicyIndexesPath]=TransitionPath_InfHorz_substeps_Step1_ValueFnIter(T,PolicyIndexesPath,V_final,Parameters,PricePathOld,ParamPath,PricePathSizeVec,ParamPathSizeVec,PricePathNames,ParamPathNames,n_d,n_a,n_z,n_e,N_z,N_e,d_gridvals, a_grid, z_gridvals,e_gridvals,pi_z,pi_e,ReturnFn,DiscountFactorParamNames, ReturnFnParamNames, transpathoptions,vfoptions);
@@ -128,7 +128,7 @@ while PricePathDist>transpathoptions.tolerance && pathcounter<transpathoptions.m
     
         %% General Eqm Eqns
         % Evaluate the general eqm conditions, and based on them create PricePathNew (interpretation depends on transpathoptions)
-        [PricePathNew_tt,GEcondnPath_tt]=updatePricePathNew_TPath_tt(Parameters,GeneralEqmEqnsCell,GeneralEqmEqnParamNames,PricePathOld(tt,:),pathcounter,transpathoptions);
+        [PricePathNew_tt,GEcondnPath_tt]=updatePricePathNew_TPath_tt(Parameters,GeneralEqmEqnsCell,GeneralEqmEqnParamNames,PricePathOld(tt,:),itercounter,transpathoptions);
         PricePathNew(tt,:)=PricePathNew_tt;
         GEcondnPath(tt,:)=GEcondnPath_tt;
         
@@ -165,21 +165,21 @@ while PricePathDist>transpathoptions.tolerance && pathcounter<transpathoptions.m
 
     TransPathConvergence=PricePathDist/transpathoptions.tolerance; %So when this gets to 1 we have convergence (uncomment when you want to see how the convergence isgoing)
     if transpathoptions.verbose==1
-        fprintf('Number of iterations on transition path: %i \n',pathcounter)
+        fprintf('Number of iterations on transition path: %i \n',itercounter)
         fprintf('Current distance between old and new price path (in L-Infinity norm): %8.6f \n', PricePathDist)
         fprintf('Ratio of current distance to the convergence tolerance: %.2f (convergence when reaches 1) \n',TransPathConvergence)
     end
 
     if transpathoptions.historyofpricepath==1
         % Store the whole history of the price path and save it every ten iterations
-        PricePathHistory{pathcounter,1}=PricePathDist;
-        PricePathHistory{pathcounter,2}=PricePathOld;
-        if rem(pathcounter,10)==1
+        PricePathHistory{itercounter,1}=PricePathDist;
+        PricePathHistory{itercounter,2}=PricePathOld;
+        if rem(itercounter,10)==1
             save ./SavedOutput/TransPath_Internal.mat PricePathHistory
         end
     end
 
-    pathcounter=pathcounter+1;
+    itercounter=itercounter+1;
 
 
 end

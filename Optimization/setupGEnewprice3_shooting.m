@@ -78,6 +78,12 @@ end
 if any(options.GEnewprice3.additionalfactor(:,3)<=options.GEnewprice3.additionalfactor(:,2)) || any(mod(options.GEnewprice3.additionalfactor(:,3),1)~=0)
     error('options.GEnewprice3.additionalfactor: t2_add (the third column) must be an integer strictly greater than t1_add, as the ramp runs over iterations t1_add to t2_add')
 end
+% Anderson acceleration accelerates a FIXED point map p<-G(p), and a factor that changes from one
+% iteration to the next makes G time-varying, so the acceleration would no longer be solving the
+% problem it assumes. f_add=1 is the identity, so only an actual ramp is rejected here.
+if strcmp(shootingfield,'fminalgo9') && any(options.GEnewprice3.additionalfactor(:,1)~=1)
+    error('heteroagentoptions.fminalgo9.additionalfactor: the additional-factor ramp cannot be used with fminalgo9 (Anderson acceleration)')
+end
 options.GEnewprice3.howtoupdate(:,5)=num2cell(options.GEnewprice3.additionalfactor(:,1)); % f_add
 options.GEnewprice3.howtoupdate(:,6)=num2cell(options.GEnewprice3.additionalfactor(:,2)); % t1_add
 options.GEnewprice3.howtoupdate(:,7)=num2cell(options.GEnewprice3.additionalfactor(:,3)); % t2_add
