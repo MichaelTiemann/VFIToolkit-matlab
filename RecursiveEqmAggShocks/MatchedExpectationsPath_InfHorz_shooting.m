@@ -318,7 +318,7 @@ while TransPathConvergence>1 && pathcounter<recursiveeqmoptions.maxiter
             temp=AggVarsPath.(AggVarNames{ff}).Mean;
             Parameters.(AggVarNames{ff})=temp(tt);
         end
-        [PricePathNew_tt,GEcondnPath_tt]=updatePricePathNew_TPath_tt(Parameters,GeneralEqmEqnsCell,GeneralEqmEqnParamNames,PricePathOld(tt,:),recursiveeqmoptions);
+        [PricePathNew_tt,GEcondnPath_tt]=updatePricePathNew_TPath_tt(Parameters,GeneralEqmEqnsCell,GeneralEqmEqnParamNames,PricePathOld(tt,:),pathcounter,recursiveeqmoptions);
         PricePathNew(tt,:)=PricePathNew_tt;
         GEcondnPath(tt,:)=GEcondnPath_tt;
     end

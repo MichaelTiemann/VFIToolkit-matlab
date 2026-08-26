@@ -1,4 +1,5 @@
-function [PricePathNew_tt,GEcondnPath_tt]=updatePricePathNew_TPath_tt(Parameters,GeneralEqmEqnsCell,GeneralEqmEqnParamNames,PricePathOld_tt,transpathoptions)
+function [PricePathNew_tt,GEcondnPath_tt]=updatePricePathNew_TPath_tt(Parameters,GeneralEqmEqnsCell,GeneralEqmEqnParamNames,PricePathOld_tt,itercount,transpathoptions)
+% itercount is the current shooting iteration (1 on the first), used for the additional-factor ramp
 % Input size: PricePathOld_tt is 1-by-prices
 
 p_i=zeros(1,length(GeneralEqmEqnsCell));
@@ -17,7 +18,20 @@ elseif transpathoptions.GEnewprice==3 % Version of shooting algorithm where the 
     p_i=p_i(transpathoptions.GEnewprice3.permute); % Rearrange GeneralEqmEqns into the order of the relevant prices
     I_makescutoff=(abs(p_i)>transpathoptions.updateaccuracycutoff);
     p_i=I_makescutoff.*p_i;
-    PricePathNew_tt=PricePathOld_tt+transpathoptions.GEnewprice3.add.*transpathoptions.GEnewprice3.factor.*p_i-(1-transpathoptions.GEnewprice3.add).*transpathoptions.GEnewprice3.factor.*p_i;
+    % The additional-factor ramp (howtoupdate columns 5, 6 and 7). rampweight is 0 up to iteration
+    % t1_add and 1 from iteration t2_add on, linear in between, so factor_iter is factor up to
+    % t1_add, runs to f_add*factor by t2_add, and stays there. Written as 1+(f_add-1)*w rather than
+    % min(...,f_add) so that f_add<1, damping the step down over iterations, works as well as
+    % f_add>1. t2_add>t1_add is enforced in setupGEnewprice3_shooting, so the denominator is never
+    % zero, and the max(...,0) is what holds the weight at zero before t1_add.
+    rampweight=min(max((itercount-transpathoptions.GEnewprice3.t1_add)./(transpathoptions.GEnewprice3.t2_add-transpathoptions.GEnewprice3.t1_add),0),1);
+    factor_iter=transpathoptions.GEnewprice3.factor.*(1+(transpathoptions.GEnewprice3.f_add-1).*rampweight);
+    % keepold is 0 exactly on the rows where the user gave factor=Inf, which means replace the price
+    % outright rather than take a step from it (the setup turns that Inf into factor=1, keepold=0).
+    % Matches StationaryGeneralEqm_subcode_fminalgo5 and the inline update in the GEptype branch of
+    % the PType shooting codes; without it those rows kept the old price, which is the opposite of
+    % what factor=Inf asks for.
+    PricePathNew_tt=(PricePathOld_tt.*transpathoptions.GEnewprice3.keepold)+transpathoptions.GEnewprice3.add.*factor_iter.*p_i-(1-transpathoptions.GEnewprice3.add).*factor_iter.*p_i;
 end
 
 % We want output shapes to be

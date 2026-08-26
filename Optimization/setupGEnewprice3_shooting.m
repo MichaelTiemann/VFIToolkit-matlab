@@ -49,6 +49,39 @@ if size(options.GEnewprice3.howtoupdate,1)~=nGeneralEqmEqns
     error('options.GEnewprice3.howtoupdate should have ones row for each general eqm eqn')
 end
 
+% Additional factors: options.GEnewprice3.additionalfactor=[f_add,t1_add,t2_add] ramps the update
+% factors over the shooting iterations. The factor in howtoupdate column 4 is used as it is on
+% iterations 1 to t1_add, then goes linearly from that to f_add times it over iterations t1_add to
+% t2_add, and stays at f_add times it from t2_add on. Given as a single [f_add,t1_add,t2_add] row
+% used for every price, or with one row for each row of howtoupdate.
+% Rolled into howtoupdate as columns 5, 6 and 7 here, while the rows are still in the order the user
+% gave them, so that the reordering (and, for ptype, the row expansion) below carries them along
+% with the factor they belong to.
+if ~isfield(options.GEnewprice3,'additionalfactor')
+    options.GEnewprice3.additionalfactor=[1,1,2]; % the no-op: f_add=1 leaves the factor alone
+end
+if size(options.GEnewprice3.additionalfactor,2)~=3
+    error('options.GEnewprice3.additionalfactor should have three columns: [f_add,t1_add,t2_add]')
+end
+if size(options.GEnewprice3.additionalfactor,1)==1
+    options.GEnewprice3.additionalfactor=repmat(options.GEnewprice3.additionalfactor,nGeneralEqmEqns,1);
+end
+if size(options.GEnewprice3.additionalfactor,1)~=nGeneralEqmEqns
+    error('options.GEnewprice3.additionalfactor should have one row, or one row for each general eqm eqn')
+end
+if any(~isfinite(options.GEnewprice3.additionalfactor),'all')
+    error('options.GEnewprice3.additionalfactor must be finite')
+end
+if any(options.GEnewprice3.additionalfactor(:,2)<1) || any(mod(options.GEnewprice3.additionalfactor(:,2),1)~=0)
+    error('options.GEnewprice3.additionalfactor: t1_add (the second column) must be an integer of at least 1, as the shooting iterations are numbered from 1')
+end
+if any(options.GEnewprice3.additionalfactor(:,3)<=options.GEnewprice3.additionalfactor(:,2)) || any(mod(options.GEnewprice3.additionalfactor(:,3),1)~=0)
+    error('options.GEnewprice3.additionalfactor: t2_add (the third column) must be an integer strictly greater than t1_add, as the ramp runs over iterations t1_add to t2_add')
+end
+options.GEnewprice3.howtoupdate(:,5)=num2cell(options.GEnewprice3.additionalfactor(:,1)); % f_add
+options.GEnewprice3.howtoupdate(:,6)=num2cell(options.GEnewprice3.additionalfactor(:,2)); % t1_add
+options.GEnewprice3.howtoupdate(:,7)=num2cell(options.GEnewprice3.additionalfactor(:,3)); % t2_add
+
 %%
 if ~isfield(options,'GEptype') % For models without permanent type
 
@@ -63,17 +96,26 @@ if ~isfield(options,'GEptype') % For models without permanent type
                 options.GEnewprice3.howtoupdate{pp,2}=temp{jj,2}; % general eqm price name
                 options.GEnewprice3.howtoupdate{pp,3}=temp{jj,3}; % add(/subtract)
                 options.GEnewprice3.howtoupdate{pp,4}=temp{jj,4}; % factor
+                options.GEnewprice3.howtoupdate{pp,5}=temp{jj,5}; % f_add
+                options.GEnewprice3.howtoupdate{pp,6}=temp{jj,6}; % t1_add
+                options.GEnewprice3.howtoupdate{pp,7}=temp{jj,7}; % t2_add
             end
         end
     end
 
     options.GEnewprice3.add=[options.GEnewprice3.howtoupdate{:,3}];
     options.GEnewprice3.factor=[options.GEnewprice3.howtoupdate{:,4}];
+    options.GEnewprice3.f_add=[options.GEnewprice3.howtoupdate{:,5}];
+    options.GEnewprice3.t1_add=[options.GEnewprice3.howtoupdate{:,6}];
+    options.GEnewprice3.t2_add=[options.GEnewprice3.howtoupdate{:,7}];
     options.GEnewprice3.keepold=ones(size(options.GEnewprice3.factor));
     tempweight=options.oldpathweight;
     options.oldpathweight=zeros(size(options.GEnewprice3.factor));
     for ii=1:length(options.GEnewprice3.factor)
         if options.GEnewprice3.factor(ii)==Inf
+            if options.GEnewprice3.f_add(ii)~=1
+                error('options.GEnewprice3.howtoupdate row %i: factor (column 4) is Inf, so the price is replaced outright rather than stepped toward, and there is no step for f_add (column 5) to scale. Leave f_add at 1 on this row.',ii)
+            end
             options.GEnewprice3.factor(ii)=1;
             options.GEnewprice3.keepold(ii)=0;
             options.oldpathweight(ii)=tempweight;
@@ -133,6 +175,9 @@ else
                     options.GEnewprice3.howtoupdate{pp_c,2}=temp{jj,2};
                     options.GEnewprice3.howtoupdate{pp_c,3}=temp{jj,3};
                     options.GEnewprice3.howtoupdate{pp_c,4}=temp{jj,4};
+                    options.GEnewprice3.howtoupdate{pp_c,5}=temp{jj,5};
+                    options.GEnewprice3.howtoupdate{pp_c,6}=temp{jj,6};
+                    options.GEnewprice3.howtoupdate{pp_c,7}=temp{jj,7};
                     pp_index(pp_c)=pp;
                 end
             end
@@ -142,11 +187,17 @@ else
     
     options.GEnewprice3.add=[options.GEnewprice3.howtoupdate{:,3}];
     options.GEnewprice3.factor=[options.GEnewprice3.howtoupdate{:,4}];
+    options.GEnewprice3.f_add=[options.GEnewprice3.howtoupdate{:,5}];
+    options.GEnewprice3.t1_add=[options.GEnewprice3.howtoupdate{:,6}];
+    options.GEnewprice3.t2_add=[options.GEnewprice3.howtoupdate{:,7}];
     options.GEnewprice3.keepold=ones(size(options.GEnewprice3.factor));
     tempweight=options.oldpathweight;
     options.oldpathweight=zeros(size(options.GEnewprice3.factor));
     for ii=1:length(options.GEnewprice3.factor)
         if options.GEnewprice3.factor(ii)==Inf
+            if options.GEnewprice3.f_add(ii)~=1
+                error('options.GEnewprice3.howtoupdate row %i: factor (column 4) is Inf, so the price is replaced outright rather than stepped toward, and there is no step for f_add (column 5) to scale. Leave f_add at 1 on this row.',ii)
+            end
             options.GEnewprice3.factor(ii)=1;
             options.GEnewprice3.keepold(ii)=0;
             options.oldpathweight(ii)=tempweight;

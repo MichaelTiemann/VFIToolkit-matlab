@@ -168,7 +168,7 @@ while PricePathDist>transpathoptions.tolerance && pathcounter<=transpathoptions.
 
         %% General Eqm Eqns
         % Evaluate the general eqm conditions, and based on them create PricePathNew (interpretation depends on transpathoptions)
-        [PricePathNew_tt,GEcondnPath_tt]=updatePricePathNew_TPath_tt(Parameters,GeneralEqmEqnsCell,GeneralEqmEqnParamNames,PricePathOld(tt,:),transpathoptions);
+        [PricePathNew_tt,GEcondnPath_tt]=updatePricePathNew_TPath_tt(Parameters,GeneralEqmEqnsCell,GeneralEqmEqnParamNames,PricePathOld(tt,:),pathcounter,transpathoptions);
         PricePathNew(tt,:)=PricePathNew_tt;
         GEcondnPath(tt,:)=GEcondnPath_tt;
 
