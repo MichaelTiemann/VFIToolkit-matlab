@@ -29,8 +29,12 @@ if warmglow==1
     WGmatrix(isfinite(WGmatrixraw))=(ezc4*WGmatrixraw(isfinite(WGmatrixraw))).^ezc5(N_j);
     WGmatrix(WGmatrixraw==0)=0; % otherwise zero to negative power is set to infinity
     if ~isfield(vfoptions,'V_Jplus1')
+        % The warm-glow enters INSIDE the ^ezc7 root at the terminal age (the bequest is the
+        % terminal condition of the recursion, composed like any continuation value; see Kraft,
+        % Munk & Weiss (2022) and the Epstein-Zin appendix of the Intro to Life-Cycle Models).
+        % So build the temp4-analogue of the main loop (with no EV term):
         becareful=(WGmatrix==0);
-        WGmatrix(isfinite(WGmatrix))=ezc3*DiscountFactorParamsVec*(((1-sj(N_j))*WGmatrix(isfinite(WGmatrix)).^ezc8(N_j)).^ezc6(N_j));
+        WGmatrix(isfinite(WGmatrix))=((1-sj(N_j))*WGmatrix(isfinite(WGmatrix)).^ezc8(N_j)).^ezc6(N_j);
         WGmatrix(becareful)=0;
     end
     % Now just make it the right shape (currently has aprime, needs the d dimension; autoexpands over a)
@@ -46,11 +50,19 @@ if ~isfield(vfoptions,'V_Jplus1')
 
     % Modify the Return Function appropriately for Epstein-Zin Preferences
     becareful=logical(isfinite(ReturnMatrix).*(ReturnMatrix~=0)); % finite but not zero
-    ReturnMatrix(becareful)=(ezc1*ReturnMatrix(becareful).^ezc2(N_j)).^ezc7(N_j); % Otherwise can get things like 0 to negative power equals infinity
+    waszero=(ReturnMatrix==0);
+    ReturnMatrix(becareful)=ReturnMatrix(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix now holds what was temp2 (avoids a full-size copy)
+    ReturnMatrix(waszero)=-Inf;
+
+    % Compose the warm-glow INSIDE the ^ezc7 root (the main-loop composition with the EV term absent)
+    ReturnMatrix=ezc1*ReturnMatrix+ezc3*DiscountFactorParamsVec*WGmatrix; % autoexpands over the a dimension % in-place: ReturnMatrix now holds what was entireRHS
+
+    temp5=logical(isfinite(ReturnMatrix).*(ReturnMatrix~=0));
+    ReturnMatrix(temp5)=ReturnMatrix(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
     ReturnMatrix(ReturnMatrix==0)=-Inf;
 
     % Calc the max and it's index
-    [Vtemp,maxindex]=max(ReturnMatrix+WGmatrix,[],1);
+    [Vtemp,maxindex]=max(ReturnMatrix,[],1);
     V(:,N_j)=Vtemp;
     Policy(:,N_j)=maxindex;
 

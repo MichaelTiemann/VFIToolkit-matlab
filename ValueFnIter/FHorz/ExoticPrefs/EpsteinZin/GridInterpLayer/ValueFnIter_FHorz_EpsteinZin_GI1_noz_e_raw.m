@@ -63,7 +63,9 @@ if warmglow==1
     WGmatrixfine(WGmatrixfineraw==0)=0; % otherwise zero to negative power is set to infinity
     if ~isfield(vfoptions,'V_Jplus1')
         becareful=(WGmatrixfine==0);
-        WGmatrixfine(isfinite(WGmatrixfine))=ezc3*DiscountFactorParamsVec*(((1-sj(N_j))*WGmatrixfine(isfinite(WGmatrixfine)).^ezc8(N_j)).^ezc6(N_j));
+        % The warm-glow enters INSIDE the ^ezc7 root at the terminal age: build the
+        % temp4-analogue of the main loop (with no EV term)
+        WGmatrixfine(isfinite(WGmatrixfine))=((1-sj(N_j))*WGmatrixfine(isfinite(WGmatrixfine)).^ezc8(N_j)).^ezc6(N_j);
         WGmatrixfine(becareful)=0;
     end
     WGmatrix=WGmatrixfine(1:(n2short+1):end); % coarse-grid subset
@@ -78,10 +80,15 @@ if ~isfield(vfoptions,'V_Jplus1')
         ReturnMatrix=CreateReturnFnMatrix_Disc(ReturnFn, n_d, n_a, n_e, d_gridvals, a_grid, e_gridvals_J(:,:,N_j), ReturnFnParamsVec,1);  % Because no z, can treat e like z and call Par2 rather than Par2e
         % Modify the Return Function appropriately for Epstein-Zin Preferences
         becareful=logical(isfinite(ReturnMatrix).*(ReturnMatrix~=0)); % finite but not zero
-        ReturnMatrix(becareful)=(ezc1*ReturnMatrix(becareful).^ezc2(N_j)).^ezc7(N_j);
-        ReturnMatrix(ReturnMatrix==0)=-Inf;
+        waszero=(ReturnMatrix==0);
+        ReturnMatrix(becareful)=ReturnMatrix(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix now holds what was temp2 (avoids a full-size copy)
+        ReturnMatrix(waszero)=-Inf;
         % Calc the max and it's index
-        [~,maxindex]=max(ReturnMatrix+shiftdim(WGmatrix,-1),[],2);
+        ReturnMatrix=ezc1*ReturnMatrix+ezc3*DiscountFactorParamsVec*shiftdim(WGmatrix,-1); % in-place: ReturnMatrix now holds what was entireRHS
+        temp5=logical(isfinite(ReturnMatrix).*(ReturnMatrix~=0));
+        ReturnMatrix(temp5)=ReturnMatrix(temp5).^ezc7(N_j);
+        ReturnMatrix(ReturnMatrix==0)=-Inf;
+        [~,maxindex]=max(ReturnMatrix,[],2);
 
         % Turn this into the 'midpoint'
         midpoint=max(min(maxindex,n_a-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
@@ -91,18 +98,23 @@ if ~isfield(vfoptions,'V_Jplus1')
         ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn,n_d,n_e,d_gridvals,aprime_grid(aprimeindexes),a_grid,e_gridvals_J(:,:,N_j),ReturnFnParamsVec,2);
         % Modify the Return Function appropriately for Epstein-Zin Preferences
         becareful=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0)); % finite but not zero
-        ReturnMatrix_ii(becareful)=(ezc1*ReturnMatrix_ii(becareful).^ezc2(N_j)).^ezc7(N_j);
+        waszero=(ReturnMatrix_ii==0);
+        wasnegInf=(ReturnMatrix_ii==-Inf); % save raw -Inf pattern for the L2 flag (the in-place transform below overwrites ReturnMatrix_ii)
+        ReturnMatrix_ii(becareful)=ReturnMatrix_ii(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_ii now holds what was temp2 (avoids a full-size copy)
+        ReturnMatrix_ii(waszero)=-Inf;
+        ReturnMatrix_ii=ezc1*ReturnMatrix_ii+ezc3*DiscountFactorParamsVec*reshape(WGmatrixfine(aprimeindexes(:)),[N_d*n2long,N_a,N_e]); % in-place: ReturnMatrix_ii now holds what was entireRHS_ii
+        temp5=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0));
+        ReturnMatrix_ii(temp5)=ReturnMatrix_ii(temp5).^ezc7(N_j);
         ReturnMatrix_ii(ReturnMatrix_ii==0)=-Inf;
-        entireRHS_ii=ReturnMatrix_ii+reshape(WGmatrixfine(aprimeindexes(:)),[N_d*n2long,N_a,N_e]);
-        [Vtempii,maxindexL2]=max(entireRHS_ii,[],1);
+        [Vtempii,maxindexL2]=max(ReturnMatrix_ii,[],1);
 
         % L2 flag to later avoid -Inf ReturnFn (1=all to lower, 2=usual, 3=all to upper)
         d_ind = rem(maxindexL2-1,N_d)+1;
         L2offset = ceil(maxindexL2/N_d);
         linidx_lower = d_ind + N_d*n2long*aind + N_d*n2long*N_a*eind;
         linidx_upper = d_ind + N_d*(n2long-1) + N_d*n2long*aind + N_d*n2long*N_a*eind;
-        isInfLower = (ReturnMatrix_ii(linidx_lower) == -Inf);
-        isInfUpper = (ReturnMatrix_ii(linidx_upper) == -Inf);
+        isInfLower = wasnegInf(linidx_lower);
+        isInfUpper = wasnegInf(linidx_upper);
         inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
         inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
         PolicyL2flag(1,:,:,N_j) = 2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper);
@@ -120,10 +132,15 @@ if ~isfield(vfoptions,'V_Jplus1')
             ReturnMatrix_e=CreateReturnFnMatrix_Disc(ReturnFn, n_d, n_a, special_n_e, d_gridvals, a_grid, e_val, ReturnFnParamsVec,1);  % Because no z, can treat e like z and call Par2 rather than Par2e
             % Modify the Return Function appropriately for Epstein-Zin Preferences
             becareful=logical(isfinite(ReturnMatrix_e).*(ReturnMatrix_e~=0)); % finite but not zero
-            ReturnMatrix_e(becareful)=(ezc1*ReturnMatrix_e(becareful).^ezc2(N_j)).^ezc7(N_j);
-            ReturnMatrix_e(ReturnMatrix_e==0)=-Inf;
+            waszero=(ReturnMatrix_e==0);
+            ReturnMatrix_e(becareful)=ReturnMatrix_e(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_e now holds what was temp2 (avoids a full-size copy)
+            ReturnMatrix_e(waszero)=-Inf;
             % Calc the max and it's index
-            [~,maxindex]=max(ReturnMatrix_e+shiftdim(WGmatrix,-1),[],2);
+            ReturnMatrix_e=ezc1*ReturnMatrix_e+ezc3*DiscountFactorParamsVec*shiftdim(WGmatrix,-1); % in-place: ReturnMatrix_e now holds what was entireRHS
+            temp5=logical(isfinite(ReturnMatrix_e).*(ReturnMatrix_e~=0));
+            ReturnMatrix_e(temp5)=ReturnMatrix_e(temp5).^ezc7(N_j);
+            ReturnMatrix_e(ReturnMatrix_e==0)=-Inf;
+            [~,maxindex]=max(ReturnMatrix_e,[],2);
 
             % Turn this into the 'midpoint'
             midpoint=max(min(maxindex,n_a-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
@@ -133,18 +150,23 @@ if ~isfield(vfoptions,'V_Jplus1')
             ReturnMatrix_ii_e=CreateReturnFnMatrix_Disc_DC1(ReturnFn,n_d,special_n_e,d_gridvals,aprime_grid(aprimeindexes),a_grid,e_val,ReturnFnParamsVec,2);
             % Modify the Return Function appropriately for Epstein-Zin Preferences
             becareful=logical(isfinite(ReturnMatrix_ii_e).*(ReturnMatrix_ii_e~=0)); % finite but not zero
-            ReturnMatrix_ii_e(becareful)=(ezc1*ReturnMatrix_ii_e(becareful).^ezc2(N_j)).^ezc7(N_j);
+            waszero=(ReturnMatrix_ii_e==0);
+            wasnegInf=(ReturnMatrix_ii_e==-Inf); % save raw -Inf pattern for the L2 flag (the in-place transform below overwrites ReturnMatrix_ii_e)
+            ReturnMatrix_ii_e(becareful)=ReturnMatrix_ii_e(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_ii_e now holds what was temp2 (avoids a full-size copy)
+            ReturnMatrix_ii_e(waszero)=-Inf;
+            ReturnMatrix_ii_e=ezc1*ReturnMatrix_ii_e+ezc3*DiscountFactorParamsVec*reshape(WGmatrixfine(aprimeindexes(:)),[N_d*n2long,N_a]); % in-place: ReturnMatrix_ii_e now holds what was entireRHS_ii_e
+            temp5=logical(isfinite(ReturnMatrix_ii_e).*(ReturnMatrix_ii_e~=0));
+            ReturnMatrix_ii_e(temp5)=ReturnMatrix_ii_e(temp5).^ezc7(N_j);
             ReturnMatrix_ii_e(ReturnMatrix_ii_e==0)=-Inf;
-            entireRHS_ii_e=ReturnMatrix_ii_e+reshape(WGmatrixfine(aprimeindexes(:)),[N_d*n2long,N_a]);
-            [Vtempii,maxindexL2]=max(entireRHS_ii_e,[],1);
+            [Vtempii,maxindexL2]=max(ReturnMatrix_ii_e,[],1);
 
             % L2 flag to later avoid -Inf ReturnFn (1=all to lower, 2=usual, 3=all to upper)
             d_ind = rem(maxindexL2-1,N_d)+1;
             L2offset = ceil(maxindexL2/N_d);
             linidx_lower = d_ind + N_d*n2long*aind;
             linidx_upper = d_ind + N_d*(n2long-1) + N_d*n2long*aind;
-            isInfLower = (ReturnMatrix_ii_e(linidx_lower) == -Inf);
-            isInfUpper = (ReturnMatrix_ii_e(linidx_upper) == -Inf);
+            isInfLower = wasnegInf(linidx_lower);
+            isInfUpper = wasnegInf(linidx_upper);
             inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
             inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
             PolicyL2flag(1,:,e_c,N_j) = 2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper);

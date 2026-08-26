@@ -69,7 +69,9 @@ if warmglow==1
     WGmatrixfine(WGmatrixfineraw==0)=0; % otherwise zero to negative power is set to infinity
     if ~isfield(vfoptions,'V_Jplus1')
         becareful=(WGmatrixfine==0);
-        WGmatrixfine(isfinite(WGmatrixfine))=ezc3*DiscountFactorParamsVec*(((1-sj(N_j))*WGmatrixfine(isfinite(WGmatrixfine)).^ezc8(N_j)).^ezc6(N_j));
+        % The warm-glow enters INSIDE the ^ezc7 root at the terminal age: build the
+        % temp4-analogue of the main loop (with no EV term)
+        WGmatrixfine(isfinite(WGmatrixfine))=((1-sj(N_j))*WGmatrixfine(isfinite(WGmatrixfine)).^ezc8(N_j)).^ezc6(N_j);
         WGmatrixfine(becareful)=0;
     end
     WGmatrix=WGmatrixfine(1:(n2short+1):end); % coarse-grid subset
@@ -84,12 +86,16 @@ if ~isfield(vfoptions,'V_Jplus1')
     ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1_noz(ReturnFn, n_d, d_gridvals, a_grid, a_grid(level1ii), ReturnFnParamsVec,1);
     % Modify the Return Function appropriately for Epstein-Zin Preferences
     becareful=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0)); % finite but not zero
-    ReturnMatrix_ii(becareful)=(ezc1*ReturnMatrix_ii(becareful).^ezc2(N_j)).^ezc7(N_j);
+    waszero=(ReturnMatrix_ii==0);
+    ReturnMatrix_ii(becareful)=ReturnMatrix_ii(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_ii now holds what was temp2 (avoids a full-size copy)
+    ReturnMatrix_ii(waszero)=-Inf;
+    ReturnMatrix_ii=ezc1*ReturnMatrix_ii+ezc3*DiscountFactorParamsVec*shiftdim(WGmatrix,-1); % warm-glow (zero if not using); (d,aprime,a) % in-place: ReturnMatrix_ii now holds what was entireRHS_ii
+    temp5=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0));
+    ReturnMatrix_ii(temp5)=ReturnMatrix_ii(temp5).^ezc7(N_j);
     ReturnMatrix_ii(ReturnMatrix_ii==0)=-Inf;
-    entireRHS_ii=ReturnMatrix_ii+shiftdim(WGmatrix,-1); % warm-glow (zero if not using); (d,aprime,a)
 
     % First, we want aprime conditional on (d,1,a,z)
-    [~,maxindex1]=max(entireRHS_ii,[],2);
+    [~,maxindex1]=max(ReturnMatrix_ii,[],2);
 
     % Just keep the 'midpoint' version of maxindex1 [as GI]
     midpoints_jj(:,1,level1ii)=maxindex1;
@@ -105,10 +111,14 @@ if ~isfield(vfoptions,'V_Jplus1')
             % aprime possibilities are n_d-by-maxgap(ii)+1
             ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1_noz(ReturnFn, n_d, d_gridvals, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), ReturnFnParamsVec,3);
             becareful=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0)); % finite but not zero
-            ReturnMatrix_ii(becareful)=(ezc1*ReturnMatrix_ii(becareful).^ezc2(N_j)).^ezc7(N_j);
+            waszero=(ReturnMatrix_ii==0);
+            ReturnMatrix_ii(becareful)=ReturnMatrix_ii(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_ii now holds what was temp2 (avoids a full-size copy)
+            ReturnMatrix_ii(waszero)=-Inf;
+            ReturnMatrix_ii=ezc1*ReturnMatrix_ii+ezc3*DiscountFactorParamsVec*WGmatrix(reshape(aprimeindexes(:),[N_d,(maxgap(ii)+1),1])); % warm-glow (zero if not using) % in-place: ReturnMatrix_ii now holds what was entireRHS_ii
+            temp5=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0));
+            ReturnMatrix_ii(temp5)=ReturnMatrix_ii(temp5).^ezc7(N_j);
             ReturnMatrix_ii(ReturnMatrix_ii==0)=-Inf;
-            entireRHS_ii=ReturnMatrix_ii+WGmatrix(reshape(aprimeindexes(:),[N_d,(maxgap(ii)+1),1])); % warm-glow (zero if not using)
-            [~,maxindex]=max(entireRHS_ii,[],2);
+            [~,maxindex]=max(ReturnMatrix_ii,[],2);
             midpoints_jj(:,1,curraindex,:)=maxindex+(loweredge-1);
         else
             loweredge=maxindex1(:,1,ii);
@@ -123,10 +133,15 @@ if ~isfield(vfoptions,'V_Jplus1')
     % aprime possibilities are n_d-by-n2long-by-n_a
     ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1_noz(ReturnFn,n_d, d_gridvals,aprime_grid(aprimeindexes),a_grid,ReturnFnParamsVec,2);
     becareful=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0)); % finite but not zero
-    ReturnMatrix_ii(becareful)=(ezc1*ReturnMatrix_ii(becareful).^ezc2(N_j)).^ezc7(N_j);
+    waszero=(ReturnMatrix_ii==0);
+    wasnegInf=(ReturnMatrix_ii==-Inf); % save raw -Inf pattern for the L2 flag (the in-place transform below overwrites ReturnMatrix_ii)
+    ReturnMatrix_ii(becareful)=ReturnMatrix_ii(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_ii now holds what was temp2 (avoids a full-size copy)
+    ReturnMatrix_ii(waszero)=-Inf;
+    ReturnMatrix_ii=ezc1*ReturnMatrix_ii+ezc3*DiscountFactorParamsVec*reshape(WGmatrixfine(aprimeindexes(:)),[N_d*n2long,N_a]); % in-place: ReturnMatrix_ii now holds what was entireRHS_ii
+    temp5=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0));
+    ReturnMatrix_ii(temp5)=ReturnMatrix_ii(temp5).^ezc7(N_j);
     ReturnMatrix_ii(ReturnMatrix_ii==0)=-Inf;
-    entireRHS_ii=ReturnMatrix_ii+reshape(WGmatrixfine(aprimeindexes(:)),[N_d*n2long,N_a]);
-    [Vtempii,maxindexL2]=max(entireRHS_ii,[],1);
+    [Vtempii,maxindexL2]=max(ReturnMatrix_ii,[],1);
     V(:,N_j)=shiftdim(Vtempii,1);
     d_ind=rem(maxindexL2-1,N_d)+1;
     allind=d_ind+N_d*aind; % midpoint is n_d-by-1-by-n_a
@@ -137,8 +152,8 @@ if ~isfield(vfoptions,'V_Jplus1')
     L2offset = ceil(maxindexL2/N_d);
     linidx_lower = d_ind                  + N_d*n2long*aind;
     linidx_upper = d_ind + N_d*(n2long-1) + N_d*n2long*aind;
-    isInfLower = (ReturnMatrix_ii(linidx_lower) == -Inf);
-    isInfUpper = (ReturnMatrix_ii(linidx_upper) == -Inf);
+    isInfLower = wasnegInf(linidx_lower);
+    isInfUpper = wasnegInf(linidx_upper);
     inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
     inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
     PolicyL2flag(1,:,N_j) = 2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper);

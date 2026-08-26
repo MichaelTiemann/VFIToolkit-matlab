@@ -48,7 +48,9 @@ if warmglow==1
     WGmatrix(WGmatrixraw==0)=0; % otherwise zero to negative power is set to infinity
     if ~isfield(vfoptions,'V_Jplus1')
         becareful=(WGmatrix==0);
-        WGmatrix(isfinite(WGmatrix))=ezc3*DiscountFactorParamsVec*(((1-sj(N_j))*WGmatrix(isfinite(WGmatrix)).^ezc8(N_j)).^ezc6(N_j));
+        % The warm-glow enters INSIDE the ^ezc7 root at the terminal age, so build the
+        % temp4-analogue of the main loop (with no EV term):
+        WGmatrix(isfinite(WGmatrix))=((1-sj(N_j))*WGmatrix(isfinite(WGmatrix)).^ezc8(N_j)).^ezc6(N_j);
         WGmatrix(becareful)=0;
     end
     % WGmatrix is a column over aprime; in the joint-(d2,aprime) terminal branch it needs the d2 dimension
@@ -63,10 +65,16 @@ if ~isfield(vfoptions,'V_Jplus1')
         ReturnMatrix=CreateReturnFnMatrix_Disc(ReturnFn, n_d2, n_a, n_semiz, d2_gridvals, a_grid, semiz_gridvals_J(:,:,N_j), ReturnFnParamsVec,0);
         % Modify the Return Function appropriately for Epstein-Zin Preferences
         becareful=logical(isfinite(ReturnMatrix).*(ReturnMatrix~=0)); % finite but not zero
-        ReturnMatrix(becareful)=(ezc1*ReturnMatrix(becareful).^ezc2(N_j)).^ezc7(N_j);
-        ReturnMatrix(ReturnMatrix==0)=-Inf;
+        waszero=(ReturnMatrix==0);
+        ReturnMatrix(becareful)=ReturnMatrix(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix now holds what was temp2 (avoids a full-size copy)
+        ReturnMatrix(waszero)=-Inf;
         %Calc the max and it's index
-        [Vtemp,maxindex]=max(ReturnMatrix+WGmatrixkron,[],1);
+        % Compose the warm-glow INSIDE the ^ezc7 root (the main-loop composition with the EV term absent)
+        ReturnMatrix=ezc1*ReturnMatrix+ezc3*DiscountFactorParamsVec*WGmatrixkron; % in-place: ReturnMatrix now holds what was entireRHS
+        temp5=logical(isfinite(ReturnMatrix).*(ReturnMatrix~=0));
+        ReturnMatrix(temp5)=ReturnMatrix(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
+        ReturnMatrix(ReturnMatrix==0)=-Inf;
+        [Vtemp,maxindex]=max(ReturnMatrix,[],1);
         V(:,:,N_j)=Vtemp;
         Policy(1,:,:,N_j)=shiftdim(rem(maxindex-1,N_d2)+1,-1);
         Policy(2,:,:,N_j)=shiftdim(ceil(maxindex/N_d2),-1);
@@ -78,10 +86,16 @@ if ~isfield(vfoptions,'V_Jplus1')
             ReturnMatrix_z=CreateReturnFnMatrix_Disc(ReturnFn, n_d2, n_a, special_n_semiz, d2_gridvals, a_grid, z_val, ReturnFnParamsVec,0);
             % Modify the Return Function appropriately for Epstein-Zin Preferences
             becareful=logical(isfinite(ReturnMatrix_z).*(ReturnMatrix_z~=0)); % finite but not zero
-            ReturnMatrix_z(becareful)=(ezc1*ReturnMatrix_z(becareful).^ezc2(N_j)).^ezc7(N_j);
-            ReturnMatrix_z(ReturnMatrix_z==0)=-Inf;
+            waszero=(ReturnMatrix_z==0);
+            ReturnMatrix_z(becareful)=ReturnMatrix_z(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_z now holds what was temp2 (avoids a full-size copy)
+            ReturnMatrix_z(waszero)=-Inf;
             %Calc the max and it's index
-            [Vtemp,maxindex]=max(ReturnMatrix_z+WGmatrixkron,[],1);
+            % Compose the warm-glow INSIDE the ^ezc7 root (the main-loop composition with the EV term absent)
+            ReturnMatrix_z=ezc1*ReturnMatrix_z+ezc3*DiscountFactorParamsVec*WGmatrixkron; % in-place: ReturnMatrix_z now holds what was entireRHS_z
+            temp5=logical(isfinite(ReturnMatrix_z).*(ReturnMatrix_z~=0));
+            ReturnMatrix_z(temp5)=ReturnMatrix_z(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
+            ReturnMatrix_z(ReturnMatrix_z==0)=-Inf;
+            [Vtemp,maxindex]=max(ReturnMatrix_z,[],1);
             V(:,z_c,N_j)=Vtemp;
             Policy(1,:,z_c,N_j)=shiftdim(rem(maxindex-1,N_d2)+1,-1);
             Policy(2,:,z_c,N_j)=shiftdim(ceil(maxindex/N_d2),-1);

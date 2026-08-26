@@ -80,7 +80,9 @@ if warmglow==1
     WGmatrixfine(WGmatrixfineraw==0)=0; % otherwise zero to negative power is set to infinity
     if ~isfield(vfoptions,'V_Jplus1')
         becareful=(WGmatrixfine==0);
-        WGmatrixfine(isfinite(WGmatrixfine))=ezc3*DiscountFactorParamsVec*(((1-sj(N_j))*WGmatrixfine(isfinite(WGmatrixfine)).^ezc8(N_j)).^ezc6(N_j));
+        % The warm-glow enters INSIDE the ^ezc7 root at the terminal age, so build the
+        % temp4-analogue of the main loop (with no EV term):
+        WGmatrixfine(isfinite(WGmatrixfine))=((1-sj(N_j))*WGmatrixfine(isfinite(WGmatrixfine)).^ezc8(N_j)).^ezc6(N_j);
         WGmatrixfine(becareful)=0;
     end
     WGmatrix=WGmatrixfine(1:(n2short+1):end); % coarse-grid subset
@@ -96,10 +98,16 @@ if ~isfield(vfoptions,'V_Jplus1')
         ReturnMatrix=CreateReturnFnMatrix_Disc_e(ReturnFn, n_d2, n_a, n_semiz, n_e, d2_gridvals, a_grid, semiz_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,1);
         % Modify the Return Function appropriately for Epstein-Zin Preferences
         becareful=logical(isfinite(ReturnMatrix).*(ReturnMatrix~=0)); % finite but not zero
-        ReturnMatrix(becareful)=(ezc1*ReturnMatrix(becareful).^ezc2(N_j)).^ezc7(N_j);
+        waszero=(ReturnMatrix==0);
+        ReturnMatrix(becareful)=ReturnMatrix(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix now holds what was temp2 (avoids a full-size copy)
+        ReturnMatrix(waszero)=-Inf;
+        % Compose the warm-glow INSIDE the ^ezc7 root (the V_Jplus1-branch composition with the EV term absent)
+        ReturnMatrix=ezc1*ReturnMatrix+ezc3*DiscountFactorParamsVec*shiftdim(WGmatrix,-1); % in-place: ReturnMatrix now holds what was entireRHS
+        temp5=logical(isfinite(ReturnMatrix).*(ReturnMatrix~=0));
+        ReturnMatrix(temp5)=ReturnMatrix(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
         ReturnMatrix(ReturnMatrix==0)=-Inf;
         % Treat standard problem as just being the first layer
-        [~,maxindex]=max(ReturnMatrix+shiftdim(WGmatrix,-1),[],2);
+        [~,maxindex]=max(ReturnMatrix,[],2);
 
         % Turn this into the 'midpoint'
         midpoint=max(min(maxindex,n_a-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
@@ -109,10 +117,16 @@ if ~isfield(vfoptions,'V_Jplus1')
         ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn,n_d2,n_semiz,n_e,d2_gridvals,aprime_grid(aprimeindexes),a_grid,semiz_gridvals_J(:,:,N_j),e_gridvals_J(:,:,N_j),ReturnFnParamsVec,2);
         % Modify the Return Function appropriately for Epstein-Zin Preferences
         becareful=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0)); % finite but not zero
-        ReturnMatrix_ii(becareful)=(ezc1*ReturnMatrix_ii(becareful).^ezc2(N_j)).^ezc7(N_j);
+        waszero=(ReturnMatrix_ii==0);
+        wasnegInf=(ReturnMatrix_ii==-Inf); % save raw -Inf pattern for the L2 flag (the in-place transform below overwrites ReturnMatrix_ii)
+        ReturnMatrix_ii(becareful)=ReturnMatrix_ii(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_ii now holds what was temp2 (avoids a full-size copy)
+        ReturnMatrix_ii(waszero)=-Inf;
+        % Compose the warm-glow INSIDE the ^ezc7 root (the V_Jplus1-branch composition with the EV term absent)
+        ReturnMatrix_ii=ezc1*ReturnMatrix_ii+ezc3*DiscountFactorParamsVec*reshape(WGmatrixfine(aprimeindexes),[N_d2*n2long,N_a,N_semiz,N_e]); % in-place: ReturnMatrix_ii now holds what was entireRHS_ii
+        temp5=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0));
+        ReturnMatrix_ii(temp5)=ReturnMatrix_ii(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
         ReturnMatrix_ii(ReturnMatrix_ii==0)=-Inf;
-        entireRHS_ii=ReturnMatrix_ii+reshape(WGmatrixfine(aprimeindexes),[N_d2*n2long,N_a,N_semiz,N_e]);
-        [Vtempii,maxindexL2]=max(entireRHS_ii,[],1);
+        [Vtempii,maxindexL2]=max(ReturnMatrix_ii,[],1);
         V(:,:,:,N_j)=shiftdim(Vtempii,1);
         d_ind=rem(maxindexL2-1,N_d2)+1;
         allind=d_ind+N_d2*aind+N_d2*N_a*semizind+N_d2*N_a*N_semiz*eind; % midpoint is n_d-by-1-by-n_a-by-n_z-by-n_e
@@ -121,8 +135,8 @@ if ~isfield(vfoptions,'V_Jplus1')
         L2offset      = ceil(maxindexL2/N_d2);
         linidx_lower  = d_ind                   + N_d2*n2long*aind + N_d2*n2long*N_a*semizind + N_d2*n2long*N_a*N_semiz*eind;
         linidx_upper  = d_ind + N_d2*(n2long-1) + N_d2*n2long*aind + N_d2*n2long*N_a*semizind + N_d2*n2long*N_a*N_semiz*eind;
-        isInfLower    = (ReturnMatrix_ii(linidx_lower) == -Inf);
-        isInfUpper    = (ReturnMatrix_ii(linidx_upper) == -Inf);
+        isInfLower    = wasnegInf(linidx_lower);
+        isInfUpper    = wasnegInf(linidx_upper);
         inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
         inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
         PolicyL2flag(1,:,:,:,N_j) = 2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper);
@@ -138,10 +152,16 @@ if ~isfield(vfoptions,'V_Jplus1')
             ReturnMatrix_e=CreateReturnFnMatrix_Disc_e(ReturnFn, n_d2, n_a, n_semiz, special_n_e, d2_gridvals, a_grid, semiz_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec,1);
             % Modify the Return Function appropriately for Epstein-Zin Preferences
             becareful=logical(isfinite(ReturnMatrix_e).*(ReturnMatrix_e~=0)); % finite but not zero
-            ReturnMatrix_e(becareful)=(ezc1*ReturnMatrix_e(becareful).^ezc2(N_j)).^ezc7(N_j);
+            waszero=(ReturnMatrix_e==0);
+            ReturnMatrix_e(becareful)=ReturnMatrix_e(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_e now holds what was temp2 (avoids a full-size copy)
+            ReturnMatrix_e(waszero)=-Inf;
+            % Compose the warm-glow INSIDE the ^ezc7 root (the V_Jplus1-branch composition with the EV term absent)
+            ReturnMatrix_e=ezc1*ReturnMatrix_e+ezc3*DiscountFactorParamsVec*shiftdim(WGmatrix,-1); % in-place: ReturnMatrix_e now holds what was entireRHS
+            temp5=logical(isfinite(ReturnMatrix_e).*(ReturnMatrix_e~=0));
+            ReturnMatrix_e(temp5)=ReturnMatrix_e(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
             ReturnMatrix_e(ReturnMatrix_e==0)=-Inf;
             % Treat standard problem as just being the first layer
-            [~,maxindex]=max(ReturnMatrix_e+shiftdim(WGmatrix,-1),[],2);
+            [~,maxindex]=max(ReturnMatrix_e,[],2);
 
             % Turn this into the 'midpoint'
             midpoint=max(min(maxindex,n_a-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
@@ -151,10 +171,16 @@ if ~isfield(vfoptions,'V_Jplus1')
             ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn,n_d2,n_semiz,special_n_e,d2_gridvals,aprime_grid(aprimeindexes),a_grid,semiz_gridvals_J(:,:,N_j),e_val,ReturnFnParamsVec,2);
             % Modify the Return Function appropriately for Epstein-Zin Preferences
             becareful=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0)); % finite but not zero
-            ReturnMatrix_ii(becareful)=(ezc1*ReturnMatrix_ii(becareful).^ezc2(N_j)).^ezc7(N_j);
+            waszero=(ReturnMatrix_ii==0);
+            wasnegInf=(ReturnMatrix_ii==-Inf); % save raw -Inf pattern for the L2 flag (the in-place transform below overwrites ReturnMatrix_ii)
+            ReturnMatrix_ii(becareful)=ReturnMatrix_ii(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_ii now holds what was temp2 (avoids a full-size copy)
+            ReturnMatrix_ii(waszero)=-Inf;
+            % Compose the warm-glow INSIDE the ^ezc7 root (the V_Jplus1-branch composition with the EV term absent)
+            ReturnMatrix_ii=ezc1*ReturnMatrix_ii+ezc3*DiscountFactorParamsVec*reshape(WGmatrixfine(aprimeindexes),[N_d2*n2long,N_a,N_semiz]); % in-place: ReturnMatrix_ii now holds what was entireRHS_ii
+            temp5=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0));
+            ReturnMatrix_ii(temp5)=ReturnMatrix_ii(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
             ReturnMatrix_ii(ReturnMatrix_ii==0)=-Inf;
-            entireRHS_ii=ReturnMatrix_ii+reshape(WGmatrixfine(aprimeindexes),[N_d2*n2long,N_a,N_semiz]);
-            [Vtempii,maxindexL2]=max(entireRHS_ii,[],1);
+            [Vtempii,maxindexL2]=max(ReturnMatrix_ii,[],1);
             V(:,:,e_c,N_j)=shiftdim(Vtempii,1);
             d_ind=rem(maxindexL2-1,N_d2)+1;
             allind=d_ind+N_d2*aind+N_d2*N_a*semizind; % midpoint is n_d-by-1-by-n_a-by-n_z
@@ -163,8 +189,8 @@ if ~isfield(vfoptions,'V_Jplus1')
             L2offset      = ceil(maxindexL2/N_d2);
             linidx_lower  = d_ind                   + N_d2*n2long*aind + N_d2*n2long*N_a*semizind;
             linidx_upper  = d_ind + N_d2*(n2long-1) + N_d2*n2long*aind + N_d2*n2long*N_a*semizind;
-            isInfLower    = (ReturnMatrix_ii(linidx_lower) == -Inf);
-            isInfUpper    = (ReturnMatrix_ii(linidx_upper) == -Inf);
+            isInfLower    = wasnegInf(linidx_lower);
+            isInfUpper    = wasnegInf(linidx_upper);
             inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
             inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
             PolicyL2flag(1,:,:,e_c,N_j) = 2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper);
@@ -183,10 +209,16 @@ if ~isfield(vfoptions,'V_Jplus1')
                 ReturnMatrix_semize=CreateReturnFnMatrix_Disc_e(ReturnFn, n_d2, n_a, special_n_semiz, special_n_e, d2_gridvals, a_grid, semiz_val, e_val, ReturnFnParamsVec,1);
                 % Modify the Return Function appropriately for Epstein-Zin Preferences
                 becareful=logical(isfinite(ReturnMatrix_semize).*(ReturnMatrix_semize~=0)); % finite but not zero
-                ReturnMatrix_semize(becareful)=(ezc1*ReturnMatrix_semize(becareful).^ezc2(N_j)).^ezc7(N_j);
+                waszero=(ReturnMatrix_semize==0);
+                ReturnMatrix_semize(becareful)=ReturnMatrix_semize(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_semize now holds what was temp2 (avoids a full-size copy)
+                ReturnMatrix_semize(waszero)=-Inf;
+                % Compose the warm-glow INSIDE the ^ezc7 root (the V_Jplus1-branch composition with the EV term absent)
+                ReturnMatrix_semize=ezc1*ReturnMatrix_semize+ezc3*DiscountFactorParamsVec*shiftdim(WGmatrix,-1); % in-place: ReturnMatrix_semize now holds what was entireRHS
+                temp5=logical(isfinite(ReturnMatrix_semize).*(ReturnMatrix_semize~=0));
+                ReturnMatrix_semize(temp5)=ReturnMatrix_semize(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
                 ReturnMatrix_semize(ReturnMatrix_semize==0)=-Inf;
                 % Treat standard problem as just being the first layer
-                [~,maxindex]=max(ReturnMatrix_semize+shiftdim(WGmatrix,-1),[],2);
+                [~,maxindex]=max(ReturnMatrix_semize,[],2);
 
                 % Turn this into the 'midpoint'
                 midpoint=max(min(maxindex,n_a-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
@@ -196,10 +228,16 @@ if ~isfield(vfoptions,'V_Jplus1')
                 ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn,n_d2,special_n_semiz,special_n_e,d2_gridvals,aprime_grid(aprimeindexes),a_grid,semiz_val,e_val,ReturnFnParamsVec,2);
                 % Modify the Return Function appropriately for Epstein-Zin Preferences
                 becareful=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0)); % finite but not zero
-                ReturnMatrix_ii(becareful)=(ezc1*ReturnMatrix_ii(becareful).^ezc2(N_j)).^ezc7(N_j);
+                waszero=(ReturnMatrix_ii==0);
+                wasnegInf=(ReturnMatrix_ii==-Inf); % save raw -Inf pattern for the L2 flag (the in-place transform below overwrites ReturnMatrix_ii)
+                ReturnMatrix_ii(becareful)=ReturnMatrix_ii(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_ii now holds what was temp2 (avoids a full-size copy)
+                ReturnMatrix_ii(waszero)=-Inf;
+                % Compose the warm-glow INSIDE the ^ezc7 root (the V_Jplus1-branch composition with the EV term absent)
+                ReturnMatrix_ii=ezc1*ReturnMatrix_ii+ezc3*DiscountFactorParamsVec*reshape(WGmatrixfine(aprimeindexes),[N_d2*n2long,N_a]); % in-place: ReturnMatrix_ii now holds what was entireRHS_ii
+                temp5=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0));
+                ReturnMatrix_ii(temp5)=ReturnMatrix_ii(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
                 ReturnMatrix_ii(ReturnMatrix_ii==0)=-Inf;
-                entireRHS_ii=ReturnMatrix_ii+reshape(WGmatrixfine(aprimeindexes),[N_d2*n2long,N_a]);
-                [Vtempii,maxindexL2]=max(entireRHS_ii,[],1);
+                [Vtempii,maxindexL2]=max(ReturnMatrix_ii,[],1);
                 V(:,semiz_c,e_c,N_j)=shiftdim(Vtempii,1);
                 d_ind=rem(maxindexL2-1,N_d2)+1;
                 allind=d_ind+N_d2*aind; % midpoint is n_d-by-1-by-n_a
@@ -208,8 +246,8 @@ if ~isfield(vfoptions,'V_Jplus1')
                 L2offset      = ceil(maxindexL2/N_d2);
                 linidx_lower  = d_ind                   + N_d2*n2long*aind;
                 linidx_upper  = d_ind + N_d2*(n2long-1) + N_d2*n2long*aind;
-                isInfLower    = (ReturnMatrix_ii(linidx_lower) == -Inf);
-                isInfUpper    = (ReturnMatrix_ii(linidx_upper) == -Inf);
+                isInfLower    = wasnegInf(linidx_lower);
+                isInfUpper    = wasnegInf(linidx_upper);
                 inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
                 inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
                 PolicyL2flag(1,:,semiz_c,e_c,N_j) = 2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper);

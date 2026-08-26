@@ -82,7 +82,9 @@ if warmglow==1
     WGmatrix(WGmatrixraw==0)=0; % otherwise zero to negative power is set to infinity
     if ~isfield(vfoptions,'V_Jplus1')
         becareful=(WGmatrix==0);
-        WGmatrix(isfinite(WGmatrix))=ezc3*DiscountFactorParamsVec*(((1-sj(N_j))*WGmatrix(isfinite(WGmatrix)).^ezc8(N_j)).^ezc6(N_j));
+        % The warm-glow enters INSIDE the ^ezc7 root at the terminal age, so build the
+        % temp4-analogue of the main loop (with no EV term):
+        WGmatrix(isfinite(WGmatrix))=((1-sj(N_j))*WGmatrix(isfinite(WGmatrix)).^ezc8(N_j)).^ezc6(N_j);
         WGmatrix(becareful)=0;
     end
     % WGmatrix is a column over the full aprime grid; it is indexed by aprime below
@@ -101,12 +103,17 @@ if ~isfield(vfoptions,'V_Jplus1')
             ReturnMatrix_d2ii=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn, special_n_d2, n_bothz,n_e, d2_val, a_grid, a_grid(level1ii), bothz_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,4);
             % Modify the Return Function appropriately for Epstein-Zin Preferences
             becareful=logical(isfinite(ReturnMatrix_d2ii).*(ReturnMatrix_d2ii~=0)); % finite but not zero
-            ReturnMatrix_d2ii(becareful)=(ezc1*ReturnMatrix_d2ii(becareful).^ezc2(N_j)).^ezc7(N_j);
+            waszero=(ReturnMatrix_d2ii==0);
+            ReturnMatrix_d2ii(becareful)=ReturnMatrix_d2ii(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_d2ii now holds what was temp2 (avoids a full-size copy)
+            ReturnMatrix_d2ii(waszero)=-Inf;
+            % Compose the warm-glow INSIDE the ^ezc7 root (the V_Jplus1-branch composition with the EV term absent)
+            ReturnMatrix_d2ii=ezc1*ReturnMatrix_d2ii+ezc3*DiscountFactorParamsVec*WGmatrix; % warm-glow (zero if not using) % in-place: ReturnMatrix_d2ii now holds what was entireRHS_ii
+            temp5=logical(isfinite(ReturnMatrix_d2ii).*(ReturnMatrix_d2ii~=0));
+            ReturnMatrix_d2ii(temp5)=ReturnMatrix_d2ii(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
             ReturnMatrix_d2ii(ReturnMatrix_d2ii==0)=-Inf;
-            entireRHS_ii=ReturnMatrix_d2ii+WGmatrix; % warm-glow (zero if not using)
 
             % First, we want aprime conditional on (1,a,z,e)
-            [Vtempii,maxindex1]=max(entireRHS_ii,[],1);
+            [Vtempii,maxindex1]=max(ReturnMatrix_d2ii,[],1);
 
             % Store
             V_ford2_jj(level1ii,:,:,d2_c)=shiftdim(Vtempii,1);
@@ -123,10 +130,15 @@ if ~isfield(vfoptions,'V_Jplus1')
                     % aprime possibilities are maxgap(ii)+1-by-1-by-n_bothz-by-n_e
                     ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn, special_n_d2, n_bothz, n_e, d2_val, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), bothz_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,5);
                     becareful=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0)); % finite but not zero
-                    ReturnMatrix_ii(becareful)=(ezc1*ReturnMatrix_ii(becareful).^ezc2(N_j)).^ezc7(N_j);
+                    waszero=(ReturnMatrix_ii==0);
+                    ReturnMatrix_ii(becareful)=ReturnMatrix_ii(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_ii now holds what was temp2 (avoids a full-size copy)
+                    ReturnMatrix_ii(waszero)=-Inf;
+                    % Compose the warm-glow INSIDE the ^ezc7 root (the V_Jplus1-branch composition with the EV term absent)
+                    ReturnMatrix_ii=ezc1*ReturnMatrix_ii+ezc3*DiscountFactorParamsVec*reshape(WGmatrix(aprimeindexes),[maxgap(ii)+1,1,N_bothz,N_e]); % in-place: ReturnMatrix_ii now holds what was entireRHS_ii
+                    temp5=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0));
+                    ReturnMatrix_ii(temp5)=ReturnMatrix_ii(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
                     ReturnMatrix_ii(ReturnMatrix_ii==0)=-Inf;
-                    entireRHS_ii=ReturnMatrix_ii+reshape(WGmatrix(aprimeindexes),[maxgap(ii)+1,1,N_bothz,N_e]);
-                    [Vtempii,maxindex]=max(entireRHS_ii,[],1);
+                    [Vtempii,maxindex]=max(ReturnMatrix_ii,[],1);
                     V_ford2_jj(curraindex,:,:,d2_c)=shiftdim(Vtempii,1);
                     Policy_ford2_jj(curraindex,:,:,d2_c)=shiftdim(maxindex+(loweredge-1)); % no d1
                 else
@@ -134,10 +146,15 @@ if ~isfield(vfoptions,'V_Jplus1')
                     % Just use aprime(ii) for everything
                     ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn, special_n_d2, n_bothz, n_e, d2_val, reshape(a_grid(loweredge),loweredgesize), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), bothz_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,5);
                     becareful=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0)); % finite but not zero
-                    ReturnMatrix_ii(becareful)=(ezc1*ReturnMatrix_ii(becareful).^ezc2(N_j)).^ezc7(N_j);
+                    waszero=(ReturnMatrix_ii==0);
+                    ReturnMatrix_ii(becareful)=ReturnMatrix_ii(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_ii now holds what was temp2 (avoids a full-size copy)
+                    ReturnMatrix_ii(waszero)=-Inf;
+                    % Compose the warm-glow INSIDE the ^ezc7 root (the V_Jplus1-branch composition with the EV term absent)
+                    ReturnMatrix_ii=ezc1*ReturnMatrix_ii+ezc3*DiscountFactorParamsVec*reshape(WGmatrix(loweredge),[1,1,N_bothz,N_e]); % in-place: ReturnMatrix_ii now holds what was entireRHS_ii
+                    temp5=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0));
+                    ReturnMatrix_ii(temp5)=ReturnMatrix_ii(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
                     ReturnMatrix_ii(ReturnMatrix_ii==0)=-Inf;
-                    entireRHS_ii=ReturnMatrix_ii+reshape(WGmatrix(loweredge),[1,1,N_bothz,N_e]);
-                    V_ford2_jj(curraindex,:,:,d2_c)=shiftdim(entireRHS_ii,1);
+                    V_ford2_jj(curraindex,:,:,d2_c)=shiftdim(ReturnMatrix_ii,1);
                     Policy_ford2_jj(curraindex,:,:,d2_c)=repelem(shiftdim(loweredge,1),level1iidiff(ii),1); % no d1
                 end
             end
@@ -161,12 +178,17 @@ if ~isfield(vfoptions,'V_Jplus1')
                 ReturnMatrix_d2iie=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn, special_n_d2, n_bothz, special_n_e, d2_val, a_grid, a_grid(level1ii), bothz_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec,4);
                 % Modify the Return Function appropriately for Epstein-Zin Preferences
                 becareful=logical(isfinite(ReturnMatrix_d2iie).*(ReturnMatrix_d2iie~=0)); % finite but not zero
-                ReturnMatrix_d2iie(becareful)=(ezc1*ReturnMatrix_d2iie(becareful).^ezc2(N_j)).^ezc7(N_j);
+                waszero=(ReturnMatrix_d2iie==0);
+                ReturnMatrix_d2iie(becareful)=ReturnMatrix_d2iie(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_d2iie now holds what was temp2 (avoids a full-size copy)
+                ReturnMatrix_d2iie(waszero)=-Inf;
+                % Compose the warm-glow INSIDE the ^ezc7 root (the V_Jplus1-branch composition with the EV term absent)
+                ReturnMatrix_d2iie=ezc1*ReturnMatrix_d2iie+ezc3*DiscountFactorParamsVec*WGmatrix; % warm-glow (zero if not using) % in-place: ReturnMatrix_d2iie now holds what was entireRHS_ii
+                temp5=logical(isfinite(ReturnMatrix_d2iie).*(ReturnMatrix_d2iie~=0));
+                ReturnMatrix_d2iie(temp5)=ReturnMatrix_d2iie(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
                 ReturnMatrix_d2iie(ReturnMatrix_d2iie==0)=-Inf;
-                entireRHS_ii=ReturnMatrix_d2iie+WGmatrix; % warm-glow (zero if not using)
 
                 % First, we want aprime conditional on (d,1,a,z,e)
-                [Vtempii,maxindex1]=max(entireRHS_ii,[],1);
+                [Vtempii,maxindex1]=max(ReturnMatrix_d2iie,[],1);
 
                 % Store
                 V_ford2_jj(level1ii,:,e_c,d2_c)=shiftdim(Vtempii,1);
@@ -183,10 +205,15 @@ if ~isfield(vfoptions,'V_Jplus1')
                         % aprime possibilities are maxgap(ii)+1-by-1-by-n_bothz
                         ReturnMatrix_iie=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn, special_n_d2, n_bothz, special_n_e, d2_val, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), bothz_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec,5);
                         becareful=logical(isfinite(ReturnMatrix_iie).*(ReturnMatrix_iie~=0)); % finite but not zero
-                        ReturnMatrix_iie(becareful)=(ezc1*ReturnMatrix_iie(becareful).^ezc2(N_j)).^ezc7(N_j);
+                        waszero=(ReturnMatrix_iie==0);
+                        ReturnMatrix_iie(becareful)=ReturnMatrix_iie(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_iie now holds what was temp2 (avoids a full-size copy)
+                        ReturnMatrix_iie(waszero)=-Inf;
+                        % Compose the warm-glow INSIDE the ^ezc7 root (the V_Jplus1-branch composition with the EV term absent)
+                        ReturnMatrix_iie=ezc1*ReturnMatrix_iie+ezc3*DiscountFactorParamsVec*reshape(WGmatrix(aprimeindexes),[maxgap(ii)+1,1,N_bothz]); % in-place: ReturnMatrix_iie now holds what was entireRHS_ii
+                        temp5=logical(isfinite(ReturnMatrix_iie).*(ReturnMatrix_iie~=0));
+                        ReturnMatrix_iie(temp5)=ReturnMatrix_iie(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
                         ReturnMatrix_iie(ReturnMatrix_iie==0)=-Inf;
-                        entireRHS_ii=ReturnMatrix_iie+reshape(WGmatrix(aprimeindexes),[maxgap(ii)+1,1,N_bothz]);
-                        [Vtempii,maxindex]=max(entireRHS_ii,[],1);
+                        [Vtempii,maxindex]=max(ReturnMatrix_iie,[],1);
                         V_ford2_jj(curraindex,:,e_c,d2_c)=shiftdim(Vtempii,1);
                         Policy_ford2_jj(curraindex,:,e_c,d2_c)=shiftdim(maxindex+(loweredge-1)); % no d1
                     else
@@ -194,10 +221,15 @@ if ~isfield(vfoptions,'V_Jplus1')
                         % Just use aprime(ii) for everything
                         ReturnMatrix_iie=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn, special_n_d2, n_bothz, special_n_e, d2_val, reshape(a_grid(loweredge),loweredgesize), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), bothz_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec,5);
                         becareful=logical(isfinite(ReturnMatrix_iie).*(ReturnMatrix_iie~=0)); % finite but not zero
-                        ReturnMatrix_iie(becareful)=(ezc1*ReturnMatrix_iie(becareful).^ezc2(N_j)).^ezc7(N_j);
+                        waszero=(ReturnMatrix_iie==0);
+                        ReturnMatrix_iie(becareful)=ReturnMatrix_iie(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_iie now holds what was temp2 (avoids a full-size copy)
+                        ReturnMatrix_iie(waszero)=-Inf;
+                        % Compose the warm-glow INSIDE the ^ezc7 root (the V_Jplus1-branch composition with the EV term absent)
+                        ReturnMatrix_iie=ezc1*ReturnMatrix_iie+ezc3*DiscountFactorParamsVec*reshape(WGmatrix(loweredge),[1,1,N_bothz]); % in-place: ReturnMatrix_iie now holds what was entireRHS_ii
+                        temp5=logical(isfinite(ReturnMatrix_iie).*(ReturnMatrix_iie~=0));
+                        ReturnMatrix_iie(temp5)=ReturnMatrix_iie(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
                         ReturnMatrix_iie(ReturnMatrix_iie==0)=-Inf;
-                        entireRHS_ii=ReturnMatrix_iie+reshape(WGmatrix(loweredge),[1,1,N_bothz]);
-                        V_ford2_jj(curraindex,:,e_c,d2_c)=shiftdim(entireRHS_ii,1);
+                        V_ford2_jj(curraindex,:,e_c,d2_c)=shiftdim(ReturnMatrix_iie,1);
                         Policy_ford2_jj(curraindex,:,e_c,d2_c)=repelem(shiftdim(loweredge,1),level1iidiff(ii),1);
                     end
                 end
@@ -225,12 +257,17 @@ if ~isfield(vfoptions,'V_Jplus1')
                     ReturnMatrix_d2iize=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn, special_n_d2, [n_semiz,special_n_z], special_n_e, d2_val, a_grid, a_grid(level1ii), z_valblock, e_val, ReturnFnParamsVec,4);
                     % Modify the Return Function appropriately for Epstein-Zin Preferences
                     becareful=logical(isfinite(ReturnMatrix_d2iize).*(ReturnMatrix_d2iize~=0)); % finite but not zero
-                    ReturnMatrix_d2iize(becareful)=(ezc1*ReturnMatrix_d2iize(becareful).^ezc2(N_j)).^ezc7(N_j);
+                    waszero=(ReturnMatrix_d2iize==0);
+                    ReturnMatrix_d2iize(becareful)=ReturnMatrix_d2iize(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_d2iize now holds what was temp2 (avoids a full-size copy)
+                    ReturnMatrix_d2iize(waszero)=-Inf;
+                    % Compose the warm-glow INSIDE the ^ezc7 root (the V_Jplus1-branch composition with the EV term absent)
+                    ReturnMatrix_d2iize=ezc1*ReturnMatrix_d2iize+ezc3*DiscountFactorParamsVec*WGmatrix; % warm-glow (zero if not using) % in-place: ReturnMatrix_d2iize now holds what was entireRHS_ii
+                    temp5=logical(isfinite(ReturnMatrix_d2iize).*(ReturnMatrix_d2iize~=0));
+                    ReturnMatrix_d2iize(temp5)=ReturnMatrix_d2iize(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
                     ReturnMatrix_d2iize(ReturnMatrix_d2iize==0)=-Inf;
-                    entireRHS_ii=ReturnMatrix_d2iize+WGmatrix; % warm-glow (zero if not using)
 
                     % First, we want aprime conditional on (d,1,a,z,e)
-                    [Vtempii,maxindex1]=max(entireRHS_ii,[],1);
+                    [Vtempii,maxindex1]=max(ReturnMatrix_d2iize,[],1);
 
                     % Store
                     V_ford2_jj(level1ii,semizblock,e_c,d2_c)=shiftdim(Vtempii,1);
@@ -247,10 +284,15 @@ if ~isfield(vfoptions,'V_Jplus1')
                             % aprime possibilities are maxgap(ii)+1-by-1-by-n_semiz
                             ReturnMatrix_iize=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn, special_n_d2, [n_semiz,special_n_z], special_n_e, d2_val, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_valblock, e_val, ReturnFnParamsVec,5);
                             becareful=logical(isfinite(ReturnMatrix_iize).*(ReturnMatrix_iize~=0)); % finite but not zero
-                            ReturnMatrix_iize(becareful)=(ezc1*ReturnMatrix_iize(becareful).^ezc2(N_j)).^ezc7(N_j);
+                            waszero=(ReturnMatrix_iize==0);
+                            ReturnMatrix_iize(becareful)=ReturnMatrix_iize(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_iize now holds what was temp2 (avoids a full-size copy)
+                            ReturnMatrix_iize(waszero)=-Inf;
+                            % Compose the warm-glow INSIDE the ^ezc7 root (the V_Jplus1-branch composition with the EV term absent)
+                            ReturnMatrix_iize=ezc1*ReturnMatrix_iize+ezc3*DiscountFactorParamsVec*reshape(WGmatrix(aprimeindexes),[maxgap(ii)+1,1,N_semiz]); % in-place: ReturnMatrix_iize now holds what was entireRHS_ii
+                            temp5=logical(isfinite(ReturnMatrix_iize).*(ReturnMatrix_iize~=0));
+                            ReturnMatrix_iize(temp5)=ReturnMatrix_iize(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
                             ReturnMatrix_iize(ReturnMatrix_iize==0)=-Inf;
-                            entireRHS_ii=ReturnMatrix_iize+reshape(WGmatrix(aprimeindexes),[maxgap(ii)+1,1,N_semiz]);
-                            [Vtempii,maxindex]=max(entireRHS_ii,[],1);
+                            [Vtempii,maxindex]=max(ReturnMatrix_iize,[],1);
                             V_ford2_jj(curraindex,semizblock,e_c,d2_c)=shiftdim(Vtempii,1);
                             Policy_ford2_jj(curraindex,semizblock,e_c,d2_c)=shiftdim(maxindex+(loweredge-1)); % no d1
                         else
@@ -258,10 +300,15 @@ if ~isfield(vfoptions,'V_Jplus1')
                             % Just use aprime(ii) for everything
                             ReturnMatrix_iize=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn, special_n_d2, [n_semiz,special_n_z], special_n_e, d2_val, reshape(a_grid(loweredge),loweredgesize), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_valblock, e_val, ReturnFnParamsVec,5);
                             becareful=logical(isfinite(ReturnMatrix_iize).*(ReturnMatrix_iize~=0)); % finite but not zero
-                            ReturnMatrix_iize(becareful)=(ezc1*ReturnMatrix_iize(becareful).^ezc2(N_j)).^ezc7(N_j);
+                            waszero=(ReturnMatrix_iize==0);
+                            ReturnMatrix_iize(becareful)=ReturnMatrix_iize(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_iize now holds what was temp2 (avoids a full-size copy)
+                            ReturnMatrix_iize(waszero)=-Inf;
+                            % Compose the warm-glow INSIDE the ^ezc7 root (the V_Jplus1-branch composition with the EV term absent)
+                            ReturnMatrix_iize=ezc1*ReturnMatrix_iize+ezc3*DiscountFactorParamsVec*reshape(WGmatrix(loweredge),[1,1,N_semiz]); % in-place: ReturnMatrix_iize now holds what was entireRHS_ii
+                            temp5=logical(isfinite(ReturnMatrix_iize).*(ReturnMatrix_iize~=0));
+                            ReturnMatrix_iize(temp5)=ReturnMatrix_iize(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
                             ReturnMatrix_iize(ReturnMatrix_iize==0)=-Inf;
-                            entireRHS_ii=ReturnMatrix_iize+reshape(WGmatrix(loweredge),[1,1,N_semiz]);
-                            V_ford2_jj(curraindex,semizblock,e_c,d2_c)=shiftdim(entireRHS_ii,1);
+                            V_ford2_jj(curraindex,semizblock,e_c,d2_c)=shiftdim(ReturnMatrix_iize,1);
                             Policy_ford2_jj(curraindex,semizblock,e_c,d2_c)=repelem(shiftdim(loweredge,1),level1iidiff(ii),1);
                         end
                     end
@@ -289,12 +336,17 @@ if ~isfield(vfoptions,'V_Jplus1')
                     ReturnMatrix_d2iize=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn, special_n_d2, special_n_bothz, special_n_e, d2_val, a_grid, a_grid(level1ii), z_val, e_val, ReturnFnParamsVec,4);
                     % Modify the Return Function appropriately for Epstein-Zin Preferences
                     becareful=logical(isfinite(ReturnMatrix_d2iize).*(ReturnMatrix_d2iize~=0)); % finite but not zero
-                    ReturnMatrix_d2iize(becareful)=(ezc1*ReturnMatrix_d2iize(becareful).^ezc2(N_j)).^ezc7(N_j);
+                    waszero=(ReturnMatrix_d2iize==0);
+                    ReturnMatrix_d2iize(becareful)=ReturnMatrix_d2iize(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_d2iize now holds what was temp2 (avoids a full-size copy)
+                    ReturnMatrix_d2iize(waszero)=-Inf;
+                    % Compose the warm-glow INSIDE the ^ezc7 root (the V_Jplus1-branch composition with the EV term absent)
+                    ReturnMatrix_d2iize=ezc1*ReturnMatrix_d2iize+ezc3*DiscountFactorParamsVec*WGmatrix; % warm-glow (zero if not using) % in-place: ReturnMatrix_d2iize now holds what was entireRHS_ii
+                    temp5=logical(isfinite(ReturnMatrix_d2iize).*(ReturnMatrix_d2iize~=0));
+                    ReturnMatrix_d2iize(temp5)=ReturnMatrix_d2iize(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
                     ReturnMatrix_d2iize(ReturnMatrix_d2iize==0)=-Inf;
-                    entireRHS_ii=ReturnMatrix_d2iize+WGmatrix; % warm-glow (zero if not using)
 
                     % First, we want aprime conditional on (d,1,a,z,e)
-                    [Vtempii,maxindex1]=max(entireRHS_ii,[],1);
+                    [Vtempii,maxindex1]=max(ReturnMatrix_d2iize,[],1);
 
                     % Store
                     V_ford2_jj(level1ii,z_c,e_c,d2_c)=shiftdim(Vtempii,1);
@@ -311,10 +363,15 @@ if ~isfield(vfoptions,'V_Jplus1')
                             % aprime possibilities are maxgap(ii)+1-by-1
                             ReturnMatrix_iize=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn, special_n_d2, special_n_bothz, special_n_e, d2_val, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_val, e_val, ReturnFnParamsVec,5);
                             becareful=logical(isfinite(ReturnMatrix_iize).*(ReturnMatrix_iize~=0)); % finite but not zero
-                            ReturnMatrix_iize(becareful)=(ezc1*ReturnMatrix_iize(becareful).^ezc2(N_j)).^ezc7(N_j);
+                            waszero=(ReturnMatrix_iize==0);
+                            ReturnMatrix_iize(becareful)=ReturnMatrix_iize(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_iize now holds what was temp2 (avoids a full-size copy)
+                            ReturnMatrix_iize(waszero)=-Inf;
+                            % Compose the warm-glow INSIDE the ^ezc7 root (the V_Jplus1-branch composition with the EV term absent)
+                            ReturnMatrix_iize=ezc1*ReturnMatrix_iize+ezc3*DiscountFactorParamsVec*WGmatrix(aprimeindexes); % in-place: ReturnMatrix_iize now holds what was entireRHS_ii
+                            temp5=logical(isfinite(ReturnMatrix_iize).*(ReturnMatrix_iize~=0));
+                            ReturnMatrix_iize(temp5)=ReturnMatrix_iize(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
                             ReturnMatrix_iize(ReturnMatrix_iize==0)=-Inf;
-                            entireRHS_ii=ReturnMatrix_iize+WGmatrix(aprimeindexes);
-                            [Vtempii,maxindex]=max(entireRHS_ii,[],1);
+                            [Vtempii,maxindex]=max(ReturnMatrix_iize,[],1);
                             V_ford2_jj(curraindex,z_c,e_c,d2_c)=shiftdim(Vtempii,1);
                             Policy_ford2_jj(curraindex,z_c,e_c,d2_c)=shiftdim(maxindex+(loweredge-1)); % no d1
                         else
@@ -322,10 +379,15 @@ if ~isfield(vfoptions,'V_Jplus1')
                             % Just use aprime(ii) for everything
                             ReturnMatrix_iize=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn, special_n_d2, special_n_bothz, special_n_e, d2_val, reshape(a_grid(loweredge),loweredgesize), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_val, e_val, ReturnFnParamsVec,5);
                             becareful=logical(isfinite(ReturnMatrix_iize).*(ReturnMatrix_iize~=0)); % finite but not zero
-                            ReturnMatrix_iize(becareful)=(ezc1*ReturnMatrix_iize(becareful).^ezc2(N_j)).^ezc7(N_j);
+                            waszero=(ReturnMatrix_iize==0);
+                            ReturnMatrix_iize(becareful)=ReturnMatrix_iize(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_iize now holds what was temp2 (avoids a full-size copy)
+                            ReturnMatrix_iize(waszero)=-Inf;
+                            % Compose the warm-glow INSIDE the ^ezc7 root (the V_Jplus1-branch composition with the EV term absent)
+                            ReturnMatrix_iize=ezc1*ReturnMatrix_iize+ezc3*DiscountFactorParamsVec*WGmatrix(loweredge); % in-place: ReturnMatrix_iize now holds what was entireRHS_ii
+                            temp5=logical(isfinite(ReturnMatrix_iize).*(ReturnMatrix_iize~=0));
+                            ReturnMatrix_iize(temp5)=ReturnMatrix_iize(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
                             ReturnMatrix_iize(ReturnMatrix_iize==0)=-Inf;
-                            entireRHS_ii=ReturnMatrix_iize+WGmatrix(loweredge);
-                            V_ford2_jj(curraindex,z_c,e_c,d2_c)=shiftdim(entireRHS_ii,1);
+                            V_ford2_jj(curraindex,z_c,e_c,d2_c)=shiftdim(ReturnMatrix_iize,1);
                             Policy_ford2_jj(curraindex,z_c,e_c,d2_c)=repelem(shiftdim(loweredge,1),level1iidiff(ii),1);
                         end
                     end

@@ -47,7 +47,9 @@ if warmglow==1
     WGmatrix(WGmatrixraw==0)=0; % otherwise zero to negative power is set to infinity
     if ~isfield(vfoptions,'V_Jplus1')
         becareful=(WGmatrix==0);
-        WGmatrix(isfinite(WGmatrix))=ezc3*DiscountFactorParamsVec*(((1-sj(N_j))*WGmatrix(isfinite(WGmatrix)).^ezc8(N_j)).^ezc6(N_j));
+        % The warm-glow enters INSIDE the ^ezc7 root at the terminal age: build the
+        % temp4-analogue of the main loop (with no EV term)
+        WGmatrix(isfinite(WGmatrix))=((1-sj(N_j))*WGmatrix(isfinite(WGmatrix)).^ezc8(N_j)).^ezc6(N_j);
         WGmatrix(becareful)=0;
     end
     % WGmatrix is a column over the full aprime grid; it is indexed by aprime below
@@ -62,12 +64,16 @@ if ~isfield(vfoptions,'V_Jplus1')
 
         % Modify the Return Function appropriately for Epstein-Zin Preferences
         becareful=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0)); % finite but not zero
-        ReturnMatrix_ii(becareful)=(ezc1*ReturnMatrix_ii(becareful).^ezc2(N_j)).^ezc7(N_j);
+        waszero=(ReturnMatrix_ii==0);
+        ReturnMatrix_ii(becareful)=ReturnMatrix_ii(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_ii now holds what was temp2 (avoids a full-size copy)
+        ReturnMatrix_ii(waszero)=-Inf;
+        ReturnMatrix_ii=ezc1*ReturnMatrix_ii+ezc3*DiscountFactorParamsVec*WGmatrix; % warm-glow (zero if not using) % in-place: ReturnMatrix_ii now holds what was entireRHS_ii
+        temp5=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0));
+        ReturnMatrix_ii(temp5)=ReturnMatrix_ii(temp5).^ezc7(N_j);
         ReturnMatrix_ii(ReturnMatrix_ii==0)=-Inf;
-        entireRHS_ii=ReturnMatrix_ii+WGmatrix; % warm-glow (zero if not using)
 
         %Calc the max and it's index
-        [Vtempii,maxindex1]=max(entireRHS_ii,[],1);
+        [Vtempii,maxindex1]=max(ReturnMatrix_ii,[],1);
 
         V(level1ii,:,N_j)=shiftdim(Vtempii,1);
         Policy(level1ii,:,N_j)=shiftdim(maxindex1,1);
@@ -83,10 +89,14 @@ if ~isfield(vfoptions,'V_Jplus1')
                 % aprime possibilities are maxgap(ii)+1-by-1-by-n_e
                 ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1_nod(ReturnFn, n_e, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,2);
                 becareful=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0)); % finite but not zero
-                ReturnMatrix_ii(becareful)=(ezc1*ReturnMatrix_ii(becareful).^ezc2(N_j)).^ezc7(N_j);
+                waszero=(ReturnMatrix_ii==0);
+                ReturnMatrix_ii(becareful)=ReturnMatrix_ii(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_ii now holds what was temp2 (avoids a full-size copy)
+                ReturnMatrix_ii(waszero)=-Inf;
+                ReturnMatrix_ii=ezc1*ReturnMatrix_ii+ezc3*DiscountFactorParamsVec*reshape(WGmatrix(aprimeindexes),[maxgap(ii)+1,1,N_e]); % in-place: ReturnMatrix_ii now holds what was entireRHS_ii
+                temp5=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0));
+                ReturnMatrix_ii(temp5)=ReturnMatrix_ii(temp5).^ezc7(N_j);
                 ReturnMatrix_ii(ReturnMatrix_ii==0)=-Inf;
-                entireRHS_ii=ReturnMatrix_ii+reshape(WGmatrix(aprimeindexes),[maxgap(ii)+1,1,N_e]);
-                [Vtempii,maxindex]=max(entireRHS_ii,[],1);
+                [Vtempii,maxindex]=max(ReturnMatrix_ii,[],1);
                 V(curraindex,:,N_j)=shiftdim(Vtempii,1);
                 Policy(curraindex,:,N_j)=shiftdim(maxindex+loweredge-1,1);
             else
@@ -94,10 +104,14 @@ if ~isfield(vfoptions,'V_Jplus1')
                 % Just use aprime(ii) for everything
                 ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1_nod(ReturnFn, n_e, reshape(a_grid(loweredge),loweredgesize), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,2);
                 becareful=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0)); % finite but not zero
-                ReturnMatrix_ii(becareful)=(ezc1*ReturnMatrix_ii(becareful).^ezc2(N_j)).^ezc7(N_j);
+                waszero=(ReturnMatrix_ii==0);
+                ReturnMatrix_ii(becareful)=ReturnMatrix_ii(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_ii now holds what was temp2 (avoids a full-size copy)
+                ReturnMatrix_ii(waszero)=-Inf;
+                ReturnMatrix_ii=ezc1*ReturnMatrix_ii+ezc3*DiscountFactorParamsVec*reshape(WGmatrix(loweredge),[1,1,N_e]); % in-place: ReturnMatrix_ii now holds what was entireRHS_ii
+                temp5=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0));
+                ReturnMatrix_ii(temp5)=ReturnMatrix_ii(temp5).^ezc7(N_j);
                 ReturnMatrix_ii(ReturnMatrix_ii==0)=-Inf;
-                entireRHS_ii=ReturnMatrix_ii+reshape(WGmatrix(loweredge),[1,1,N_e]);
-                V(curraindex,:,N_j)=shiftdim(entireRHS_ii,1);
+                V(curraindex,:,N_j)=shiftdim(ReturnMatrix_ii,1);
                 Policy(curraindex,:,N_j)=repelem(shiftdim(loweredge,1),level1iidiff(ii),1);
             end
         end
@@ -109,12 +123,16 @@ if ~isfield(vfoptions,'V_Jplus1')
 
             % Modify the Return Function appropriately for Epstein-Zin Preferences
             becareful=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0)); % finite but not zero
-            ReturnMatrix_ii(becareful)=(ezc1*ReturnMatrix_ii(becareful).^ezc2(N_j)).^ezc7(N_j);
+            waszero=(ReturnMatrix_ii==0);
+            ReturnMatrix_ii(becareful)=ReturnMatrix_ii(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_ii now holds what was temp2 (avoids a full-size copy)
+            ReturnMatrix_ii(waszero)=-Inf;
+            ReturnMatrix_ii=ezc1*ReturnMatrix_ii+ezc3*DiscountFactorParamsVec*WGmatrix; % warm-glow (zero if not using) % in-place: ReturnMatrix_ii now holds what was entireRHS_ii
+            temp5=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0));
+            ReturnMatrix_ii(temp5)=ReturnMatrix_ii(temp5).^ezc7(N_j);
             ReturnMatrix_ii(ReturnMatrix_ii==0)=-Inf;
-            entireRHS_ii=ReturnMatrix_ii+WGmatrix; % warm-glow (zero if not using)
 
             %Calc the max and it's index
-            [Vtempii,maxindex1]=max(entireRHS_ii,[],1);
+            [Vtempii,maxindex1]=max(ReturnMatrix_ii,[],1);
 
             V(level1ii,e_c,N_j)=shiftdim(Vtempii,1);
             Policy(level1ii,e_c,N_j)=shiftdim(maxindex1,1);
@@ -130,10 +148,14 @@ if ~isfield(vfoptions,'V_Jplus1')
                     % aprime possibilities are maxgap(ii)+1-by-1
                     ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1_nod(ReturnFn, special_n_e, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), e_val, ReturnFnParamsVec,2);
                     becareful=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0)); % finite but not zero
-                    ReturnMatrix_ii(becareful)=(ezc1*ReturnMatrix_ii(becareful).^ezc2(N_j)).^ezc7(N_j);
+                    waszero=(ReturnMatrix_ii==0);
+                    ReturnMatrix_ii(becareful)=ReturnMatrix_ii(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_ii now holds what was temp2 (avoids a full-size copy)
+                    ReturnMatrix_ii(waszero)=-Inf;
+                    ReturnMatrix_ii=ezc1*ReturnMatrix_ii+ezc3*DiscountFactorParamsVec*WGmatrix(aprimeindexes); % in-place: ReturnMatrix_ii now holds what was entireRHS_ii
+                    temp5=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0));
+                    ReturnMatrix_ii(temp5)=ReturnMatrix_ii(temp5).^ezc7(N_j);
                     ReturnMatrix_ii(ReturnMatrix_ii==0)=-Inf;
-                    entireRHS_ii=ReturnMatrix_ii+WGmatrix(aprimeindexes);
-                    [Vtempii,maxindex]=max(entireRHS_ii,[],1);
+                    [Vtempii,maxindex]=max(ReturnMatrix_ii,[],1);
                     V(curraindex,e_c,N_j)=shiftdim(Vtempii,1);
                     Policy(curraindex,e_c,N_j)=shiftdim(maxindex+loweredge-1,1);
                 else
@@ -142,10 +164,14 @@ if ~isfield(vfoptions,'V_Jplus1')
                     % No need for reshape(a_grid(loweredge),loweredgesize) as is just a single point
                     ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1_nod(ReturnFn, special_n_e, a_grid(loweredge), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), e_val, ReturnFnParamsVec,2);
                     becareful=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0)); % finite but not zero
-                    ReturnMatrix_ii(becareful)=(ezc1*ReturnMatrix_ii(becareful).^ezc2(N_j)).^ezc7(N_j);
+                    waszero=(ReturnMatrix_ii==0);
+                    ReturnMatrix_ii(becareful)=ReturnMatrix_ii(becareful).^ezc2(N_j); % in-place transform: ReturnMatrix_ii now holds what was temp2 (avoids a full-size copy)
+                    ReturnMatrix_ii(waszero)=-Inf;
+                    ReturnMatrix_ii=ezc1*ReturnMatrix_ii+ezc3*DiscountFactorParamsVec*WGmatrix(loweredge); % in-place: ReturnMatrix_ii now holds what was entireRHS_ii
+                    temp5=logical(isfinite(ReturnMatrix_ii).*(ReturnMatrix_ii~=0));
+                    ReturnMatrix_ii(temp5)=ReturnMatrix_ii(temp5).^ezc7(N_j);
                     ReturnMatrix_ii(ReturnMatrix_ii==0)=-Inf;
-                    entireRHS_ii=ReturnMatrix_ii+WGmatrix(loweredge);
-                    V(curraindex,e_c,N_j)=shiftdim(entireRHS_ii,1);
+                    V(curraindex,e_c,N_j)=shiftdim(ReturnMatrix_ii,1);
                     Policy(curraindex,e_c,N_j)=loweredge;
                 end
             end
