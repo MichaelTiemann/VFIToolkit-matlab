@@ -204,16 +204,22 @@ for reverse_j=0:N_j-1
 
     if jj==N_j
         % Modify the Return Function appropriately for Epstein-Zin Preferences
-        Vjj=F_jj;
         becareful=logical(isfinite(F_jj).*(F_jj~=0)); % finite but not zero
-        Vjj(becareful)=(ezc1*F_jj(becareful).^ezc2(N_j)).^ezc7(N_j);
-        Vjj(F_jj==0)=-Inf;
+        temp2=F_jj;
+        temp2(becareful)=F_jj(becareful).^ezc2(N_j);
+        temp2(F_jj==0)=-Inf;
         if warmglow==1
+            % Compose the warm-glow INSIDE the ^ezc7 root (the interior-age composition with the EV term absent)
             becareful2=(WGofPolicy==0);
-            WGofPolicy(isfinite(WGofPolicy))=ezc3*DiscountFactorParamsVec*(((1-sj(N_j))*WGofPolicy(isfinite(WGofPolicy)).^ezc8(N_j)).^ezc6(N_j));
+            WGofPolicy(isfinite(WGofPolicy))=((1-sj(N_j))*WGofPolicy(isfinite(WGofPolicy)).^ezc8(N_j)).^ezc6(N_j);
             WGofPolicy(becareful2)=0;
-            Vjj=Vjj+WGofPolicy;
+            Vjj=ezc1*temp2+ezc3*DiscountFactorParamsVec*WGofPolicy;
+        else
+            Vjj=ezc1*temp2;
         end
+        temp5=logical(isfinite(Vjj).*(Vjj~=0));
+        Vjj(temp5)=Vjj(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
+        Vjj(Vjj==0)=-Inf;
         if N_e==0
             V(:,:,jj)=Vjj;
         else
