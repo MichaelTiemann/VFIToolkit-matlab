@@ -1,4 +1,4 @@
-function [e_grid,pi_e,otheroutputs] = discretizeIID_TanakaToda(mew,sigma,enum,tanakatodaoptions)
+function [e_grid,pi_e,otheroutputs] = discretizeIIDNormal_TanakaToda(mew,sigma,enum,tanakatodaoptions)
 % Please cite: Tanaka & Toda (2013) - "Discrete approximations of continuous distributions by maximum entropy"
 %
 % Create states vector, e_grid, and probability vector, pi_e, for the discrete approximation
@@ -21,6 +21,10 @@ function [e_grid,pi_e,otheroutputs] = discretizeIID_TanakaToda(mew,sigma,enum,ta
 %              This can be fewer than tanakatodaoptions.nMoments, as the solve falls back a moment
 %              at a time when it fails. There is no loop here, so this is a scalar rather than a grid.
 %                    pi_e(i) is the probability of state i (sums to 1)
+%
+% Note: this is the normal-distribution-only command. It was created as a copy of
+% discretizeIID_TanakaToda(), which is to be generalized to handle a wide range of
+% distributions; this command will only ever handle the normal distribution.
 %
 % This code is modified from that of Toda & Farmer (v: https://github.com/alexisakira/discretization
 % Please cite them if you use this.

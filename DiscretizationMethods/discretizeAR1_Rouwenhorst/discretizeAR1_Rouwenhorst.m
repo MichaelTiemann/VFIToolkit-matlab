@@ -39,8 +39,9 @@ else
     end
 end
 
+zstar=mew/(1-rho); % expected value of z (note: mew is the intercept of the AR(1), not the mean of z)
 zbar=sqrt((znum-1))*(sigma/sqrt((1-rho^2)));
-z_grid=mew+linspace(-zbar,zbar,znum)';
+z_grid=zstar+linspace(-zbar,zbar,znum)';
 p=(1+rho)/2; q=p;
 
 pi_z=rouwenhorst_subfn(znum,p,q);

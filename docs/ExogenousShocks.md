@@ -48,7 +48,7 @@ The toolkit ships discretization routines that return a `(grid, pi)` pair ready 
 - **Age-dependent (life-cycle) AR(1):** `discretizeLifeCycleAR1_FellaGallipoliPan`, `discretizeLifeCycleAR1_FellaGallipoliPanTauchen`, `discretizeLifeCycleAR1_KFTT`, `discretizeLifeCycleAR1wGM_KFTT`.
 - **VAR(1):** `discretizeVAR1_FarmerToda`, `discretizeVAR1_Tauchen`, `discretizeLifeCycleVAR1_Tauchen`.
 
-VAR / life-cycle routines naturally produce the multivariate / age-dependent grids described above. The life-cycle routines return outputs already in the toolkit's [Timing](#timing) convention: `z_grid_J(:,j)` is the period-`j` grid and `pi_z_J(:,:,j)` the period-`j`-to-`j+1` transition. Their final slice `pi_z_J(:,:,N_j)` is meaningless padding — if you use `vfoptions.V_Jplus1`, overwrite it with the true final-period transition.
+VAR / life-cycle routines naturally produce the multivariate / age-dependent grids described above. The life-cycle routines return outputs already in the toolkit's [Timing](#timing) convention: `z_grid_J(:,j)` is the period-`j` grid and `pi_z_J(:,:,j)` the period-`j`-to-`j+1` transition. They return `N_j-1` transition matrices, since there is no period `N_j+1` to transition to — if you use `vfoptions.V_Jplus1`, append the true final-period transition as an `N_j`-th slice.
 
 ---
 

@@ -7,7 +7,12 @@ function [z_grid,pi_z]=discretizeAR1_Tauchen(mew,rho,sigma,znum,Tauchen_q, tauch
 %   rho            - autocorrelation coefficient
 %   sigma          - standard deviation of (gaussian) innovations
 %   znum           - number of states in discretization of z (must be an odd number)
-%   Tauchen_q      - (Hyperparameter) Defines max/min grid points as mew+-nSigmas*sigmaz (I suggest 2 or 3)
+%   Tauchen_q      - (Hyperparameter) Defines max/min grid points as mew+-Tauchen_q*sigmaz (I suggest 2 or 3)
+%                    Set Tauchen_q=[] to use the default of min(sqrt(znum-1),4). The sqrt(znum-1)
+%                    part is the width discretizeAR1_Rouwenhorst requires and discretizeAR1_FarmerToda
+%                    defaults to; the cap at 4 is because Tauchen, unlike those two, pays for extra
+%                    width in grid spacing and so in the variance. Raise it yourself if the
+%                    autocorrelation matters more to you than the variance.
 % Optional Inputs (tauchenoptions)
 %   parallel:      - set equal to 2 to use GPU, 0 to use CPU
 %   dshift:        - allows approximating 'trend-reverting' process around a deterministic trend (not part of standard Tauchen method)
@@ -37,8 +42,26 @@ else
 end
 
 % Check for a deterministic shifter
-if exist('tauchenoptions.dshift','var')==0
+if ~isfield(tauchenoptions,'dshift')
     tauchenoptions.dshift=0;
+end
+
+% Tauchen_q=[] means use the default width
+% sqrt(znum-1) is the half-width the Rouwenhorst construction requires and that
+% discretizeAR1_FarmerToda takes as its default. Tauchen has no such requirement - the width here
+% is a free hyperparameter - and measurement says an uncapped sqrt(znum-1) is too wide at large
+% znum. Past the truncation regime Tauchen's variance error is bin-width smearing, h^2/12 with h
+% the grid spacing, and a width growing like sqrt(znum-1) holds the spacing at 2/sqrt(znum-1) so
+% the variance stops improving. Sweeping width against znum at rho=0.6, the width that minimises
+% the worse of the variance and autocorrelation errors is 2.5, 3, 3, 4, 4, 4 for znum=5 to 101 -
+% it settles rather than keeps growing - and min(sqrt(znum-1),4) tracks that.
+%
+% The cap is a trade-off, not a free win. The two moments disagree: the variance wants a width
+% near 4, the autocorrelation improves monotonically with width and is ten orders of magnitude
+% better at width 10 than at 4 once znum>=31. If autocorrelation is what you need to get right,
+% pass Tauchen_q yourself and make it larger than this default.
+if isempty(Tauchen_q)
+    Tauchen_q=min(sqrt(znum-1),4);
 end
 
 %% Check for user-supplied grid

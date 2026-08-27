@@ -1,4 +1,4 @@
-function [z_grid,pi_z] = discretizeAR1wSV_FarmerToda(rho,phi,sigmau,sigmae,xnum,znum,farmertodaoptions)
+function [z_grid,pi_z,otheroutputs] = discretizeAR1wSV_FarmerToda(rho,phi,sigmau,sigmae,xnum,znum,farmertodaoptions)
 % Please cite: Farmer & Toda (2017) - "Discretizing Nonlinear, Non-Gaussian Markov Processes with Exact Conditional Moments
 %
 %  Discretize an AR(1) process with log AR(1) stochastic volatility using Farmer-Toda method
@@ -16,11 +16,15 @@ function [z_grid,pi_z] = discretizeAR1wSV_FarmerToda(rho,phi,sigmau,sigmae,xnum,
 %   xnum      - number of grid points for x process
 % Optional inputs (farmertodaoptions):
 %   method    - quadrature method for x process
-%   nSigmas   - grid spacing parameter for z (default = sqrt((Nz-1)/2)
+%   nSigmas   - grid half-width for z, in units of sd(z) (default = sqrt(znum-1) )
+%   verbose   - set to zero to suppress the report of how many grid points matched fewer moments
 % Output: 
 %   z_grid:   - stacked column vector, x on top, z below (so z_grid(1:xnum) is the grid on x, z_grid(xnum+1:end) is the grid on z)
 %   pi_z:     - joint transition matrix on (x,z)
 %     Note, the dimensions of the output are thus interpreted as [xnum,znum]
+%   otheroutputs   - optional output structure containing info for evaluating the distribution including,
+%        otheroutputs.nMoments_grid  - shows how many moments were matched from each grid point (for the conditional distribution)
+%              Note, this is indexed like the rows of pi_z, so use reshape(otheroutputs.nMoments_grid,[xnum,znum]) to read it as (x,z)
 %
 % Useful info: E[z_t]=mu (constant divided by 1-autocorrelation coeff; that is advantage of writing constant as (1-phi*mu).)
 %
@@ -38,15 +42,19 @@ function [z_grid,pi_z] = discretizeAR1wSV_FarmerToda(rho,phi,sigmau,sigmae,xnum,
 %% Set defaults
 if ~exist('farmertodaoptions','var')
     % If farmertodaoptions.method is not declared then just leave it to discretizeAR1_FarmerToda
-    farmertodaoptions.nSigmas = min(sqrt((znum-1)/2),2); % spacing parameter for z process
+    farmertodaoptions.nSigmas = sqrt(znum-1); % grid half-width for z; see the note above
     farmertodaoptions.parallel=1+(gpuDeviceCount>0);
+    farmertodaoptions.verbose=1;
 else
     % define grid spacing parameter if not provided (only used for 'even' method)
     if ~isfield(farmertodaoptions,'nSigmas')
-        farmertodaoptions.nSigmas = min(sqrt((znum-1)/2),2); % spacing parameter for z process
+        farmertodaoptions.nSigmas = sqrt(znum-1); % grid half-width for z; see the note above
     end
     if ~isfield(farmertodaoptions,'parallel')
         farmertodaoptions.parallel=1+(gpuDeviceCount>0);
+    end
+    if ~isfield(farmertodaoptions,'verbose')
+        farmertodaoptions.verbose=1;
     end
 end
 % farmertodaoptions.nMoments = 2; % This could be used to change nMoments for x (to 1,2,3 or 4; is set to default of 2 by discretizeAR1_FarmerToda)
@@ -56,6 +64,20 @@ if farmertodaoptions.nSigmas<1.2
 end
 
 
+% The grid half-width for z, in units of its unconditional standard deviation. This used to be
+% min(sqrt((znum-1)/2),2), the narrowest default in the toolkit, and at that width the excess
+% kurtosis of z came out NEGATIVE against a positive truth - the wrong sign for the one moment a
+% stochastic-volatility process exists to produce, because the tails that carry it lie outside a
+% two-sigma grid. Measured on a rho=0.95, phi=0.9 calibration at xnum=9, reading only the cells
+% where the maximum entropy solve does not fall back, the kurtosis error improves with width and
+% saturates by about seven sigma: 0.312 at width 4, 0.257 at 5, 0.247 at 7, 0.246 at 10, against
+% 1.39 at the old default. sqrt(znum-1) lands on that saturated value for znum>=31 and stays out
+% of the high-fallback region at small znum.
+%
+% Note the remaining 0.246 is NOT a width problem and no width fixes it: this method matches two
+% conditional moments, which makes the conditional law near-gaussian, where the truth is a scale
+% mixture with fatter tails. See DiscretizationMethods_todo.md.
+
 %% Compute some unconditional moments
 
 sigmaX = (sigmae^2)/(1-phi^2); % unconditional variance of variance process
@@ -63,15 +85,10 @@ xBar = 2*log(sigmau)-sigmaX/2; % unconditional mean of variance process, targete
 sigmaz = sqrt(exp(xBar+sigmaX/2)/(1-rho^2)); % unconditional standard deviation of technology shock
 
 %% Construct technology process approximation
-if farmertodaoptions.parallel==2
-    farmertodaoptions.parallel=1;
-    farmertodaoptions.nSigmas=2;
-    [x_grid,Px] = discretizeVAR1_FarmerToda(xBar*(1-phi),phi,sigmae^2,xnum,farmertodaoptions);
-    farmertodaoptions.parallel=2;
-else
-    farmertodaoptions.nSigmas=2;
-    [x_grid,Px] = discretizeVAR1_FarmerToda(xBar*(1-phi),phi,sigmae^2,xnum,farmertodaoptions);
-end
+farmertodaoptions_x=farmertodaoptions;
+farmertodaoptions_x.nSigmas=2; % the x (volatility) block is deliberately discretized as nSigmas=2
+[x_grid,Px] = discretizeVAR1_FarmerToda(xBar*(1-phi),phi,sigmae^2,xnum,farmertodaoptions_x);
+x_grid=gather(x_grid); Px=gather(Px); % the z block below is a cpu entropy solve (fminunc), so the x outputs have to come back from the gpu
 % [Px,x_grid] = discreteVAR(xBar*(1-phi),phi,sigmae^2,xnum,2,farmertodaoptions.method); % discretization of variance process
 
 
@@ -85,6 +102,7 @@ temp2 = kron(z_grid,ones(1,xnum));
 zx_grid = flipud([temp1; temp2])'; % avoid using combvec, which requires deep learning toolbox
 pi_z = zeros(Nm);
 lambdaGuess = zeros(2,1);
+nMoments_grid=zeros(Nm,1); % Used to record number of moments matched in transition from each point
 scalingFactor = max(abs(z_grid));
 kappa = 1e-8; % small positive constant for numerical stability
 
@@ -97,13 +115,21 @@ for ii = 1:Nm
     [p,~,momentError] = discreteApproximation(z_grid,@(X) [(X-rho*zx_grid(ii,1))./scalingFactor; ((X-rho*zx_grid(ii,1))./scalingFactor).^2],[0; (exp((1-phi)*xBar+phi*zx_grid(ii,2)+(sigmae^2)/2))./(scalingFactor^2)],q,lambdaGuess);
     % If trying to match two conditional moments fails, just match the conditional mean
     if norm(momentError) > 1e-5
-        warning('Failed to match first 2 moments. Just matching 1.')
         p = discreteApproximation(z_grid,@(X) (X-rho*zx_grid(ii,1))./scalingFactor,0,q,0);
+        nMoments_grid(ii)=1;
+    else
+        nMoments_grid(ii)=2;
     end
     pi_z(ii,:) = kron(p,ones(1,xnum));
     pi_z(ii,:) = pi_z(ii,:).*repmat(Px(mod(ii-1,xnum)+1,:),1,znum);
  
 end
+
+if farmertodaoptions.verbose==1 && sum(nMoments_grid==1)>0
+    warning('Failed to match first 2 moments from %i of the %i grid points (just matched 1 from those). See otheroutputs.nMoments_grid for which.',sum(nMoments_grid==1),Nm)
+end
+
+otheroutputs.nMoments_grid=nMoments_grid; % How many moments were hit by the conditional distribution from each grid point
 
 % Original Farmer-Toda code output zx_grid.
 % I instead output a stacked vector.

@@ -92,7 +92,9 @@ if size(pi_z_J,1)~=N_z
     error('pi_z_J does not have right number of points for z')
 elseif size(pi_z_J,2)~=N_z
     error('pi_z_J does not have right number of points for z')
-elseif size(pi_z_J,3)~=N_j
+elseif size(pi_z_J,3)~=N_j-1 && size(pi_z_J,3)~=N_j
+    % N_j-1 is the standard (there is no period N_j+1 to transition to, so there are only N_j-1 transition matrices)
+    % N_j is still accepted, for backwards compatibility with the old convention where the meaningless final slice was included
     error('pi_z_J does not have right number of points for j (compared to z_grid_J)')
 end
 if length(jequaloneDistz)~=N_z

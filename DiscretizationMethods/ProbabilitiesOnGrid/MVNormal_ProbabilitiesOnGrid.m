@@ -41,7 +41,7 @@ if size(Mew,2)==1 && size(Mew,1)>1
 end
 
 l_z=length(znum);
-if l_z>=5
+if l_z>5
     dbstack
     error('Have only coded for up to five dimensions, contact me if you need more')
 end
@@ -118,7 +118,7 @@ if bruteforce==0
     end
 
     if l_z==1
-        P = normcdf(z_gridvals+z_gridspacing_up,Mew,Sigma)-normcdf(z_gridvals-z_gridspacing_down,Mew,Sigma);
+        P = normcdf(z_gridvals+z_gridspacing_up,Mew,sqrt(Sigma))-normcdf(z_gridvals-z_gridspacing_down,Mew,sqrt(Sigma));
     else
         P=reshape(mvncdf(z_gridvals-z_gridspacing_down,z_gridvals+z_gridspacing_up,Mew,Sigma),znum);
         % mvncdf() can put NaN when

@@ -1,4 +1,4 @@
-function [z_grid,pi_z] = discretizeVAR1_FarmerToda(Mew,Rho,SigmaSq,znum,farmertodaoptions)
+function [z_grid,pi_z,otheroutputs] = discretizeVAR1_FarmerToda(Mew,Rho,SigmaSq,znum,farmertodaoptions)
 % Please cite: Farmer & Toda (2017) - "Discretizing Nonlinear, Non-Gaussian Markov Processes with Exact Conditional Moments
 % 
 % Purpose: 
@@ -21,10 +21,13 @@ function [z_grid,pi_z] = discretizeVAR1_FarmerToda(Mew,Rho,SigmaSq,znum,farmerto
 %               (must be same for every dimension; actual grids are jointly determined as znum^M points per variable)
 % Optional inputs (farmertodaoptions):
 %   parallel: - set equal to 2 to use GPU, 0 to use CPU
+%   verbose   - set to zero to suppress the report of how many grid points matched fewer moments
 %   nMoments  - Desired number of moments to match. The default is 2.
 %   method    - String specifying the method used to determine the grid points. 
-%               Accepted inputs are 'even,' 'quantile,' and 'quadrature.' The 
-%               default option is 'even.' Please see the paper for more details.
+%               Accepted inputs are 'even', 'quantile', and 'gauss-hermite'. The 
+%               default follows Farmer & Toda (2017): 'even' if any eigenvalue of 
+%               Rho exceeds 0.8, otherwise 'gauss-hermite'. ('quantile' is poor and 
+%               is not recommended.) Please see the paper for more details.
 %   nSigmas   - If method='even' option is specified, nSigmas is used to
 %               determine the number of unconditional standard deviations
 %               used to set the endpoints of the grid (mew+-nSigmas*standarddeviation)
@@ -33,11 +36,15 @@ function [z_grid,pi_z] = discretizeVAR1_FarmerToda(Mew,Rho,SigmaSq,znum,farmerto
 %   pi_z      - (znum^M x znum^M) probability transition matrix. Each row
 %               corresponds to a discrete conditional probability 
 %               distribution over the state M-tuples in X
-%   Z_grid    - (M x znum^M) matrix of states. Each column corresponds to an
-%               M-tuple of values which correspond to the state associated 
-%               with each row of P. (Puts znum^M points on each variable,
+%   z_grid    - (znum^M x M) joint grid of states. Each ROW corresponds to an
+%               M-tuple of values, which is the state associated with the 
+%               same-numbered row of pi_z. (Puts znum^M points on each variable,
 %               the grids for the variables are codetermined.)
-%               Note: Z_grid are jointly determined.
+%               Note: z_grid are jointly determined. This is the toolkit's 
+%               joint-grid convention, [prod(n_z), length(n_z)].
+%   otheroutputs   - optional output structure containing info for evaluating the distribution including,
+%        otheroutputs.nMoments_grid  - (znum^M x M) shows how many moments were matched from each grid point,
+%              for each of the M variables (the maximum entropy problem is solved one variable at a time)
 %
 % NOTES:
 % - discretizeVAR1_FarmerToda only accepts non-singular variance-covariance matrices.
@@ -73,6 +80,7 @@ if ~exist('farmertodaoptions','var')
         farmertodaoptions.method='gauss-hermite';
     end
     farmertodaoptions.parallel=1+(gpuDeviceCount>0);
+    farmertodaoptions.verbose=1;
 else
     if ~isfield(farmertodaoptions,'nMoments')
         farmertodaoptions.nMoments = 2; % Default number of moments to match is 2        
@@ -96,6 +104,9 @@ else
     end
     if ~isfield(farmertodaoptions,'parallel')
         farmertodaoptions.parallel=1+(gpuDeviceCount>0);
+    end
+    if ~isfield(farmertodaoptions,'verbose')
+        farmertodaoptions.verbose=1;
     end
 end
 
@@ -215,6 +226,7 @@ scalingFactor = y1D(:,end); % normalizing constant for maximum entropy computati
 temp = zeros(M,znum); % used to store some intermediate calculations
 lambdaBar = zeros(2*M,znum^M); % store optimized values of lambda (2 moments) to improve initial guesses
 kappa = 1e-8; % small positive constant for numerical stability
+nMoments_grid=zeros(znum^M,M); % Used to record number of moments matched in transition from each point, for each variable
 
 for ii = 1:(znum^M)
    
@@ -246,30 +258,33 @@ for ii = 1:(znum^M)
         if farmertodaoptions.nMoments == 1 % match only 1 moment
             temp(jj,:) = discreteApproximation(y1D(jj,:),...
                 @(X)(X-condMean(jj,ii))/scalingFactor(jj),0,q(jj,:),0);
+            nMoments_grid(ii,jj)=1;
         else % match 2 moments first
             [p,lambda,momentError] = discreteApproximation(y1D(jj,:),...
                 @(X) polynomialMoment(X,condMean(jj,ii),scalingFactor(jj),2),...
                 [0; 1]./(scalingFactor(jj).^(1:2)'),q(jj,:),lambdaGuess);
             if norm(momentError) > 1e-5 % if 2 moments fail, then just match 1 moment
-                warning('Failed to match first 2 moments. Just matching 1.')
                 temp(jj,:) = discreteApproximation(y1D(jj,:),...
                     @(X)(X-condMean(jj,ii))/scalingFactor(jj),0,q(jj,:),0);
                 lambdaBar((jj-1)*2+1:jj*2,ii) = zeros(2,1);
+                nMoments_grid(ii,jj)=1;
             elseif farmertodaoptions.nMoments == 2
                 lambdaBar((jj-1)*2+1:jj*2,ii) = lambda;
                 temp(jj,:) = p;
+                nMoments_grid(ii,jj)=2;
             else % solve maximum entropy problem sequentially from low order moments
                 lambdaBar((jj-1)*2+1:jj*2,ii) = lambda;
+                nMoments_grid(ii,jj)=2;
                 for mm = 4:2:farmertodaoptions.nMoments
                     lambdaGuess = [lambda;0;0]; % add zero to previous lambda
                     [pnew,lambda,momentError] = discreteApproximation(y1D(jj,:),...
                         @(X) polynomialMoment(X,condMean(jj,ii),scalingFactor(jj),mm),...
                         gaussianMoment(1:mm)./(scalingFactor(jj).^(1:mm)'),q(jj,:),lambdaGuess);
                     if norm(momentError) > 1e-5
-                        warning('Failed to match first %d moments.  Just matching %d.',mm,mm-2)
                         break;
                     else
                         p = pnew;
+                        nMoments_grid(ii,jj)=mm;
                     end
                 end
                 temp(jj,:) = p;
@@ -280,6 +295,19 @@ for ii = 1:(znum^M)
     pi_z(ii,:) = prod(allcomb2(temp),2)';
     
 end
+
+% The sequential solve steps mm=4:2:nMoments, so an odd request above 2 can only ever reach the
+% even number below it. Comparing against the request itself would warn on every single call.
+if farmertodaoptions.nMoments<=2
+    nMoments_possible=farmertodaoptions.nMoments;
+else
+    nMoments_possible=2*floor(farmertodaoptions.nMoments/2);
+end
+if farmertodaoptions.verbose==1 && sum(nMoments_grid(:)<nMoments_possible)>0
+    warning('Matched fewer than %i moments for %i of the %i (grid point, variable) pairs, as few as %i. See otheroutputs.nMoments_grid for which.',nMoments_possible,sum(nMoments_grid(:)<nMoments_possible),numel(nMoments_grid),min(nMoments_grid(:)))
+end
+
+otheroutputs.nMoments_grid=nMoments_grid; % How many moments were hit by the conditional distribution from each grid point, for each variable
 
 z_grid = C*D + repmat(mu,1,znum^M); % map grids back to original space
 z_grid=z_grid';
