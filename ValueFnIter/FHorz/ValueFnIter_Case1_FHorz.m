@@ -251,6 +251,10 @@ if vfoptions.verbose>=1
     vfoptions
 end
 
+%% Split n_d/n_a for whichever non-standard endogenous state is in use (experience assets, riskyasset, residualasset)
+% Does nothing when none of them is in use. The splits are unpacked from vfoptions at the point of use below.
+vfoptions=SetupNonStandardEndoStates_FHorz(n_d,n_a,d_grid,a_grid,vfoptions);
+
 %% Check the exotic-preference inputs, and reject preference/asset combinations that are not implemented
 % Every branch of the exotic-preferences dispatch below returns, and the residualasset, dynasty and
 % StateDependentVariables_z blocks sit after it. So without these checks an unsupported flag is
@@ -327,100 +331,18 @@ end
 % experienceassetze: aprime(d,a,z,e)
 
 if vfoptions.experienceasset>=1 || vfoptions.experienceassetu>=1 || vfoptions.experienceassetz>=1 || vfoptions.experienceassete>=1 || vfoptions.experienceassetze>=1 || vfoptions.experienceassetsemiz>=1
-    % It is simply assumed that the experience asset is the last asset, and that the decision that influences it is the last decision.
-    % When using both semiexo and experience asset, the last decision variable influences semi-exo and the second last decision variable influences the experience asset
-
-    if vfoptions.experienceasset>=1
-        if ~isfield(vfoptions,'l_dexperienceasset')
-            vfoptions.l_dexperienceasset=1; % by default, only one decision variable influences the experienceasset
-        end
-    elseif vfoptions.experienceassetu>=1
-        if ~isfield(vfoptions,'l_dexperienceassetu')
-            vfoptions.l_dexperienceassetu=1; % by default, only one decision variable influences the experienceassetu
-        end
-    elseif vfoptions.experienceassete>=1
-        if ~isfield(vfoptions,'l_dexperienceassete')
-            vfoptions.l_dexperienceassete=1; % by default, only one decision variable influences the experienceassete
-        end
-    elseif vfoptions.experienceassetz>=1
-        if ~isfield(vfoptions,'l_dexperienceassetz')
-            vfoptions.l_dexperienceassetz=1; % by default, only one decision variable influences the experienceassetz
-        end
-    elseif vfoptions.experienceassetze>=1
-        if ~isfield(vfoptions,'l_dexperienceassetze')
-            vfoptions.l_dexperienceassetze=1; % by default, only one decision variable influences the experienceassetze
-        end
-    elseif vfoptions.experienceassetsemiz>=1
-        if ~isfield(vfoptions,'l_dexperienceassetsemiz')
-            vfoptions.l_dexperienceassetsemiz=1; % by default, only one decision variable influences the experienceassetsemiz
-        end
-    end
-    
-    if vfoptions.experienceasset>=1
-        vfoptions.l_d2=vfoptions.l_dexperienceasset;
-        vfoptions.l_a2=vfoptions.experienceasset;
-    elseif vfoptions.experienceassetu>=1
-        vfoptions.l_d2=vfoptions.l_dexperienceassetu;
-        vfoptions.l_a2=vfoptions.experienceassetu;
-    elseif vfoptions.experienceassete>=1
-        vfoptions.l_d2=vfoptions.l_dexperienceassete;
-        vfoptions.l_a2=vfoptions.experienceassete;
-    elseif vfoptions.experienceassetz>=1
-        vfoptions.l_d2=vfoptions.l_dexperienceassetz;
-        vfoptions.l_a2=vfoptions.experienceassetz;
-    elseif vfoptions.experienceassetze>=1
-        vfoptions.l_d2=vfoptions.l_dexperienceassetze;
-        vfoptions.l_a2=vfoptions.experienceassetze;
-    elseif vfoptions.experienceassetsemiz>=1
-        vfoptions.l_d2=vfoptions.l_dexperienceassetsemiz;
-        vfoptions.l_a2=vfoptions.experienceassetsemiz;
-    end
-
+    % The split itself is done in SetupNonStandardEndoStates_FHorz (called above); unpack it here.
+    n_d1=vfoptions.n_d1;
+    n_d2=vfoptions.n_d2;
+    n_a1=vfoptions.n_a1;
+    n_a2=vfoptions.n_a2;
+    d1_grid=vfoptions.d1_grid;
+    d2_grid=vfoptions.d2_grid;
+    a1_grid=vfoptions.a1_grid;
+    a2_grid=vfoptions.a2_grid;
     if prod(vfoptions.n_semiz)>0
-        if ~isfield(vfoptions,'l_dsemiz')
-            vfoptions.l_dsemiz=1; % by default, only one decision variable influences the semi-exogenous state
-        end
-
-        % Split decision variables (other, semiexo, experienceasset)
-        if length(n_d)>(vfoptions.l_d2+vfoptions.l_dsemiz)
-            n_d1=n_d(1:end-vfoptions.l_d2-vfoptions.l_dsemiz);
-        else
-            n_d1=0;
-        end
-        n_d2=n_d(end-vfoptions.l_d2-vfoptions.l_dsemiz+1:end-vfoptions.l_dsemiz); % n_d2 is the decision variable that influences the experience asset
-        n_d3=n_d(end-vfoptions.l_dsemiz+1:end); % n_d3 is the decision variable that influences the transition probabilities of the semi-exogenous state
-        d1_grid=d_grid(1:sum(n_d1));
-        d2_grid=d_grid(sum(n_d1)+1:sum(n_d1)+sum(n_d2));
-        d3_grid=d_grid(sum(n_d1)+sum(n_d2)+1:end);
-        % Split endogenous assets into the standard ones and the experience asset
-        if length(n_a)<=vfoptions.l_a2
-            n_a1=0;
-        else
-            n_a1=n_a(1:end-vfoptions.l_a2);
-        end
-        n_a2=n_a(end-vfoptions.l_a2+1:end); % last l_a2 (=vfoptions.experienceasset) dims are the experience asset
-        a1_grid=a_grid(1:sum(n_a1));
-        a2_grid=a_grid(sum(n_a1)+1:end);
-
-    else % no semiz
-        % Split decision variables into the standard ones and the one relevant to the experience asset
-        if length(n_d)>vfoptions.l_d2
-            n_d1=n_d(1:end-vfoptions.l_d2);
-        else
-            n_d1=0;
-        end
-        n_d2=n_d(end-vfoptions.l_d2+1:end); % n_d2 is the decision variable that influences next period vale of the experience asset
-        d1_grid=d_grid(1:sum(n_d1));
-        d2_grid=d_grid(sum(n_d1)+1:end);
-        % Split endogenous assets into the standard ones and the experience asset
-        if length(n_a)<=vfoptions.l_a2
-            n_a1=0;
-        else
-            n_a1=n_a(1:end-vfoptions.l_a2);
-        end
-        n_a2=n_a(end-vfoptions.l_a2+1:end); % last l_a2 (=vfoptions.experienceasset) dims are the experience asset
-        a1_grid=a_grid(1:sum(n_a1));
-        a2_grid=a_grid(sum(n_a1)+1:end);
+        n_d3=vfoptions.n_d3;
+        d3_grid=vfoptions.d3_grid;
     end
 
     % Now just send all this to the right value fn iteration command
@@ -552,35 +474,12 @@ end
 
 %% Deal with risky asset if need to do that
 if vfoptions.riskyasset==1
-    % It is simply assumed that the risky asset is the last asset, and that all decisions influence it.
-
-    % Split endogenous assets into the standard ones and the risky asset
-    if isscalar(n_a)
-        n_a1=0;
-    else
-        n_a1=n_a(1:end-1);
-    end
-    n_a2=n_a(end); % n_a2 is the risky asset
-    a1_grid=a_grid(1:sum(n_a1));
-    a2_grid=a_grid(sum(n_a1)+1:end);
-
-    % Check that aprimeFn is inputted
-    if ~isfield(vfoptions,'aprimeFn')
-        error('You have vfoptions.riskyasset=1, but have not setup vfoptions.aprimeFn')
-    end
-    % Check that the u shocks are inputted
-    if ~isfield(vfoptions,'n_u')
-        error('You have vfoptions.riskyasset=1, but have not setup vfoptions.n_u')
-    end
-    if ~isfield(vfoptions,'u_grid')
-        error('You have vfoptions.riskyasset=1, but have not setup vfoptions.u_grid')
-    end
-    if ~isfield(vfoptions,'pi_u') % && ~isfield(vfoptions,'pi_u_J')
-        error('You have vfoptions.riskyasset=1, but have not setup vfoptions.pi_u')
-    end
-    if ~isfield(vfoptions,'refine_d')
-        warning('Using vfoptions.riskyasset=1 without setting vfoptions.refine_d is outdated behaviour, it is strongly recommended you set vfoptions.refine_d')
-    end
+    % The split and the riskyasset input checks are done in SetupNonStandardEndoStates_FHorz
+    % (called above); unpack the split here.
+    n_a1=vfoptions.n_a1;
+    n_a2=vfoptions.n_a2;
+    a1_grid=vfoptions.a1_grid;
+    a2_grid=vfoptions.a2_grid;
 
     % Now just send all this to the right value fn iteration command
     if prod(vfoptions.n_semiz)>0
@@ -603,15 +502,11 @@ end
 
 %% Deal with residual asset if need to do that
 if vfoptions.residualasset==1
-    % Split endogenous assets into the standard ones and the residual asset
-    if isscalar(n_a)
-        n_a1=0;
-    else
-        n_a1=n_a(1:end-1);
-    end
-    n_r=n_a(end); % n_a2 is the residual asset
-    a1_grid=a_grid(1:sum(n_a1));
-    r_grid=a_grid(sum(n_a1)+1:end);
+    % The split itself is done in SetupNonStandardEndoStates_FHorz (called above); unpack it here.
+    n_a1=vfoptions.n_a1;
+    n_r=vfoptions.n_r;
+    a1_grid=vfoptions.a1_grid;
+    r_grid=vfoptions.r_grid;
 
     % Now just send all this to the right value fn iteration command
     [V,Policy]=ValueFnIter_FHorz_ResidAsset(n_d,n_a1,n_r,n_z, N_j, d_grid, a1_grid, r_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
