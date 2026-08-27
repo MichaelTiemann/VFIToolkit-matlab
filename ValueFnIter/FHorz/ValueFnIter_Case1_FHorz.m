@@ -295,13 +295,18 @@ if ~strcmp(vfoptions.exoticpreferences,'None')
     end
 end
 
-%% Deal with Exotic preferences if need to do that.
+%% Top-level dispatch: on the preferences
+% Each exotic preference has a single dispatcher, which handles every asset type it supports and
+% returns. Everything after this block is therefore the exoticpreferences='None' path.
 if strcmp(vfoptions.exoticpreferences,'None')
-    % Just ignore and will then continue on.
+    % Nothing to dispatch on: fall through to the asset-type blocks below.
 elseif strcmp(vfoptions.exoticpreferences,'QuasiHyperbolic')
     % All of quasi-hyperbolic now goes through this one dispatcher, including the experience-asset
     % variants: it reads beta0 once and then dispatches on the asset type.
     [V,Policy, Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolic(n_d,n_a,n_z,N_j,d_grid,a_grid,z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+    % The dispatcher always returns four outputs (Policyalt is [] under Sophisticated). Trimming to
+    % three here is deliberate: under Sophisticated there is no Policyalt, so a caller asking for one
+    % should get an error rather than a silent empty. Hence this is not folded into the dispatcher.
     if strcmp(vfoptions.quasi_hyperbolic,'Naive')
         varargout={V, Policy,Valt,Policyalt}; % Vtilde, Policytilde, V, Policy (the last two are the exponential discounter)
     elseif strcmp(vfoptions.quasi_hyperbolic,'Sophisticated')
@@ -325,7 +330,7 @@ elseif strcmp(vfoptions.exoticpreferences,'AmbiguityAversion')
 end
 
 
-%% Deal with Experience Asset if need to do that
+%% Experience asset (exoticpreferences='None'; the exotic preferences handle their own asset types)
 % experienceasset: aprime(d,a)
 % experienceassetu: aprime(d,a,u)
 % experienceassetz: aprime(d,a,z)
@@ -391,7 +396,7 @@ if vfoptions.experienceasset>=1 || vfoptions.experienceassetu>=1 || vfoptions.ex
 end
 
 
-%% Deal with risky asset if need to do that
+%% Risky asset (exoticpreferences='None'; Epstein-Zin handles riskyasset in its own dispatcher)
 if vfoptions.riskyasset==1
     % The split itself is done in SetupNonStandardEndoStates_FHorz (called above); unpack it here.
     n_a1=vfoptions.n_a1;
@@ -410,7 +415,7 @@ if vfoptions.riskyasset==1
     return
 end
 
-%% Deal with residual asset if need to do that
+%% Residual asset (exoticpreferences='None'; no exotic preference supports residualasset)
 if vfoptions.residualasset==1
     % The split itself is done in SetupNonStandardEndoStates_FHorz (called above); unpack it here.
     n_a1=vfoptions.n_a1;
