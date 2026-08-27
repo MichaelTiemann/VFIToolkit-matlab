@@ -112,6 +112,7 @@ end
 
 %%
 PricePathDist=Inf;
+GEcondnPathDist=Inf;
 itercounter=1;
 
 PricePathNew=zeros(size(PricePathOld),'gpuArray'); PricePathNew(T,:)=PricePathOld(T,:);
@@ -119,7 +120,7 @@ PricePathNew=zeros(size(PricePathOld),'gpuArray'); PricePathNew(T,:)=PricePathOl
 
 
 %%
-while PricePathDist>transpathoptions.tolerance && itercounter<=transpathoptions.maxiter
+while (PricePathDist>transpathoptions.toleranceGEprices || GEcondnPathDist>transpathoptions.toleranceGEcondns) && itercounter<=transpathoptions.maxiter
 
     %% For each agent type, first go back through the value & policy fns, then forwards through agent dist and agg vars.
     % After that is finished we can put the AggVars together, evaluate GE conditions, and update price path
@@ -643,6 +644,15 @@ while PricePathDist>transpathoptions.tolerance && itercounter<=transpathoptions.
     % See how far apart the price paths are
     PricePathDist=max(abs(reshape(PricePathNew(1:T-1,:)-PricePathOld(1:T-1,:),[numel(PricePathOld(1:T-1,:)),1])));
     % Notice that the distance is always calculated ignoring the time t=T periods, as these needn't ever converges
+    % And how far the general eqm conditions are from zero. Scalarize across the general eqm eqns in each
+    % time period the same way the stationary general eqm does, then take the L-Infinity norm over time
+    % (the same norm as is used for the prices). GEcondnPath is the raw conditions, before the permute
+    % and before updateaccuracycutoff is applied.
+    if transpathoptions.multiGEcriterion==0
+        GEcondnPathDist=max(sum(abs(transpathoptions.multiGEweights.*GEcondnPath(1:T-1,:)),2));
+    elseif transpathoptions.multiGEcriterion==1
+        GEcondnPathDist=max(sqrt(sum(transpathoptions.multiGEweights.*(GEcondnPath(1:T-1,:).^2),2)));
+    end
 
     if transpathoptions.verbose==1
         fprintf(' \n')
@@ -659,10 +669,13 @@ while PricePathDist>transpathoptions.tolerance && itercounter<=transpathoptions.
     % Update PricePathOld
     PricePathOld=updatePricePath(PricePathOld,PricePathNew,transpathoptions,T);
 
-    TransPathConvergence=PricePathDist/transpathoptions.tolerance; %So when this gets to 1 we have convergence
+    TransPathConvergence=max(PricePathDist/transpathoptions.toleranceGEprices,GEcondnPathDist/transpathoptions.toleranceGEcondns); % So when this gets to 1 we have convergence, we require convergence in both
     if transpathoptions.verbose==1
         fprintf('Number of iterations on transition path: %i \n',itercounter)
-        fprintf('Current distance between old and new price path (in L-Infinity norm): %8.6f \n', PricePathDist)
+        if isfinite(transpathoptions.toleranceGEprices)
+            fprintf('Current distance between old and new price path (in L-Infinity norm): %8.6f \n', PricePathDist)
+        end
+        fprintf('Current distance of the general eqm conditions from zero: %8.6f \n', GEcondnPathDist)
         fprintf('Ratio of current distance to the convergence tolerance: %.2f (convergence when reaches 1) \n',TransPathConvergence)
     end
 

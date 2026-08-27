@@ -18,7 +18,10 @@ if exist('transpathoptions','var')==0
     disp('No transpathoptions given, using defaults')
     % If transpathoptions is not given, just use all the defaults
     transpathoptions.fastOLG=0; % fastOLG is done as (a,j,z), rather than standard (a,z,j)
-    transpathoptions.tolerance=10^(-4);
+    transpathoptions.toleranceGEprices=Inf; % convergence criterion for GE prices, set =Inf to turn this off (it is off by default)
+    transpathoptions.toleranceGEcondns=1e-4; % convergence criterion for GE condns
+    transpathoptions.multiGEcriterion=1; % How to combine multiple GE condns (default is sum-of-squares)
+    transpathoptions.multiGEweights=ones(1,length(fieldnames(GeneralEqmEqns)));
     transpathoptions.GEnewprice=1; % 1 is shooting algorithm, 0 is that the GE should evaluate to zero and the 'new' is the old plus the "non-zero" (for each time period seperately);
                                    % 2 is to do optimization routine with 'distance between old and new path', 3 is just same as 0, but easier to set up
     transpathoptions.maxiter=1000; % Based on personal experience anything that hasn't converged well before this is just hung-up on trying to get the 4th decimal place (typically because the number of grid points was not large enough to allow this level of accuracy).
@@ -39,8 +42,20 @@ else
     if ~isfield(transpathoptions,'fastOLG')
         transpathoptions.fastOLG=0; % fastOLG is done as (a,j,z), rather than standard (a,z,j)
     end
-    if ~isfield(transpathoptions,'tolerance')
-        transpathoptions.tolerance=10^(-4);
+    if isfield(transpathoptions,'tolerance')
+        error('Old transpathoptions.tolerance, has now been renamed and you should use transpathoptions.toleranceGEcondns instead')
+    end
+    if ~isfield(transpathoptions,'toleranceGEprices')
+        transpathoptions.toleranceGEprices=Inf; % convergence criterion for GE prices, set =Inf to turn this off (it is off by default)
+    end
+    if ~isfield(transpathoptions,'toleranceGEcondns')
+        transpathoptions.toleranceGEcondns=1e-4; % convergence criterion for GE condns
+    end
+    if ~isfield(transpathoptions,'multiGEcriterion')
+        transpathoptions.multiGEcriterion=1;
+    end
+    if ~isfield(transpathoptions,'multiGEweights')
+        transpathoptions.multiGEweights=ones(1,length(fieldnames(GeneralEqmEqns)));
     end
     if ~isfield(transpathoptions,'parallel')
         transpathoptions.parallel=1+(gpuDeviceCount>0); % GPU where available

@@ -18,7 +18,10 @@ end
 if exist('transpathoptions','var')==0
     disp('No transpathoptions given, using defaults')
     % If transpathoptions is not given, just use all the defaults
-    transpathoptions.tolerance=10^(-5);
+    transpathoptions.toleranceGEprices=Inf; % convergence criterion for GE prices, set =Inf to turn this off (it is off by default)
+    transpathoptions.toleranceGEcondns=1e-4; % convergence criterion for GE condns
+    transpathoptions.multiGEcriterion=1; % How to combine multiple GE condns (default is sum-of-squares)
+    transpathoptions.multiGEweights=ones(1,length(fieldnames(GeneralEqmEqns)));
     transpathoptions.updateaccuracycutoff=10^(-9); % If the suggested update is less than this then don't bother; 10^(-9) is decent odds to be numerical error anyway (currently only works for transpathoptions.GEnewprice=3)
     transpathoptions.parallel=1+(gpuDeviceCount>0);
     transpathoptions.GEnewprice=1; % 1 is shooting algorithm, 0 is that the GE should evaluate to zero and the 'new' is the old plus the "non-zero" (for each time period seperately);
@@ -37,8 +40,20 @@ if exist('transpathoptions','var')==0
     transpathoptions.tanimprovement=1;
 else
     % Check transpathoptions for missing fields, if there are some fill them with the defaults
-    if ~isfield(transpathoptions,'tolerance')
-        transpathoptions.tolerance=10^(-5);
+    if isfield(transpathoptions,'tolerance')
+        error('Old transpathoptions.tolerance, has now been renamed and you should use transpathoptions.toleranceGEcondns instead')
+    end
+    if ~isfield(transpathoptions,'toleranceGEprices')
+        transpathoptions.toleranceGEprices=Inf; % convergence criterion for GE prices, set =Inf to turn this off (it is off by default)
+    end
+    if ~isfield(transpathoptions,'toleranceGEcondns')
+        transpathoptions.toleranceGEcondns=1e-4; % convergence criterion for GE condns
+    end
+    if ~isfield(transpathoptions,'multiGEcriterion')
+        transpathoptions.multiGEcriterion=1;
+    end
+    if ~isfield(transpathoptions,'multiGEweights')
+        transpathoptions.multiGEweights=ones(1,length(fieldnames(GeneralEqmEqns)));
     end
     if ~isfield(transpathoptions,'updateaccuracycutoff')
         transpathoptions.updateaccuracycutoff=10^(-9);

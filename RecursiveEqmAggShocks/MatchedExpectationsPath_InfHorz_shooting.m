@@ -407,7 +407,7 @@ while TransPathConvergence>1 && itercounter<=recursiveeqmoptions.maxiter
     PricePathOld=updatePricePath(PricePathOld,PricePathNew,recursiveeqmoptions,T);
 
     TransPathConvergence_prices=max(CurrentPathDist_price)/recursiveeqmoptions.tolerance; % So when this gets to 1 we have convergence, in prices
-    TransPathConvergence_GEcondns=max(GEcondnPath(:).^2)/recursiveeqmoptions.tolerance; % So when this gets to 1 we have convergence, in GE condns
+    TransPathConvergence_GEcondns=max(CurrentPathDist_GEcondn)/recursiveeqmoptions.tolerance; % So when this gets to 1 we have convergence, in GE condns
     TransPathConvergence=max(TransPathConvergence_prices,TransPathConvergence_GEcondns); % we require convergence in both
 
     if recursiveeqmoptions.verbose>=1
@@ -419,7 +419,7 @@ while TransPathConvergence>1 && itercounter<=recursiveeqmoptions.maxiter
         fprintf(GEcondnverbosestr, CurrentPathDist_GEcondn')
         fprintf('Ratio of current distance to the convergence tolerance, in prices: %.2f (convergence when reaches 1) \n',TransPathConvergence_prices)
         fprintf('Ratio of current distance to the convergence tolerance, in GE Condns: %.2f (convergence when reaches 1) \n',TransPathConvergence_GEcondns)
-        fprintf('Ratio of current distance to the convergence tolerance: %.2f (convergence when reaches 1; is the minimum of both prices and GEcondns) \n',TransPathConvergence)
+        fprintf('Ratio of current distance to the convergence tolerance: %.2f (convergence when reaches 1; is the maximum of both prices and GEcondns) \n',TransPathConvergence)
         fprintf(' \n')
         if recursiveeqmoptions.verbose>=2
             % How many matches change period?

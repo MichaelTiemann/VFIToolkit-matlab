@@ -360,7 +360,7 @@ while TransPathConvergence>1 && itercounter<=recursiveeqmoptions.maxiter
     PricePathOld=updatePricePath(PricePathOld,PricePathNew,recursiveeqmoptions,T);
 
     TransPathConvergence_prices=max(CurrentPathDist_price)/recursiveeqmoptions.tolerance; % So when this gets to 1 we have convergence, in prices
-    TransPathConvergence_GEcondns=max(GEcondnPath(:).^2)/recursiveeqmoptions.tolerance; % So when this gets to 1 we have convergence, in GE condns
+    TransPathConvergence_GEcondns=max(CurrentPathDist_GEcondn)/recursiveeqmoptions.tolerance; % So when this gets to 1 we have convergence, in GE condns
     TransPathConvergence=max(TransPathConvergence_prices,TransPathConvergence_GEcondns); % we require convergence in both
 
     
