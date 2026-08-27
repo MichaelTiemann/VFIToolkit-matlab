@@ -8,6 +8,15 @@ N_d=prod(n_d);
 N_z=prod(n_z);
 N_e=prod(vfoptions.n_e);
 
+%% Dispatch on the non-standard endogenous state, if there is one (level 3).
+% The a1/a2 split was computed once by SetupNonStandardEndoStates_FHorz and is unpacked here.
+% The riskyasset command sets up the Epstein-Zin constants itself, so this hands off before
+% any of the setup below.
+if vfoptions.riskyasset==1
+    [V, Policy]=ValueFnIter_FHorz_EpsteinZin_RiskyAsset(n_d,vfoptions.n_a1,vfoptions.n_a2,n_z,vfoptions.n_u,N_j,d_grid,vfoptions.a1_grid, vfoptions.a2_grid, z_gridvals_J, vfoptions.u_grid, pi_z_J, vfoptions.pi_u, ReturnFn, vfoptions.aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+    return
+end
+
 %% Some Epstein-Zin specific options need to be set if they are not already declared
 if ~isfield(vfoptions,'EZriskaversion')
     error('When using Epstein-Zin preferences you must declare vfoptions.EZriskaversion (coefficient controlling risk aversion)')
