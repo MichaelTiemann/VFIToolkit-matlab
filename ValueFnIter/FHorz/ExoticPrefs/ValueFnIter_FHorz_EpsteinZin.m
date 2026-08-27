@@ -8,15 +8,6 @@ N_d=prod(n_d);
 N_z=prod(n_z);
 N_e=prod(vfoptions.n_e);
 
-%% Dispatch on the non-standard endogenous state, if there is one (level 3).
-% The a1/a2 split was computed once by SetupNonStandardEndoStates_FHorz and is unpacked here.
-% The riskyasset command sets up the Epstein-Zin constants itself, so this hands off before
-% any of the setup below.
-if vfoptions.riskyasset==1
-    [V, Policy]=ValueFnIter_FHorz_EpsteinZin_RiskyAsset(n_d,vfoptions.n_a1,vfoptions.n_a2,n_z,vfoptions.n_u,N_j,d_grid,vfoptions.a1_grid, vfoptions.a2_grid, z_gridvals_J, vfoptions.u_grid, pi_z_J, vfoptions.pi_u, ReturnFn, vfoptions.aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
-    return
-end
-
 %% Some Epstein-Zin specific options need to be set if they are not already declared
 if ~isfield(vfoptions,'EZriskaversion')
     error('When using Epstein-Zin preferences you must declare vfoptions.EZriskaversion (coefficient controlling risk aversion)')
@@ -128,6 +119,22 @@ else
     % This wont do anything
     ezc8=1;
 end
+% When doing the refine (only used by riskyasset), if ezc7 is negative, need to take min(X)
+% instead of max(X) as part of Refine. I do this by taking ezc9*max(ezc9*X) and having
+% ezc9=1 normally but ezc9=-1 when ezc7 is negative.
+ezc9=1;
+if ezc7(1)<0
+    ezc9=-1; % Not allowed to vary by age
+end
+if vfoptions.riskyasset==1 && ~isscalar(ezc7)
+    % Only refine (riskyasset) needs a constant sign of ezc7 across ages; the standard solvers
+    % apply ^ezc7(jj) before every max and so handle mixed signs age-by-age.
+    temp1=any(ezc7<0);
+    temp2=any(ezc7>0);
+    if temp1 && temp2
+        error('Epstein-Zin preferences: you have set the elasticity-of-intertemporal-substution parameter (vfoptions.EZeis) to depend on age. When using vfoptions.riskyasset you must have it either <1 or >1 for all ages (cannot be <1 at some ages and >1 at other ages, which is what you currently have).')
+    end
+end
 
 % setup to permit age-dependence of these (and make them column vectors if they are not already)
 % Note: the only ones that need to permit this are ezc2, ezc5, ezc6, ezc7, ezc8
@@ -174,6 +181,13 @@ if vfoptions.EZutils==0
 end
 
 
+
+%% Risky asset routes to its own subfn (level 3); the Epstein-Zin constants computed above are passed down
+% (a riskyasset model with semiz is split inside the riskyasset command, so this comes first)
+if vfoptions.riskyasset==1
+    [V, Policy]=ValueFnIter_FHorz_EpsteinZin_RiskyAsset(n_d,vfoptions.n_a1,vfoptions.n_a2,n_z,vfoptions.n_u,N_j,d_grid,vfoptions.a1_grid, vfoptions.a2_grid, z_gridvals_J, vfoptions.u_grid, pi_z_J, vfoptions.pi_u, ReturnFn, vfoptions.aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, sj, warmglow, ezc1,ezc2,ezc3,ezc4,ezc5,ezc6,ezc7,ezc8,ezc9);
+    return
+end
 
 %% Semi-exogenous shocks route to their own subfn (mirrors ValueFnIter_FHorz_QuasiHyperbolic)
 if isfield(vfoptions,'n_semiz')
