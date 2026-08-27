@@ -74,9 +74,15 @@ end
 % 1.39 at the old default. sqrt(znum-1) lands on that saturated value for znum>=31 and stays out
 % of the high-fallback region at small znum.
 %
-% Note the remaining 0.246 is NOT a width problem and no width fixes it: this method matches two
-% conditional moments, which makes the conditional law near-gaussian, where the truth is a scale
-% mixture with fatter tails. See DiscretizationMethods_todo.md.
+% Note the remaining 0.246 is NOT a width problem and no width fixes it. nMoments is hard-coded as
+% 2 for the z block, and matching exactly two conditional moments makes the conditional law
+% near-gaussian, where the truth is a scale mixture of normals with fatter tails. Implementing
+% nMoments=4 here would close the rest of the gap, but NOT with the gaussian fourth-moment target:
+% under stochastic volatility the conditional law is a scale mixture, so the target is
+%    m4 = 3*E[exp(2x')|x] = 3*exp(2*((1-phi)*xBar+phi*x)+2*sigmae^2)
+% and not 3*m2^2, which is short by a factor of exp(sigmae^2). That factor IS the conditional
+% excess kurtosis, so the naive target would look like an improvement while suppressing the very
+% feature the process is chosen for. Measured in P4 of the DiscretizationMethodTests test bank.
 
 %% Compute some unconditional moments
 

@@ -47,8 +47,11 @@ function [z_grid_J,pi_z_J,jequaloneDistz,otheroutputs]=discretizeLifeCycleAR1wGM
 % ON GRID CENTRING. The grid at age j is centred on E(z_j), which includes the mean of the mixture:
 % the recursion is mewz(j) = mew(j) + E(e_j) + rho(j)*mewz(j-1). This matches discretizeAR1wGM_Tauchen.
 % discretizeLifeCycleAR1wGM_KFTT instead centres on a recursion with no E(e) term, which coincides
-% only when the mixture is mean zero. The two conventions disagree for a non-mean-zero mixture and
-% that is an open question, not an accident; see DiscretizationMethods_todo.md.
+% only when the mixture is mean zero. The two conventions disagree for a non-mean-zero mixture, and
+% that is an open question rather than an accident: the KFTT command carries a
+% setmixturemutoenforcezeromean option, which suggests the design intent was that mixtures be mean
+% zero. P7 of the DiscretizationMethodTests test bank measures the gap directly, on a calibration
+% chosen to be non-mean-zero precisely so that it can.
 %
 % ON THE METHOD. Conditional on z at age j, the value at age j+1 is a gaussian mixture with the same
 % weights and standard deviations as F(j+1) but with every component mean shifted by the conditional

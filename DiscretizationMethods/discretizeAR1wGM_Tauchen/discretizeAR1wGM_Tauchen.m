@@ -29,8 +29,13 @@ function [z_grid,pi_z]=discretizeAR1wGM_Tauchen(mew,rho,mixprobs_i,mu_i,sigma_i,
 %
 % Note: the grid is centred on E(z), which is the mean of z including the mean of the gaussian
 %   mixture. Both discretizeAR1wGM_FarmerToda and discretizeLifeCycleAR1wGM_KFTT instead centre on
-%   mew/(1-rho), which is E(z) only when the gaussian mixture is mean zero; see
-%   DiscretizationMethods_todo.md
+%   mew/(1-rho), which is E(z) only when the gaussian mixture is mean zero. The offset between the
+%   two conventions is E(e)/(1-rho), which persistence makes large, so they are not interchangeable
+%   for a mixture with a non-zero mean. Which one is intended is an open question rather than an
+%   oversight - discretizeLifeCycleAR1wGM_KFTT carries a setmixturemutoenforcezeromean option,
+%   which suggests the design intent was that mixtures be mean zero, in which case the two agree.
+%   P7 of the DiscretizationMethodTests test bank measures the gap on a deliberately non-mean-zero
+%   calibration; P3 measures it on a mean-zero one, where it is identically zero and invisible.
 %%%%%%%%%%%%%%%
 % Original paper (for the Tauchen method itself, which is for gaussian innovations):
 % Tauchen (1986) - "Finite state Markov-chain approximations to univariate and vector autoregressions"
