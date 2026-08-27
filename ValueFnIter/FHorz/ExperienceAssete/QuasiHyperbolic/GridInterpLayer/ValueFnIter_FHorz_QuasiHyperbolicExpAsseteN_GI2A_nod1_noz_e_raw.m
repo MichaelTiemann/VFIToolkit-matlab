@@ -37,7 +37,7 @@ else
 end
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision));
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0
@@ -105,14 +105,14 @@ if ~isfield(vfoptions,'V_Jplus1')
     PolicyL2flagalt(1,:,:,N_j)=PolicyL2flag(1,:,:,N_j);
 
 else
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision));
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
+    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j,vfoptions.precision));
     beta0beta=beta0*beta;
 
     EVpre=sum(pi_e_J(:,N_j+1)'.*reshape(vfoptions.V_Jplus1,[N_a,N_e]),2);
 
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision));
     [a3primeIndex,a3primeProbs]=CreateExperienceAsseteFnMatrix(aprimeFn, n_d2, n_a3, n_e, d2_gridvals, a3_grid, e_gridvals_J(:,:,N_j), aprimeFnParamsVec,2);
     % a3primeIndex/a3primeProbs are [N_d2,N_a3,N_e] (N_e here is the current e)
 

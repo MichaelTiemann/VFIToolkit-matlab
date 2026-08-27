@@ -74,7 +74,7 @@ Policy_ford3_hat=zeros(N_a,N_semiz*N_z,N_e,N_d3,'gpuArray');
 V_ford3_under=zeros(N_a,N_semiz*N_z,N_e,N_d3,'gpuArray');
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision));
 
 if ~isfield(vfoptions,'V_Jplus1')
     % Terminal: pure return, single DC pass. No continuation => Vunderbar=Vhat.
@@ -307,14 +307,14 @@ if ~isfield(vfoptions,'V_Jplus1')
     Vunderbar(:,:,:,N_j)=Vhat(:,:,:,N_j);
 
 else
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision));
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
+    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j,vfoptions.precision));
     beta0beta=beta0*beta;
 
     EVpre=squeeze(sum(reshape(vfoptions.V_Jplus1,[N_a,N_bothz,N_e]).*shiftdim(pi_e_J(:,N_j+1),-2),3)); % [N_a,N_bothz]
 
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision));
     [a3primeIndex,a3primeProbs]=CreateExperienceAssetzeFnMatrix(aprimeFn, n_d2, n_a3, n_z, n_e, d2_gridvals, a3_grid, z_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), aprimeFnParamsVec,2);
     % a3primeIndex/a3primeProbs are [N_d2,N_a3,N_z,N_e] (lower-corner index and prob of lower; aprimeFn sees current z and e, not semiz)
 

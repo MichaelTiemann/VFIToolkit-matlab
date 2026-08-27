@@ -38,7 +38,7 @@ end
 %% j=N_j
 
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j,vfoptions.precision));
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0
@@ -150,9 +150,9 @@ if ~isfield(vfoptions,'V_Jplus1')
     Policyalt(:,:,N_j)=Policy(:,:,N_j); % terminal period: QH and exponential discounter coincide
 
 else
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision));
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
+    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j,vfoptions.precision));
     beta0beta=beta0*beta;
 
     EV=sum(reshape(vfoptions.V_Jplus1,[N_a,N_e]).*pi_e_J(1,:,N_j+1),2); % Using V_Jplus1

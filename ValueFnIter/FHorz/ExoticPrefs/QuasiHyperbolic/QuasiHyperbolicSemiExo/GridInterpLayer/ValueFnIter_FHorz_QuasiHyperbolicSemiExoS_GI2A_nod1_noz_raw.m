@@ -53,7 +53,7 @@ L2a2_ford2=zeros(N_a,N_semiz,N_d2,'gpuArray');
 flag_ford2=2*ones(N_a,N_semiz,N_d2,'gpuArray');
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j,vfoptions.precision));
 
 if ~isfield(vfoptions,'V_Jplus1')
     % No continuation. d2 still appears in ReturnFn — loop over d2_c.
@@ -141,9 +141,9 @@ if ~isfield(vfoptions,'V_Jplus1')
     Vunderbar(:,:,N_j)=Vhat(:,:,N_j); % terminal period: no continuation
 else
     % Using V_Jplus1 (should be Vunderbar for sophisticated)
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames, N_j);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames, N_j,vfoptions.precision));
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
+    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j,vfoptions.precision));
     beta0beta=beta0*beta;
     V_next=reshape(vfoptions.V_Jplus1,[N_a,N_semiz]);
 

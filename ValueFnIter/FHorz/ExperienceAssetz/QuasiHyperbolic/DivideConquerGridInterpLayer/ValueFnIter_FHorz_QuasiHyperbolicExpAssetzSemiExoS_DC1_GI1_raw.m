@@ -74,7 +74,7 @@ bothz_offset=N_a*reshape(0:N_bothz-1,[1,1,N_bothz]);
 %% j=N_j
 
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision));
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0
@@ -272,7 +272,7 @@ if ~isfield(vfoptions,'V_Jplus1')
     % Terminal period: no continuation, so Vunderbar equals Vhat
     Vunderbar(:,:,N_j)=Vhat(:,:,N_j);
 else
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision));
     [a2primeIndex,a2primeProbs]=CreateExperienceAssetzFnMatrix(aprimeFn, n_d2, n_a2, n_z, d2_gridvals, a2_grid, z_gridvals_J(:,:,N_j), aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
     % Note: aprimeIndex is [N_d2,N_a2,N_z], whereas aprimeProbs is [N_d2,N_a2,N_z]
 
@@ -285,9 +285,9 @@ else
 
     V_Jplus1=reshape(vfoptions.V_Jplus1,[N_a,N_bothz]); % switch V_Jplus1 into Kron form
 
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision));
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
+    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j,vfoptions.precision));
     beta0beta=beta0*beta;
 
     if vfoptions.lowmemory==0

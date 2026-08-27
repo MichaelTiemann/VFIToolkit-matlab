@@ -16,7 +16,7 @@ N_d=prod([n_d1,n_d2]); % Needed for N_j when converting to form of Policy3
 N_a=prod(n_a);
 N_semiz=prod(n_semiz);
 
-V=zeros(N_a,N_semiz,N_j,'gpuArray');
+V=zeros(N_a,N_semiz,N_j,vfoptions.precision,'gpuArray');
 % For semiz it turns out to be easier to go straight to constructing policy that stores d,d2,aprime seperately
 Policy3=zeros(3,N_a,N_semiz,N_j,'gpuArray');
 
@@ -38,8 +38,8 @@ Policy_ford2_jj=zeros(N_a,N_semiz,N_d2,'gpuArray');
 %% j=N_j
 
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
-DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision));
+DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision));
 DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 if vfoptions.EZoneminusbeta==1
     ezc1=1-DiscountFactorParamsVec; % Just in case it depends on age
@@ -49,7 +49,7 @@ end
 
 % If there is a warm-glow at end of the final period, evaluate the warmglowfn
 if warmglow==1
-    WGParamsVec=CreateVectorFromParams(Parameters, vfoptions.WarmGlowBequestsFnParamsNames,N_j);
+    WGParamsVec=CreateVectorFromParams(Parameters, vfoptions.WarmGlowBequestsFnParamsNames,N_j,vfoptions.precision));
     WGmatrixraw=CreateWarmGlowFnMatrix_Case1_Disc_Par2(vfoptions.WarmGlowBequestsFn, n_a, a_grid, WGParamsVec);
     WGmatrix=WGmatrixraw;
     WGmatrix(isfinite(WGmatrixraw))=(ezc4*WGmatrixraw(isfinite(WGmatrixraw))).^ezc5(N_j);

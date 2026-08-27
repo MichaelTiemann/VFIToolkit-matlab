@@ -105,7 +105,7 @@ if ~isfield(vfoptions,'V_Jplus1')
     PolicyL2flagalt(1,:,:,N_j)=PolicyL2flag(1,:,:,N_j);
 
 else
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames, N_j);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames, N_j,vfoptions.precision));
     beta=prod(DiscountFactorParamsVec);
     beta0=CreateVectorFromParams(Parameters,{vfoptions.QHadditionaldiscount},N_j,vfoptions.precision);
     beta0beta=beta0*beta;

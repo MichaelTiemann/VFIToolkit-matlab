@@ -28,7 +28,7 @@ N_e=prod(n_e);
 % Per-dim factored a3 grid for the ReturnFn builder (l_a3==1: 1 column, l_a3==2: 2 columns)
 a3_gridvals=CreateGridvals(n_a3,a3_grid,1);
 
-V=zeros(N_a,N_semiz,N_e,N_j,'gpuArray');
+V=zeros(N_a,N_semiz,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(5,N_a,N_semiz,N_e,N_j,'gpuArray'); % (d2, d3, midpoint, a2prime, L2ind)
 PolicyL2flag=2*ones(1,N_a,N_semiz,N_e,N_j,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
 Valt=zeros(N_a,N_semiz,N_e,N_j,'gpuArray');
@@ -71,7 +71,7 @@ semizBind=shiftdim(gpuArray(0:1:N_semiz-1),-1); % already includes -1
 eBind=shiftdim(gpuArray(0:1:N_e-1),-2); % already includes -1
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision));
 
 if ~isfield(vfoptions,'V_Jplus1')
     % Terminal period has no continuation, so QH-perceived and exponential coincide: single pass
@@ -230,14 +230,14 @@ if ~isfield(vfoptions,'V_Jplus1')
     Policyalt(:,:,:,:,N_j)=Policy(:,:,:,:,N_j);
     PolicyL2flagalt(1,:,:,:,N_j)=PolicyL2flag(1,:,:,:,N_j);
 else
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision));
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
+    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j,vfoptions.precision));
     beta0beta=beta0*beta;
 
     EVpre=sum(reshape(vfoptions.V_Jplus1,[N_a,N_semiz,N_e]).*shiftdim(pi_e_J(:,N_j+1),-2),3);
 
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision));
     [a3primeIndex,a3primeProbs]=CreateExperienceAsseteFnMatrix(aprimeFn, n_d2, n_a3, n_e, d2_gridvals, a3_grid, e_gridvals_J(:,:,N_j), aprimeFnParamsVec,2);
     % a3primeIndex and a3primeProbs are [N_d2,N_a3,N_e]   (N_e here is the current e; scalar exp-asset only)
 

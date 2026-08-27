@@ -13,7 +13,7 @@ N_a=prod(n_a);
 N_z=prod(n_z);
 N_e=prod(n_e);
 
-V=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+V=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(N_a,N_z,N_e,N_j,'gpuArray'); %first dim indexes the optimal choice for d and aprime rest of dimensions a,z
 
 %%
@@ -38,8 +38,8 @@ level1ii=round(linspace(1,n_a,vfoptions.level1n));
 %% j=N_j
 
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
-DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision));
+DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision));
 DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 if vfoptions.EZoneminusbeta==1
     ezc1=1-DiscountFactorParamsVec; % Just in case it depends on age
@@ -51,7 +51,7 @@ pi_e_J=shiftdim(pi_e_J,-2); % Move to third dimension
 
 % If there is a warm-glow at end of the final period, evaluate the warmglowfn
 if warmglow==1
-    WGParamsVec=CreateVectorFromParams(Parameters, vfoptions.WarmGlowBequestsFnParamsNames,N_j);
+    WGParamsVec=CreateVectorFromParams(Parameters, vfoptions.WarmGlowBequestsFnParamsNames,N_j,vfoptions.precision));
     WGmatrixraw=CreateWarmGlowFnMatrix_Case1_Disc_Par2(vfoptions.WarmGlowBequestsFn, n_a, a_grid, WGParamsVec);
     WGmatrix=WGmatrixraw;
     WGmatrix(isfinite(WGmatrixraw))=(ezc4*WGmatrixraw(isfinite(WGmatrixraw))).^ezc5(N_j);

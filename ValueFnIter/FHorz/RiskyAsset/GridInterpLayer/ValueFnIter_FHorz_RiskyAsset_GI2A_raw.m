@@ -32,7 +32,7 @@ n_d23=[n_d2,n_d3];
 N_d23=N_d2*N_d3;
 d23_grid=[d2_grid; d3_grid];
 
-V=zeros(N_a,N_z,N_j,'gpuArray');
+V=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(6,N_a,N_z,N_j,'gpuArray'); % (1)=d1, (2)=d2, (3)=d3, (4)=a1prime midpoint, (5)=a2prime, (6)=L2ind
 PolicyL2flag=2*ones(1,N_a,N_z,N_j,'gpuArray');
 % d2 stored directly into Policy(2,...) via lookup after GI search
@@ -57,7 +57,7 @@ aind=gpuArray(0:1:N_a-1);
 zindB=shiftdim(gpuArray(0:1:N_z-1),-1);
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision));
 
 if ~isfield(vfoptions,'V_Jplus1')
     % No EV; d2 is meaningless. Just do the GI search on Return alone.
@@ -139,13 +139,13 @@ if ~isfield(vfoptions,'V_Jplus1')
     end
 else % V_Jplus1
 
-    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
-    DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j));
+    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision));
+    DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision)));
 
     EVpre=reshape(vfoptions.V_Jplus1,[N_a,N_z]);
 
     % Build a3primeIndex and a3primeProbs for RiskyAsset
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision));
     [a3primeIndex,a3primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a3, n_u, d23_grid, a3_grid, u_grid, aprimeFnParamsVec,2);
     aprimeIndex     =repelem((1:1:N_a12)',N_d23,N_u)+N_a12*repmat(a3primeIndex-1,N_a12,1);
     aprimeplus1Index=repelem((1:1:N_a12)',N_d23,N_u)+N_a12*repmat(a3primeIndex,N_a12,1);

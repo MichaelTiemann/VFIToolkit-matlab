@@ -25,7 +25,7 @@ n_d23=[n_d2,n_d3];
 N_d23=N_d2*N_d3;
 d23_grid=[d2_grid; d3_grid];
 
-V=zeros(N_a,N_z,N_j,'gpuArray');
+V=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(3,N_a,N_z,N_j,'gpuArray'); % (1)=d2, (2)=d3, (3)=a1prime
 % We will refine away d2 out of EV before combining with ReturnFn
 
@@ -50,8 +50,8 @@ a2Bind=gpuArray(0:1:N_a2-1);
 d3ind=(1:1:N_d3)';
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
-DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j));
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision));
+DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision)));
 if vfoptions.EZoneminusbeta==1
     ezc1=1-DiscountFactorParamsVec; % Just in case it depends on age
 elseif vfoptions.EZoneminusbeta==2
@@ -60,7 +60,7 @@ end
 
 % If there is a warm-glow at end of the final period, evaluate the warmglowfn
 if warmglow==1
-    WGParamsVec=CreateVectorFromParams(Parameters, vfoptions.WarmGlowBequestsFnParamsNames,N_j);
+    WGParamsVec=CreateVectorFromParams(Parameters, vfoptions.WarmGlowBequestsFnParamsNames,N_j,vfoptions.precision));
     WGmatrixraw=CreateWarmGlowFnMatrix_Case1_Disc_Par2(vfoptions.WarmGlowBequestsFn, n_a2, a2_grid, WGParamsVec); % This depends on a2prime
     WGmatrix=WGmatrixraw;
     WGmatrix(isfinite(WGmatrixraw))=(ezc4*WGmatrixraw(isfinite(WGmatrixraw))).^ezc5(N_j);
@@ -68,7 +68,7 @@ if warmglow==1
     WGmatrix=repelem(WGmatrix,N_a1,1); % expand from a2prime to (a1prime,a2prime) [warm-glow does not depend on a1prime]
 
     % Switch WGmatrix from being in terms of aprime to being in terms of d (in expectation because of the u shocks)
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision));
     [a2primeIndex,a2primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a2, n_u, d23_grid, a2_grid, u_grid, aprimeFnParamsVec,2);
     aprimeIndex=repelem((1:1:N_a1)',N_d23,N_u)+N_a1*repmat(a2primeIndex-1,N_a1,1); % [N_d23*N_a1,N_u]
     aprimeplus1Index=repelem((1:1:N_a1)',N_d23,N_u)+N_a1*repmat(a2primeIndex,N_a1,1); % [N_d23*N_a1,N_u]
@@ -252,7 +252,7 @@ else % V_Jplus1
 
     if warmglow==0 % if warmglow==1 these were already created above
         % Build a2primeIndex and a2primeProbs for RisykAsset
-        aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+        aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision));
         [a2primeIndex,a2primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a2, n_u, d23_grid, a2_grid, u_grid, aprimeFnParamsVec,2);
         aprimeIndex=repelem((1:1:N_a1)',N_d23,N_u)+N_a1*repmat(a2primeIndex-1,N_a1,1);
         aprimeplus1Index=repelem((1:1:N_a1)',N_d23,N_u)+N_a1*repmat(a2primeIndex,N_a1,1);

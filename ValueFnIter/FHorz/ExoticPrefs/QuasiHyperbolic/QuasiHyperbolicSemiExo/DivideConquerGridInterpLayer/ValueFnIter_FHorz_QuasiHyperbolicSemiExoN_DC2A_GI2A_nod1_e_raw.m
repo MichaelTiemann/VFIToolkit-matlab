@@ -74,7 +74,7 @@ L2flag_ford2=2*ones(N_a,N_bothz,N_e,N_d2,'gpuArray');
 L2flag_ford2alt=2*ones(N_a,N_bothz,N_e,N_d2,'gpuArray');
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j,vfoptions.precision));
 
 if ~isfield(vfoptions,'V_Jplus1')
 
@@ -299,9 +299,9 @@ if ~isfield(vfoptions,'V_Jplus1')
     Policyalt(:,:,:,:,N_j)=Policy(:,:,:,:,N_j);
     PolicyL2flagalt(1,:,:,:,N_j)=PolicyL2flag(1,:,:,:,N_j);
 else
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames, N_j);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames, N_j,vfoptions.precision));
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
+    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j,vfoptions.precision));
     beta0beta=beta0*beta;
     V_next=sum(reshape(vfoptions.V_Jplus1,[N_a,N_bothz,N_e]).*pi_e_J(1,1,:,N_j+1),3);
 

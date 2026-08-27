@@ -53,7 +53,7 @@ Policy_ford2_jj=zeros(N_a,N_semiz,N_d2,'gpuArray');
 %% j=N_j
 
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j,vfoptions.precision));
 
 if ~isfield(vfoptions,'V_Jplus1')
 
@@ -168,9 +168,9 @@ if ~isfield(vfoptions,'V_Jplus1')
 
 else
     % Using V_Jplus1
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision));
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
+    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j,vfoptions.precision));
     beta0beta=beta0*beta;
 
     EV=reshape(vfoptions.V_Jplus1,[N_a,N_semiz]);    % First, switch V_Jplus1 into Kron form

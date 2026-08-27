@@ -8,7 +8,7 @@ N_a3=prod(n_a3);
 N_u=prod(n_u);
 N_a=N_a1*N_a2*N_a3;
 
-V=zeros(N_a,N_j,'gpuArray');
+V=zeros(N_a,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(4,N_a,N_j,'gpuArray'); % 1=d2, 2=a1prime midpoint, 3=a2prime, 4=a1prime L2 fine
 PolicyL2flag=2*ones(1,N_a,N_j,'gpuArray');
 
@@ -23,7 +23,7 @@ aind=gpuArray(0:1:N_a-1);
 pi_u=shiftdim(pi_u,-2); % put u into third dimension
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision));
 
 if ~isfield(vfoptions,'V_Jplus1')
     ReturnMatrix=CreateReturnFnMatrix_ExpAsset_Disc_DC2A_noz(ReturnFn, 0, n_d2, n_a2, n_a3, d2_gridvals, a1_grid, a2_gridvals, a1_grid, a2_gridvals, a3_grid, ReturnFnParamsVec, 1);
@@ -55,12 +55,12 @@ if ~isfield(vfoptions,'V_Jplus1')
     PolicyL2flag(1,:,N_j)=2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper);
 
 else
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision));
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
     EVpre=reshape(vfoptions.V_Jplus1,[N_a,1]);
 
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision));
     [a3primeIndex,a3primeProbs]=CreateExperienceAssetuFnMatrix(aprimeFn, n_d2, n_a3, n_u, d2_gridvals, a3_grid, u_gridvals, aprimeFnParamsVec,2);
 
     a1_col=repmat(repelem((1:N_a1)',N_d2,1),N_a2,1);

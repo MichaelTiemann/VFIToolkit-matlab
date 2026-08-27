@@ -51,7 +51,7 @@ Policy_ford3_tilde=zeros(N_a,N_semiz,N_e,N_d3,'gpuArray');
 
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision));
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0
@@ -93,7 +93,7 @@ if ~isfield(vfoptions,'V_Jplus1')
     Policy(:,:,:,:,N_j)=Policyalt(:,:,:,:,N_j);
 else
     % aprime depends on (d2, a2, current_e); independent of d3, semiz, z -- compute once
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision));
     [a2primeIndex,a2primeProbs]=CreateExperienceAsseteFnMatrix(aprimeFn, n_d2, n_a2, n_e, d2_gridvals, a2_grid, e_gridvals_J(:,:,N_j), aprimeFnParamsVec,1);
     % Note: a2primeIndex is [N_d2*N_a2*N_e,1], whereas a2primeProbs is [N_d2,N_a2,N_e]   (N_e here is the current e)
     aprimeplus1Index=a2primeIndex+1;
@@ -101,9 +101,9 @@ else
     % Integrate over e' first (e is i.i.d. start-of-period); EVpre is [N_a, N_semiz]
     EVpre=sum(reshape(vfoptions.V_Jplus1,[N_a,N_semiz,N_e]).*shiftdim(pi_e_J(:,N_j+1),-2),3);
 
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision));
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
+    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j,vfoptions.precision));
     beta0beta=beta0*beta;
 
     if vfoptions.lowmemory==0

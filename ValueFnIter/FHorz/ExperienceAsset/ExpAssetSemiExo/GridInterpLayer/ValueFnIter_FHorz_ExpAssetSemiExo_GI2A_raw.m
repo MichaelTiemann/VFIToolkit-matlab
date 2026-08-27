@@ -21,7 +21,7 @@ N_semiz=prod(n_semiz);
 N_z=prod(n_z);
 N_bothz=prod(n_bothz);
 
-V=zeros(N_a,N_semiz*N_z,N_j,'gpuArray');
+V=zeros(N_a,N_semiz*N_z,N_j,vfoptions.precision,'gpuArray');
 % For semiz it turns out to be easier to go straight to constructing policy that stores d1,d2,d3,joint(a1prime,a2prime),a1primeL2ind seperately
 Policy4=zeros(5,N_a,N_semiz*N_z,N_j,'gpuArray'); % 1=d1, 2=d2, 3=d3, 4=joint(a1prime,a2prime), 5=a1primeL2ind
 PolicyL2flag=2*ones(1,N_a,N_semiz*N_z,N_j,'gpuArray'); % 1=all weight to lower coarse a1, 2=usual linear weights, 3=all weight to upper coarse a1
@@ -171,7 +171,7 @@ if ~isfield(vfoptions,'V_Jplus1')
     PolicyL2flag(1,:,:,N_j)=reshape(flag_ford3_jj((1:N_a*N_bothz)'+(N_a*N_bothz)*(maxindex-1)),[1,N_a,N_bothz]);
 
 else
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision));
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
     EVpre=reshape(vfoptions.V_Jplus1,[N_a,N_bothz]); % [N_a,N_bothz]

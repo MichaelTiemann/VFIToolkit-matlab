@@ -33,7 +33,7 @@ d23_grid=[d2_grid; d3_grid];
 special_n_d4=ones(1,length(n_d4));
 d4_gridvals=CreateGridvals(n_d4,d4_grid,1);
 
-V=zeros(N_a,N_semiz,N_j,'gpuArray');
+V=zeros(N_a,N_semiz,N_j,vfoptions.precision,'gpuArray');
 % Policy: rows (d1,d2,d3,d4,a1prime_low,L2ind,L2flag)
 Policy=zeros(7,N_a,N_semiz,N_j,'gpuArray');
 
@@ -70,8 +70,8 @@ d2index_ford4_jj=ones(N_a,N_semiz,N_d4,'gpuArray');
 
 %% j=N_j
 
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
-DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision));
+DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision));
 DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 if vfoptions.EZoneminusbeta==1
     ezc1=1-DiscountFactorParamsVec; % Just in case it depends on age
@@ -82,14 +82,14 @@ end
 % If there is a warm-glow at end of the final period, evaluate the warmglowfn
 % (warm-glow depends only on a2prime; the u-lottery turns it into a function of d23)
 if warmglow==1
-    WGParamsVec=CreateVectorFromParams(Parameters, vfoptions.WarmGlowBequestsFnParamsNames,N_j);
+    WGParamsVec=CreateVectorFromParams(Parameters, vfoptions.WarmGlowBequestsFnParamsNames,N_j,vfoptions.precision));
     WGmatrixraw=CreateWarmGlowFnMatrix_Case1_Disc_Par2(vfoptions.WarmGlowBequestsFn, n_a2, a2_grid, WGParamsVec); % This depends on a2prime
     WGmatrix=WGmatrixraw;
     WGmatrix(isfinite(WGmatrixraw))=(ezc4*WGmatrixraw(isfinite(WGmatrixraw))).^ezc5(N_j);
     WGmatrix(WGmatrixraw==0)=0; % otherwise zero to negative power is set to infinity
 
     % Switch WGmatrix from being in terms of a2prime to being in terms of d23 (in expectation because of the u shocks)
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision));
     [a2primeIndex,a2primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a2, n_u, d23_grid, a2_grid, u_grid, aprimeFnParamsVec,2);
     % Seems like interpolation has trouble due to numerical precision rounding errors when the two points being interpolated are equal
     % So I will add a check for when this happens, and then overwrite those (by setting the interpolation probs to zero)
@@ -233,7 +233,7 @@ if ~isfield(vfoptions,'V_Jplus1')
     Policy(7,:,:,N_j)=reshape(flagwinner,[1,N_a,N_semiz]);
 else
     if warmglow==0 % if warmglow==1 these were already created above
-        aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+        aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision));
         [a2primeIndex,a2primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a2, n_u, d23_grid, a2_grid, u_grid, aprimeFnParamsVec,2);
     end
 

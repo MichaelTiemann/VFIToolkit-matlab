@@ -29,7 +29,7 @@ n_d23=[n_d2,n_d3];
 N_d23=N_d2*N_d3;
 d23_grid=[d2_grid; d3_grid];
 
-V=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+V=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(5,N_a,N_z,N_e,N_j,'gpuArray'); % (1)=d2, (2)=d3, (3)=a1prime midpoint, (4)=a2prime, (5)=a1prime L2
 PolicyL2flag=2*ones(1,N_a,N_z,N_e,N_j,'gpuArray');
 % We will refine away d2 out of EV before combining with ReturnFn
@@ -68,7 +68,7 @@ d3col=(1:1:N_d3)';                      % [N_d3,1]
 a2pcol=reshape(0:1:N_a2-1,[1,1,N_a2]);  % [1,1,N_a2prime]
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision));
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0
@@ -233,10 +233,10 @@ if ~isfield(vfoptions,'V_Jplus1')
 
 else % V_Jplus1
 
-    DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j));
+    DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision)));
 
     % Build a3primeIndex and a3primeProbs for RiskyAsset
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision));
     [a3primeIndex,a3primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a3, n_u, d23_grid, a3_grid, u_grid, aprimeFnParamsVec,2);
     aprimeIndex     =repelem((1:1:N_a12)',N_d23,N_u)+N_a12*repmat(a3primeIndex-1,N_a12,1);
     aprimeplus1Index=repelem((1:1:N_a12)',N_d23,N_u)+N_a12*repmat(a3primeIndex,N_a12,1);

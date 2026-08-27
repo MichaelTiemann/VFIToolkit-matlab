@@ -57,7 +57,7 @@ L2a2_ford2=zeros(N_a,N_semiz,N_d2,'gpuArray');
 L2flag_ford2=2*ones(N_a,N_semiz,N_d2,'gpuArray');
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j,vfoptions.precision));
 
 if ~isfield(vfoptions,'V_Jplus1')
   if vfoptions.lowmemory==0
@@ -185,9 +185,9 @@ if ~isfield(vfoptions,'V_Jplus1')
     % Terminal period: QH agent and exponential discounter coincide
     Vunderbar(:,:,N_j)=Vhat(:,:,N_j);
 else
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames, N_j);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames, N_j,vfoptions.precision));
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
+    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j,vfoptions.precision));
     beta0beta=beta0*beta;
     V_next=reshape(vfoptions.V_Jplus1,[N_a,N_semiz]);
 

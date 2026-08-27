@@ -24,7 +24,7 @@ N_z=prod(n_z);
 N_bothz=prod(n_bothz);
 N_e=prod(n_e);
 
-V=zeros(N_a,N_bothz,N_e,N_j,'gpuArray');
+V=zeros(N_a,N_bothz,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(5,N_a,N_bothz,N_e,N_j,'gpuArray'); % (d2, d3, a1prime-midpoint, a2prime, a1primeL2ind)
 PolicyL2flag=2*ones(1,N_a,N_bothz,N_e,N_j,'gpuArray'); % 1=all weight to lower coarse a1, 2=usual linear weights, 3=all weight to upper coarse a1
 
@@ -60,7 +60,7 @@ semizBind=shiftdim(gpuArray(0:1:N_semiz-1),-1);
 bothz_offset=N_a*reshape(0:N_bothz-1,[1,1,N_bothz]);
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision));
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0
@@ -220,12 +220,12 @@ if ~isfield(vfoptions,'V_Jplus1')
     PolicyL2flag(1,:,:,:,N_j)=reshape(flag_ford3_jj((1:N_a*N_bothz*N_e)'+(N_a*N_bothz*N_e)*(maxindex-1)),[1,N_a,N_bothz,N_e]);
 
 else
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision));
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
     EVpre=squeeze(sum(reshape(vfoptions.V_Jplus1,[N_a,N_bothz,N_e]).*shiftdim(pi_e_J(:,N_j+1),-2),3)); % [N_a,N_bothz]
 
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision));
     [a3primeIndex,a3primeProbs]=CreateExperienceAssetzFnMatrix(aprimeFn, n_d2, n_a3, n_z, d2_gridvals, a3_grid, z_gridvals_J(:,:,N_j), aprimeFnParamsVec,2);
     % a3primeIndex/a3primeProbs are [N_d2,N_a3,N_z] (lower grid point index and its weight)
 

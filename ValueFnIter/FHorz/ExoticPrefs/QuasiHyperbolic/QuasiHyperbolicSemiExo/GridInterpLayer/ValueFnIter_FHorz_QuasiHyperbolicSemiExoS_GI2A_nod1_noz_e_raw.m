@@ -60,7 +60,7 @@ L2a2_ford2=zeros(N_a,N_semiz,N_e,N_d2,'gpuArray');
 flag_ford2=2*ones(N_a,N_semiz,N_e,N_d2,'gpuArray');
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j,vfoptions.precision));
 
 if ~isfield(vfoptions,'V_Jplus1')
 
@@ -174,9 +174,9 @@ if ~isfield(vfoptions,'V_Jplus1')
 
     Vunderbar(:,:,:,N_j)=Vhat(:,:,:,N_j); % terminal period: no continuation
 else
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames, N_j);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames, N_j,vfoptions.precision));
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
+    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j,vfoptions.precision));
     beta0beta=beta0*beta;
     V_next=sum(reshape(vfoptions.V_Jplus1,[N_a,N_semiz,N_e]).*pi_e_J(1,1,:,N_j+1),3); % integrate over e' first -> [N_a, N_semiz]
 

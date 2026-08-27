@@ -58,7 +58,7 @@ L2a2_ford2alt=zeros(N_a,N_semiz,N_d2,'gpuArray');
 L2flag_ford2alt=2*ones(N_a,N_semiz,N_d2,'gpuArray');
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j,vfoptions.precision));
 
 if ~isfield(vfoptions,'V_Jplus1')
     % No continuation. QH and exponential discounter coincide in the terminal period.
@@ -182,9 +182,9 @@ if ~isfield(vfoptions,'V_Jplus1')
     PolicyL2flagalt(1,:,:,N_j)=PolicyL2flag(1,:,:,N_j);
 else
     % Using V_Jplus1
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames, N_j);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames, N_j,vfoptions.precision));
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
+    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j,vfoptions.precision));
     beta0beta=beta0*beta;
     V_next=reshape(vfoptions.V_Jplus1,[N_a,N_semiz]);
 

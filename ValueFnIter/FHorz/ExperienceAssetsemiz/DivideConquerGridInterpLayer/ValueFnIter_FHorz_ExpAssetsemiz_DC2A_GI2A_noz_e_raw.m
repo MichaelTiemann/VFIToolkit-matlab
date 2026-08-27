@@ -18,7 +18,7 @@ N_a=N_a1*N_a2*N_a3;
 N_semiz=prod(n_semiz);
 N_e=prod(n_e);
 
-V=zeros(N_a,N_semiz,N_e,N_j,'gpuArray');
+V=zeros(N_a,N_semiz,N_e,N_j,vfoptions.precision,'gpuArray');
 % For semiz it turns out to be easier to go straight to constructing policy that stores d1,d2,d3,joint(a1prime,a2prime),a1primeL2ind seperately
 Policy=zeros(5,N_a,N_semiz,N_e,N_j,'gpuArray');
 PolicyL2flag=2*ones(1,N_a,N_semiz,N_e,N_j,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
@@ -56,7 +56,7 @@ Policy4_ford3_jj=zeros(4,N_a,N_semiz,N_e,N_d3,'gpuArray'); % d1,d2,joint(a1prime
 flag_ford3_jj=2*ones(N_a,N_semiz,N_e,N_d3,'gpuArray');
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision));
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0
@@ -208,12 +208,12 @@ if ~isfield(vfoptions,'V_Jplus1')
     PolicyL2flag(1,:,:,:,N_j)=reshape(flag_ford3_jj((1:1:N_a*N_semiz*N_e)'+(N_a*N_semiz*N_e)*(maxindex-1)),[1,N_a,N_semiz,N_e]);
 
 else
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision));
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
     EVpre=squeeze(sum(reshape(vfoptions.V_Jplus1,[N_a,N_semiz,N_e]).*shiftdim(pi_e_J(:,N_j+1),-2),3)); % [N_a,N_semiz]
 
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision));
     [a3primeIndex,a3primeProbs]=CreateExperienceAssetsemizFnMatrix(aprimeFn, n_d2, n_a3, n_semiz, d2_gridvals, a3_grid, semiz_gridvals_J(:,:,N_j), aprimeFnParamsVec,2);
     % a3primeIndex, a3primeProbs are [N_d2,N_a3,N_semiz], indexed by the CURRENT semiz
 

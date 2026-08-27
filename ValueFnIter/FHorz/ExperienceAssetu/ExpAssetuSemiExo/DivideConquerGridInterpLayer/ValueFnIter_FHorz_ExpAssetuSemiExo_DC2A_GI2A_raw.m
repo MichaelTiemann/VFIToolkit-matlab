@@ -23,7 +23,7 @@ N_semiz=prod(n_semiz);
 N_z=prod(n_z);
 N_bothz=N_semiz*N_z;
 
-V=zeros(N_a,N_bothz,N_j,'gpuArray');
+V=zeros(N_a,N_bothz,N_j,vfoptions.precision,'gpuArray');
 % For semiz it turns out to be easier to go straight to constructing policy that stores d1,d2,d3,joint(a1prime(mid),a2prime),a1primeL2ind seperately
 Policy4=zeros(5,N_a,N_bothz,N_j,'gpuArray'); % 1=d1, 2=d2, 3=d3, 4=joint(a1prime midpoint,a2prime), 5=a1prime L2
 PolicyL2flag=2*ones(1,N_a,N_bothz,N_j,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
@@ -68,7 +68,7 @@ L2flag_ford3_jj=2*ones(N_a,N_bothz,N_d3,'gpuArray');
 
 pi_u=shiftdim(pi_u,-2); % put u into third dimension
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision));
 
 if ~isfield(vfoptions,'V_Jplus1')
     % No continuation value: return does not depend on the a3 dynamics, so vectorise over the full d=(d1,d2,d3)
@@ -226,12 +226,12 @@ if ~isfield(vfoptions,'V_Jplus1')
     end
 
 else
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision));
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
     EVpre=reshape(vfoptions.V_Jplus1,[N_a,N_bothz]); % [N_a,N_bothz]
 
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision));
     [a3primeIndex,a3primeProbs]=CreateExperienceAssetuFnMatrix(aprimeFn, n_d2, n_a3, n_u, d2_gridvals, a3_grid, u_gridvals, aprimeFnParamsVec,2);
 
     a1_col =repmat(repelem((1:N_a1)',N_d2,1),N_a2,1);

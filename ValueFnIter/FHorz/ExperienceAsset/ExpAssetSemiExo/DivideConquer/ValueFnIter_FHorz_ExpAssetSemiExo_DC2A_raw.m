@@ -21,7 +21,7 @@ N_semiz=prod(n_semiz);
 N_z=prod(n_z);
 N_bothz=prod(n_bothz);
 
-V=zeros(N_a,N_semiz*N_z,N_j,'gpuArray');
+V=zeros(N_a,N_semiz*N_z,N_j,vfoptions.precision,'gpuArray');
 % For semiz it turns out to be easier to go straight to constructing policy that stores d1,d2,d3,joint(a1prime,a2prime) seperately
 Policy4=zeros(4,N_a,N_semiz*N_z,N_j,'gpuArray');
 
@@ -231,7 +231,7 @@ if ~isfield(vfoptions,'V_Jplus1')
     end
 
 else
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision));
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
     EVpre=reshape(vfoptions.V_Jplus1,[N_a,N_bothz]); % [N_a,N_bothz]

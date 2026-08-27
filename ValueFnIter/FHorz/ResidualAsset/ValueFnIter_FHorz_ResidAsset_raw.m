@@ -6,7 +6,7 @@ N_r=prod(n_r);
 N_z=prod(n_z);
 d_gridvals=CreateGridvals(n_d,d_grid,1);
 
-V=zeros(N_a,N_r,N_z,N_j,'gpuArray');
+V=zeros(N_a,N_r,N_z,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(N_a,N_r,N_z,N_j,'gpuArray'); %first dim indexes the optimal choice for d and aprime rest of dimensions a,z
 
 %%
@@ -48,7 +48,7 @@ else
     % Residual asset:
     % EV is over (aprime,r,z)
     % Need to convert to be over (d,aprime,a,z)
-    rprimeFnParamsVec=CreateVectorFromParams(Parameters, rprimeFnParamNames,N_j);
+    rprimeFnParamsVec=CreateVectorFromParams(Parameters, rprimeFnParamNames,N_j,vfoptions.precision));
     [rprimeIndexes,rprimeProbs]=CreateResidualAssetFnMatrix_Case1(rprimeFn, n_d, n_a, n_r, n_z, d_gridvals, a_grid, r_grid, z_gridvals_J(:,:,N_j), rprimeFnParamsVec);  % Note, is actually rprime_grid (but r_grid is anyway same for all ages)
     % Note: rprimeIndex is [N_d*N_a*N_a*N_z,1], and rprimeProbs is [N_d*N_a*N_a*N_z,1]
     aprimeIndexes=repelem(repmat((1:1:N_a)',N_a*N_z,1),N_d,1); % aprime over (d,aprime,a,z)

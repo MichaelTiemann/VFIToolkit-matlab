@@ -15,7 +15,7 @@ N_a=N_a2;
 N_semiz=prod(n_semiz);
 N_bothz=N_semiz; % no ordinary z
 
-V=zeros(N_a,N_bothz,N_j,'gpuArray');
+V=zeros(N_a,N_bothz,N_j,vfoptions.precision,'gpuArray');
 Policy3=zeros(3,N_a,N_bothz,N_j,'gpuArray');
 
 %%
@@ -39,7 +39,7 @@ bothz_offset=N_a*reshape(0:N_bothz-1,[1,1,N_bothz]);
 
 %% j=N_j
 
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision));
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0
@@ -64,7 +64,7 @@ if ~isfield(vfoptions,'V_Jplus1')
     end
 else
     % aprime depends on (d2, a2, current_semiz); independent of d3 -- compute once
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision));
     [a2primeIndex,a2primeProbs]=CreateExperienceAssetsemizFnMatrix(aprimeFn, n_d2, n_a2, n_semiz, d2_gridvals, a2_grid, semiz_gridvals_J(:,:,N_j), aprimeFnParamsVec,2);
     % a2primeIndex, a2primeProbs are both [N_d2, N_a2, N_semiz]  (N_semiz==N_bothz here)
 
@@ -75,7 +75,7 @@ else
 
     V_Jplus1=reshape(vfoptions.V_Jplus1,[N_a,N_bothz]);
 
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision));
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
     if vfoptions.lowmemory==0

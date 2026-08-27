@@ -37,7 +37,7 @@ d23_grid=[d2_grid; d3_grid];
 special_n_d4=ones(1,length(n_d4));
 d4_gridvals=CreateGridvals(n_d4,d4_grid,1);
 
-V=zeros(N_a,N_semiz,N_e,N_j,'gpuArray');
+V=zeros(N_a,N_semiz,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(7,N_a,N_semiz,N_e,N_j,'gpuArray'); % (d2, d3, d4, a1prime_low, a2prime, L2, L2flag)
 
 %%
@@ -74,7 +74,7 @@ d2index_ford4_jj=ones(N_a,N_semiz,N_e,N_d4,'gpuArray');
 
 
 %% j=N_j
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision));
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0
@@ -197,11 +197,11 @@ if ~isfield(vfoptions,'V_Jplus1')
     Policy(6,:,:,:,N_j)=reshape(L2ind,[1,N_a,N_semiz,N_e]);
     Policy(7,:,:,:,N_j)=reshape(flagwinner,[1,N_a,N_semiz,N_e]);
 else
-    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision));
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
     V_Jplus1=reshape(vfoptions.V_Jplus1,[N_a,N_semiz,N_e]);
     EVpre=sum(V_Jplus1.*shiftdim(pi_e_J(:,N_j+1),-2),3); % [N_a,N_semiz]
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision));
     [a3primeIndex,a3primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a3, n_u, d23_grid, a3_grid, u_grid, aprimeFnParamsVec,2);
 
     if isstruct(pi_semiz_J)
