@@ -1,4 +1,4 @@
-function varargout=ValueFnIter_FHorz_QuasiHyperbolicExpAsseteSemiExo(n_d1,n_d2,n_d3,n_a1,n_a2,n_z,n_semiz, N_j, d1_grid, d2_grid, d3_grid, a1_grid, a2_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions)
+function varargout=ValueFnIter_FHorz_QuasiHyperbolicExpAsseteSemiExo(n_d1,n_d2,n_d3,n_a1,n_a2,n_z,n_semiz, N_j, d1_grid, d2_grid, d3_grid, a1_grid, a2_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0)
 % Quasi-hyperbolic discounting with an experienceassete state (e dependent aprimeFn) and semi-exogenous shocks.
 % d1 is any other decision, d2 determines experience asset, d3 determines semi-exog state
 % a1 is standard endogenous state, a2 is experience asset
@@ -48,11 +48,6 @@ else
 end
 
 isNaive=strcmp(vfoptions.quasi_hyperbolic,'Naive');
-% Read the additional discount factor once here, and pass the value (not the parameter name) down to the raws.
-beta0=Parameters.(vfoptions.QHadditionaldiscount);
-if ~isscalar(beta0)
-    error('The quasi-hyperbolic additional discount factor (the parameter named by vfoptions.QHadditionaldiscount) must be a scalar; it cannot depend on age')
-end
 
 %% Dispatch
 if vfoptions.divideandconquer==1 && vfoptions.gridinterplayer==1

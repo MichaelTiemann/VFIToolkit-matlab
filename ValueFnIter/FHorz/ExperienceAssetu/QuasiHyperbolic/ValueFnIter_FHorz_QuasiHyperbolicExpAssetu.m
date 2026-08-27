@@ -1,5 +1,10 @@
-function varargout=ValueFnIter_FHorz_QuasiHyperbolicExpAssetu(n_d1,n_d2,n_a1,n_a2,n_z,N_j, d1_grid , d2_grid, a1_grid, a2_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions)
+function varargout=ValueFnIter_FHorz_QuasiHyperbolicExpAssetu(n_d1,n_d2,n_a1,n_a2,n_z,N_j, d1_grid , d2_grid, a1_grid, a2_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0)
 % vfoptions are already set by ValueFnIter_FHorz()
+
+%% Semi-exogenous state: hand off to the SemiExo variant
+if prod(vfoptions.n_semiz)>0
+    error('ValueFnIter_FHorz: QuasiHyperbolic with experienceassetu and a semi-exogenous state is not yet implemented (the ExpAssetuSemiExo quasi-hyperbolic dispatcher does not exist)')
+end
 
 if isfield(vfoptions,'aprimeFn')
     aprimeFn=vfoptions.aprimeFn;
@@ -39,12 +44,6 @@ N_a1=prod(n_a1);
 N_z=prod(n_z);
 N_e=prod(vfoptions.n_e);
 isNaive=strcmp(vfoptions.quasi_hyperbolic,'Naive');
-% Read the additional discount factor once here, and pass the value (not the parameter name) down to the raws.
-beta0=Parameters.(vfoptions.QHadditionaldiscount);
-if ~isscalar(beta0)
-    error('The quasi-hyperbolic additional discount factor (the parameter named by vfoptions.QHadditionaldiscount) must be a scalar; it cannot depend on age')
-end
-
 if N_a1>0
     a1_gridvals=CreateGridvals(n_a1,a1_grid,1);
 end

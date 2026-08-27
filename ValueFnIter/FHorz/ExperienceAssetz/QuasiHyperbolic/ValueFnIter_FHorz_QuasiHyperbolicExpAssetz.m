@@ -1,10 +1,17 @@
-function varargout=ValueFnIter_FHorz_QuasiHyperbolicExpAssetz(n_d1,n_d2,n_a1,n_a2,n_z, N_j, d1_grid, d2_grid, a1_grid, a2_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions)
+function varargout=ValueFnIter_FHorz_QuasiHyperbolicExpAssetz(n_d1,n_d2,n_a1,n_a2,n_z, N_j, d1_grid, d2_grid, a1_grid, a2_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0)
 % Quasi-hyperbolic discounting with an experienceassetz state.
 % Dispatches to Naive/Sophisticated raw files. Same semantics as
 % ValueFnIter_FHorz_QuasiHyperbolic but with EV built via aprimeFn for the
 % experienceassetz a2 state (mirrors ValueFnIter_FHorz_ExpAssetz).
 %
 % Coverage: baseline (no DC, no GI). DC2A/GI2A/DC2A_GI2A when length(n_a1)>1.
+
+%% Semi-exogenous state: hand off to the SemiExo variant
+if prod(vfoptions.n_semiz)>0
+    [V,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetzSemiExo(n_d1,n_d2,vfoptions.n_d3,n_a1,n_a2,n_z,vfoptions.n_semiz, N_j, d1_grid, d2_grid, vfoptions.d3_grid, a1_grid, a2_grid, z_gridvals_J, vfoptions.semiz_gridvals_J, pi_z_J, vfoptions.pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
+    varargout={V,Policy,Valt,Policyalt};
+    return
+end
 
 if isfield(vfoptions,'aprimeFn')
     aprimeFn=vfoptions.aprimeFn;
@@ -39,12 +46,6 @@ else
 end
 
 isNaive=strcmp(vfoptions.quasi_hyperbolic,'Naive');
-% Read the additional discount factor once here, and pass the value (not the parameter name) down to the raws.
-beta0=Parameters.(vfoptions.QHadditionaldiscount);
-if ~isscalar(beta0)
-    error('The quasi-hyperbolic additional discount factor (the parameter named by vfoptions.QHadditionaldiscount) must be a scalar; it cannot depend on age')
-end
-
 %% _e branch: i.i.d. e shock present
 %% Dispatch to the method sub-dispatchers (each UnKrons its own results)
 if vfoptions.divideandconquer==1 && vfoptions.gridinterplayer==1

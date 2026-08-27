@@ -48,6 +48,40 @@ end
 
 isNaive=strcmp(vfoptions.quasi_hyperbolic,'Naive');
 
+%% Dispatch on the non-standard endogenous state, if there is one (level 3).
+% The splits (n_d1/n_d2/n_a1/n_a2 and their grids) were computed once by
+% SetupNonStandardEndoStates_FHorz and are unpacked from vfoptions here.
+if vfoptions.experienceasset>=1
+    [V1,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicExpAsset(vfoptions.n_d1,vfoptions.n_d2,vfoptions.n_a1,vfoptions.n_a2,n_z, N_j, vfoptions.d1_grid , vfoptions.d2_grid, vfoptions.a1_grid, vfoptions.a2_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
+    varargout={V1, Policy, Valt, Policyalt};
+    return
+elseif vfoptions.experienceassetu>=1
+    [V1,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetu(vfoptions.n_d1,vfoptions.n_d2,vfoptions.n_a1,vfoptions.n_a2,n_z, N_j, vfoptions.d1_grid , vfoptions.d2_grid, vfoptions.a1_grid, vfoptions.a2_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
+    varargout={V1, Policy, Valt, Policyalt};
+    return
+elseif vfoptions.experienceassete>=1
+    [V1,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicExpAssete(vfoptions.n_d1,vfoptions.n_d2,vfoptions.n_a1,vfoptions.n_a2,n_z, N_j, vfoptions.d1_grid, vfoptions.d2_grid, vfoptions.a1_grid, vfoptions.a2_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
+    varargout={V1, Policy, Valt, Policyalt};
+    return
+elseif vfoptions.experienceassetz>=1
+    [V1,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetz(vfoptions.n_d1,vfoptions.n_d2,vfoptions.n_a1,vfoptions.n_a2,n_z, N_j, vfoptions.d1_grid, vfoptions.d2_grid, vfoptions.a1_grid, vfoptions.a2_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
+    varargout={V1, Policy, Valt, Policyalt};
+    return
+elseif vfoptions.experienceassetze>=1
+    [V1,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetze(vfoptions.n_d1,vfoptions.n_d2,vfoptions.n_a1,vfoptions.n_a2,n_z, N_j, vfoptions.d1_grid, vfoptions.d2_grid, vfoptions.a1_grid, vfoptions.a2_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
+    varargout={V1, Policy, Valt, Policyalt};
+    return
+elseif vfoptions.experienceassetsemiz>=1
+    % semiz is always present for this family (it drives the experience asset)
+    if prod(vfoptions.n_semiz)==0
+        error('When using experienceassetsemiz you must set vfoptions.n_semiz (the semi-exogenous state drives the experience asset)')
+    end
+    [V1,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetsemiz(vfoptions.n_d1,vfoptions.n_d2,vfoptions.n_d3,vfoptions.n_a1,vfoptions.n_a2,n_z,vfoptions.n_semiz, N_j, vfoptions.d1_grid , vfoptions.d2_grid, vfoptions.d3_grid, vfoptions.a1_grid, vfoptions.a2_grid, z_gridvals_J, vfoptions.semiz_gridvals_J, pi_z_J, vfoptions.pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
+    varargout={V1, Policy, Valt, Policyalt};
+    return
+end
+
+%% Standard endogenous states from here on
 %%
 if prod(vfoptions.n_semiz)>0
     % Solve with semi-exogenous state
