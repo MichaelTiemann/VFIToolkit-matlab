@@ -1,4 +1,4 @@
-function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC1_raw(n_d1,n_d2,n_a,n_z,n_semiz,N_j, d1_gridvals, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions)
+function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC1_raw(n_d1,n_d2,n_a,n_z,n_semiz,N_j, d1_gridvals, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0)
 % Sophisticated QH + SemiExo + DC (with d1, z, no e).
 % Agent maximises Vhat = u + beta0*beta*E[Vunderbar_{j+1}].
 % Vunderbar = Vhat + (beta - beta0beta)*EV_at_policy   (long-run value)
@@ -91,7 +91,6 @@ else
     % Using V_Jplus1 (= Vunderbar for sophisticated)
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
     beta0beta=beta0*beta;
 
     EV=reshape(vfoptions.V_Jplus1,[N_a,N_bothz]);
@@ -167,7 +166,6 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
     beta0beta=beta0*beta;
 
     EV=Vunderbar(:,:,jj+1); % S: continuation is Vunderbar

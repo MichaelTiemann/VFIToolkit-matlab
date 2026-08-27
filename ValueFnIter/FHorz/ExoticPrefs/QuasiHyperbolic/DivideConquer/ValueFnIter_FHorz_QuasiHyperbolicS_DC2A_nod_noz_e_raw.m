@@ -1,4 +1,4 @@
-function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicS_DC2A_nod_noz_e_raw(n_a, n_e, N_j, a_grid, e_gridvals_J, pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions)
+function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicS_DC2A_nod_noz_e_raw(n_a, n_e, N_j, a_grid, e_gridvals_J, pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0)
 % Sophisticated quasi-hyperbolic discounting variant of ValueFnIter_FHorz_DC2A_nod_noz_e_raw.
 % divide-and-conquer in the first endo state. No d. No z. Has e. GPU (parallel==2 only).
 % lowmemory: =0 vectorize over e, =1 loop over e
@@ -152,7 +152,6 @@ if ~isfield(vfoptions,'V_Jplus1')
 else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
     beta0beta=beta0*beta;
 
     EV=sum(reshape(vfoptions.V_Jplus1,[N_a,N_e]).*pi_e_J(1,:,N_j+1),2); % Using V_Jplus1
@@ -299,7 +298,6 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
     beta0beta=beta0*beta;
 
     EV=sum(Vunderbar(:,:,jj+1).*pi_e_J(1,:,jj+1),2); % sophisticated continuation

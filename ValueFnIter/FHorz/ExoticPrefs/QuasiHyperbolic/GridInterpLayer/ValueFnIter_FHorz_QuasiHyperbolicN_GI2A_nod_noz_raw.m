@@ -1,4 +1,4 @@
-function [Vtilde,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicN_GI2A_nod_noz_raw(n_a, N_j, a_grid, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions)
+function [Vtilde,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicN_GI2A_nod_noz_raw(n_a, N_j, a_grid, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0)
 % Naive quasi-hyperbolic discounting variant of ValueFnIter_FHorz_GI2A_nod_noz_raw.
 % Two endogenous states (grid interpolation layer on the first of them only).
 % No d variables. No z variable. GPU (parallel==2 only).
@@ -80,7 +80,6 @@ else
     % Using V_Jplus1 (Valt for naive)
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
     beta0beta=beta0*beta;
 
     EV=reshape(vfoptions.V_Jplus1,[N_a,1]);    % First, switch V_Jplus1 into Kron form
@@ -171,7 +170,6 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
     beta0beta=beta0*beta;
 
     EV=Valt(:,jj+1); % naive: continuation is the exponential value fn

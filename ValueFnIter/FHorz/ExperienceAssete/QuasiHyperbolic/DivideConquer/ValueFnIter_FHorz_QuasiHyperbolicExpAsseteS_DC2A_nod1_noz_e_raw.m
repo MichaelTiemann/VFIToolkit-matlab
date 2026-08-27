@@ -1,10 +1,10 @@
-function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicExpAsseteS_DC2A_nod1_noz_e_raw(n_d2, n_a1, n_a2, n_a3, n_e, N_j, d2_gridvals, a1_grid, a2_gridvals, a3_grid, e_gridvals_J, pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions)
+function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicExpAsseteS_DC2A_nod1_noz_e_raw(n_d2, n_a1, n_a2, n_a3, n_e, N_j, d2_gridvals, a1_grid, a2_gridvals, a3_grid, e_gridvals_J, pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions, beta0)
 % Sophisticated quasi-hyperbolic discounting + ExperienceAssete, nod1 DC2A pattern.
 % Sophisticated: a single max under beta0*beta,
 %   Vhat is the max of  F + beta0*beta*EV  (the QH-perceived value),
 %   Vunderbar is the  F + beta*EV  RHS GATHERED at that same DC argmax (NOT re-maximised).
 % The a3 lottery is resolved inside EV (before the max), so the gathered RHS is R(policy)+beta*E[Vhat(policy)].
-% beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj).
+% beta0 is received as a trailing input.
 % Backward EVpre uses Vunderbar.
 % Internal naming: a1 is the DC'd standard state, a2 the folded standard states, a3 the experience asset.
 % Reuses CreateReturnFnMatrix_ExpAsset_Disc_DC2A passing n_e in the n_z slot.
@@ -147,7 +147,6 @@ if ~isfield(vfoptions,'V_Jplus1')
 else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
     beta0beta=beta0*beta;
 
     EVpre=sum(pi_e_J(:,N_j+1)'.*reshape(vfoptions.V_Jplus1,[N_a,N_e]),2); % integrate out eprime: [N_a,1]
@@ -341,7 +340,6 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
     beta0beta=beta0*beta;
 
     EVpre=sum(pi_e_J(:,jj+1)'.*reshape(Vunderbar(:,:,jj+1),[N_a,N_e]),2); % integrate out eprime: [N_a,1]

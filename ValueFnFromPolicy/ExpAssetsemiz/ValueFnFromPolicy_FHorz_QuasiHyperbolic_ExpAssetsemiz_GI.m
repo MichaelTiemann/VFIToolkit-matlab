@@ -1,4 +1,4 @@
-function [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetsemiz_GI(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions)
+function [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetsemiz_GI(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0)
 % Compute V from a given Policy when the model has experienceassetsemiz (vfoptions.experienceassetsemiz>=1),
 % uses the grid interpolation layer (vfoptions.gridinterplayer==1), and quasi-hyperbolic discounting.
 % The experience asset a2 is driven by the semi-exogenous state: a2prime=aprimeFn(d_expasset,a2,semiz,...).
@@ -267,7 +267,6 @@ for reverse_j=0:N_j-1
         end
     else
         beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-        beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
         beta0beta=beta0*beta;
 
         % Step 3a: integrate the recursion-driver value over e' (if any)

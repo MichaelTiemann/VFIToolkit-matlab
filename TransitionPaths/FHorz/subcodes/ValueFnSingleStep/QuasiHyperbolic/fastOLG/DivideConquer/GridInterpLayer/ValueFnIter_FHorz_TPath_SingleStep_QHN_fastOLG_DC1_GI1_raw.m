@@ -45,8 +45,7 @@ zBind=shiftdim(gpuArray(0:1:N_z-1),-2);
 % fastOLG will be N_d*N_aprime by N_a*N_j*N_z (note: N_aprime is just equal to N_a)
 
 beta_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j),2);
-beta0_J=CreateAgeMatrixFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
-beta0beta_J=beta0_J.*beta_J;
+beta0beta_J=vfoptions.beta0*beta_J;
 
 % Create a matrix containing all the return function parameters (in order).
 % Each column will be a specific parameter with the values at every age.

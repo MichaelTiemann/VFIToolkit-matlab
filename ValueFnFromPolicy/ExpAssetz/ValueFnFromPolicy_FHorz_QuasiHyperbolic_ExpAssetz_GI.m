@@ -1,4 +1,4 @@
-function [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetz_GI(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions)
+function [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetz_GI(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0)
 % Quasi-hyperbolic ValueFnFromPolicy for experienceassetz WITH grid interpolation layer (vfoptions.gridinterplayer==1).
 % experienceassetz: a2prime = aprimeFn(d_expasset, a2, z) -- depends on Markov shock z.
 % Under GI, Policy carries an L2 fine-grid index for a1prime; lookup is 2x2 (a1 low/up x a2 low/up).
@@ -36,7 +36,7 @@ l_z=length(n_z);
 % Matches the upstream VFI convention (noa1 has no GI/DC/DC+GI raw files).
 if isscalar(n_a)
     vfoptions.gridinterplayer=0;
-    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetz(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetz(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0);
     return
 end
 n_a1=n_a(1:end-1);
@@ -201,7 +201,6 @@ for reverse_j=0:N_j-1
         end
     else
         beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-        beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
         beta0beta=beta0*beta;
 
         % EVnext from the recursion-driver value: integrate e' (iid, if present) then z' (markov) -> [N_a,N_z]

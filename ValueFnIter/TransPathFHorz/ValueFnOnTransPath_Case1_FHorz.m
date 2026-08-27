@@ -69,6 +69,13 @@ else
         end
         if ~isfield(vfoptions,'QHadditionaldiscount')
             error('You must declare vfoptions.QHadditionaldiscount when using quasi-hyperbolic discounting (vfoptions.exoticpreferences=QuasiHyperbolic)')
+        elseif ~ischar(vfoptions.QHadditionaldiscount)
+            error('vfoptions.QHadditionaldiscount must be the name of the additional discount parameter, given as a character vector such as ''beta0''')
+        end
+        % Read the additional discount factor once here; the TPath subcodes take it from vfoptions.beta0.
+        vfoptions.beta0=Parameters.(vfoptions.QHadditionaldiscount);
+        if ~isscalar(vfoptions.beta0)
+            error('The quasi-hyperbolic additional discount factor (the parameter named by vfoptions.QHadditionaldiscount) must be a scalar; it cannot depend on age')
         end
     end
     if ~isfield(vfoptions,'experienceasset')

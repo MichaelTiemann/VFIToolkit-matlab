@@ -1,4 +1,4 @@
-function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetuS_DC2A_nod1_raw(n_d2, n_a1, n_a2, n_a3, n_z, n_u, N_j, d2_gridvals, a1_grid, a2_gridvals, a3_grid, z_gridvals_J, u_gridvals, pi_z_J, pi_u, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions)
+function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetuS_DC2A_nod1_raw(n_d2, n_a1, n_a2, n_a3, n_z, n_u, N_j, d2_gridvals, a1_grid, a2_gridvals, a3_grid, z_gridvals_J, u_gridvals, pi_z_J, pi_u, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions, beta0)
 % Sophisticated quasi-hyperbolic discounting + ExperienceAssetu, Divide-and-Conquer over a1prime
 % with a second (folded) standard endogenous state (DC2A).
 % Internal naming: a1 is the DC'd standard state, a2 the folded standard state(s), a3 the
@@ -8,7 +8,7 @@ function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetuS_DC2
 %   Vunderbar is the  F + beta*EV  RHS GATHERED at that same DC argmax (NOT re-maximised).
 % The a3 lottery is resolved inside EV before the max (EV is indexed by the choice (d2,a1prime,a2prime)),
 % so the gather returns R(policy)+beta*E[V(policy)] exactly.
-% beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj).
+% beta0 is received as a trailing input.
 % The backward continuation value is Vunderbar.
 % divide-and-conquer in the first standard endogenous state (n_a1, scalar),
 % folded standard middle endogenous states (n_a2, may be multi-dim),
@@ -171,7 +171,6 @@ else
     % vfoptions.V_Jplus1 provided
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
     beta0beta=beta0*beta;
 
     EVpre=reshape(vfoptions.V_Jplus1,[N_a,N_z]);
@@ -367,7 +366,6 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
     beta0beta=beta0*beta;
 
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);

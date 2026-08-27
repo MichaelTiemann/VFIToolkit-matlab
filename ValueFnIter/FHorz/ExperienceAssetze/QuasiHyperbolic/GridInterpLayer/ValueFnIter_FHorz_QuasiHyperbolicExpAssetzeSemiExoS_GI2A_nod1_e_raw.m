@@ -1,4 +1,4 @@
-function [V,Policy,Valt]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetzeSemiExoS_GI2A_nod1_e_raw(n_d2, n_d3, n_a1, n_a2, n_a3, n_z, n_semiz, n_e, N_j, d2_gridvals, d3_grid, a1_grid, a2_gridvals, a3_grid, z_gridvals_J, semiz_gridvals_J, e_gridvals_J, pi_z_J, pi_semiz_J, pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions)
+function [V,Policy,Valt]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetzeSemiExoS_GI2A_nod1_e_raw(n_d2, n_d3, n_a1, n_a2, n_a3, n_z, n_semiz, n_e, N_j, d2_gridvals, d3_grid, a1_grid, a2_gridvals, a3_grid, z_gridvals_J, semiz_gridvals_J, e_gridvals_J, pi_z_J, pi_semiz_J, pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions, beta0)
 % Sophisticated quasi-hyperbolic + ExperienceAssetze + SemiExo, GI2A (two standard assets, no d1).
 % d2 determines experience asset (a3), d3 determines semi-exog state (semiz).
 % a1 is the grid-interpolated standard asset; a2 is a folded standard asset (choice a2prime); a3 is the experience asset.
@@ -9,7 +9,7 @@ function [V,Policy,Valt]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetzeSemiExoS_GI2
 %   V/Policy come from the  F + beta0*beta*EV  argmax (QH-perceived); Policy stores
 %     (d2, d3, a1prime-midpoint, a2prime, a1prime-L2index) plus the appended L2flag row.
 %   Valt (=Vunderbar) is the  F + beta*EV  RHS GATHERED at that same GI argmax (NOT re-maximised).
-% beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj).
+% beta0 is received as a trailing input.
 % Backward EVpre uses Valt (Vunderbar).
 % lowmemory: 3 shocks {z,semiz,e} => levels {0,1,2,3}.
 %   =0 vectorise bothz and e; =1 loop e (bothz parallel); =2 outer-loop z / inner-loop e (semiz parallel); =3 joint bothz outer / inner-loop e.
@@ -231,7 +231,6 @@ if ~isfield(vfoptions,'V_Jplus1')
 else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
     beta0beta=beta0*beta;
 
     EVpre=squeeze(sum(reshape(vfoptions.V_Jplus1,[N_a,N_bothz,N_e]).*shiftdim(pi_e_J(:,N_j+1),-2),3)); % [N_a,N_bothz]
@@ -544,7 +543,6 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
     beta0beta=beta0*beta;
 
     % Continuation value is Vunderbar (Valt), integrated over e'

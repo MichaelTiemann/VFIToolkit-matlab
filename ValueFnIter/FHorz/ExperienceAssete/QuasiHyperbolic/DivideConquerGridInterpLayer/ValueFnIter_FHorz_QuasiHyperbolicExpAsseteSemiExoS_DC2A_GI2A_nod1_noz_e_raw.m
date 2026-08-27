@@ -1,4 +1,4 @@
-function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicExpAsseteSemiExoS_DC2A_GI2A_nod1_noz_e_raw(n_d2,n_d3,n_a1,n_a2,n_a3,n_semiz,n_e,N_j, d2_gridvals, d3_grid, a1_grid, a2_gridvals, a3_grid, semiz_gridvals_J, e_gridvals_J, pi_semiz_J, pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions)
+function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicExpAsseteSemiExoS_DC2A_GI2A_nod1_noz_e_raw(n_d2,n_d3,n_a1,n_a2,n_a3,n_semiz,n_e,N_j, d2_gridvals, d3_grid, a1_grid, a2_gridvals, a3_grid, semiz_gridvals_J, e_gridvals_J, pi_semiz_J, pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions, beta0)
 % Sophisticated quasi-hyperbolic + ExperienceAssete + SemiExo + DC2A + GI2A (no d1).
 % d2 determines experience asset, d3 determines semi-exog state (no d1)
 % a1 is first standard endo state (DC+GI), a2 is folded remaining standard endo states, a3 is experience asset
@@ -9,7 +9,7 @@ function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicExpAsseteSemiE
 %   Policy (and Vhat) come from the  F + beta0*beta*EV  argmax (QH-perceived).
 %   Vunderbar is the  F + beta*EV  value GATHERED at that same argmax (not re-maximised),
 %   computed as  Vhat + (beta-beta0beta)*EV_at_policy.
-% beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj).
+% beta0 is received as a trailing input.
 % Backward EVpre uses Vunderbar.
 % Policy rows: (d2, d3, midpoint, a2prime, L2ind) + L2flag appended.
 %
@@ -225,7 +225,6 @@ if ~isfield(vfoptions,'V_Jplus1')
 else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
     beta0beta=beta0*beta;
 
     EVpre=sum(reshape(vfoptions.V_Jplus1,[N_a,N_semiz,N_e]).*shiftdim(pi_e_J(:,N_j+1),-2),3);
@@ -504,7 +503,6 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
     beta0beta=beta0*beta;
 
     % Continuation value is Vunderbar, integrated over e'

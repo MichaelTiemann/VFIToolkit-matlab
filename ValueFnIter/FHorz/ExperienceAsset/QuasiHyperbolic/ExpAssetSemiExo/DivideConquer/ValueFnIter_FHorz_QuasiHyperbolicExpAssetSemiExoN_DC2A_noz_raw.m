@@ -1,4 +1,4 @@
-function [Vtilde,Policy4,Valt,Policy4alt]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetSemiExoN_DC2A_noz_raw(n_d1, n_d2, n_d3, n_a1, n_a2, n_a3, n_semiz, N_j, d12_gridvals, d2_gridvals, d3_grid, a1_grid, a2_gridvals, a3_grid, semiz_gridvals_J, pi_semiz_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions)
+function [Vtilde,Policy4,Valt,Policy4alt]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetSemiExoN_DC2A_noz_raw(n_d1, n_d2, n_d3, n_a1, n_a2, n_a3, n_semiz, N_j, d12_gridvals, d2_gridvals, d3_grid, a1_grid, a2_gridvals, a3_grid, semiz_gridvals_J, pi_semiz_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions, beta0)
 % SemiExo _noz graft of ValueFnIter_FHorz_ExpAsset_DC2A_noz_raw, mirroring the DC2A semiz mechanics of ValueFnIter_FHorz_ExpAssetSemiExo_DC2A_e_raw.
 % d1 is any other decision, d2 determines experience asset (a3), d3 determines semi-exog state (semiz).
 % a1 is divide-conquered standard asset; a2 is a folded standard asset (choice a2prime); a3 is the experience asset.
@@ -13,7 +13,7 @@ function [Vtilde,Policy4,Valt,Policy4alt]=ValueFnIter_FHorz_QuasiHyperbolicExpAs
 %   Vtilde/Policy4  maximise  F + beta0*beta*EV  (the QH-perceived value that is reported)
 % Each maximisation is a full divide-and-conquer pass (its own level1 sweep, maxgap and narrow band),
 % and each has its own per-d3 store, so the max over d3 is also done twice.
-% beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj).
+% beta0 is received as a trailing input.
 % Backward EVpre uses Valt (the exponential continuation value).
 
 N_d1=prod(n_d1);
@@ -177,7 +177,6 @@ if ~isfield(vfoptions,'V_Jplus1')
 else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
     beta0beta=beta0*beta;
 
     EVpre=reshape(vfoptions.V_Jplus1,[N_a,N_semiz]);
@@ -436,7 +435,6 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
     beta0beta=beta0*beta;
 
     EVpre=Valt(:,:,jj+1); % [N_a,N_semiz]

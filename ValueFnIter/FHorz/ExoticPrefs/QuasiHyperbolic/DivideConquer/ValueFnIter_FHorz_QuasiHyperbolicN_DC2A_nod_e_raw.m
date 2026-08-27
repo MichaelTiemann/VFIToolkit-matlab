@@ -1,4 +1,4 @@
-function [Vtilde,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicN_DC2A_nod_e_raw(n_a,n_z,n_e,N_j, a_grid, z_gridvals_J, e_gridvals_J,pi_z_J,pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions)
+function [Vtilde,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicN_DC2A_nod_e_raw(n_a,n_z,n_e,N_j, a_grid, z_gridvals_J, e_gridvals_J,pi_z_J,pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0)
 % Naive quasi-hyperbolic discounting variant of ValueFnIter_FHorz_DC2A_nod_e_raw.
 % divide-and-conquer in the first endo state. No d. Has z and e. lowmemory: =0 vectorize, =1 loop over e, =2 loop over e and z. GPU (parallel==2 only).
 % Naive: Valt_j = max u + beta*E[V_{j+1}] (used as EVsource);  Vtilde_j = max u + beta_0*beta*E[V_{j+1}] (agent's choice)
@@ -218,7 +218,6 @@ else
 
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
     beta0beta=beta0*beta;
 
     V_Jplus1=sum(V_Jplus1.*pi_e_J(1,1,:,N_j+1),3);
@@ -588,7 +587,6 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
     beta0beta=beta0*beta;
 
     EV=sum(Valt(:,:,:,jj+1).*pi_e_J(1,1,:,jj+1),3);

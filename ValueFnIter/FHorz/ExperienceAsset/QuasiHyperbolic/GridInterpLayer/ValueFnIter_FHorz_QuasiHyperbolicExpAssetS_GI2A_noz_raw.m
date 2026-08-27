@@ -1,4 +1,4 @@
-function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetS_GI2A_noz_raw(n_d1, n_d2, n_a1, n_a2, n_a3, N_j, d_gridvals, d2_gridvals, a1_grid, a2_gridvals, a3_grid, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions)
+function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetS_GI2A_noz_raw(n_d1, n_d2, n_a1, n_a2, n_a3, N_j, d_gridvals, d2_gridvals, a1_grid, a2_gridvals, a3_grid, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions, beta0)
 % Sophisticated quasi-hyperbolic discounting variant of ValueFnIter_FHorz_ExpAsset_GI2A_noz_raw.
 % a1=standard endogenous state carrying the grid interpolation layer, a2=folded
 % standard endogenous state(s), a3=experience asset. GPU only.
@@ -68,7 +68,6 @@ if ~isfield(vfoptions,'V_Jplus1')
 else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
     beta0beta=beta0*beta;
 
     EVpre=reshape(vfoptions.V_Jplus1,[N_a,1]);
@@ -140,7 +139,6 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
     beta0beta=beta0*beta;
 
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);

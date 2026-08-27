@@ -1,4 +1,4 @@
-function [Vhat,Policy4,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetSemiExoS_DC1_e_raw(n_d1,n_d2,n_d3,n_a1,n_a2,n_z,n_semiz,n_e,N_j, d12_gridvals, d2_gridvals, d3_grid, a1_gridvals, a2_grid, z_gridvals_J, semiz_gridvals_J, e_gridvals_J, pi_z_J, pi_semiz_J, pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions)
+function [Vhat,Policy4,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetSemiExoS_DC1_e_raw(n_d1,n_d2,n_d3,n_a1,n_a2,n_z,n_semiz,n_e,N_j, d12_gridvals, d2_gridvals, d3_grid, a1_gridvals, a2_grid, z_gridvals_J, semiz_gridvals_J, e_gridvals_J, pi_z_J, pi_semiz_J, pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions, beta0)
 % Sophisticated quasi-hyperbolic discounting + ExperienceAsset + SemiExo, Divide-and-Conquer (DC1 over a1prime).
 % d2 determines the experience asset a2, d3 determines the semi-exogenous state, a1 is the standard endogenous state.
 % Sophisticated: a single maximisation under beta0*beta,
@@ -6,7 +6,7 @@ function [Vhat,Policy4,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetSemiE
 %   Vunderbar is the  F + beta*EV  RHS GATHERED at that same argmax (NOT re-maximised) -- both at the
 %   inner divide-and-conquer argmax and again at the max over d3.
 % The a2 lottery is resolved inside EV before the max, so the gather returns R(policy)+beta*E[V(policy)] exactly.
-% beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj).
+% beta0 is received as a trailing input.
 % The backward continuation value is Vunderbar.
 % d2 determines experience asset, d3 determines semi-exog state
 % a is endogenous state, a2 is experience asset
@@ -357,7 +357,6 @@ else
 
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
     beta0beta=beta0*beta;
 
     if vfoptions.lowmemory==0
@@ -787,7 +786,6 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
     beta0beta=beta0*beta;
 
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);

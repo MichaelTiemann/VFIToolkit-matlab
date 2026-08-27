@@ -1,10 +1,10 @@
-function [Vtilde,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC1_raw(n_d1,n_d2,n_a,n_z,n_semiz,N_j, d1_gridvals, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions)
+function [Vtilde,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC1_raw(n_d1,n_d2,n_a,n_z,n_semiz,N_j, d1_gridvals, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0)
 % Naive quasi-hyperbolic + SemiExo + DivideConquer (with d1, z, no e).
 % Dual-Valt update: Valt (beta, continuation) and Vtilde (beta0*beta, agent's value).
 % Output: [Vtilde, Policy, Valt]
 %
 % DiscountFactorParamNames is the standard discount factor beta
-% vfoptions.QHadditionaldiscount gives beta_0
+% beta0 (the additional discount factor) is received as an input; the dispatcher reads it once from vfoptions.QHadditionaldiscount
 
 n_d=[n_d1,n_d2];
 n_bothz=[n_semiz,n_z]; % These are the return function arguments
@@ -102,7 +102,6 @@ else
     % Using V_Jplus1 (this is Valt long-run for Naive)
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
     beta0beta=beta0*beta;
 
     EV=reshape(vfoptions.V_Jplus1,[N_a,N_bothz]);
@@ -212,7 +211,6 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
     beta0beta=beta0*beta;
 
     EV=Valt(:,:,jj+1); % Naive: continuation uses Valt (beta)

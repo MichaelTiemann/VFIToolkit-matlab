@@ -1,4 +1,4 @@
-function [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetz_SemiExo(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions)
+function [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetz_SemiExo(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0)
 % Quasi-hyperbolic ValueFnFromPolicy for experienceassetz WITH a semi-exogenous state (semiz).
 % Combines:
 %   - ExpAssetz+SemiExo: a2 is the experience asset; a2prime=aprimeFn(d_expasset,a2,z,...) with z the
@@ -19,7 +19,7 @@ function [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetz_SemiExo(Poli
 
 %% Dispatch to GI subfn if gridinterplayer==1
 if vfoptions.gridinterplayer==1
-    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetz_SemiExo_GI(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetz_SemiExo_GI(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0);
     return
 end
 
@@ -233,7 +233,6 @@ for reverse_j=0:N_j-1
         end
     else
         beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-        beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
         beta0beta=beta0*beta;
 
         % Step 3a: recursion-driver next-period value, integrate out e' (iid, if present)

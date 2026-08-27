@@ -1,4 +1,4 @@
-function [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetze(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions)
+function [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetze(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0)
 % Quasi-hyperbolic ValueFnFromPolicy for experienceassetze (a2prime=aprimeFn(d,a2,z,e)).
 % Combines the ze aprime machinery (cf ValueFnFromPolicy_FHorz_ExpAssetze) with the QH dual-value
 % (Naive/Sophisticated) reconstruction (cf the plain-z block of ValueFnFromPolicy_FHorz_QuasiHyperbolic).
@@ -11,7 +11,7 @@ if prod(vfoptions.n_semiz)>0
     error('ValueFnFromPolicy_FHorz_QuasiHyperbolic: experienceassetze+SemiExo not yet implemented')
 end
 if vfoptions.gridinterplayer==1
-    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetze_GI(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetze_GI(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0);
     return
 end
 
@@ -130,7 +130,6 @@ for reverse_j=0:N_j-1
         end
     else
         beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-        beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
         beta0beta=beta0*beta;
 
         % EVnext from the recursion-driver value: integrate e' (iid) then z' (markov) -> [N_a,N_z]

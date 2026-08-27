@@ -34,8 +34,7 @@ zCind=shiftdim(gpuArray(0:1:N_z-1),-1); % 3D [1,1,N_z]; for EV_at_policy lookup
 % fastOLG will be N_d*N_aprime by N_a*N_j*N_z*N_e (note: N_aprime is just equal to N_a)
 
 DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j),2);
-Beta0_J=CreateAgeMatrixFromParams(Parameters, {vfoptions.QHadditionaldiscount},N_j);
-Beta0DiscountFactor_J=Beta0_J.*DiscountFactor_J;
+Beta0DiscountFactor_J=vfoptions.beta0*DiscountFactor_J;
 BetaMinusBeta0Beta_J=DiscountFactor_J-Beta0DiscountFactor_J;
 
 % Create a matrix containing all the return function parameters (in order).

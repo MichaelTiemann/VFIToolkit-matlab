@@ -1,8 +1,8 @@
-function [VKron, Policy]=ValueFnIter_InfHorz_QuasiHyperbolicN_raw(VKron, n_d,n_a,n_z, pi_z, beta0beta, ReturnMatrix) %Verbose,
+function [VKron, Policy]=ValueFnIter_InfHorz_QuasiHyperbolicN_raw(VKron, n_d,n_a,n_z, pi_z, DiscountFactorParamsVec, beta0, ReturnMatrix) %Verbose,
 % Let V_j be the standard (exponential discounting) solution to the value fn problem
 % The 'Naive' quasi-hyperbolic solution takes current actions as if the
 % future agent take actions as if having time-consistent (exponential discounting) preferences.
-% V_naive_j: Vtilde_j = u_t+ beta_0 *E[V_{j+1}]
+% V_naive_j: Vtilde_j = u_t+ beta0beta *E[V_{j+1}]
 % See documentation for a fuller explanation of this.
 
 % Note that the inputted VKron is already V, so just calculate Vtilde and
@@ -15,7 +15,10 @@ N_d=prod(n_d);
 N_a=prod(n_a);
 N_z=prod(n_z);
 
-Policy=zeros(N_a,N_z,'gpuArray');
+PolicyIndexes=zeros(N_a,N_z,'gpuArray');
+
+beta=prod(DiscountFactorParamsVec); % Discount rate between two future periods
+beta0beta=beta0*beta; % Discount rate between present period and next period
 
 %%
 VKronold=VKron;
@@ -34,11 +37,11 @@ for z_c=1:N_z
     %Calc the max and it's index
     [Vtemp,maxindex]=max(entireRHS,[],1);
     VKron(:,z_c)=Vtemp;
-    Policy(:,z_c)=maxindex;
+    PolicyIndexes(:,z_c)=maxindex;
 end
 
 Policy=zeros(2,N_a,N_z,'gpuArray'); %NOTE: this is not actually in Kron form
-Policy(1,:,:)=shiftdim(rem(Policy-1,N_d)+1,-1);
-Policy(2,:,:)=shiftdim(ceil(Policy/N_d),-1);
+Policy(1,:,:)=shiftdim(rem(PolicyIndexes-1,N_d)+1,-1);
+Policy(2,:,:)=shiftdim(ceil(PolicyIndexes/N_d),-1);
 
 end

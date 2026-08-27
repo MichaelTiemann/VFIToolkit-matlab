@@ -1,4 +1,4 @@
-function [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_SemiExo(Policy,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions)
+function [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_SemiExo(Policy,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0)
 % Compute V and Valt from a Policy under QuasiHyperbolic discounting with semi-exogenous shocks.
 %
 % Returns [V, Valt] matching ValueFnIter_FHorz_QuasiHyperbolic:
@@ -27,22 +27,22 @@ end
 %% Dispatch to experienceasset+SemiExo QH subfns (semiz combined with the experience asset)
 if isfield(vfoptions,'experienceassetz') && vfoptions.experienceassetz>=1
     if ~isNaive, Policyalt=[]; end
-    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetz_SemiExo(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetz_SemiExo(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0);
     return
 end
 if isfield(vfoptions,'experienceassetze') && vfoptions.experienceassetze>=1
     if ~isNaive, Policyalt=[]; end
-    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetze_SemiExo(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetze_SemiExo(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0);
     return
 end
 if isfield(vfoptions,'experienceassete') && vfoptions.experienceassete>=1
     if ~isNaive, Policyalt=[]; end
-    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssete_SemiExo(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssete_SemiExo(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0);
     return
 end
 if isfield(vfoptions,'experienceasset') && vfoptions.experienceasset>=1
     if ~isNaive, Policyalt=[]; end
-    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAsset_SemiExo(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAsset_SemiExo(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0);
     return
 end
 
@@ -170,7 +170,6 @@ if vfoptions.gridinterplayer==1
             end
         else
             beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-            beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
             beta0beta=beta0*beta;
 
             if isNaive
@@ -299,7 +298,6 @@ for reverse_j=0:N_j-1
         end
     else
         beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-        beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
         beta0beta=beta0*beta;
 
         % V_next is the continuation-driving fn: Vunderbar(jj+1) for Soph, Valt(jj+1) for Naive

@@ -13,6 +13,11 @@ isNaive=strcmp(vfoptions.quasi_hyperbolic,'Naive');
 if ~isNaive && ~strcmp(vfoptions.quasi_hyperbolic,'Sophisticated')
     error('vfoptions.quasi_hyperbolic must be ''Naive'' or ''Sophisticated''')
 end
+% Read the additional discount factor once here, and pass the value (not the parameter name) down.
+beta0=Parameters.(vfoptions.QHadditionaldiscount);
+if ~isscalar(beta0)
+    error('The quasi-hyperbolic additional discount factor (the parameter named by vfoptions.QHadditionaldiscount) must be a scalar; it cannot depend on age')
+end
 
 %% Naive requires Policyalt
 Policyalt=[]; % only used for Naive; kept defined so subfns can be called uniformly under Sophisticated
@@ -27,35 +32,35 @@ end
 % ExpAssetsemiz is its own family (aprimeFn is driven by semiz), not semiz layered onto ExpAsset,
 % so it must be caught before the generic SemiExo dispatch below (n_semiz>0 always holds here).
 if vfoptions.experienceassetsemiz>=1
-    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetsemiz(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetsemiz(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0);
     return
 end
 
 %% Dispatch to SemiExo subfn if n_semiz>0
 if prod(vfoptions.n_semiz)>0
-    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_SemiExo(Policy,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_SemiExo(Policy,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0);
     return
 end
 
 %% Dispatch to the experience-asset QH subfns
 if vfoptions.experienceasset>=1
-    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAsset(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAsset(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0);
     return
 end
 if vfoptions.experienceassetu>=1
-    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetu(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetu(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0);
     return
 end
 if vfoptions.experienceassetz>=1
-    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetz(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetz(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0);
     return
 end
 if vfoptions.experienceassete>=1
-    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssete(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssete(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0);
     return
 end
 if vfoptions.experienceassetze>=1
-    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetze(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetze(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0);
     return
 end
 %% Setup (mirrors ValueFnFromPolicy_FHorz)
@@ -140,7 +145,6 @@ if vfoptions.gridinterplayer==1
                 end
             else
                 beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-                beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
                 beta0beta=beta0*beta;
 
                 if isNaive
@@ -224,7 +228,6 @@ if vfoptions.gridinterplayer==1
                 end
             else
                 beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-                beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
                 beta0beta=beta0*beta;
 
                 if isNaive
@@ -315,7 +318,6 @@ if vfoptions.gridinterplayer==1
                 end
             else
                 beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-                beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
                 beta0beta=beta0*beta;
 
                 if isNaive
@@ -402,7 +404,6 @@ if vfoptions.gridinterplayer==1
                 end
             else
                 beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-                beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
                 beta0beta=beta0*beta;
 
                 if isNaive
@@ -479,7 +480,6 @@ if N_z==0 && N_e==0
             end
         else
             beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-            beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
             beta0beta=beta0*beta;
 
             if isNaive
@@ -559,7 +559,6 @@ elseif N_z==0 && N_e>0
             end
         else
             beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-            beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
             beta0beta=beta0*beta;
 
             if isNaive
@@ -639,7 +638,6 @@ elseif N_z>0 && N_e==0
             end
         else
             beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-            beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
             beta0beta=beta0*beta;
 
             if isNaive
@@ -724,7 +722,6 @@ elseif N_z>0 && N_e>0
             end
         else
             beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-            beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
             beta0beta=beta0*beta;
 
             if isNaive

@@ -1,4 +1,4 @@
-function [V,Policy4,Valt,Policy4alt]=ValueFnIter_FHorz_QuasiHyperbolicExpAsseteSemiExoN_DC2A_nod1_noz_e_raw(n_d2, n_d3, n_a1, n_a2, n_a3, n_semiz, n_e, N_j, d2_gridvals, d3_grid, a1_grid, a2_gridvals, a3_grid, semiz_gridvals_J, e_gridvals_J, pi_semiz_J, pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions)
+function [V,Policy4,Valt,Policy4alt]=ValueFnIter_FHorz_QuasiHyperbolicExpAsseteSemiExoN_DC2A_nod1_noz_e_raw(n_d2, n_d3, n_a1, n_a2, n_a3, n_semiz, n_e, N_j, d2_gridvals, d3_grid, a1_grid, a2_gridvals, a3_grid, semiz_gridvals_J, e_gridvals_J, pi_semiz_J, pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions, beta0)
 % Naive quasi-hyperbolic + two standard endogenous assets + experienceassetze + semi-exog state, Divide-and-Conquer (DC2A over a1prime). No d1.
 % d2 determines experience asset (a3), d3 determines semi-exog state (semiz).
 % a1 is divide-conquered standard asset; a2 is a folded standard asset (choice a2prime); a3 is the experience asset.
@@ -10,7 +10,7 @@ function [V,Policy4,Valt,Policy4alt]=ValueFnIter_FHorz_QuasiHyperbolicExpAsseteS
 %   Valt/Policy4alt maximise  F + beta*EV        (the exponential value)
 %   V/Policy4       maximise  F + beta0*beta*EV  (the QH-perceived value)
 % Each maximisation is a full divide-and-conquer pass (its own level1/maxgap/level2).
-% beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj).
+% beta0 is received as a trailing input.
 % Backward EVpre uses Valt (the exponential continuation value).
 %
 % lowmemory: 3 shocks {z,semiz,e} => levels {0,1,2,3}.
@@ -244,7 +244,6 @@ if ~isfield(vfoptions,'V_Jplus1')
 else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
     beta0beta=beta0*beta;
 
     EVpre=squeeze(sum(reshape(vfoptions.V_Jplus1,[N_a,N_semiz,N_e]).*shiftdim(pi_e_J(:,N_j+1),-2),3)); % [N_a,N_semiz]
@@ -651,7 +650,6 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
     beta0beta=beta0*beta;
 
     % Continuation value is the exponential value (Valt), integrated over e'

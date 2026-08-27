@@ -1,10 +1,10 @@
-function [Vtilde,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetN_DC1_noz_e_raw(n_d1, n_d2,n_a1,n_a2,n_e,N_j, d_gridvals, d2_gridvals, a1_gridvals, a2_grid,e_gridvals_J, pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions)
+function [Vtilde,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetN_DC1_noz_e_raw(n_d1, n_d2,n_a1,n_a2,n_e,N_j, d_gridvals, d2_gridvals, a1_gridvals, a2_grid,e_gridvals_J, pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions, beta0)
 % Naive quasi-hyperbolic discounting + ExperienceAsset, Divide-and-Conquer (DC1 over a1prime).
 % d2 determines the experience asset a2, a1 is the standard endogenous state.
 % Naive: two passes over the same candidate set,
 %   Valt/Policyalt maximise  F + beta*EV        (the exponential value)
 %   Vtilde/Policy  maximise  F + beta0*beta*EV  (the QH-perceived value)
-% beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj).
+% beta0 is received as a trailing input.
 % The two discount factors generally pick different DC midpoints, so the beta pass uses maxgap_V and
 % the beta0*beta pass uses maxgap; the level-1 return matrix is shared, level-2 matrices are *_dc.
 % The backward continuation value is Valt (the exponential continuation value).
@@ -153,7 +153,6 @@ if ~isfield(vfoptions,'V_Jplus1')
 else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
     beta0beta=beta0*beta;
 
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
@@ -417,7 +416,6 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
     beta0beta=beta0*beta;
 
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);

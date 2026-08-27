@@ -1,4 +1,4 @@
-function [Vtilde,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetuN_DC2A_nod1_noz_e_raw(n_d2, n_a1, n_a2, n_a3, n_e, n_u, N_j, d2_gridvals, a1_grid, a2_gridvals, a3_grid, e_gridvals_J, u_gridvals, pi_e_J, pi_u, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions)
+function [Vtilde,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetuN_DC2A_nod1_noz_e_raw(n_d2, n_a1, n_a2, n_a3, n_e, n_u, N_j, d2_gridvals, a1_grid, a2_gridvals, a3_grid, e_gridvals_J, u_gridvals, pi_e_J, pi_u, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions, beta0)
 % Naive quasi-hyperbolic discounting + ExperienceAssetu, Divide-and-Conquer over a1prime with a
 % second (folded) standard endogenous state (DC2A).
 % Internal naming: a1 is the DC'd standard state, a2 the folded standard state(s), a3 the
@@ -6,7 +6,7 @@ function [Vtilde,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicExpAsse
 % Naive: two passes over the same candidate set,
 %   Valt/Policyalt maximise  F + beta*EV        (the exponential value)
 %   Vtilde/Policy  maximise  F + beta0*beta*EV  (the QH-perceived value)
-% beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj).
+% beta0 is received as a trailing input.
 % The two discount factors generally pick different DC midpoints, so the beta pass uses maxgap_V and
 % the beta0*beta pass uses maxgap; the level-1 return matrix is shared, level-2 matrices are *_dc.
 % The backward continuation value is Valt (the exponential continuation value).
@@ -153,7 +153,6 @@ if ~isfield(vfoptions,'V_Jplus1')
 else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
     beta0beta=beta0*beta;
 
     EVpre=sum(pi_e_J(:,N_j+1)'.*reshape(vfoptions.V_Jplus1,[N_a,N_e]),2);
@@ -408,7 +407,6 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
     beta0beta=beta0*beta;
 
     EVpre=sum(pi_e_J(:,jj+1)'.*reshape(Valt(:,:,jj+1),[N_a,N_e]),2);

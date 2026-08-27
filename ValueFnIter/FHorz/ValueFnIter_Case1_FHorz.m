@@ -251,6 +251,16 @@ if vfoptions.verbose>=1
     vfoptions
 end
 
+%% Check the quasi-hyperbolic discounting inputs before dispatching on exoticpreferences
+% (the experienceasset variants of quasi-hyperbolic are dispatched below and never check this themselves)
+if strcmp(vfoptions.exoticpreferences,'QuasiHyperbolic')
+    if ~isfield(vfoptions,'QHadditionaldiscount')
+        error('You must declare vfoptions.QHadditionaldiscount when using quasi-hyperbolic discouting (you have vfoptions.exoticpreferences set to QuasiHyperbolic)')
+    elseif ~ischar(vfoptions.QHadditionaldiscount)
+        error('vfoptions.QHadditionaldiscount must be the name of the additional discount parameter, given as a character vector such as ''beta0''')
+    end
+end
+
 %% Deal with Exotic preferences if need to do that.
 if strcmp(vfoptions.exoticpreferences,'None')
     % Just ignore and will then continue on.

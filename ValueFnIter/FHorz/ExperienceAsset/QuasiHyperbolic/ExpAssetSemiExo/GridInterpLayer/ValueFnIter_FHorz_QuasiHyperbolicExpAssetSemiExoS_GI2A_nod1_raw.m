@@ -1,4 +1,4 @@
-function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetSemiExoS_GI2A_nod1_raw(n_d2, n_d3, n_a1, n_a2, n_a3, n_z, n_semiz, N_j, d2_gridvals, d3_grid, a1_grid, a2_gridvals, a3_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions)
+function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetSemiExoS_GI2A_nod1_raw(n_d2, n_d3, n_a1, n_a2, n_a3, n_z, n_semiz, N_j, d2_gridvals, d3_grid, a1_grid, a2_gridvals, a3_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions, beta0)
 % Sophisticated quasi-hyperbolic discounting variant of ValueFnIter_FHorz_ExpAssetSemiExo_GI2A_nod1_raw.
 % ExperienceAsset + semi-exogenous shocks, with the grid interpolation layer on a1. GPU only.
 %
@@ -7,7 +7,7 @@ function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetSemiEx
 % EVfine is the (undiscounted) interpolated continuation actually added to the layer-2 RHS, so
 % the a3 lottery is already baked in and the gather needs no lottery handling. The gather is
 % taken at the FINAL layer-2 argmax (maxindexL2), and then at the chosen d3.
-% beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj).
+% beta0 is received as a trailing input.
 % SemiExo graft of ValueFnIter_FHorz_ExpAsset_GI2A_nod1_raw, keeping its grid-interpolation math.
 % _nod1: only d2 (which determines experience asset a3) and d3 (which determines semi-exog state semiz).
 % a1 is the grid-interpolated first standard asset (scalar); a2 is a folded standard asset (choice a2prime); a3 is the experience asset.
@@ -184,7 +184,6 @@ else
     % vfoptions.V_Jplus1 provided
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
     beta0beta=beta0*beta;
 
     EVpre=reshape(vfoptions.V_Jplus1,[N_a,N_bothz]);
@@ -382,7 +381,6 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
     beta0beta=beta0*beta;
 
     EVpre=Vunderbar(:,:,jj+1); % [N_a,N_bothz]

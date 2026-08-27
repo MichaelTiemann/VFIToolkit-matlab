@@ -1,4 +1,4 @@
-function varargout=ValueFnIter_FHorz_QuasiHyperbolicSemiExo_DC_GI(n_d1,n_d2,n_a,n_semiz,n_z,N_j,d1_gridvals,d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions)
+function varargout=ValueFnIter_FHorz_QuasiHyperbolicSemiExo_DC_GI(n_d1,n_d2,n_a,n_semiz,n_z,N_j,d1_gridvals,d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0)
 % Quasi-hyperbolic + SemiExo + DC + GridInterpLayer sub-dispatcher.
 % Splices QH dual-V (V1, Valt) with SemiExo d2 outer loop and DC level1n + GI midpoint/L2 search (with L2flag).
 % One endogenous state required (N_a1>0); requires vfoptions.level1n and vfoptions.ngridinterp.
@@ -45,29 +45,29 @@ if isscalar(n_a)
         if N_d1==0
             if N_e==0
                 if N_z==0
-                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC1_GI1_nod1_noz_raw(n_d2,n_a,n_semiz, N_j, d2_gridvals, a_grid, semiz_gridvals_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC1_GI1_nod1_noz_raw(n_d2,n_a,n_semiz, N_j, d2_gridvals, a_grid, semiz_gridvals_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 else
-                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC1_GI1_nod1_raw(n_d2,n_a,n_z,n_semiz, N_j, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC1_GI1_nod1_raw(n_d2,n_a,n_z,n_semiz, N_j, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 end
             else
                 if N_z==0
-                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC1_GI1_nod1_noz_e_raw(n_d2,n_a,n_semiz, vfoptions.n_e, N_j, d2_gridvals, a_grid, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC1_GI1_nod1_noz_e_raw(n_d2,n_a,n_semiz, vfoptions.n_e, N_j, d2_gridvals, a_grid, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 else
-                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC1_GI1_nod1_e_raw(n_d2,n_a,n_z,n_semiz, vfoptions.n_e, N_j, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_z_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC1_GI1_nod1_e_raw(n_d2,n_a,n_z,n_semiz, vfoptions.n_e, N_j, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_z_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 end
             end
         else
             if N_e==0
                 if N_z==0
-                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC1_GI1_noz_raw(n_d1,n_d2,n_a,n_semiz, N_j, d1_gridvals, d2_gridvals, a_grid, semiz_gridvals_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC1_GI1_noz_raw(n_d1,n_d2,n_a,n_semiz, N_j, d1_gridvals, d2_gridvals, a_grid, semiz_gridvals_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 else
-                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC1_GI1_raw(n_d1,n_d2,n_a,n_z,n_semiz, N_j, d1_gridvals, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC1_GI1_raw(n_d1,n_d2,n_a,n_z,n_semiz, N_j, d1_gridvals, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 end
             else
                 if N_z==0
-                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC1_GI1_noz_e_raw(n_d1,n_d2,n_a,n_semiz, vfoptions.n_e, N_j, d1_gridvals, d2_gridvals, a_grid, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC1_GI1_noz_e_raw(n_d1,n_d2,n_a,n_semiz, vfoptions.n_e, N_j, d1_gridvals, d2_gridvals, a_grid, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 else
-                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC1_GI1_e_raw(n_d1,n_d2,n_a,n_z,n_semiz, vfoptions.n_e, N_j, d1_gridvals, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_z_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC1_GI1_e_raw(n_d1,n_d2,n_a,n_z,n_semiz, vfoptions.n_e, N_j, d1_gridvals, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_z_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 end
             end
         end
@@ -75,29 +75,29 @@ if isscalar(n_a)
         if N_d1==0
             if N_e==0
                 if N_z==0
-                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC1_GI1_nod1_noz_raw(n_d2,n_a,n_semiz, N_j, d2_gridvals, a_grid, semiz_gridvals_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC1_GI1_nod1_noz_raw(n_d2,n_a,n_semiz, N_j, d2_gridvals, a_grid, semiz_gridvals_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 else
-                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC1_GI1_nod1_raw(n_d2,n_a,n_z,n_semiz, N_j, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC1_GI1_nod1_raw(n_d2,n_a,n_z,n_semiz, N_j, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 end
             else
                 if N_z==0
-                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC1_GI1_nod1_noz_e_raw(n_d2,n_a,n_semiz, vfoptions.n_e, N_j, d2_gridvals, a_grid, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC1_GI1_nod1_noz_e_raw(n_d2,n_a,n_semiz, vfoptions.n_e, N_j, d2_gridvals, a_grid, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 else
-                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC1_GI1_nod1_e_raw(n_d2,n_a,n_z,n_semiz, vfoptions.n_e, N_j, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_z_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC1_GI1_nod1_e_raw(n_d2,n_a,n_z,n_semiz, vfoptions.n_e, N_j, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_z_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 end
             end
         else
             if N_e==0
                 if N_z==0
-                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC1_GI1_noz_raw(n_d1,n_d2,n_a,n_semiz, N_j, d1_gridvals, d2_gridvals, a_grid, semiz_gridvals_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC1_GI1_noz_raw(n_d1,n_d2,n_a,n_semiz, N_j, d1_gridvals, d2_gridvals, a_grid, semiz_gridvals_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 else
-                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC1_GI1_raw(n_d1,n_d2,n_a,n_z,n_semiz, N_j, d1_gridvals, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC1_GI1_raw(n_d1,n_d2,n_a,n_z,n_semiz, N_j, d1_gridvals, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 end
             else
                 if N_z==0
-                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC1_GI1_noz_e_raw(n_d1,n_d2,n_a,n_semiz, vfoptions.n_e, N_j, d1_gridvals, d2_gridvals, a_grid, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC1_GI1_noz_e_raw(n_d1,n_d2,n_a,n_semiz, vfoptions.n_e, N_j, d1_gridvals, d2_gridvals, a_grid, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 else
-                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC1_GI1_e_raw(n_d1,n_d2,n_a,n_z,n_semiz, vfoptions.n_e, N_j, d1_gridvals, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_z_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC1_GI1_e_raw(n_d1,n_d2,n_a,n_z,n_semiz, vfoptions.n_e, N_j, d1_gridvals, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_z_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 end
             end
         end
@@ -115,29 +115,29 @@ elseif length(n_a)==2 % DC2A_GI2A: DC and grid-interpolation both on the first e
         if N_d1==0
             if N_e==0
                 if N_z==0
-                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC2A_GI2A_nod1_noz_raw(n_d2,n_a,n_semiz, N_j, d2_gridvals, a_grid, semiz_gridvals_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC2A_GI2A_nod1_noz_raw(n_d2,n_a,n_semiz, N_j, d2_gridvals, a_grid, semiz_gridvals_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 else
-                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC2A_GI2A_nod1_raw(n_d2,n_a,n_z,n_semiz, N_j, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC2A_GI2A_nod1_raw(n_d2,n_a,n_z,n_semiz, N_j, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 end
             else
                 if N_z==0
-                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC2A_GI2A_nod1_noz_e_raw(n_d2,n_a,n_semiz, vfoptions.n_e, N_j, d2_gridvals, a_grid, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC2A_GI2A_nod1_noz_e_raw(n_d2,n_a,n_semiz, vfoptions.n_e, N_j, d2_gridvals, a_grid, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 else
-                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC2A_GI2A_nod1_e_raw(n_d2,n_a,n_z,n_semiz, vfoptions.n_e, N_j, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_z_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC2A_GI2A_nod1_e_raw(n_d2,n_a,n_z,n_semiz, vfoptions.n_e, N_j, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_z_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 end
             end
         else
             if N_e==0
                 if N_z==0
-                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC2A_GI2A_noz_raw(n_d1,n_d2,n_a,n_semiz, N_j, d1_gridvals, d2_gridvals, a_grid, semiz_gridvals_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC2A_GI2A_noz_raw(n_d1,n_d2,n_a,n_semiz, N_j, d1_gridvals, d2_gridvals, a_grid, semiz_gridvals_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 else
-                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC2A_GI2A_raw(n_d1,n_d2,n_a,n_z,n_semiz, N_j, d1_gridvals, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC2A_GI2A_raw(n_d1,n_d2,n_a,n_z,n_semiz, N_j, d1_gridvals, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 end
             else
                 if N_z==0
-                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC2A_GI2A_noz_e_raw(n_d1,n_d2,n_a,n_semiz, vfoptions.n_e, N_j, d1_gridvals, d2_gridvals, a_grid, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC2A_GI2A_noz_e_raw(n_d1,n_d2,n_a,n_semiz, vfoptions.n_e, N_j, d1_gridvals, d2_gridvals, a_grid, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 else
-                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC2A_GI2A_e_raw(n_d1,n_d2,n_a,n_z,n_semiz, vfoptions.n_e, N_j, d1_gridvals, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_z_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VtildeKron, PolicyKron, ValtKron, PolicyaltKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_DC2A_GI2A_e_raw(n_d1,n_d2,n_a,n_z,n_semiz, vfoptions.n_e, N_j, d1_gridvals, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_z_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 end
             end
         end
@@ -145,29 +145,29 @@ elseif length(n_a)==2 % DC2A_GI2A: DC and grid-interpolation both on the first e
         if N_d1==0
             if N_e==0
                 if N_z==0
-                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC2A_GI2A_nod1_noz_raw(n_d2,n_a,n_semiz, N_j, d2_gridvals, a_grid, semiz_gridvals_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC2A_GI2A_nod1_noz_raw(n_d2,n_a,n_semiz, N_j, d2_gridvals, a_grid, semiz_gridvals_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 else
-                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC2A_GI2A_nod1_raw(n_d2,n_a,n_z,n_semiz, N_j, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC2A_GI2A_nod1_raw(n_d2,n_a,n_z,n_semiz, N_j, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 end
             else
                 if N_z==0
-                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC2A_GI2A_nod1_noz_e_raw(n_d2,n_a,n_semiz, vfoptions.n_e, N_j, d2_gridvals, a_grid, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC2A_GI2A_nod1_noz_e_raw(n_d2,n_a,n_semiz, vfoptions.n_e, N_j, d2_gridvals, a_grid, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 else
-                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC2A_GI2A_nod1_e_raw(n_d2,n_a,n_z,n_semiz, vfoptions.n_e, N_j, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_z_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC2A_GI2A_nod1_e_raw(n_d2,n_a,n_z,n_semiz, vfoptions.n_e, N_j, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_z_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 end
             end
         else
             if N_e==0
                 if N_z==0
-                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC2A_GI2A_noz_raw(n_d1,n_d2,n_a,n_semiz, N_j, d1_gridvals, d2_gridvals, a_grid, semiz_gridvals_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC2A_GI2A_noz_raw(n_d1,n_d2,n_a,n_semiz, N_j, d1_gridvals, d2_gridvals, a_grid, semiz_gridvals_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 else
-                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC2A_GI2A_raw(n_d1,n_d2,n_a,n_z,n_semiz, N_j, d1_gridvals, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC2A_GI2A_raw(n_d1,n_d2,n_a,n_z,n_semiz, N_j, d1_gridvals, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 end
             else
                 if N_z==0
-                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC2A_GI2A_noz_e_raw(n_d1,n_d2,n_a,n_semiz, vfoptions.n_e, N_j, d1_gridvals, d2_gridvals, a_grid, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC2A_GI2A_noz_e_raw(n_d1,n_d2,n_a,n_semiz, vfoptions.n_e, N_j, d1_gridvals, d2_gridvals, a_grid, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 else
-                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC2A_GI2A_e_raw(n_d1,n_d2,n_a,n_z,n_semiz, vfoptions.n_e, N_j, d1_gridvals, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_z_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+                    [VhatKron, PolicyKron, VunderbarKron]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC2A_GI2A_e_raw(n_d1,n_d2,n_a,n_z,n_semiz, vfoptions.n_e, N_j, d1_gridvals, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_z_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
                 end
             end
         end

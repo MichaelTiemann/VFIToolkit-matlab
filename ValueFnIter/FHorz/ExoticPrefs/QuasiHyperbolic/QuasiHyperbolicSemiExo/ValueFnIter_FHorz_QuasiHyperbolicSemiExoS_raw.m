@@ -1,4 +1,4 @@
-function [Vhat, Policy, Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_raw(n_d1, n_d2, n_a, n_z, n_semiz, N_j, d1_gridvals, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions)
+function [Vhat, Policy, Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_raw(n_d1, n_d2, n_a, n_z, n_semiz, N_j, d1_gridvals, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0)
 % Sophisticated quasi-hyperbolic discounting with semi-exogenous shock.
 % Vhat = u + beta_0*beta*E[Vunderbar'] is the value under today-to-tomorrow discount evaluated at the sophisticated policy.
 % Vunderbar = u(policy_soph) + beta*E[Vunderbar'] is the welfare valuation of the time-inconsistent policy at standard discount.
@@ -82,7 +82,6 @@ else
 
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
     beta0beta=beta0*beta;
 
     if vfoptions.lowmemory==0
@@ -202,7 +201,6 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
     beta0beta=beta0*beta;
 
     EV=Vunderbar(:,:,jj+1); % Sophisticated: use Vunderbar (continuation under exponential discount of time-inconsistent policy)

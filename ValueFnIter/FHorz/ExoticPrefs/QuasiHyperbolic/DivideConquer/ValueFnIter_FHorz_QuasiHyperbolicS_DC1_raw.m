@@ -1,9 +1,9 @@
-function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicS_DC1_raw(n_d,n_a,n_z,N_j, d_gridvals, a_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions)
+function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicS_DC1_raw(n_d,n_a,n_z,N_j, d_gridvals, a_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0)
 % Sophisticated quasi-hyperbolic discounting variant of ValueFnIter_FHorz_DC1_raw.
 % Has d (decision) variables. Uses divide-and-conquer on a (GPU, parallel==2 only).
 %
 % DiscountFactorParamNames is the standard discount factor beta
-% vfoptions.QHadditionaldiscount gives the name of beta_0, the additional discount factor parameter
+% beta0 (the additional discount factor) is received as an input; the dispatcher reads it once from vfoptions.QHadditionaldiscount
 %
 % The 'Sophisticated' quasi-hyperbolic solution takes into account the time-inconsistent behaviour of their future self.
 % Let Vunderbar_j be the exponential discounting value fn of the time-inconsistent policy function.
@@ -102,7 +102,6 @@ else
     % Using V_Jplus1 (should be Vunderbar for sophisticated)
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
     beta0beta=beta0*beta;
 
     EV=reshape(vfoptions.V_Jplus1,[N_a,N_z]);
@@ -204,7 +203,6 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
     beta0beta=beta0*beta;
 
     EVsource=Vunderbar(:,:,jj+1);

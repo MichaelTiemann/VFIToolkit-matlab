@@ -1,11 +1,11 @@
-function [Vtilde,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetsemizN_DC2A_GI2A_nod1_noz_e_raw(n_d2, n_d3, n_a1, n_a2, n_a3, n_semiz, n_e, N_j, d2_gridvals, d3_grid, a1_grid, a2_gridvals, a3_grid, semiz_gridvals_J, e_gridvals_J, pi_semiz_J, pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions)
+function [Vtilde,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetsemizN_DC2A_GI2A_nod1_noz_e_raw(n_d2, n_d3, n_a1, n_a2, n_a3, n_semiz, n_e, N_j, d2_gridvals, d3_grid, a1_grid, a2_gridvals, a3_grid, semiz_gridvals_J, e_gridvals_J, pi_semiz_J, pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions, beta0)
 % Naive quasi-hyperbolic discounting + ExperienceAssetsemiz, two standard endogenous states:
 % divide-and-conquer on a1 (DC2A) plus the grid interpolation layer on a1 (GI2A); the remaining
 % standard endogenous state a2 is folded (choice a2prime); a3 is the experience asset.
 % Naive: two fully independent passes over the same candidate set,
 %   Valt/Policyalt maximise  F + beta*EV        (the exponential value; drives the backward recursion)
 %   Vtilde/Policy  maximise  F + beta0*beta*EV  (the QH-perceived value; reported as V)
-% beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj), beta0beta=beta0*beta.
+% beta0 is received as a trailing input, beta0beta=beta0*beta.
 % The two discount factors generally choose different DC brackets, different GI midpoints, different
 % folded a2prime and different d3, so each pass re-derives its own maxgap, loweredge, midpoint,
 % a1primeindexesfine and level-2 return matrix, and takes its own max over d3. Only the level-1
@@ -237,7 +237,6 @@ if ~isfield(vfoptions,'V_Jplus1')
 else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
     beta0beta=beta0*beta;
 
     EVpre=squeeze(sum(reshape(vfoptions.V_Jplus1,[N_a,N_semiz,N_e]).*shiftdim(pi_e_J(:,N_j+1),-2),3)); % [N_a,N_semiz]
@@ -649,7 +648,6 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
     beta0beta=beta0*beta;
 
     EVpre=squeeze(sum(Valt(:,:,:,jj+1).*shiftdim(pi_e_J(:,jj+1),-2),3)); % [N_a,N_semiz]  -- continuation is Valt (the exponential value)

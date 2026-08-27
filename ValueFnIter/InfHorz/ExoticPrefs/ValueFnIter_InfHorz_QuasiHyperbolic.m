@@ -45,6 +45,8 @@ end
 
 if ~isfield(vfoptions,'QHadditionaldiscount')
     error('You must declare vfoptions.QHadditionaldiscount when using quasi-hyperbolic discouting (you have vfoptions.exoticpreferences set to QuasiHyperbolic)')
+elseif ~ischar(vfoptions.QHadditionaldiscount)
+    error('vfoptions.QHadditionaldiscount must be the name of the additional discount parameter, given as a character vector such as ''beta0''')
 end
 
 isNaive=strcmp(vfoptions.quasi_hyperbolic,'Naive');
@@ -54,7 +56,10 @@ isNaive=strcmp(vfoptions.quasi_hyperbolic,'Naive');
 % Create a vector containing all the return function parameters (in order)
 ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames);
 DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames);
-beta0=Parameters.(vfoptions.QHadditionaldiscount{1});
+beta0=Parameters.(vfoptions.QHadditionaldiscount);
+if ~isscalar(beta0)
+    error('The quasi-hyperbolic additional discount factor (the parameter named by vfoptions.QHadditionaldiscount) must be a scalar; it cannot depend on age')
+end
 
 %%
 if vfoptions.gridinterplayer==1
@@ -119,13 +124,13 @@ else
             % First calculate the exponential discounting solution
             [Valt,Policyalt]=ValueFnIter_InfHorz_nod_raw(V0, n_a, n_z, pi_z, prod(DiscountFactorParamsVec), ReturnMatrix, vfoptions.howards, vfoptions.maxhowards, vfoptions.tolerance, vfoptions.maxiter);
             % Then the Naive quasi-hyperbolic from this
-            [V,Policy]=ValueFnIter_InfHorz_QuasiHyperbolicN_nod_raw(Valt, n_a, n_z, pi_z, beta0, ReturnMatrix);
+            [V,Policy]=ValueFnIter_InfHorz_QuasiHyperbolicN_nod_raw(Valt, n_a, n_z, pi_z, DiscountFactorParamsVec, beta0, ReturnMatrix);
             Policy=shiftdim(Policy,-1);
         else
             % First calculate the exponential discounting solution
             [Valt, Policyalt]=ValueFnIter_InfHorz_raw(V0, n_d,n_a,n_z, pi_z, prod(DiscountFactorParamsVec), ReturnMatrix,vfoptions.howards, vfoptions.maxhowards,vfoptions.tolerance, vfoptions.maxiter);
             % Then the Naive quasi-hyperbolic from this
-            [V, Policy]=ValueFnIter_InfHorz_QuasiHyperbolicN_raw(Valt, n_d,n_a,n_z, pi_z, beta0, ReturnMatrix);
+            [V, Policy]=ValueFnIter_InfHorz_QuasiHyperbolicN_raw(Valt, n_d,n_a,n_z, pi_z, DiscountFactorParamsVec, beta0, ReturnMatrix);
         end
     else % Sophisticated
         if N_d==0

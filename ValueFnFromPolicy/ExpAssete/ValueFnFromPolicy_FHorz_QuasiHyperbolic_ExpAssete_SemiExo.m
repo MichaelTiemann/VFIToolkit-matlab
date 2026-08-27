@@ -1,4 +1,4 @@
-function [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssete_SemiExo(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions)
+function [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssete_SemiExo(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0)
 % Quasi-hyperbolic ValueFnFromPolicy for experienceassete (a2prime=aprimeFn(d,a2,e)) WITH a
 % semi-exogenous state (semiz). Combines:
 %   - the e aprime machinery + semiz reconstruction (cf ValueFnFromPolicy_FHorz_ExpAsseteSemiExo)
@@ -19,7 +19,7 @@ function [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssete_SemiExo(Poli
 
 %% Scope
 if vfoptions.gridinterplayer==1
-    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssete_SemiExo_GI(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssete_SemiExo_GI(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0);
     return
 end
 
@@ -195,7 +195,6 @@ for reverse_j=0:N_j-1
         end
     else
         beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-        beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
         beta0beta=beta0*beta;
 
         % EVnext from the recursion-driver value (Vdrive):
