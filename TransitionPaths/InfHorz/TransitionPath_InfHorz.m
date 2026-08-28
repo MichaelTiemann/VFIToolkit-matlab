@@ -18,6 +18,7 @@ end
 if exist('transpathoptions','var')==0
     disp('No transpathoptions given, using defaults')
     % If transpathoptions is not given, just use all the defaults
+    transpathoptions.updatepert=0; % 0: build the new price path from all periods at once after the loop over t (updatePricePathNew_TPath_T), 1: build it period by period inside the loop (updatePricePathNew_TPath_tt, the original). Same answer either way for the shooting algorithm; =0 is what the Newton options need, as their Jacobian couples periods
     transpathoptions.toleranceGEprices=Inf; % convergence criterion for GE prices, set =Inf to turn this off (it is off by default)
     transpathoptions.toleranceGEcondns=1e-4; % convergence criterion for GE condns
     transpathoptions.multiGEcriterion=1; % How to combine multiple GE condns (default is sum-of-squares)
@@ -40,6 +41,9 @@ if exist('transpathoptions','var')==0
     transpathoptions.tanimprovement=1;
 else
     % Check transpathoptions for missing fields, if there are some fill them with the defaults
+    if ~isfield(transpathoptions,'updatepert')
+        transpathoptions.updatepert=0; % 0: build the new price path from all periods at once after the loop over t (updatePricePathNew_TPath_T), 1: build it period by period inside the loop (updatePricePathNew_TPath_tt, the original). Same answer either way for the shooting algorithm; =0 is what the Newton options need, as their Jacobian couples periods
+    end
     if isfield(transpathoptions,'tolerance')
         error('Old transpathoptions.tolerance, has now been renamed and you should use transpathoptions.toleranceGEcondns instead')
     end

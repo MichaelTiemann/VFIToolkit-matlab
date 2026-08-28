@@ -128,10 +128,21 @@ while (PricePathDist>transpathoptions.toleranceGEprices || GEcondnPathDist>trans
         end
     
         %% General Eqm Eqns
-        % Evaluate the general eqm conditions, and based on them create PricePathNew (interpretation depends on transpathoptions)
-        [PricePathNew_tt,GEcondnPath_tt]=updatePricePathNew_TPath_tt(Parameters,GeneralEqmEqnsCell,GeneralEqmEqnParamNames,PricePathOld(tt,:),itercounter,transpathoptions);
-        PricePathNew(tt,:)=PricePathNew_tt;
-        GEcondnPath(tt,:)=GEcondnPath_tt;
+        if transpathoptions.updatepert==1
+            % Evaluate the general eqm conditions, and based on them create PricePathNew (interpretation depends on transpathoptions)
+            [PricePathNew_tt,GEcondnPath_tt]=updatePricePathNew_TPath_tt(Parameters,GeneralEqmEqnsCell,GeneralEqmEqnParamNames,PricePathOld(tt,:),itercounter,transpathoptions);
+            PricePathNew(tt,:)=PricePathNew_tt;
+            GEcondnPath(tt,:)=GEcondnPath_tt;
+        else
+            % Just evaluate the general eqm conditions for this period. Creating PricePathNew from
+            % them happens after the tt loop, in updatePricePathNew_TPath_T, because the Newton
+            % options need the conditions from every period before they can produce an update.
+            for gg=1:length(GeneralEqmEqnsCell)
+                % Note: _v3 rather than _v3g, so on CPU rather than GPU
+                GEcondnPath(tt,gg)=real(GeneralEqmConditions_Case1_v3(GeneralEqmEqnsCell{gg}, GeneralEqmEqnParamNames(gg).Names, Parameters));
+                % use of real() is a hack that could disguise errors, but I couldn't find why matlab was treating output as complex
+            end
+        end
         
         % Sometimes, want to keep the AggVars to plot them
         if transpathoptions.graphaggvarspath==1
@@ -145,6 +156,10 @@ while (PricePathDist>transpathoptions.toleranceGEprices || GEcondnPathDist>trans
     
 
     %% Now update prices, give verbose feedback, and check for convergence
+    if transpathoptions.updatepert==0
+        % Every general eqm condition, for every period, is now known, so the update can use them together
+        PricePathNew=updatePricePathNew_TPath_T(GEcondnPath,PricePathOld,T,itercounter,transpathoptions);
+    end
 
     % See how far apart the price paths are
     PricePathDist=max(abs(reshape(PricePathNew(1:T-1,:)-PricePathOld(1:T-1,:),[numel(PricePathOld(1:T-1,:)),1])));
