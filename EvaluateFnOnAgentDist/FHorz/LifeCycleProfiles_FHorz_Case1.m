@@ -73,8 +73,8 @@ else
         if strcmp(simoptions.precision,'double')
             simoptions.tolerance=10^(-12); % Numerical tolerance used when calculating min and max values.
     	else
-	        simoptions.tolerance=10^(-5);
-	    end
+            simoptions.tolerance=10^(-4);
+	end
     end
     if isfield(simoptions,'SampleRestrictionFn') % If using SampleRestrictionFn then need to set some things
         if ~isfield(simoptions,'SampleRestrictionFn_include')
