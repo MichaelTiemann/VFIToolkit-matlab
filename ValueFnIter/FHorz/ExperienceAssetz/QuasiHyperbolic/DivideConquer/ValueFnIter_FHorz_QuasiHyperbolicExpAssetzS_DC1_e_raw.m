@@ -1,5 +1,5 @@
-function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetS_DC1_e_raw(n_d1,n_d2,n_a1,n_a2,n_z,n_e,N_j, d_gridvals, d2_gridvals, a1_gridvals, a2_grid, z_gridvals_J, e_gridvals_J, pi_z_J, pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions, beta0)
-% Sophisticated quasi-hyperbolic discounting + ExperienceAsset, Divide-and-Conquer (DC1 over a1prime).
+function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetzS_DC1_e_raw(n_d1,n_d2,n_a1,n_a2,n_z,n_e,N_j, d_gridvals, d2_gridvals, a1_gridvals, a2_grid, z_gridvals_J, e_gridvals_J, pi_z_J, pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions, beta0)
+% Sophisticated quasi-hyperbolic discounting + ExperienceAssetz, Divide-and-Conquer (DC1 over a1prime).
 % d2 determines the experience asset a2, a1 is the standard endogenous state.
 % Sophisticated: a single max under beta0*beta,
 %   Vhat/Policy come from the  F + beta0*beta*EV  argmax (QH-perceived).
@@ -211,27 +211,27 @@ else
     EV=sum(shiftdim(pi_e_J(:,N_j+1),-2).*reshape(vfoptions.V_Jplus1,[N_a,N_z,N_e]),3); % First, switch V_Jplus1 into Kron form
 
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
-    [a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix(aprimeFn, n_d2, n_a2, d2_gridvals, a2_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
-    % Note: aprimeIndex is [N_d2,N_a2], whereas aprimeProbs is [N_d2,N_a2]
+    [a2primeIndex,a2primeProbs]=CreateExperienceAssetzFnMatrix(aprimeFn, n_d2, n_a2, n_z, d2_gridvals, a2_grid, z_gridvals_J(:,:,N_j), aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
+    % Note: aprimeIndex is [N_d2,N_a2,N_z], whereas aprimeProbs is [N_d2,N_a2,N_z]   (N_z here is the current z)
 
-    aprimeIndex=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat(a2primeIndex-1,N_a1,1,1); % [N_d2*N_a1,N_a2]
-    aprimeplus1Index=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat(a2primeIndex,N_a1,1,1); % [N_d2*N_a1,N_a2]
-    aprimeProbs=repmat(a2primeProbs,N_a1,1,N_z); % [N_d2*N_a1,N_a2,N_z]
+    aprimeIndex=repelem((1:1:N_a1)',N_d2,N_a2,N_z)+N_a1*repmat(a2primeIndex-1,N_a1,1,1); % [N_d2*N_a1,N_a2,N_z]
+    aprimeplus1Index=repelem((1:1:N_a1)',N_d2,N_a2,N_z)+N_a1*repmat(a2primeIndex,N_a1,1,1); % [N_d2*N_a1,N_a2,N_z]
+    aprimeProbs=repmat(a2primeProbs,N_a1,1,1,N_z); % [N_d2*N_a1,N_a2,N_z]    (z dim already present, no repmat over z; but need to add zprime)
 
-    Vlower=reshape(EV(aprimeIndex(:),:),[N_d2*N_a1,N_a2,N_z]);
-    Vupper=reshape(EV(aprimeplus1Index(:),:),[N_d2*N_a1,N_a2,N_z]);
+    Vlower=reshape(EV(aprimeIndex(:),:),[N_d2*N_a1,N_a2,N_z,N_z]); % (d2*a1prime,a2,z_cur,zprime)
+    Vupper=reshape(EV(aprimeplus1Index(:),:),[N_d2*N_a1,N_a2,N_z,N_z]);
     % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
     skipinterp=(Vlower==Vupper);
     aprimeProbs(skipinterp)=0; % effectively skips interpolation
 
     % Switch EV from being in terms of a2prime to being in terms of d2 and a2
-    EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper; % (d2,a1prime,a2,u,zprime)
+    EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper; % (d2*a1prime,a2,z_cur,zprime)
     % Already applied the probabilities from interpolating onto grid
 
-    EV=EV.*shiftdim(pi_z_J(:,:,N_j)',-2);
+    EV=EV.*shiftdim(pi_z_J(:,:,N_j),-2); % pi[z_cur,z_prime] shaped [1,1,z_cur,z_prime] -- no transpose since current z is dim 3
     EV(isnan(EV))=0; % remove nan created where value fn is -Inf but probability is zero
-    EV=squeeze(sum(EV,3));
-    % EV is over (d2,a1prime,a2,z)
+    EV=squeeze(sum(EV,4));
+    % EV is over (d2*a1prime,a2,z_cur)
 
     DiscountedEV_hat=beta0beta*reshape(EV,[N_d2,N_a1,1,N_a2,N_z]); % (d2,a1prime,1,a2,z); d1-dim is implicit singleton, broadcasts at use sites   % QH-perceived
     DiscountedEV_under=beta*reshape(EV,[N_d2,N_a1,1,N_a2,N_z]);   % exponential
@@ -414,14 +414,14 @@ else
                         % loweredge is n_d-by-1-by-n_a2-by-1-by-n_a2
                         a1primeindexes=loweredge+(0:1:maxgap(ii));
                         % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_a2
-                        ReturnMatrix_ii_z=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,n_d2,maxgap(ii)+1,level1iidiff(ii),n_a2,special_n_z,special_n_e, d_gridvals, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, z_val, e_val, ReturnFnParamsVec,3,0); % Level=2, Refine=0
+                        ReturnMatrix_ii_ze=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,n_d2,maxgap(ii)+1,level1iidiff(ii),n_a2,special_n_z,special_n_e, d_gridvals, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, z_val, e_val, ReturnFnParamsVec,3,0); % Level=2, Refine=0
                         d2aprime=d2ind+N_d2*(a1primeindexes-1)+N_d2*N_a1*a2ind; % [N_d,maxgap+1,1,N_a2]; linear index into DiscountedEV_hat_z [N_d2,N_a1,1,N_a2]
-                        entireRHS_ii_z=reshape(ReturnMatrix_ii_z+DiscountedEV_hat_z(d2aprime),[N_d*(maxgap(ii)+1),level1iidiff(ii)*N_a2]);
-                        entireRHS_ii_z_under=reshape(ReturnMatrix_ii_z+DiscountedEV_under_z(d2aprime),[N_d*(maxgap(ii)+1),level1iidiff(ii)*N_a2]);
-                        [Vtempii,maxindex]=max(entireRHS_ii_z,[],1);
+                        entireRHS_ii_ze=reshape(ReturnMatrix_ii_ze+DiscountedEV_hat_z(d2aprime),[N_d*(maxgap(ii)+1),level1iidiff(ii)*N_a2]);
+                        entireRHS_ii_ze_under=reshape(ReturnMatrix_ii_ze+DiscountedEV_under_z(d2aprime),[N_d*(maxgap(ii)+1),level1iidiff(ii)*N_a2]);
+                        [Vtempii,maxindex]=max(entireRHS_ii_ze,[],1);
                         Vhat(curraindex,z_c,e_c,N_j)=shiftdim(Vtempii,1);
                         maxindexfull=maxindex+N_d*(maxgap(ii)+1)*(0:level1iidiff(ii)*N_a2-1);
-                        Vtempii_under=entireRHS_ii_z_under(maxindexfull);
+                        Vtempii_under=entireRHS_ii_ze_under(maxindexfull);
                         Vunderbar(curraindex,z_c,e_c,N_j)=shiftdim(Vtempii_under,1);
                         % maxindex does not need reworking, as with expasset there is no a2prime
                         %  the a1prime is relative to loweredge(allind), need to 'add' the loweredge
@@ -431,14 +431,14 @@ else
                     else
                         loweredge=maxindex1(:,1,ii,:);
                         % Just use aprime(ii) for everything
-                        ReturnMatrix_ii_z=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,n_d2,1,level1iidiff(ii),n_a2,special_n_z,special_n_e, d_gridvals, a1_gridvals(loweredge), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, z_val, e_val, ReturnFnParamsVec,3,0); % Level=2, Refine=0
+                        ReturnMatrix_ii_ze=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,n_d2,1,level1iidiff(ii),n_a2,special_n_z,special_n_e, d_gridvals, a1_gridvals(loweredge), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, z_val, e_val, ReturnFnParamsVec,3,0); % Level=2, Refine=0
                         d2aprime=d2ind+N_d2*(loweredge-1)+N_d2*N_a1*a2ind; % [N_d,1,1,N_a2]; linear index into DiscountedEV_hat_z [N_d2,N_a1,1,N_a2]
-                        entireRHS_ii_z=reshape(ReturnMatrix_ii_z+DiscountedEV_hat_z(d2aprime),[N_d*(maxgap(ii)+1),level1iidiff(ii)*N_a2]);
-                        entireRHS_ii_z_under=reshape(ReturnMatrix_ii_z+DiscountedEV_under_z(d2aprime),[N_d*(maxgap(ii)+1),level1iidiff(ii)*N_a2]);
-                        [Vtempii,maxindex]=max(entireRHS_ii_z,[],1);
+                        entireRHS_ii_ze=reshape(ReturnMatrix_ii_ze+DiscountedEV_hat_z(d2aprime),[N_d*(maxgap(ii)+1),level1iidiff(ii)*N_a2]);
+                        entireRHS_ii_ze_under=reshape(ReturnMatrix_ii_ze+DiscountedEV_under_z(d2aprime),[N_d*(maxgap(ii)+1),level1iidiff(ii)*N_a2]);
+                        [Vtempii,maxindex]=max(entireRHS_ii_ze,[],1);
                         Vhat(curraindex,z_c,e_c,N_j)=shiftdim(Vtempii,1);
                         maxindexfull=maxindex+N_d*(maxgap(ii)+1)*(0:level1iidiff(ii)*N_a2-1);
-                        Vtempii_under=entireRHS_ii_z_under(maxindexfull);
+                        Vtempii_under=entireRHS_ii_ze_under(maxindexfull);
                         Vunderbar(curraindex,z_c,e_c,N_j)=shiftdim(Vtempii_under,1);
                         % maxindex does not need reworking, as with expasset there is no a2prime
                         %  the a1prime is relative to loweredge(allind), need to 'add' the loweredge
@@ -468,30 +468,29 @@ for reverse_j=1:N_j-1
     beta0beta=beta0*beta;
 
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);
-    [a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix(aprimeFn, n_d2, n_a2, d2_gridvals, a2_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
-    % Note: aprimeIndex is [N_d2,N_a2], whereas aprimeProbs is [N_d2,N_a2]
+    [a2primeIndex,a2primeProbs]=CreateExperienceAssetzFnMatrix(aprimeFn, n_d2, n_a2, n_z, d2_gridvals, a2_grid, z_gridvals_J(:,:,jj), aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
+    % Note: aprimeIndex is [N_d2,N_a2,N_z], whereas aprimeProbs is [N_d2,N_a2,N_z]   (N_z here is the current z)
 
-    aprimeIndex=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat(a2primeIndex-1,N_a1,1,1); % [N_d2*N_a1,N_a2]
-    aprimeplus1Index=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat(a2primeIndex,N_a1,1,1); % [N_d2*N_a1,N_a2]
-    aprimeProbs=repmat(a2primeProbs,N_a1,1,N_z); % [N_d2*N_a1,N_a2,N_z]
+    aprimeIndex=repelem((1:1:N_a1)',N_d2,N_a2,N_z)+N_a1*repmat(a2primeIndex-1,N_a1,1,1); % [N_d2*N_a1,N_a2,N_z]
+    aprimeplus1Index=repelem((1:1:N_a1)',N_d2,N_a2,N_z)+N_a1*repmat(a2primeIndex,N_a1,1,1); % [N_d2*N_a1,N_a2,N_z]
+    aprimeProbs=repmat(a2primeProbs,N_a1,1,1,N_z); % [N_d2*N_a1,N_a2,N_z]    (z dim already present, no repmat over z; but need to add zprime)
 
     EV=sum(shiftdim(pi_e_J(:,jj+1),-2).*Vunderbar(:,:,:,jj+1),3); % First, switch V_Jplus1 into Kron form
 
-    Vlower=reshape(EV(aprimeIndex(:),:),[N_d2*N_a1,N_a2,N_z]);
-    Vupper=reshape(EV(aprimeplus1Index(:),:),[N_d2*N_a1,N_a2,N_z]);
+    Vlower=reshape(EV(aprimeIndex(:),:),[N_d2*N_a1,N_a2,N_z,N_z]); % (d2*a1prime,a2,z_cur,zprime)
+    Vupper=reshape(EV(aprimeplus1Index(:),:),[N_d2*N_a1,N_a2,N_z,N_z]);
     % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
     skipinterp=(Vlower==Vupper);
     aprimeProbs(skipinterp)=0; % effectively skips interpolation
 
     % Switch EV from being in terms of a2prime to being in terms of d2 and a2
-    EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper; % (d2,a1prime,a2,u,zprime)
+    EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper; % (d2*a1prime,a2,z_cur,zprime)
     % Already applied the probabilities from interpolating onto grid
 
-    % EV is over (d2,a1prime,a2,zprime)
-    EV=EV.*shiftdim(pi_z_J(:,:,jj)',-2);
+    EV=EV.*shiftdim(pi_z_J(:,:,jj),-2); % pi[z_cur,z_prime] shaped [1,1,z_cur,z_prime] -- no transpose since current z is dim 3
     EV(isnan(EV))=0; % remove nan created where value fn is -Inf but probability is zero
-    EV=squeeze(sum(EV,3));
-    % EV is over (d2,a1prime,a2,z)
+    EV=squeeze(sum(EV,4));
+    % EV is over (d2*a1prime,a2,z_cur)
 
     DiscountedEV_hat=beta0beta*reshape(EV,[N_d2,N_a1,1,N_a2,N_z]); % (d2,a1prime,1,a2,z); d1-dim is implicit singleton, broadcasts at use sites   % QH-perceived
     DiscountedEV_under=beta*reshape(EV,[N_d2,N_a1,1,N_a2,N_z]);   % exponential
@@ -614,7 +613,7 @@ for reverse_j=1:N_j-1
                     allind=dind+N_d1*N_d2*repelem(a2Bind,1,level1iidiff(ii))+N_d1*N_d2*N_a2*zBind; % loweredge is n_d-by-1-by-1-by-n_a2-by-n_z
                     Policy(curraindex,:,e_c,jj)=shiftdim(maxindex+N_d1*N_d2*(loweredge(allind)-1),1);
                 else
-                    loweredge=maxindex1(:,1,ii,:,:,:);
+                    loweredge=maxindex1(:,1,ii,:,:);
                     % Just use aprime(ii) for everything
                     ReturnMatrix_ii_e=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,n_d2,1,level1iidiff(ii),n_a2,n_z,special_n_e, d_gridvals, a1_gridvals(loweredge), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, z_gridvals_J(:,:,jj), e_val, ReturnFnParamsVec,3,0); % Level=2, Refine=0
                     d2aprimez=d2ind+N_d2*(loweredge-1)+N_d2*N_a1*a2ind+N_d2*N_a*zind; % [N_d,1,1,N_a2,N_z]; linear index into DiscountedEV_hat [N_d2,N_a1,1,N_a2,N_z]

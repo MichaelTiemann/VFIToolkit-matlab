@@ -68,9 +68,6 @@ if N_e>0
     pi_e_J=vfoptions.pi_e_J;
 
     %% Baseline _e (no DC, no GI)
-    if vfoptions.divideandconquer==1 || vfoptions.gridinterplayer==1
-        error('QuasiHyperbolic+ExpAssetz+e DC/GI requires multi-dim n_a1 (DC2A path).')
-    end
     if isNaive
         if N_a1==0
             if N_d1==0
@@ -136,9 +133,6 @@ end
 
 
 %% Baseline dispatch (no DC, no GI; n_a1 may be scalar or multi-dim — collapsed via prod inside raws)
-if vfoptions.divideandconquer==1 || vfoptions.gridinterplayer==1
-    error('QuasiHyperbolic+ExpAssetz DC/GI requires multi-dim n_a1 (DC2A path). For scalar n_a1, only the baseline variant is implemented.')
-end
 
 if isNaive
     if N_a1==0
