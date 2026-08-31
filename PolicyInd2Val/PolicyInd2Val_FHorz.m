@@ -172,17 +172,32 @@ if N_z==0
         Policy=reshape(Policy,[l_d+l_aprime,N_a*N_j]);
         PolicyValues=zeros(l_d+l_aprime,N_a*N_j,'gpuArray');
         
-        temp_d_grid=d_grid(1:cumsum_n_d(1));
-        PolicyValues(1,:)=temp_d_grid(Policy(1,:));
-        if l_d>1
-            if l_d>2
-                for ii=2:(l_d-1)
-                    temp_d_grid=d_grid(1+cumsum_n_d(ii-1):cumsum_n_d(ii));
-                    PolicyValues(ii,:)=temp_d_grid(Policy(ii,:));
+        if size(d_grid,2)==1 % stacked grid
+            temp_d_grid=d_grid(1:cumsum_n_d(1));
+            PolicyValues(1,:)=temp_d_grid(Policy(1,:));
+            if l_d>1
+                if l_d>2
+                    for ii=2:(l_d-1)
+                        temp_d_grid=d_grid(1+cumsum_n_d(ii-1):cumsum_n_d(ii));
+                        PolicyValues(ii,:)=temp_d_grid(Policy(ii,:));
+                    end
                 end
+                temp_d_grid=d_grid(cumsum_n_d(end-1)+1:end);
+                PolicyValues(l_d,:)=temp_d_grid(Policy(l_d,:));
             end
-            temp_d_grid=d_grid(cumsum_n_d(end-1)+1:end);
-            PolicyValues(l_d,:)=temp_d_grid(Policy(l_d,:));
+        else % using d_gridvals (and must be that l_d>1)
+            d_gridvals=gpuArray(d_grid);
+            % Rebuild the joint row index from the per-variable d indexes, then read each
+            % column of the gridvals at that row. Correct both for a tensor-product expansion
+            % of a stacked grid and for a genuinely joint d_grid, whose rows are an arbitrary
+            % restricted set of combinations (e.g. n_d=[N,1] with an N-by-l_d grid). Without
+            % this branch the stacked slicing above reads column 2 of the gridvals at its
+            % first entry for every agent whenever the trailing n_d entries are 1.
+            n_d_cumprod=cumprod(n_d);
+            djointindex=sum([1;n_d_cumprod(1:end-1)'].*(Policy(1:l_d,:)-[0;ones(l_d-1,1)]),1);
+            for ii=1:l_d
+                PolicyValues(ii,:)=d_gridvals(djointindex,ii);
+            end
         end
 
         if l_aprime>0
@@ -234,17 +249,32 @@ else % N_z
         Policy=reshape(Policy,[l_d+l_aprime,N_a*N_z*N_j]);
         PolicyValues=zeros(l_d+l_aprime,N_a*N_z*N_j,'gpuArray');
 
-        temp_d_grid=d_grid(1:cumsum_n_d(1));
-        PolicyValues(1,:)=temp_d_grid(Policy(1,:));
-        if l_d>1
-            if l_d>2
-                for ii=2:(l_d-1)
-                    temp_d_grid=d_grid(1+cumsum_n_d(ii-1):cumsum_n_d(ii));
-                    PolicyValues(ii,:)=temp_d_grid(Policy(ii,:));
+        if size(d_grid,2)==1 % stacked grid
+            temp_d_grid=d_grid(1:cumsum_n_d(1));
+            PolicyValues(1,:)=temp_d_grid(Policy(1,:));
+            if l_d>1
+                if l_d>2
+                    for ii=2:(l_d-1)
+                        temp_d_grid=d_grid(1+cumsum_n_d(ii-1):cumsum_n_d(ii));
+                        PolicyValues(ii,:)=temp_d_grid(Policy(ii,:));
+                    end
                 end
+                temp_d_grid=d_grid(cumsum_n_d(end-1)+1:end);
+                PolicyValues(l_d,:)=temp_d_grid(Policy(l_d,:));
             end
-            temp_d_grid=d_grid(cumsum_n_d(end-1)+1:end);
-            PolicyValues(l_d,:)=temp_d_grid(Policy(l_d,:));
+        else % using d_gridvals (and must be that l_d>1)
+            d_gridvals=gpuArray(d_grid);
+            % Rebuild the joint row index from the per-variable d indexes, then read each
+            % column of the gridvals at that row. Correct both for a tensor-product expansion
+            % of a stacked grid and for a genuinely joint d_grid, whose rows are an arbitrary
+            % restricted set of combinations (e.g. n_d=[N,1] with an N-by-l_d grid). Without
+            % this branch the stacked slicing above reads column 2 of the gridvals at its
+            % first entry for every agent whenever the trailing n_d entries are 1.
+            n_d_cumprod=cumprod(n_d);
+            djointindex=sum([1;n_d_cumprod(1:end-1)'].*(Policy(1:l_d,:)-[0;ones(l_d-1,1)]),1);
+            for ii=1:l_d
+                PolicyValues(ii,:)=d_gridvals(djointindex,ii);
+            end
         end
 
         if l_aprime>0

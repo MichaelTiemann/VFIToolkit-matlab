@@ -168,8 +168,12 @@ if N_z==0
             end
         else % using d_gridvals (and must be that l_d>1)
             d_gridvals=gpuArray(d_grid);
+            % Rebuild the joint row index from the per-variable d indexes, then read each
+            % column of the gridvals at that row. Correct both for a tensor-product expansion
+            % of a stacked grid and for a genuinely joint d_grid, whose rows are an arbitrary
+            % restricted set of combinations (e.g. n_d=[N,1] with an N-by-l_d grid).
             n_d_cumprod=cumprod(n_d);
-            djointindex=shiftdim(sum([1;n_d_cumprod(1:end-1)'].*(Policy-[0;ones(l_d-1,1)]),1),1);
+            djointindex=sum([1;n_d_cumprod(1:end-1)'].*(Policy(1:l_d,:)-[0;ones(l_d-1,1)]),1);
             for ii=1:l_d
                 PolicyValues(ii,:)=d_gridvals(djointindex,ii);
             end
@@ -235,8 +239,14 @@ else % N_z>0
             end
         else % using d_gridvals (and must be that l_d>1)
             d_gridvals=gpuArray(d_grid);
+            % Rebuild the joint row index from the per-variable d indexes, then read each
+            % column of the gridvals at that row. Correct both for a tensor-product expansion
+            % of a stacked grid and for a genuinely joint d_grid, whose rows are an arbitrary
+            % restricted set of combinations (e.g. n_d=[N,1] with an N-by-l_d grid).
+            n_d_cumprod=cumprod(n_d);
+            djointindex=sum([1;n_d_cumprod(1:end-1)'].*(Policy(1:l_d,:)-[0;ones(l_d-1,1)]),1);
             for ii=1:l_d
-                PolicyValues(ii,:)=d_gridvals(Policy(1,:),ii);
+                PolicyValues(ii,:)=d_gridvals(djointindex,ii);
             end
         end
         

@@ -69,9 +69,14 @@ if fastOLG==0
                 for ii=2:l_aprime
                     PolicyValuesPath(ii,:,:,:,:)=a_grid(sum(n_aprime(1:ii-1))+PolicyPath(ii,:,:,:,:));
                 end
-            else % gridvals: column ii only changes value every prod(n_aprime(1:ii-1)) rows, so index the start of the relevant block (as linear index into column ii)
+            else % gridvals
+                % Joint row index, as for the d gridvals above: correct for a tensor-product
+                % expansion and for a genuinely joint a_grid alike. Row 1 is already set above
+                % (via the fine grid when gridinterplayer==1), so only ii>=2 is filled here.
+                n_aprime_cumprod=cumprod(n_aprime);
+                ajointindex=sum([1;n_aprime_cumprod(1:end-1)'].*(reshape(PolicyPath(1:l_aprime,:,:,:,:),[l_aprime,N_a*N_z*N_j*T])-[0;ones(l_aprime-1,1)]),1);
                 for ii=2:l_aprime
-                    PolicyValuesPath(ii,:,:,:,:)=a_grid(1+prod(n_aprime(1:ii-1))*(PolicyPath(ii,:,:,:,:)-1)+size(a_grid,1)*(ii-1));
+                    PolicyValuesPath(ii,:,:,:,:)=reshape(a_grid(ajointindex,ii),[1,N_a,N_z,N_j,T]);
                 end
             end
         end
@@ -89,10 +94,16 @@ if fastOLG==0
                 PolicyValuesPath(l_d,:,:,:,:)=d_grid(sum(n_d(1:end-1))+PolicyPath(l_d,:,:,:,:));
             end
         else % using d_gridvals (and must be that l_d>1)
-            % PolicyPath holds per-variable d indexes; column ii of the gridvals only changes value every prod(n_d(1:ii-1)) rows, so index the start of the relevant block (as linear index into column ii)
-            PolicyValuesPath(1,:,:,:,:)=d_grid(PolicyPath(1,:,:,:,:)); % linear indexing hits the first rows of column 1, which are the full first d grid
-            for ii=2:l_d
-                PolicyValuesPath(ii,:,:,:,:)=d_grid(1+prod(n_d(1:ii-1))*(PolicyPath(ii,:,:,:,:)-1)+size(d_grid,1)*(ii-1));
+            % Rebuild the joint row index from the per-variable d indexes, then read each column of
+            % the gridvals at that row. This is correct both for a tensor-product expansion of a
+            % stacked grid and for a genuinely joint d_grid, whose rows are an arbitrary restricted
+            % set of combinations (e.g. n_d=[N,1] with an N-by-l_d grid). Indexing column ii by a
+            % per-variable index instead assumes the tensor-product layout and silently returns
+            % the wrong value on a joint grid.
+            n_d_cumprod=cumprod(n_d);
+            djointindex=sum([1;n_d_cumprod(1:end-1)'].*(reshape(PolicyPath(1:l_d,:,:,:,:),[l_d,N_a*N_z*N_j*T])-[0;ones(l_d-1,1)]),1);
+            for ii=1:l_d
+                PolicyValuesPath(ii,:,:,:,:)=reshape(d_grid(djointindex,ii),[1,N_a,N_z,N_j,T]);
             end
         end
         if vfoptions.gridinterplayer==0
@@ -111,9 +122,14 @@ if fastOLG==0
                 for ii=2:l_aprime
                     PolicyValuesPath(l_d+ii,:,:,:,:)=a_grid(sum(n_aprime(1:ii-1))+PolicyPath(l_d+ii,:,:,:,:));
                 end
-            else % gridvals: column ii only changes value every prod(n_aprime(1:ii-1)) rows, so index the start of the relevant block (as linear index into column ii)
+            else % gridvals
+                % Joint row index, as for the d gridvals above: correct for a tensor-product
+                % expansion and for a genuinely joint a_grid alike. Row 1 is already set above
+                % (via the fine grid when gridinterplayer==1), so only ii>=2 is filled here.
+                n_aprime_cumprod=cumprod(n_aprime);
+                ajointindex=sum([1;n_aprime_cumprod(1:end-1)'].*(reshape(PolicyPath(l_d+1:l_d+l_aprime,:,:,:,:),[l_aprime,N_a*N_z*N_j*T])-[0;ones(l_aprime-1,1)]),1);
                 for ii=2:l_aprime
-                    PolicyValuesPath(l_d+ii,:,:,:,:)=a_grid(1+prod(n_aprime(1:ii-1))*(PolicyPath(l_d+ii,:,:,:,:)-1)+size(a_grid,1)*(ii-1));
+                    PolicyValuesPath(l_d+ii,:,:,:,:)=reshape(a_grid(ajointindex,ii),[1,N_a,N_z,N_j,T]);
                 end
             end
         end
