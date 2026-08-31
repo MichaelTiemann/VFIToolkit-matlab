@@ -36,13 +36,11 @@ if vfoptions.experienceassetsemiz>=1
     return
 end
 
-%% Dispatch to SemiExo subfn if n_semiz>0
-if prod(vfoptions.n_semiz)>0
-    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_SemiExo(Policy,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0);
-    return
-end
-
 %% Dispatch to the experience-asset QH subfns
+% These come BEFORE the generic SemiExo dispatch below: the routing is
+% QuasiHyperbolic -> experience-asset family -> SemiExo, matching ValueFnIter_FHorz_QuasiHyperbolic.
+% Each family subfn hands off to its own _SemiExo variant when n_semiz>0, so a semi-exogenous
+% state combined with an experience asset must never reach the generic SemiExo subfn.
 if vfoptions.experienceasset>=1
     [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAsset(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0);
     return
@@ -63,6 +61,15 @@ if vfoptions.experienceassetze>=1
     [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetze(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0);
     return
 end
+
+%% Dispatch to SemiExo subfn if n_semiz>0
+% Reached only when there is no experience asset (those are handled above and own their SemiExo
+% hand-off), so this is semiz on its own.
+if prod(vfoptions.n_semiz)>0
+    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_SemiExo(Policy,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0);
+    return
+end
+
 %% Setup (mirrors ValueFnFromPolicy_FHorz)
 % Caller already moved grids and Policy to GPU and ran ExogShockSetup_FHorz.
 % Re-run shock setup here to get z_gridvals_J / pi_z_J locally.

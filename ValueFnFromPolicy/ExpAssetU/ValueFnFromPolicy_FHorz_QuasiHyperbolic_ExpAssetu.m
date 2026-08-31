@@ -20,10 +20,8 @@ function [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetu(Policy,Polic
 
 %% Dispatch to SemiExo subfn if n_semiz>0
 if prod(vfoptions.n_semiz)>0
-    % ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetu_SemiExo{,_GI} are not written yet, so say so
-    % rather than failing with an undefined-function message. ValueFnIter_FHorz raises the matching
-    % error for this combination, so in practice you never reach here.
-    error('ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetu: QuasiHyperbolic experienceassetu with a semi-exogenous state is not yet implemented (the ExpAssetuSemiExo QH ValueFnFromPolicy subfns are not written). QuasiHyperbolic experienceassetu without semiz is supported.')
+    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetu_SemiExo(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0);
+    return
 end
 %% Dispatch to GI subfn if gridinterplayer==1
 if vfoptions.gridinterplayer==1

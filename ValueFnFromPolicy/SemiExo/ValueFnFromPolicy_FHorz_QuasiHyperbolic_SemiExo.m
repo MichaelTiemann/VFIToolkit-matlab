@@ -24,27 +24,9 @@ if isNaive
     Policyalt=gpuArray(vfoptions.Policyalt);
 end
 
-%% Dispatch to experienceasset+SemiExo QH subfns (semiz combined with the experience asset)
-if isfield(vfoptions,'experienceassetz') && vfoptions.experienceassetz>=1
-    if ~isNaive, Policyalt=[]; end
-    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetz_SemiExo(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0);
-    return
-end
-if isfield(vfoptions,'experienceassetze') && vfoptions.experienceassetze>=1
-    if ~isNaive, Policyalt=[]; end
-    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetze_SemiExo(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0);
-    return
-end
-if isfield(vfoptions,'experienceassete') && vfoptions.experienceassete>=1
-    if ~isNaive, Policyalt=[]; end
-    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssete_SemiExo(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0);
-    return
-end
-if isfield(vfoptions,'experienceasset') && vfoptions.experienceasset>=1
-    if ~isNaive, Policyalt=[]; end
-    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAsset_SemiExo(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0);
-    return
-end
+%% NOTE: experience-asset families never reach here.
+% ValueFnFromPolicy_FHorz_QuasiHyperbolic dispatches on the experience-asset family first, and
+% each family subfn hands off to its own _SemiExo variant. This subfn is semiz on its own.
 
 %% Setup (mirrors ValueFnFromPolicy_FHorz_SemiExo)
 if ~isfield(vfoptions,'pi_semiz_J')

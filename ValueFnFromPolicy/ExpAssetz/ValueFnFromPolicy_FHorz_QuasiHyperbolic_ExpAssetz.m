@@ -7,8 +7,10 @@ function [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetz(Policy,Polic
 % The continuation (EVnext) is always built from the recursion-driver value.
 
 %% Scope (validated-by-test: base method, {z} and {z,e} shocks, Naive & Sophisticated)
+% Dispatch to SemiExo subfn if n_semiz>0
 if prod(vfoptions.n_semiz)>0
-    error('ValueFnFromPolicy_FHorz_QuasiHyperbolic: experienceassetz+SemiExo not yet implemented')
+    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetz_SemiExo(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0);
+    return
 end
 if vfoptions.gridinterplayer==1
     [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetz_GI(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0);

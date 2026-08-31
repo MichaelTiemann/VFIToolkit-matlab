@@ -1,10 +1,8 @@
 function varargout=ValueFnIter_FHorz_QuasiHyperbolicExpAssetu(n_d1,n_d2,n_a1,n_a2,n_z,N_j, d1_grid , d2_grid, a1_grid, a2_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0)
 % vfoptions are already set by ValueFnIter_FHorz()
 
-%% Semi-exogenous state: hand off to the SemiExo variant
-if prod(vfoptions.n_semiz)>0
-    error('ValueFnIter_FHorz: QuasiHyperbolic with experienceassetu and a semi-exogenous state is not yet implemented (the ExpAssetuSemiExo quasi-hyperbolic dispatcher does not exist)')
-end
+% Note: the semi-exogenous hand-off is below, after n_u/u_grid/pi_u have been read out of
+% vfoptions and u_gridvals built, since the SemiExo variant takes all three as arguments.
 
 if isfield(vfoptions,'aprimeFn')
     aprimeFn=vfoptions.aprimeFn;
@@ -54,6 +52,13 @@ else
     d_gridvals=[]; % not used
 end
 u_gridvals=CreateGridvals(n_u,u_grid,1);
+
+%% Semi-exogenous state: hand off to the SemiExo variant
+if prod(vfoptions.n_semiz)>0
+    [V,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetuSemiExo(n_d1,n_d2,vfoptions.n_d3,n_a1,n_a2,n_z,vfoptions.n_semiz,n_u, N_j, d1_grid , d2_grid, vfoptions.d3_grid, a1_grid, a2_grid, z_gridvals_J, vfoptions.semiz_gridvals_J,u_gridvals, pi_z_J, vfoptions.pi_semiz_J,pi_u, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0);
+    varargout={V,Policy,Valt,Policyalt};
+    return
+end
 
 
 %% Dispatch

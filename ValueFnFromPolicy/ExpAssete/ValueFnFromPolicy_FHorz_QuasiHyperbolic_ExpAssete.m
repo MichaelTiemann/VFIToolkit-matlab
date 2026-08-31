@@ -10,8 +10,10 @@ function [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssete(Policy,Polic
 % This is the NO-semiz subfn. experienceassete+semiz is handled by
 % ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssete_SemiExo (and its _GI companion), which
 % ValueFnFromPolicy_FHorz reaches first via its n_semiz>0 dispatch. Defensive guard only.
+% Dispatch to SemiExo subfn if n_semiz>0
 if prod(vfoptions.n_semiz)>0
-    error('ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssete: reached the no-semiz subfn with n_semiz>0; experienceassete+semiz belongs in ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssete_SemiExo')
+    [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssete_SemiExo(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0);
+    return
 end
 if vfoptions.gridinterplayer==1
     [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssete_GI(Policy,Policyalt,isNaive,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions, beta0);
