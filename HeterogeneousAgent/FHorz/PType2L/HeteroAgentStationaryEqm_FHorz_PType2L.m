@@ -286,6 +286,10 @@ for k=1:N_pairs
         [PTypeStructure.(iistr).z_gridvals_J, PTypeStructure.(iistr).pi_z_J, PTypeStructure.(iistr).vfoptions]=ExogShockSetup_FHorz(PTypeStructure.(iistr).n_z,PTypeStructure.(iistr).z_grid,PTypeStructure.(iistr).pi_z,PTypeStructure.(iistr).N_j,PTypeStructure.(iistr).Parameters,PTypeStructure.(iistr).vfoptions,3);
         PTypeStructure.(iistr).simoptions.e_gridvals_J=PTypeStructure.(iistr).vfoptions.e_gridvals_J;
         PTypeStructure.(iistr).simoptions.pi_e_J=PTypeStructure.(iistr).vfoptions.pi_e_J;
+    else
+        % Create placeholders, as these will need to be created in general eqm since they depend on General eqm parameters
+        PTypeStructure.(iistr).z_gridvals_J=[];
+        PTypeStructure.(iistr).pi_z_J=[];
     end
     PTypeStructure.(iistr)=rmfield(PTypeStructure.(iistr),'z_grid');
     PTypeStructure.(iistr)=rmfield(PTypeStructure.(iistr),'pi_z');

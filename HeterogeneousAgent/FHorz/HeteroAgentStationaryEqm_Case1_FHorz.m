@@ -256,6 +256,10 @@ if heteroagentoptions.gridsinGE==0
     if isfield(simoptions,'z_grid')
         simoptions.z_grid=z_gridvals_J; % Assumes z_grid and simoptions.z_grid are the same, but cannot think why they would not be
     end
+else
+    % Just need some placeholders, the _subfn rebuilds these from ExogShockFn on every evaluation
+    z_gridvals_J=[];
+    pi_z_J=[];
 end
 % Regardless of whether they are done here of in _subfn, they will be
 % precomputed by the time we get to the value fn, stationary dist, etc. So

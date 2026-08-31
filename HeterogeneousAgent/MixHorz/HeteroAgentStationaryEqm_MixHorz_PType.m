@@ -423,9 +423,9 @@ for ii=1:PTypeStructure.N_i
             PTypeStructure.(iistr).simoptions.e_gridvals_J=PTypeStructure.(iistr).vfoptions.e_gridvals_J; % Note, will be [] if no e
             PTypeStructure.(iistr).simoptions.pi_e_J=PTypeStructure.(iistr).vfoptions.pi_e_J; % Note, will be [] if no e
         else
-            % % Create placeholders, as these will need to be created in general eqm since they depend on General eqm parameters
-            % PTypeStructure.(iistr).z_gridvals_J=[];
-            % PTypeStructure.(iistr).pi_z_J=[];
+            % Create placeholders, as these will need to be created in general eqm since they depend on General eqm parameters
+            PTypeStructure.(iistr).z_gridvals_J=[];
+            PTypeStructure.(iistr).pi_z_J=[];
         end
         PTypeStructure.(iistr)=rmfield(PTypeStructure.(iistr),'z_grid'); % Should not be used, as now have z_gridvals_J
         PTypeStructure.(iistr)=rmfield(PTypeStructure.(iistr),'pi_z'); % Should not be used, as now have pi_z_J
@@ -435,9 +435,9 @@ for ii=1:PTypeStructure.N_i
             PTypeStructure.(iistr).simoptions.e_gridvals=PTypeStructure.(iistr).vfoptions.e_gridvals; % Note, will be [] if no e
             PTypeStructure.(iistr).simoptions.pi_e=PTypeStructure.(iistr).vfoptions.pi_e; % Note, will be [] if no e
         else
-            % % Create placeholders, as these will need to be created in general eqm since they depend on General eqm parameters
-            % PTypeStructure.(iistr).z_gridvals=[];
-            % PTypeStructure.(iistr).pi_z=[];
+            % Create placeholders, as these will need to be created in general eqm since they depend on General eqm parameters
+            PTypeStructure.(iistr).z_gridvals=[];
+            PTypeStructure.(iistr).pi_z=[];
         end
     end
     % Regardless of whether they are done here of in _subfn, they will be precomputed by the time we get to the value fn, stationary dist, etc. So
