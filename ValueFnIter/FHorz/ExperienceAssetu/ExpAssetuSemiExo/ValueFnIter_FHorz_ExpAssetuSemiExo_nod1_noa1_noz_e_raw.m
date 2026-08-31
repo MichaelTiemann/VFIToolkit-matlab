@@ -90,9 +90,10 @@ else
             EV2=reshape(EV(aprimeplus1Index,:),[N_d2,N_a2,N_u,N_semiz]);
 
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0;
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0;
 
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs);
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a2,semiz)
             EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
 
@@ -117,9 +118,10 @@ else
             EV2=reshape(EV(aprimeplus1Index,:),[N_d2,N_a2,N_u,N_semiz]);
 
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0;
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0;
 
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs);
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a2,semiz)
             EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
 
@@ -147,9 +149,10 @@ else
             EV2=reshape(EV(aprimeplus1Index,:),[N_d2,N_a2,N_u,N_semiz]);
 
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0;
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0;
 
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs);
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a2,semiz)
             EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
 
@@ -215,9 +218,10 @@ for reverse_j=1:N_j-1
             EV2=reshape(EV(aprimeplus1Index,:),[N_d2,N_a2,N_u,N_semiz]);
 
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0;
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0;
 
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs);
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a2,semiz)
             EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
 
@@ -242,9 +246,10 @@ for reverse_j=1:N_j-1
             EV2=reshape(EV(aprimeplus1Index,:),[N_d2,N_a2,N_u,N_semiz]);
 
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0;
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0;
 
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs);
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a2,semiz)
             EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
 
@@ -272,9 +277,10 @@ for reverse_j=1:N_j-1
             EV2=reshape(EV(aprimeplus1Index,:),[N_d2,N_a2,N_u,N_semiz]);
 
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0;
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0;
 
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs);
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a2,semiz)
             EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
 

@@ -195,6 +195,7 @@ for reverse_j=0:N_j-1
         EV_UL=reshape(EVnext(lin_UL(:)),[N_a,N_z,N_e]);
         EV_UU=reshape(EVnext(lin_UU(:)),[N_a,N_z,N_e]);
         EVnext_atpolicy=wa1l.*wa2l.*EV_LL + wa1l.*wa2u.*EV_LU + wa1u.*wa2l.*EV_UL + wa1u.*wa2u.*EV_UU;
+        EVnext_atpolicy(isnan(EVnext_atpolicy))=0; % zero corner weights times -Inf next-states give NaN
 
         % 2x2 corner interpolation at Policyalt's GI indices (Naive only) -> recursion-driver continuation
         if isNaive
@@ -209,6 +210,7 @@ for reverse_j=0:N_j-1
             EV_UL_alt=reshape(EVnext(lin_UL_alt(:)),[N_a,N_z,N_e]);
             EV_UU_alt=reshape(EVnext(lin_UU_alt(:)),[N_a,N_z,N_e]);
             EVnext_atpolicyalt=wa1l_alt.*wa2l_alt.*EV_LL_alt + wa1l_alt.*wa2u_alt.*EV_LU_alt + wa1u_alt.*wa2l_alt.*EV_UL_alt + wa1u_alt.*wa2u_alt.*EV_UU_alt;
+            EVnext_atpolicyalt(isnan(EVnext_atpolicyalt))=0; % zero corner weights times -Inf next-states give NaN
 
             Vdrive(:,:,:,jj)=F_alt_jj+beta    *EVnext_atpolicyalt; % Valt
             Vrep(:,:,:,jj)  =F_jj    +beta0beta*EVnext_atpolicy;   % Vtilde

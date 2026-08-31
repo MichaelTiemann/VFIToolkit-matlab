@@ -179,6 +179,7 @@ for reverse_j=0:N_j-1
             EV_UL=reshape(EVnext(lin_UL(:)),[N_a,N_e]);
             EV_UU=reshape(EVnext(lin_UU(:)),[N_a,N_e]);
             EVnext_atpolicy=wa1l.*wa2l.*EV_LL + wa1l.*wa2u.*EV_LU + wa1u.*wa2l.*EV_UL + wa1u.*wa2u.*EV_UU;
+            EVnext_atpolicy(isnan(EVnext_atpolicy))=0; % zero corner weights times -Inf next-states give NaN
             V(:,:,jj)=F_jj+beta*EVnext_atpolicy;
         else
             a1l=reshape(a1_lower(:,:,jj),[N_a,N_z,N_e]);  a1u=reshape(a1_upper(:,:,jj),[N_a,N_z,N_e]);
@@ -193,6 +194,7 @@ for reverse_j=0:N_j-1
             EV_UL=reshape(EVnext(lin_UL(:)),[N_a,N_z,N_e]);
             EV_UU=reshape(EVnext(lin_UU(:)),[N_a,N_z,N_e]);
             EVnext_atpolicy=wa1l.*wa2l.*EV_LL + wa1l.*wa2u.*EV_LU + wa1u.*wa2l.*EV_UL + wa1u.*wa2u.*EV_UU;
+            EVnext_atpolicy(isnan(EVnext_atpolicy))=0; % zero corner weights times -Inf next-states give NaN
             V(:,:,:,jj)=F_jj+beta*EVnext_atpolicy;
         end
     end

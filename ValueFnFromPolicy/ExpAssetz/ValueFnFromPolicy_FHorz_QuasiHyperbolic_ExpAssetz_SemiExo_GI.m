@@ -308,6 +308,7 @@ for reverse_j=0:N_j-1
             EV_UL=reshape(EVnext_byd2(lin_UL(:)),[N_a, N_semiz, N_z]);
             EV_UU=reshape(EVnext_byd2(lin_UU(:)),[N_a, N_semiz, N_z]);
             EVnext_atP=wa1l_r.*wa2l.*EV_LL + wa1l_r.*wa2u.*EV_LU + wa1u_r.*wa2l.*EV_UL + wa1u_r.*wa2u.*EV_UU;
+            EVnext_atP(isnan(EVnext_atP))=0; % zero corner weights times -Inf next-states give NaN
 
             if isNaive
                 % --- at Policyalt ---
@@ -328,6 +329,7 @@ for reverse_j=0:N_j-1
                 EV_UL_a=reshape(EVnext_byd2(lin_UL_a(:)),[N_a, N_semiz, N_z]);
                 EV_UU_a=reshape(EVnext_byd2(lin_UU_a(:)),[N_a, N_semiz, N_z]);
                 EVnext_atPa=wa1l_a.*wa2l_a.*EV_LL_a + wa1l_a.*wa2u_a.*EV_LU_a + wa1u_a.*wa2l_a.*EV_UL_a + wa1u_a.*wa2u_a.*EV_UU_a;
+                EVnext_atPa(isnan(EVnext_atPa))=0; % zero corner weights times -Inf next-states give NaN
                 Vdrive(:,:,jj)=F_alt_jj + beta*reshape(EVnext_atPa,[N_a,N_shocks]); % Valt
             else
                 Vdrive(:,:,jj)=F_jj + beta*reshape(EVnext_atP,[N_a,N_shocks]);      % Vunderbar

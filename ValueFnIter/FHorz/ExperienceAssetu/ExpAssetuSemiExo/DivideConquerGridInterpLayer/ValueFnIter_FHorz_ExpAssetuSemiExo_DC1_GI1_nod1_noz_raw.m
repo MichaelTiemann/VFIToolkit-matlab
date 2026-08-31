@@ -224,10 +224,11 @@ else
 
             % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0; % effectively skips interpolation
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
 
             % Apply the aprimeProbs
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
             % Already applied the probabilities from interpolating onto grid
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,semiz)
 
@@ -309,10 +310,11 @@ else
 
             % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0; % effectively skips interpolation
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
 
             % Apply the aprimeProbs
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
             % Already applied the probabilities from interpolating onto grid
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,semiz)
 
@@ -442,10 +444,11 @@ for reverse_j=1:N_j-1
 
             % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0; % effectively skips interpolation
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
 
             % Apply the aprimeProbs
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
             % Already applied the probabilities from interpolating onto grid
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,semiz)
 
@@ -528,10 +531,11 @@ for reverse_j=1:N_j-1
 
             % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0; % effectively skips interpolation
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
 
             % Apply the aprimeProbs
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
             % Already applied the probabilities from interpolating onto grid
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,semiz)
 

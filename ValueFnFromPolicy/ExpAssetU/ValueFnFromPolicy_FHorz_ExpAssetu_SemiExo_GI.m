@@ -268,6 +268,7 @@ for reverse_j=0:N_j-1
                 EV_UU=reshape(EVnext_byd2(lin_UU(:)),[N_a, N_semiz, N_u]);
                 per_u=wa1l_r.*wa2l.*EV_LL + wa1l_r.*wa2u.*EV_LU + wa1u_r.*wa2l.*EV_UL + wa1u_r.*wa2u.*EV_UU;
                 EVnext_atpolicy=sum(per_u .* shiftdim(pi_u,-2), 3); % [N_a, N_semiz]
+                EVnext_atpolicy(isnan(EVnext_atpolicy))=0; % zero corner weights times -Inf next-states give NaN
                 V(:,:,jj)=F_jj+beta*EVnext_atpolicy;
             else
                 a1l_r=reshape(a1l,[N_a, N_semiz, N_z]); a1u_r=reshape(a1u,[N_a, N_semiz, N_z]);
@@ -286,6 +287,7 @@ for reverse_j=0:N_j-1
                 EV_UU=reshape(EVnext_byd2(lin_UU(:)),[N_a, N_semiz, N_z, N_u]);
                 per_u=wa1l_r.*wa2l.*EV_LL + wa1l_r.*wa2u.*EV_LU + wa1u_r.*wa2l.*EV_UL + wa1u_r.*wa2u.*EV_UU;
                 EVnext_atpolicy=sum(per_u .* shiftdim(pi_u,-3), 4); % [N_a, N_semiz, N_z]
+                EVnext_atpolicy(isnan(EVnext_atpolicy))=0; % zero corner weights times -Inf next-states give NaN
                 V(:,:,jj)=F_jj+beta*reshape(EVnext_atpolicy, [N_a, N_shocks]);
             end
         else
@@ -314,6 +316,7 @@ for reverse_j=0:N_j-1
                     per_u=wa1l_e.*wa2l_e.*EV_LL + wa1l_e.*wa2u_e.*EV_LU + wa1u_e.*wa2l_e.*EV_UL + wa1u_e.*wa2u_e.*EV_UU;
                     EVnext_atpolicy(:,:,e_c)=sum(per_u .* shiftdim(pi_u,-2), 3);
                 end
+                EVnext_atpolicy(isnan(EVnext_atpolicy))=0; % zero corner weights times -Inf next-states give NaN
                 V(:,:,:,jj)=F_jj+beta*EVnext_atpolicy;
             else
                 EVnext_atpolicy=zeros(N_a, N_semiz, N_z, N_e, 'gpuArray');
@@ -340,6 +343,7 @@ for reverse_j=0:N_j-1
                     per_u=wa1l_e.*wa2l_e.*EV_LL + wa1l_e.*wa2u_e.*EV_LU + wa1u_e.*wa2l_e.*EV_UL + wa1u_e.*wa2u_e.*EV_UU;
                     EVnext_atpolicy(:,:,:,e_c)=sum(per_u .* shiftdim(pi_u,-3), 4);
                 end
+                EVnext_atpolicy(isnan(EVnext_atpolicy))=0; % zero corner weights times -Inf next-states give NaN
                 V(:,:,:,jj)=F_jj+beta*reshape(EVnext_atpolicy, [N_a, N_shocks, N_e]);
             end
         end

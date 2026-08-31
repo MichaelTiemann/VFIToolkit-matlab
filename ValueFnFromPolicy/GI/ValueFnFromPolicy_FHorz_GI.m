@@ -53,6 +53,7 @@ if l_a==1
                 beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
                 EVnext=V(:,jj+1); % (N_a,1)
                 EVnextAtPolicy=PolicyProbs(:,jj,1).*EVnext(alower(:,jj))+PolicyProbs(:,jj,2).*EVnext(alower(:,jj)+1);
+                EVnextAtPolicy(isnan(EVnextAtPolicy))=0; % zero corner weights times -Inf next-states give NaN
                 V(:,jj)=FofPolicy_jj+beta*EVnextAtPolicy;
             end
         end
@@ -90,6 +91,7 @@ if l_a==1
                 EVlower=reshape(EVnext(alower(:,:,jj)),[N_a,N_e]);
                 EVupper=reshape(EVnext(alower(:,:,jj)+1),[N_a,N_e]);
                 EVnextAtPolicy=PolicyProbs(:,:,jj,1).*EVlower+PolicyProbs(:,:,jj,2).*EVupper;
+                EVnextAtPolicy(isnan(EVnextAtPolicy))=0; % zero corner weights times -Inf next-states give NaN
                 V(:,:,jj)=FofPolicy_jj+beta*EVnextAtPolicy;
             end
         end
@@ -129,6 +131,7 @@ if l_a==1
                 zidxoffset=N_a*gpuArray(0:N_z-1); % (1, N_z)
                 lower_lin=alower(:,:,jj)+zidxoffset;
                 EVnextAtPolicy=PolicyProbs(:,:,jj,1).*EVnext(lower_lin)+PolicyProbs(:,:,jj,2).*EVnext(lower_lin+1);
+                EVnextAtPolicy(isnan(EVnextAtPolicy))=0; % zero corner weights times -Inf next-states give NaN
                 V(:,:,jj)=FofPolicy_jj+beta*EVnextAtPolicy;
             end
         end
@@ -169,6 +172,7 @@ if l_a==1
                 zidxoffset=N_a*gpuArray(0:N_z-1); % (1, N_z)
                 lower_lin=alower(:,:,:,jj)+zidxoffset; % (N_a, N_z, N_e) — broadcasting
                 EVnextAtPolicy=PolicyProbs(:,:,:,jj,1).*EVnext(lower_lin)+PolicyProbs(:,:,:,jj,2).*EVnext(lower_lin+1);
+                EVnextAtPolicy(isnan(EVnextAtPolicy))=0; % zero corner weights times -Inf next-states give NaN
                 V(:,:,:,jj)=FofPolicy_jj+beta*EVnextAtPolicy;
             end
         end
@@ -214,6 +218,7 @@ elseif l_a>=2
                 % Interpolation is on a1 only (a2 is on the standard grid).
                 lower_lin=alower(:,jj)+n_a1*(a2prime(:,jj)-1); % (N_a,1)
                 EVnextAtPolicy=PolicyProbs(:,jj,1).*EVnext(lower_lin)+PolicyProbs(:,jj,2).*EVnext(lower_lin+1);
+                EVnextAtPolicy(isnan(EVnextAtPolicy))=0; % zero corner weights times -Inf next-states give NaN
                 V(:,jj)=FofPolicy_jj+beta*EVnextAtPolicy;
             end
         end
@@ -253,6 +258,7 @@ elseif l_a>=2
                 EVlower=reshape(EVnext(lower_lin),  [N_a,N_e]);
                 EVupper=reshape(EVnext(lower_lin+1),[N_a,N_e]);
                 EVnextAtPolicy=PolicyProbs(:,:,jj,1).*EVlower+PolicyProbs(:,:,jj,2).*EVupper;
+                EVnextAtPolicy(isnan(EVnextAtPolicy))=0; % zero corner weights times -Inf next-states give NaN
                 V(:,:,jj)=FofPolicy_jj+beta*EVnextAtPolicy;
             end
         end
@@ -295,6 +301,7 @@ elseif l_a>=2
                 zidxoffset=N_a*gpuArray(0:N_z-1); % (1, N_z)
                 lower_lin=alower(:,:,jj)+n_a1*(a2prime(:,:,jj)-1)+zidxoffset; % (N_a, N_z)
                 EVnextAtPolicy=PolicyProbs(:,:,jj,1).*EVnext(lower_lin)+PolicyProbs(:,:,jj,2).*EVnext(lower_lin+1);
+                EVnextAtPolicy(isnan(EVnextAtPolicy))=0; % zero corner weights times -Inf next-states give NaN
                 V(:,:,jj)=FofPolicy_jj+beta*EVnextAtPolicy;
             end
         end
@@ -335,6 +342,7 @@ elseif l_a>=2
                 zidxoffset=N_a*gpuArray(0:N_z-1); % (1, N_z)
                 lower_lin=alower(:,:,:,jj)+n_a1*(a2prime(:,:,:,jj)-1)+zidxoffset; % (N_a, N_z, N_e)
                 EVnextAtPolicy=PolicyProbs(:,:,:,jj,1).*EVnext(lower_lin)+PolicyProbs(:,:,:,jj,2).*EVnext(lower_lin+1);
+                EVnextAtPolicy(isnan(EVnextAtPolicy))=0; % zero corner weights times -Inf next-states give NaN
                 V(:,:,:,jj)=FofPolicy_jj+beta*EVnextAtPolicy;
             end
         end

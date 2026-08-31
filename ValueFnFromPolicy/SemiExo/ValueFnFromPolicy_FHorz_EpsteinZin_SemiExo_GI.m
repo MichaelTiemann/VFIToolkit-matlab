@@ -292,6 +292,7 @@ for reverse_j=0:N_j-1
                 lo_idx=aprime_lo_r(:)+base_off;
                 up_idx=aprime_up_r(:)+base_off;
                 EVnextOfPolicy=reshape((1-w_r(:)).*EVnext_byd2(lo_idx)+w_r(:).*EVnext_byd2(up_idx), [N_a, N_shocks]);
+                EVnextOfPolicy(isnan(EVnextOfPolicy))=0; % zero corner weights times -Inf next-states give NaN
             else
                 aprime_lo_r=reshape(aprime_lo_jj, [N_a, N_semiz, N_z]);
                 aprime_up_r=reshape(aprime_up_jj, [N_a, N_semiz, N_z]);
@@ -301,6 +302,7 @@ for reverse_j=0:N_j-1
                 lo_idx=aprime_lo_r(:)+base_off;
                 up_idx=aprime_up_r(:)+base_off;
                 EVnextOfPolicy=reshape((1-w_r(:)).*EVnext_byd2(lo_idx)+w_r(:).*EVnext_byd2(up_idx), [N_a, N_shocks]);
+                EVnextOfPolicy(isnan(EVnextOfPolicy))=0; % zero corner weights times -Inf next-states give NaN
             end
         else
             if N_z==0

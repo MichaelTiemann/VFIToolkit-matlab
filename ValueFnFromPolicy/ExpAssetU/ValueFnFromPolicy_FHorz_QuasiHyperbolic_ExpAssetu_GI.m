@@ -298,6 +298,7 @@ for reverse_j=0:N_j-1
                 EV_UU=reshape(EVnext(a1u+N_a1*(a2u-1)),[N_a,N_u]);
                 per_u=wa1l.*wa2l.*EV_LL + wa1l.*wa2u.*EV_LU + wa1u.*wa2l.*EV_UL + wa1u.*wa2u.*EV_UU;
                 EVnext_pass=sum(per_u .* shiftdim(pi_u,-1), 2);
+                EVnext_pass(isnan(EVnext_pass))=0; % zero corner weights times -Inf next-states give NaN
             elseif N_z==0 && N_e>0
                 a1l=a1Lo(:,:,jj); a1u=a1Up(:,:,jj);
                 wa1l=wLo(:,:,jj); wa1u=wUp(:,:,jj);
@@ -311,6 +312,7 @@ for reverse_j=0:N_j-1
                 EV_UU=reshape(EVnext(lin_UU(:)),[N_a,N_e,N_u]);
                 per_u=wa1l.*wa2l.*EV_LL + wa1l.*wa2u.*EV_LU + wa1u.*wa2l.*EV_UL + wa1u.*wa2u.*EV_UU;
                 EVnext_pass=sum(per_u .* shiftdim(pi_u,-2), 3);
+                EVnext_pass(isnan(EVnext_pass))=0; % zero corner weights times -Inf next-states give NaN
             elseif N_z>0 && N_e==0
                 a1l=a1Lo(:,:,jj); a1u=a1Up(:,:,jj);
                 wa1l=wLo(:,:,jj); wa1u=wUp(:,:,jj);
@@ -325,6 +327,7 @@ for reverse_j=0:N_j-1
                 EV_UU=reshape(EVnext(lin_UU(:)),[N_a,N_z,N_u]);
                 per_u=wa1l.*wa2l.*EV_LL + wa1l.*wa2u.*EV_LU + wa1u.*wa2l.*EV_UL + wa1u.*wa2u.*EV_UU;
                 EVnext_pass=sum(per_u .* shiftdim(pi_u,-2), 3);
+                EVnext_pass(isnan(EVnext_pass))=0; % zero corner weights times -Inf next-states give NaN
             else
                 a1l=reshape(a1Lo(:,:,jj),[N_a,N_z,N_e]);  a1u=reshape(a1Up(:,:,jj),[N_a,N_z,N_e]);
                 wa1l=reshape(wLo(:,:,jj),[N_a,N_z,N_e]); wa1u=reshape(wUp(:,:,jj),[N_a,N_z,N_e]);
@@ -339,6 +342,7 @@ for reverse_j=0:N_j-1
                 EV_UU=reshape(EVnext(lin_UU(:)),[N_a,N_z,N_e,N_u]);
                 per_u=wa1l.*wa2l.*EV_LL + wa1l.*wa2u.*EV_LU + wa1u.*wa2l.*EV_UL + wa1u.*wa2u.*EV_UU;
                 EVnext_pass=sum(per_u .* shiftdim(pi_u,-3), 4);
+                EVnext_pass(isnan(EVnext_pass))=0; % zero corner weights times -Inf next-states give NaN
             end
 
             if pass==1

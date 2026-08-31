@@ -288,6 +288,7 @@ for reverse_j=0:N_j-1
                 EV_UL=EVnext(a1u+N_a1*(a2l-1));
                 EV_UU=EVnext(a1u+N_a1*(a2u-1));
                 EVnext_pass=wa1l.*wa2l.*EV_LL + wa1l.*wa2u.*EV_LU + wa1u.*wa2l.*EV_UL + wa1u.*wa2u.*EV_UU;
+                EVnext_pass(isnan(EVnext_pass))=0; % zero corner weights times -Inf next-states give NaN
             elseif N_z==0 && N_e>0
                 a1l=a1Lo(:,:,jj); a1u=a1Up(:,:,jj);
                 wa1l=wLo(:,:,jj); wa1u=wUp(:,:,jj);
@@ -300,6 +301,7 @@ for reverse_j=0:N_j-1
                 EV_UL=reshape(EVnext(lin_UL(:)),[N_a,N_e]);
                 EV_UU=reshape(EVnext(lin_UU(:)),[N_a,N_e]);
                 EVnext_pass=wa1l.*wa2l.*EV_LL + wa1l.*wa2u.*EV_LU + wa1u.*wa2l.*EV_UL + wa1u.*wa2u.*EV_UU;
+                EVnext_pass(isnan(EVnext_pass))=0; % zero corner weights times -Inf next-states give NaN
             elseif N_z>0 && N_e==0
                 a1l=a1Lo(:,:,jj); a1u=a1Up(:,:,jj);
                 wa1l=wLo(:,:,jj); wa1u=wUp(:,:,jj);
@@ -313,6 +315,7 @@ for reverse_j=0:N_j-1
                 EV_UL=reshape(EVnext(lin_UL(:)),[N_a,N_z]);
                 EV_UU=reshape(EVnext(lin_UU(:)),[N_a,N_z]);
                 EVnext_pass=wa1l.*wa2l.*EV_LL + wa1l.*wa2u.*EV_LU + wa1u.*wa2l.*EV_UL + wa1u.*wa2u.*EV_UU;
+                EVnext_pass(isnan(EVnext_pass))=0; % zero corner weights times -Inf next-states give NaN
             else
                 a1l=reshape(a1Lo(:,:,jj),[N_a,N_z,N_e]);  a1u=reshape(a1Up(:,:,jj),[N_a,N_z,N_e]);
                 wa1l=reshape(wLo(:,:,jj),[N_a,N_z,N_e]); wa1u=reshape(wUp(:,:,jj),[N_a,N_z,N_e]);
@@ -326,6 +329,7 @@ for reverse_j=0:N_j-1
                 EV_UL=reshape(EVnext(lin_UL(:)),[N_a,N_z,N_e]);
                 EV_UU=reshape(EVnext(lin_UU(:)),[N_a,N_z,N_e]);
                 EVnext_pass=wa1l.*wa2l.*EV_LL + wa1l.*wa2u.*EV_LU + wa1u.*wa2l.*EV_UL + wa1u.*wa2u.*EV_UU;
+                EVnext_pass(isnan(EVnext_pass))=0; % zero corner weights times -Inf next-states give NaN
             end
 
             if pass==1

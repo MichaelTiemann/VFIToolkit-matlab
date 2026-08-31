@@ -269,6 +269,7 @@ for reverse_j=0:N_j-1
                 EV_LL=EVnext_byd2(lin_LL); EV_LU=EVnext_byd2(lin_LU);
                 EV_UL=EVnext_byd2(lin_UL); EV_UU=EVnext_byd2(lin_UU);
                 EVnext_atpolicy=reshape( wa1l_r(:).*wa2l_r(:).*EV_LL + wa1l_r(:).*wa2u_r(:).*EV_LU + wa1u_r(:).*wa2l_r(:).*EV_UL + wa1u_r(:).*wa2u_r(:).*EV_UU, [N_a, N_semiz]);
+                EVnext_atpolicy(isnan(EVnext_atpolicy))=0; % zero corner weights times -Inf next-states give NaN
                 V(:,:,jj)=F_jj+beta*EVnext_atpolicy;
             else
                 a1l_r=reshape(a1l,[N_a,N_semiz,N_z]);   a1u_r=reshape(a1u,[N_a,N_semiz,N_z]);
@@ -284,6 +285,7 @@ for reverse_j=0:N_j-1
                 EV_LL=EVnext_byd2(lin_LL); EV_LU=EVnext_byd2(lin_LU);
                 EV_UL=EVnext_byd2(lin_UL); EV_UU=EVnext_byd2(lin_UU);
                 EVnext_atpolicy=reshape( wa1l_r(:).*wa2l_r(:).*EV_LL + wa1l_r(:).*wa2u_r(:).*EV_LU + wa1u_r(:).*wa2l_r(:).*EV_UL + wa1u_r(:).*wa2u_r(:).*EV_UU, [N_a, N_semiz, N_z]);
+                EVnext_atpolicy(isnan(EVnext_atpolicy))=0; % zero corner weights times -Inf next-states give NaN
                 V(:,:,jj)=F_jj+beta*reshape(EVnext_atpolicy, [N_a, N_shocks]);
             end
         else
