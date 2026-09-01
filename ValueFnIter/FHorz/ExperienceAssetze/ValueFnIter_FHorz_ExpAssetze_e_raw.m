@@ -15,10 +15,10 @@ Policy=zeros(N_a,N_z,N_e,N_j,'gpuArray'); %first dim indexes the optimal choice 
 a2_gridvals=CreateGridvals(n_a2,a2_grid,1);
 
 if vfoptions.lowmemory==1
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 elseif vfoptions.lowmemory==2
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 end
 
 %% j=N_j
@@ -59,9 +59,9 @@ else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    EVpre=sum(shiftdim(pi_e_J(:,N_j),-2).*reshape(vfoptions.V_Jplus1,[N_a,N_z,N_e]),3); % Integrate out eprime first
+    EVpre=sum(shiftdim(pi_e_J(:,N_j+1),-2).*reshape(vfoptions.V_Jplus1,[N_a,N_z,N_e]),3); % Integrate out eprime first
 
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateExperienceAssetzeFnMatrix(aprimeFn, n_d2, n_a2, n_z, n_e, d2_gridvals, a2_grid, z_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
     % l_a2==1: a2primeIndex/a2primeProbs are [N_d2,N_a2,N_z,N_e] (legacy lower-corner)
     % l_a2==2: a2primeIndex/a2primeProbs are [l_a2,N_d2,N_a2,N_z,N_e] (per-dim factored)
@@ -146,8 +146,7 @@ else
             z_val=z_gridvals_J(z_c,:,N_j);
             for e_c=1:N_e
                 e_val=e_gridvals_J(e_c,:,N_j);
-                DiscountedEV_ze=DiscountedEV(:,:,:,:,:,:,z_c,e_c);
-                DiscountedEV_z=DiscountedEV(:,:,z_c,e_c);
+                DiscountedEV_ze=DiscountedEV(:,:,z_c,e_c);
                 ReturnMatrix_ze=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,n_d2,n_a1,n_a1,n_a2,special_n_z,special_n_e, d_gridvals, a1_gridvals, a1_gridvals, a2_gridvals, z_val, e_val, ReturnFnParamsVec,0,0); % Level=0, Refine=0
 
                 entireRHS=ReturnMatrix_ze+DiscountedEV_ze;
@@ -181,7 +180,7 @@ for reverse_j=1:N_j-1
     % l_a2==1: a2primeIndex/a2primeProbs are [N_d2,N_a2,N_z,N_e] (legacy lower-corner)
     % l_a2==2: a2primeIndex/a2primeProbs are [l_a2,N_d2,N_a2,N_z,N_e] (per-dim factored)
 
-    EVpre=sum(shiftdim(pi_e_J(:,jj),-2).*V(:,:,:,jj+1),3); % Integrate out eprime first
+    EVpre=sum(shiftdim(pi_e_J(:,jj+1),-2).*V(:,:,:,jj+1),3); % Integrate out eprime first
 
     if length(n_a2)==1
         aprimeIndex=repelem((1:1:N_a1)',N_d2,N_a2,N_z,N_e)+N_a1*repmat(a2primeIndex-1,N_a1,1,1,1); % [N_d2*N_a1,N_a2,N_z,N_e]
@@ -262,8 +261,7 @@ for reverse_j=1:N_j-1
             z_val=z_gridvals_J(z_c,:,jj);
             for e_c=1:N_e
                 e_val=e_gridvals_J(e_c,:,jj);
-                DiscountedEV_ze=DiscountedEV(:,:,:,:,:,:,z_c,e_c);
-                DiscountedEV_z=DiscountedEV(:,:,z_c,e_c);
+                DiscountedEV_ze=DiscountedEV(:,:,z_c,e_c);
                 ReturnMatrix_ze=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,n_d2,n_a1,n_a1,n_a2,special_n_z,special_n_e, d_gridvals, a1_gridvals, a1_gridvals, a2_gridvals, z_val, e_val, ReturnFnParamsVec,0,0); % Level=0, Refine=0
 
                 entireRHS=ReturnMatrix_ze+DiscountedEV_ze;

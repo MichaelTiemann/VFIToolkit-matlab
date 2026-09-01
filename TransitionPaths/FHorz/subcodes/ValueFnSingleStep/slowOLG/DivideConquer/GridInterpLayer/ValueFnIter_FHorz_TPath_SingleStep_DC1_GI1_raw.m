@@ -13,7 +13,7 @@ if vfoptions.lowmemory==0
     midpoints_jj=zeros(N_d,1,N_a,N_z,'gpuArray');
 elseif vfoptions.lowmemory==1 % loops over z
     midpoints_jj=zeros(N_d,1,N_a,'gpuArray');
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 elseif vfoptions.lowmemory>=2
     error('vfoptions.lowmemory>=2 not supported')
 end
@@ -122,7 +122,7 @@ elseif vfoptions.lowmemory==1
                 % aprime possibilities are n_d-by-maxgap(ii)+1-by-1
                 ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, n_d, special_n_z, d_gridvals, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_val, ReturnFnParamsVec,3);
                 [~,maxindex]=max(ReturnMatrix_ii,[],2);
-                midpoints_jj(:,1,curraindex)=shiftdim(maxindex+(loweredge-1),1);
+                midpoints_jj(:,1,curraindex)=maxindex+(loweredge-1);
             else
                 loweredge=maxindex1(:,1,ii);
                 midpoints_jj(:,1,curraindex)=repelem(loweredge,1,1,length(curraindex),1);

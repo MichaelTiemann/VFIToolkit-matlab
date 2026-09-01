@@ -20,7 +20,7 @@ d_gridvals=[repmat(d1_gridvals,N_d2,1),repelem(d2_gridvals,N_d1,1)];
 d12_gridvals=permute(reshape(d_gridvals,[N_d1,N_d2,length(n_d1)+length(n_d2)]),[1,3,2]); % version to use when looping over d2
 
 if vfoptions.lowmemory==1
-    special_n_e=ones(1,length(n_e));
+    special_n_e=ones(1,length(n_e),'gpuArray');
 elseif vfoptions.lowmemory==2
     error('vfoptions.lowmemory=2 not supported with semi-exogenous states');
 end
@@ -60,7 +60,7 @@ n2aprime=length(aprime_grid);
 % aprime_grid=repelem(a_grid,1+n2short,1);
 % aprime_grid=aprime_grid(1:(N_a+(N_a-1)*n2short));
 
-Vnext=sum(V.*pi_e_J(1,1,:,[1,1:end-1]),3); % Take expectations over e: Vnext(:,:,1,jj+1) is read for current age jj, so weight V at age jj+1 by pi_e_J(:,jj) [same timing as standard ValueFnIter commands]; first column is padding, never read
+Vnext=sum(V.*pi_e_J,3); % Take expectations over e: Vnext(:,:,1,jj+1) is read for current age jj, so weight V at age jj+1 by pi_e_J(:,jj+1), the distribution of the e realized in period jj+1; first column is never read
 
 %% j=N_j
 

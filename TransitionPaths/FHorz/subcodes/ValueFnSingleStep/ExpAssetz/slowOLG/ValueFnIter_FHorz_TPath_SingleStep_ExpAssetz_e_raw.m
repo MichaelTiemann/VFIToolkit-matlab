@@ -14,10 +14,10 @@ Policy=zeros(N_a,N_z,N_e,N_j,'gpuArray'); %first dim indexes the optimal choice 
 a2_gridvals=CreateGridvals(n_a2,a2_grid,1);
 
 if vfoptions.lowmemory==1
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 elseif vfoptions.lowmemory==2
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 end
 
 %% j=N_j
@@ -82,7 +82,7 @@ for reverse_j=1:N_j-1
     aprimeplus1Index=repelem((1:1:N_a1)',N_d2,N_a2,N_z)+N_a1*repmat(a2primeIndex,N_a1,1,1); % [N_d2*N_a1,N_a2,N_z]
     aprimeProbs=repmat(a2primeProbs,N_a1,1,1,N_z); % [N_d2*N_a1,N_a2,N_z]    (z dim already present, no repmat over z; but need to add zprime)
 
-    EVpre=sum(shiftdim(pi_e_J(:,jj),-2).*VKronNext_j,3); % Expectations over e [pi_e_J(:,jj): same timing as standard ValueFnIter commands]
+    EVpre=sum(shiftdim(pi_e_J(:,jj+1),-2).*VKronNext_j,3); % Expectations over e [pi_e_J(:,jj+1) is the distribution of the e realized in period jj+1]
 
     Vlower=reshape(EVpre(aprimeIndex(:),:),[N_d2*N_a1,N_a2,N_z,N_z]); % (d2*a1prime,a2,z,zprime)
     Vupper=reshape(EVpre(aprimeplus1Index(:),:),[N_d2*N_a1,N_a2,N_z,N_z]);

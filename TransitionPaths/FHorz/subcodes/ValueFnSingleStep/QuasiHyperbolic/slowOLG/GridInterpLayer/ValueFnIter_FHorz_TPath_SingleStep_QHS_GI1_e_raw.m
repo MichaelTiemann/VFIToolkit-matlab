@@ -15,10 +15,10 @@ Vhat=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
 
 %%
 if vfoptions.lowmemory>0
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 if vfoptions.lowmemory>1
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 end
 if vfoptions.lowmemory>=3
     error('vfoptions.lowmemory>=3 not supported for ValueFnIter_FHorz_TPath_SingleStep_QHS_GI1_e_raw')
@@ -150,7 +150,7 @@ for reverse_j=1:N_j-1
     VKronNext_j=Vtemp_j; % Has been presaved before it was replaced
     Vtemp_j=V(:,:,:,jj); % Grab this before it is replaced/updated
 
-    EV=sum(VKronNext_j.*pi_e_J(1,1,:,jj),3);
+    EV=sum(VKronNext_j.*pi_e_J(1,1,:,jj+1),3);
 
     EV=EV.*shiftdim(pi_z_J(:,:,jj)',-1);
     EV(isnan(EV))=0;

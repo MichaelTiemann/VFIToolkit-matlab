@@ -10,7 +10,7 @@ PolicyL2flag=2*ones(1,N_a,N_z,N_j,'gpuArray'); % 1=all weight to lower coarse pt
 
 %%
 if vfoptions.lowmemory>0
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 end
 
 % Grid interpolation
@@ -28,7 +28,7 @@ n2aprime=length(aprime_grid);
 
 %% j=N_j
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0

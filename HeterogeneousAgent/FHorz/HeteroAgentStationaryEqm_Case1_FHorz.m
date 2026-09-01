@@ -171,6 +171,10 @@ end
 heteroagentoptions.verboseaccuracy1=['	%s: %8.',num2str(heteroagentoptions.verboseaccuracy1),'f \n']; % set up a string
 heteroagentoptions.verboseaccuracy2=['	%s: %8.',num2str(heteroagentoptions.verboseaccuracy2),'f \n']; % set up a string
 
+if heteroagentoptions.countGEsolves==1
+    StationaryGeneralEqm_subcode_GEsolvecounter('reset'); % set up the iteration counter and initialize value
+end
+
 nGEprices=length(GEPriceParamNames);
 GEeqnNames=fieldnames(GeneralEqmEqns);
 nGeneralEqmEqns=length(GEeqnNames);
@@ -194,6 +198,13 @@ else
     end
 end
 simoptions.outputasstructure=0;
+% Note: the grid interpolation layer must be set in both vfoptions and simoptions; if it is only set in
+% vfoptions then Policy has an extra row that the agent dist would silently ignore (giving a wrong answer)
+if isfield(vfoptions,'gridinterplayer') && vfoptions.gridinterplayer==1
+    if ~isfield(simoptions,'gridinterplayer')
+        error('When setting vfoptions.gridinterplayer you must also set simoptions.gridinterplayer')
+    end
+end
 if ~isfield(simoptions,'n_e')
     simoptions.n_e=0;
 end
@@ -295,6 +306,10 @@ if isstruct(FnsToEvaluate)
     if isfield(simoptions,'experienceassetze')
         % One of the endogenous states should only be counted once
         l_aprime=l_aprime-simoptions.experienceassetze;
+    end
+    if isfield(simoptions,'experienceassetsemiz')
+        % One of the endogenous states should only be counted once
+        l_aprime=l_aprime-simoptions.experienceassetsemiz;
     end
     if isfield(simoptions,'riskyasset')
         % One of the endogenous states should only be counted once

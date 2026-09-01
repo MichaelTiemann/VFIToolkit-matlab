@@ -31,7 +31,7 @@ if vfoptions.lowmemory>=1
     special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 if vfoptions.lowmemory==2
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 end
 
 % Setup for GI
@@ -153,10 +153,10 @@ else % V_Jplus1
 
     DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision));
     V_Jplus1=reshape(vfoptions.V_Jplus1,[N_a,N_z,N_e]);
-    EVnext=sum(V_Jplus1.*shiftdim(pi_e_J(:,N_j),-2),3);
+    EVnext=sum(V_Jplus1.*shiftdim(pi_e_J(:,N_j+1),-2),3);
 
     % Build a2primeIndex and a2primeProbs for RisykAsset
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a2, n_u, d23_grid, a2_grid, u_grid, aprimeFnParamsVec,2);
     aprimeIndex=repelem((1:1:N_a1)',N_d23,N_u)+N_a1*repmat(a2primeIndex-1,N_a1,1);
     aprimeplus1Index=repelem((1:1:N_a1)',N_d23,N_u)+N_a1*repmat(a2primeIndex,N_a1,1);
@@ -226,7 +226,7 @@ else % V_Jplus1
         Policy(1,:,:,:,N_j)=d2index_resh(lin);
 
     elseif vfoptions.lowmemory>=1
-        special_n_e=ones(1,length(n_e),vfoptions.precision);
+        special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
         for e_c=1:N_e
             e_val=e_gridvals_J(e_c,:,N_j);
             % Layer 1: full ReturnMatrix max for initial midpoint
@@ -285,7 +285,7 @@ for reverse_j=1:N_j-1
     aprimeplus1Index=repelem((1:1:N_a1)',N_d23,N_u)+N_a1*repmat(a2primeIndex,N_a1,1);
 
     % Get EV in terms of next period endogenous states
-    EVnext=sum(V(:,:,:,jj+1).*shiftdim(pi_e_J(:,jj),-2),3);
+    EVnext=sum(V(:,:,:,jj+1).*shiftdim(pi_e_J(:,jj+1),-2),3);
     EV=EVnext.*shiftdim(pi_z_J(:,:,jj)',-1);
     EV(isnan(EV))=0;
     EV=sum(EV,2);
@@ -350,7 +350,7 @@ for reverse_j=1:N_j-1
         Policy(1,:,:,:,jj)=d2index_resh(lin);
 
     elseif vfoptions.lowmemory>=1
-        special_n_e=ones(1,length(n_e),vfoptions.precision);
+        special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
         for e_c=1:N_e
             e_val=e_gridvals_J(e_c,:,jj);
             % Layer 1: full ReturnMatrix max for initial midpoint

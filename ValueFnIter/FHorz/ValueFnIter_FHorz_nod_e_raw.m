@@ -9,16 +9,16 @@ Policy=zeros(1,N_a,N_z,N_e,N_j,'gpuArray'); % indexes the optimal choice for apr
 
 %%
 if vfoptions.lowmemory>0
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 if vfoptions.lowmemory>1
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 end
 
 %% j=N_j
 
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 
 pi_e_J=shiftdim(pi_e_J,-2); % Move to third dimension
 
@@ -43,10 +43,10 @@ if ~isfield(vfoptions,'V_Jplus1')
 
     elseif vfoptions.lowmemory==2
 
-        for e_c=1:N_e
-            e_val=e_gridvals_J(e_c,:,N_j);
-            for z_c=1:N_z
-                z_val=z_gridvals_J(z_c,:,N_j);
+        for z_c=1:N_z
+            z_val=z_gridvals_J(z_c,:,N_j);
+            for e_c=1:N_e
+                e_val=e_gridvals_J(e_c,:,N_j);
                 ReturnMatrix_ze=CreateReturnFnMatrix_Disc_e(ReturnFn, 0, n_a, special_n_z, special_n_e, 0, a_grid, z_val, e_val, ReturnFnParamsVec,0);
                 % Calc the max and it's index
                 [Vtemp,maxindex]=max(ReturnMatrix_ze,[],1);
@@ -62,7 +62,7 @@ else
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
     EV=reshape(vfoptions.V_Jplus1,[N_a,N_z,N_e]);    % First, switch V_Jplus1 into Kron form
-    EV=sum(EV.*pi_e_J(1,1,:,N_j),3);
+    EV=sum(EV.*pi_e_J(1,1,:,N_j+1),3);
 
     EV=EV.*shiftdim(pi_z_J(:,:,N_j)',-1);
     EV(isnan(EV))=0; % multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
@@ -132,7 +132,7 @@ for reverse_j=1:N_j-1
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
     EV=V(:,:,:,jj+1);
-    EV=sum(EV.*pi_e_J(1,1,:,jj),3);
+    EV=sum(EV.*pi_e_J(1,1,:,jj+1),3);
 
     EV=EV.*shiftdim(pi_z_J(:,:,jj)',-1);
     EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)

@@ -14,7 +14,7 @@ Policy=zeros(3,N_a,N_e,N_j,'gpuArray');
 PolicyL2flag=2*ones(1,N_a,N_e,N_j,'gpuArray'); % 1=all weight to lower coarse pt, 2=usual linear weights, 3=all weight to upper coarse pt
 
 if vfoptions.lowmemory>0
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 
 aind=gpuArray(0:1:N_a-1);
@@ -27,7 +27,7 @@ aprime_grid=interp1(1:1:N_a,a_grid,linspace(1,N_a,N_a+(N_a-1)*n2short));
 pi_e_J=shiftdim(pi_e_J,-1);
 
 %% j=N_j (terminal period)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0
@@ -83,7 +83,7 @@ else
     beta0=CreateVectorFromParams(Parameters,{vfoptions.QHadditionaldiscount},N_j,vfoptions.precision);
     beta0beta=beta0*beta;
 
-    EV=sum(reshape(vfoptions.V_Jplus1,[N_a,N_e]).*pi_e_J(1,:,N_j),2);
+    EV=sum(reshape(vfoptions.V_Jplus1,[N_a,N_e]).*pi_e_J(1,:,N_j+1),2);
     EVinterp=interp1(a_grid,EV,aprime_grid);
 
     Vunderbar=zeros(N_a,N_e,N_j,'gpuArray');
@@ -164,7 +164,7 @@ for reverse_j=1:N_j-1
     beta0beta=beta0*beta;
 
     EVsource=Vunderbar(:,:,jj+1);
-    EV=sum(EVsource.*pi_e_J(1,:,jj),2);
+    EV=sum(EVsource.*pi_e_J(1,:,jj+1),2);
     EVinterp=interp1(a_grid,EV,aprime_grid);
 
     if vfoptions.lowmemory==0

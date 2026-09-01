@@ -4,6 +4,7 @@ function [V,Policy]=ValueFnIter_FHorz_TPath_SingleStep_fastOLG_SemiExo_GI1_noz_r
 % V is (a,j)-by-z
 % Policy is (a,j,z)
 % bothz_gridvals_J is (j,N_bothz,l_z) for fastOLG
+% pi_semiz_J is (j,semiz',semiz,d2) for fastOLG [transitions depend on d2], with N_j slices: under EVpre==0 the j=N_j slice is the zero 'no continuation value in the final period' row appended by the TPath setup; an EVpre==1/MEP caller must instead supply a genuine final transition row
 
 n_d=[n_d1,n_d2];
 N_d1=prod(n_d1);
@@ -19,7 +20,6 @@ Policy=zeros(4,N_a,N_j,N_bothz,'gpuArray'); %first dim indexes the optimal choic
 
 d_gridvals=[repmat(d1_gridvals,N_d2,1),repelem(d2_gridvals,N_d1,1)];
 bothz_gridvals_J=shiftdim(semiz_gridvals_J,-3); % [1,1,1,N_j,N_semiz,l_semiz]
-pi_semiz_J=permute(pi_semiz_J,[4,2,1,3]); % (j,semiz',semiz,d2)
 
 %% Grid interpolation
 % vfoptions.ngridinterp=9;
@@ -49,6 +49,7 @@ if vfoptions.EVpre==0
     EVpre(:,1,1:N_j-1,:)=reshape(V(N_a+1:end,:),[N_a,1,N_j-1,N_bothz]); % I use zeros in j=N_j so that can just use the transition probabilities to create expectations
 elseif vfoptions.EVpre==1
     % This is used for 'Matched Expecations Path'
+    % EVpre==1 is the Matched Expectations Path: the age axis is time along the path and the caller supplies pi arrays whose j=N_j slice is genuine (the transition into the continuing future) rather than the TPath setup's zero row
     EVpre=reshape(V,[N_a,1,N_j,N_bothz]); % input V is already of size [N_a*N_j,N_bothz] and we want to use the whole thing
 end
 
@@ -107,7 +108,7 @@ if vfoptions.lowmemory==0
 
 elseif vfoptions.lowmemory==1
 
-    special_n_bothz=ones(1,length(n_bothz));
+    special_n_bothz=ones(1,length(n_bothz),'gpuArray');
     V=zeros(N_a*N_j,N_bothz,'gpuArray'); %first dim indexes the optimal choice for d and aprime rest of dimensions a,z
 
     for z_c=1:N_bothz

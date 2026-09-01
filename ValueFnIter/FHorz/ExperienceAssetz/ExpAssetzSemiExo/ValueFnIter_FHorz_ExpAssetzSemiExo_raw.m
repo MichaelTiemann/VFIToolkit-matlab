@@ -33,11 +33,11 @@ N_d=prod(n_d);
 d123_gridvals=[repmat(d12_gridvals,N_d3,1),repelem(CreateGridvals(n_d3,d3_grid,1),N_d12,1)];
 
 if vfoptions.lowmemory>0
-    special_n_bothz=ones(1,length(n_semiz)+length(n_z));
+    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision,'gpuArray');
 end
 
 % Preallocate
-V_ford3_jj=zeros(N_a,N_bothz,N_d3,'gpuArray');
+V_ford3_jj=zeros(N_a,N_bothz,N_d3,vfoptions.precision,'gpuArray');
 Policy_ford3_jj=zeros(N_a,N_bothz,N_d3,'gpuArray');
 
 % Offset for linear indexing into [N_a, N_bothz]
@@ -59,7 +59,21 @@ if ~isfield(vfoptions,'V_Jplus1')
         Policy3(2,:,:,N_j)=ceil(d12_ind/N_d1); % d2
         Policy3(3,:,:,N_j)=ceil(d_ind/N_d12); % d3
         Policy3(4,:,:,N_j)=ceil(maxindex/N_d); % a1prime
-    elseif vfoptions.lowmemory==1
+    elseif vfoptions.lowmemory==1 % split: loop z (markov), vectorize semiz
+        for z_c=1:N_z
+            semizblock=(z_c-1)*N_semiz+(1:1:N_semiz);
+            z_valblock=bothz_gridvals_J(semizblock,:,N_j);
+            ReturnMatrix_z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d23,n_a1,n_a1,n_a2,[n_semiz,ones(1,length(n_z))], d123_gridvals, a1_gridvals, a1_gridvals, a2_gridvals, z_valblock, ReturnFnParamsVec,0,0);
+            [Vtemp,maxindex]=max(ReturnMatrix_z,[],1);
+            V(:,semizblock,N_j)=Vtemp;
+            d_ind=rem(maxindex-1,N_d)+1;
+            d12_ind=rem(d_ind-1,N_d12)+1;
+            Policy3(1,:,semizblock,N_j)=rem(d12_ind-1,N_d1)+1;
+            Policy3(2,:,semizblock,N_j)=ceil(d12_ind/N_d1);
+            Policy3(3,:,semizblock,N_j)=ceil(d_ind/N_d12);
+            Policy3(4,:,semizblock,N_j)=ceil(maxindex/N_d);
+        end
+    elseif vfoptions.lowmemory==2 % joint loop over bothz
         for z_c=1:N_bothz
             z_val=bothz_gridvals_J(z_c,:,N_j);
             ReturnMatrix_z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d23,n_a1,n_a1,n_a2,special_n_bothz, d123_gridvals, a1_gridvals, a1_gridvals, a2_gridvals, z_val, ReturnFnParamsVec,0,0);
@@ -75,7 +89,7 @@ if ~isfield(vfoptions,'V_Jplus1')
     end
 else
     % aprime depends on (d2, a1, a2, current_z); independent of d3 and semiz -- compute once
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateExperienceAssetzFnMatrix(aprimeFn, n_d2, n_a2, n_z, d2_gridvals, a2_grid, z_gridvals_J(:,:,N_j), aprimeFnParamsVec,2);
     % a2primeIndex, a2primeProbs are both [N_d2, N_a2, N_z]
 
@@ -123,7 +137,36 @@ else
             V_ford3_jj(:,:,d3_c)=shiftdim(Vtemp,1);
             Policy_ford3_jj(:,:,d3_c)=shiftdim(maxindex,1);
         end
-    elseif vfoptions.lowmemory==1
+    elseif vfoptions.lowmemory==1 % split: loop z (markov), vectorize semiz
+        for d3_c=1:N_d3
+            d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
+            pi_bothz=kron(pi_z_J(:,:,N_j),pi_semiz_J(:,:,d3_c,N_j));
+            for z_c=1:N_z
+                semizblock=(z_c-1)*N_semiz+(1:1:N_semiz);
+                z_valblock=bothz_gridvals_J(semizblock,:,N_j);
+                ReturnMatrix_d3z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,[n_d2,1],n_a1,n_a1,n_a2,[n_semiz,ones(1,length(n_z))], d123_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, z_valblock, ReturnFnParamsVec,0,0);
+
+                EV=V_Jplus1.*shiftdim(pi_bothz(semizblock,:)',-1); % [N_a, N_bothz_next, N_semiz]
+                EV(isnan(EV))=0;
+                EV=sum(EV,2); % [N_a, 1, N_semiz]
+                EV_2D=reshape(EV,[N_a,N_semiz]);
+
+                semizblock_offset=N_a*reshape(0:N_semiz-1,[1,1,N_semiz]);
+                EV1=EV_2D(aprimeIndex_full(:,:,semizblock)+semizblock_offset);
+                EV2=EV_2D(aprimeplus1Index_full(:,:,semizblock)+semizblock_offset);
+
+                skipinterp=(EV1==EV2);
+                aprimeProbs_z=aprimeProbs_full(:,:,semizblock);
+                aprimeProbs_z(skipinterp)=0;
+                entireEV_z=EV1.*aprimeProbs_z+EV2.*(1-aprimeProbs_z);
+
+                entireRHS_d3z=ReturnMatrix_d3z+DiscountFactorParamsVec*repelem(entireEV_z,N_d1,N_a1,1);
+                [Vtemp,maxindex]=max(entireRHS_d3z,[],1);
+                V_ford3_jj(:,semizblock,d3_c)=shiftdim(Vtemp,1);
+                Policy_ford3_jj(:,semizblock,d3_c)=shiftdim(maxindex,1);
+            end
+        end
+    elseif vfoptions.lowmemory==2 % joint loop over bothz
         for d3_c=1:N_d3
             d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
             pi_bothz=kron(pi_z_J(:,:,N_j),pi_semiz_J(:,:,d3_c,N_j));
@@ -224,7 +267,36 @@ for reverse_j=1:N_j-1
             V_ford3_jj(:,:,d3_c)=shiftdim(Vtemp,1);
             Policy_ford3_jj(:,:,d3_c)=shiftdim(maxindex,1);
         end
-    elseif vfoptions.lowmemory==1
+    elseif vfoptions.lowmemory==1 % split: loop z (markov), vectorize semiz
+        for d3_c=1:N_d3
+            d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
+            pi_bothz=kron(pi_z_J(:,:,jj),pi_semiz_J(:,:,d3_c,jj));
+            for z_c=1:N_z
+                semizblock=(z_c-1)*N_semiz+(1:1:N_semiz);
+                z_valblock=bothz_gridvals_J(semizblock,:,jj);
+                ReturnMatrix_d3z=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,[n_d2,1],n_a1,n_a1,n_a2,[n_semiz,ones(1,length(n_z))], d123_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, z_valblock, ReturnFnParamsVec,0,0);
+
+                EV=EVpre.*shiftdim(pi_bothz(semizblock,:)',-1); % [N_a, N_bothz_next, N_semiz]
+                EV(isnan(EV))=0;
+                EV=sum(EV,2); % [N_a, 1, N_semiz]
+                EV_2D=reshape(EV,[N_a,N_semiz]);
+
+                semizblock_offset=N_a*reshape(0:N_semiz-1,[1,1,N_semiz]);
+                EV1=EV_2D(aprimeIndex_full(:,:,semizblock)+semizblock_offset);
+                EV2=EV_2D(aprimeplus1Index_full(:,:,semizblock)+semizblock_offset);
+
+                skipinterp=(EV1==EV2);
+                aprimeProbs_z=aprimeProbs_full(:,:,semizblock);
+                aprimeProbs_z(skipinterp)=0;
+                entireEV_z=EV1.*aprimeProbs_z+EV2.*(1-aprimeProbs_z);
+
+                entireRHS_d3z=ReturnMatrix_d3z+DiscountFactorParamsVec*repelem(entireEV_z,N_d1,N_a1,1);
+                [Vtemp,maxindex]=max(entireRHS_d3z,[],1);
+                V_ford3_jj(:,semizblock,d3_c)=shiftdim(Vtemp,1);
+                Policy_ford3_jj(:,semizblock,d3_c)=shiftdim(maxindex,1);
+            end
+        end
+    elseif vfoptions.lowmemory==2 % joint loop over bothz
         for d3_c=1:N_d3
             d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
             pi_bothz=kron(pi_z_J(:,:,jj),pi_semiz_J(:,:,d3_c,jj));

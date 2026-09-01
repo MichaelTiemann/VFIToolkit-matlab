@@ -16,7 +16,7 @@ PolicyL2flag=2*ones(1,N_a,N_e,N_j,'gpuArray'); % L2 flag: 1=all to lower, 2=usua
 a2_gridvals=CreateGridvals(n_a2,a2_grid,1);
 
 if vfoptions.lowmemory>0
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
     % Preallocate
     midpoint=zeros(N_d,1,N_a1,N_a2,'gpuArray');
 else
@@ -185,7 +185,7 @@ for reverse_j=1:N_j-1
     aprimeplus1Index=repelem(gpuArray(1:1:N_a1)',N_d2,N_a2)+N_a1*repmat(a2primeIndex,N_a1,1); % [N_d2*N_a1,N_a2]
     aprimeProbs=repmat(a2primeProbs,N_a1,1,1);  % [N_d2*N_a1,N_a2]
 
-    EV=sum(pi_e_J(:,jj)'.*VKronNext_j,2);    % Expectations over e
+    EV=sum(pi_e_J(:,jj+1)'.*VKronNext_j,2);    % Expectations over e
 
     Vlower=reshape(EV(aprimeIndex(:)),[N_d2*N_a1,N_a2]);
     Vupper=reshape(EV(aprimeplus1Index(:)),[N_d2*N_a1,N_a2]);

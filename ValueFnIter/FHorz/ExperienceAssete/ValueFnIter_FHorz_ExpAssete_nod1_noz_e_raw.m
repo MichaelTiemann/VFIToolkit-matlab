@@ -13,7 +13,7 @@ Policy=zeros(N_a,N_e,N_j,'gpuArray'); %first dim indexes the optimal choice for 
 a2_gridvals=CreateGridvals(n_a2,a2_grid,1);
 
 if vfoptions.lowmemory==1
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 
 %% j=N_j
@@ -42,7 +42,7 @@ else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateExperienceAsseteFnMatrix(aprimeFn, n_d2, n_a2, n_e, d2_gridvals, a2_grid, e_gridvals_J(:,:,N_j), aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
     % Note: aprimeIndex is [N_d2,N_a2,N_e], whereas aprimeProbs is [N_d2,N_a2,N_e]   (N_e here is the current e)
 
@@ -50,7 +50,7 @@ else
     aprimeplus1Index=repelem((1:1:N_a1)',N_d2,N_a2,N_e)+N_a1*repmat(a2primeIndex,N_a1,1,1); % [N_d2*N_a1,N_a2,N_e]
     aprimeProbs=repmat(a2primeProbs,N_a1,1,1);  % [N_d2*N_a1,N_a2,N_e]    (no z to replicate over)
 
-    EVpre=sum(pi_e_J(:,N_j)'.*reshape(vfoptions.V_Jplus1,[N_a,N_e]),2);    % Integrate out eprime: [N_a,1]
+    EVpre=sum(pi_e_J(:,N_j+1)'.*reshape(vfoptions.V_Jplus1,[N_a,N_e]),2);    % Integrate out eprime: [N_a,1]
 
     Vlower=reshape(EVpre(aprimeIndex(:)),[N_d2*N_a1,N_a2,N_e]); % (d2*a1prime,a2,e_cur)
     Vupper=reshape(EVpre(aprimeplus1Index(:)),[N_d2*N_a1,N_a2,N_e]);
@@ -113,7 +113,7 @@ for reverse_j=1:N_j-1
     aprimeplus1Index=repelem((1:1:N_a1)',N_d2,N_a2,N_e)+N_a1*repmat(a2primeIndex,N_a1,1,1); % [N_d2*N_a1,N_a2,N_e]
     aprimeProbs=repmat(a2primeProbs,N_a1,1,1);  % [N_d2*N_a1,N_a2,N_e]    (no z to replicate over)
 
-    EVpre=sum(pi_e_J(:,jj)'.*V(:,:,jj+1),2); % Integrate out eprime: [N_a,1]
+    EVpre=sum(pi_e_J(:,jj+1)'.*V(:,:,jj+1),2); % Integrate out eprime: [N_a,1]
 
     Vlower=reshape(EVpre(aprimeIndex(:)),[N_d2*N_a1,N_a2,N_e]); % (d2*a1prime,a2,e_cur)
     Vupper=reshape(EVpre(aprimeplus1Index(:)),[N_d2*N_a1,N_a2,N_e]);

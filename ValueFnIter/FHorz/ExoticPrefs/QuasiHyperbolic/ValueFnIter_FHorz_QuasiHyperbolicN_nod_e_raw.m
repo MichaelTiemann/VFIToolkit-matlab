@@ -13,24 +13,25 @@ N_a=prod(n_a);
 N_z=prod(n_z);
 N_e=prod(n_e);
 
-Valt=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+Valt=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(N_a,N_z,N_e,N_j,'gpuArray'); % indexes the optimal choice for aprime, rest of dimensions a,z
 Policyalt=zeros(N_a,N_z,N_e,N_j,'gpuArray'); % exponential discounter optimal choice (Valt is computed at this)
 
 %%
 if vfoptions.lowmemory>0
-    special_n_e=ones(1,length(n_e),vfoptions.precision); % vfoptions.lowmemory>0
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
+ % vfoptions.lowmemory>0
 end
 if vfoptions.lowmemory>1
     l_z=length(n_z);
-    special_n_z=ones(1,l_z);
+    special_n_z=ones(1,l_z,vfoptions.precision,'gpuArray');
 end
 pi_e_J=shiftdim(pi_e_J,-2); % Move to third dimension
 
 %% j=N_j
 
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 % Nothing extra to do for final period with quasi-hyperbolic preferences
 
 if ~isfield(vfoptions,'V_Jplus1')
@@ -57,10 +58,10 @@ if ~isfield(vfoptions,'V_Jplus1')
 
     elseif vfoptions.lowmemory==2
 
-        for e_c=1:N_e
-            e_val=e_gridvals_J(e_c,:,N_j);
-            for z_c=1:N_z
-                z_val=z_gridvals_J(z_c,:,N_j);
+        for z_c=1:N_z
+            z_val=z_gridvals_J(z_c,:,N_j);
+            for e_c=1:N_e
+                e_val=e_gridvals_J(e_c,:,N_j);
                 ReturnMatrix_ze=CreateReturnFnMatrix_Disc_e(ReturnFn, 0, n_a, special_n_z, special_n_e, 0, a_grid, z_val, e_val, ReturnFnParamsVec,0);
                 % Calc the max and it's index
                 [Vtemp,maxindex]=max(ReturnMatrix_ze,[],1);
@@ -86,7 +87,7 @@ else
     beta0=CreateVectorFromParams(Parameters,{vfoptions.QHadditionaldiscount},N_j,vfoptions.precision);
     beta0beta=beta0*beta; % Discount factor between today and tomorrow.
 
-    EV=sum(V_Jplus1.*pi_e_J(1,1,:,N_j),3); % Note: The V_Jplus1 input should be Valt for naive
+    EV=sum(V_Jplus1.*pi_e_J(1,1,:,N_j+1),3); % Note: The V_Jplus1 input should be Valt for naive
 
     if vfoptions.lowmemory==0
 
@@ -136,10 +137,10 @@ else
         end
 
     elseif vfoptions.lowmemory==2
-        for e_c=1:N_e
-            e_val=e_gridvals_J(e_c,:,N_j);
-            for z_c=1:N_z
-                z_val=z_gridvals_J(z_c,:,N_j);
+        for z_c=1:N_z
+            z_val=z_gridvals_J(z_c,:,N_j);
+            for e_c=1:N_e
+                e_val=e_gridvals_J(e_c,:,N_j);
                 ReturnMatrix_ze=CreateReturnFnMatrix_Disc_e(ReturnFn, 0, n_a, special_n_z, special_n_e, 0, a_grid, z_val, e_val, ReturnFnParamsVec,0);
 
                 %Calc the condl expectation term (except beta), which depends on z but
@@ -188,7 +189,7 @@ for reverse_j=1:N_j-1
 
     EV=Valt(:,:,:,jj+1); % Use Valt (goes into the equation to determine Valt)
 
-    EV=sum(EV.*pi_e_J(1,1,:,jj),3);
+    EV=sum(EV.*pi_e_J(1,1,:,jj+1),3);
 
     if vfoptions.lowmemory==0
 
@@ -238,10 +239,10 @@ for reverse_j=1:N_j-1
         end
 
     elseif vfoptions.lowmemory==2
-        for e_c=1:N_e
-            e_val=e_gridvals_J(e_c,:,jj);
-            for z_c=1:N_z
-                z_val=z_gridvals_J(z_c,:,jj);
+        for z_c=1:N_z
+            z_val=z_gridvals_J(z_c,:,jj);
+            for e_c=1:N_e
+                e_val=e_gridvals_J(e_c,:,jj);
                 ReturnMatrix_ze=CreateReturnFnMatrix_Disc_e(ReturnFn, 0, n_a, special_n_z, special_n_e, 0, a_grid, z_val, e_val, ReturnFnParamsVec,0);
 
                 %Calc the condl expectation term (except beta), which depends on z but

@@ -16,7 +16,7 @@ PolicyL2flag=2*ones(1,N_a,N_e,N_j,'gpuArray'); % L2 flag: 1=all to lower, 2=usua
 a2_gridvals=CreateGridvals(n_a2,a2_grid,1);
 
 if vfoptions.lowmemory>0
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
     % Preallocate
     midpoint=zeros(N_d,1,N_a1,N_a2,'gpuArray');
 else
@@ -66,7 +66,7 @@ if ~isfield(vfoptions,'V_Jplus1')
                 % loweredge is n_d-by-1-by-n_a2-by-1-by-n_a2-by-n_e
                 a1primeindexes=loweredge+(0:1:maxgap(ii));
                 % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_a2-by-n_e
-                ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2,maxgap(ii)+1,level1iidiff(ii),n_a2,n_e, d_gridvals, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, e_gridvals_J(:,:,N_j), ReturnFnParamsVec,3,0); % Level 3 as DC1+GI; Level=3, Refine=0
+                ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2,maxgap(ii)+1,level1iidiff(ii),n_a2,n_e, d_gridvals, a1_gridvals(a1primeindexes), a1_gridvals(curraindex), a2_gridvals, e_gridvals_J(:,:,N_j), ReturnFnParamsVec,3,0); % Level 3 as DC1+GI; Level=3, Refine=0
                 [~,maxindex]=max(ReturnMatrix_ii,[],2);
                 midpoint(:,1,curraindex,:,:)=maxindex+(loweredge-1);
             else
@@ -121,7 +121,7 @@ if ~isfield(vfoptions,'V_Jplus1')
                     % loweredge is n_d-by-1-by-n_a2-by-1-by-n_a2
                     a1primeindexes=loweredge+(0:1:maxgap(ii));
                     % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_a2
-                    ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2,maxgap(ii)+1,level1iidiff(ii),n_a2,special_n_e, d_gridvals, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, e_val, ReturnFnParamsVec,3,0); % Level 3 as DC1+GI; Level=3, Refine=0
+                    ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2,maxgap(ii)+1,level1iidiff(ii),n_a2,special_n_e, d_gridvals, a1_gridvals(a1primeindexes), a1_gridvals(curraindex), a2_gridvals, e_val, ReturnFnParamsVec,3,0); % Level 3 as DC1+GI; Level=3, Refine=0
                     [~,maxindex]=max(ReturnMatrix_ii,[],2);
                     midpoint(:,1,curraindex,:)=maxindex+(loweredge-1);
                 else
@@ -159,7 +159,7 @@ else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateExperienceAsseteFnMatrix(aprimeFn, n_d2, n_a2, n_e, d2_gridvals, a2_grid, e_gridvals_J(:,:,N_j), aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
     % Note: aprimeIndex is [N_d2,N_a2,N_e], whereas aprimeProbs is [N_d2,N_a2,N_e]   (N_e here is the current e)
 
@@ -167,7 +167,7 @@ else
     aprimeplus1Index=repelem(gpuArray(1:1:N_a1)',N_d2,N_a2,N_e)+N_a1*repmat(a2primeIndex,N_a1,1,1); % [N_d2*N_a1,N_a2,N_e]
     aprimeProbs=repmat(a2primeProbs,N_a1,1,1);  % [N_d2*N_a1,N_a2,N_e]    (e dim already present, no repmat over e)
 
-    EVpre=sum(pi_e_J(:,N_j)'.*reshape(vfoptions.V_Jplus1,[N_a,N_e]),2);    % Integrate out eprime: [N_a,1]
+    EVpre=sum(pi_e_J(:,N_j+1)'.*reshape(vfoptions.V_Jplus1,[N_a,N_e]),2);    % Integrate out eprime: [N_a,1]
 
     Vlower=reshape(EVpre(aprimeIndex(:)),[N_d2*N_a1,N_a2,N_e]); % (d2*a1prime,a2,e_cur)
     Vupper=reshape(EVpre(aprimeplus1Index(:)),[N_d2*N_a1,N_a2,N_e]);
@@ -204,7 +204,7 @@ else
                 % loweredge is n_d-by-1-by-1-by-n_a2-by-n_e
                 a1primeindexes=loweredge+(0:1:maxgap(ii));
                 % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_a2-by-n_e
-                ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2,maxgap(ii)+1,level1iidiff(ii),n_a2,n_e, d_gridvals, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, e_gridvals_J(:,:,N_j), ReturnFnParamsVec,3,0); % Level 3 as DC1+GI; Level=3, Refine=0
+                ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2,maxgap(ii)+1,level1iidiff(ii),n_a2,n_e, d_gridvals, a1_gridvals(a1primeindexes), a1_gridvals(curraindex), a2_gridvals, e_gridvals_J(:,:,N_j), ReturnFnParamsVec,3,0); % Level 3 as DC1+GI; Level=3, Refine=0
                 d2aprime=d2ind+N_d2*(a1primeindexes-1)+N_d2*N_a1*a2ind+N_d2*N_a1*N_a2*eind; % [N_d,maxgap+1,1,N_a2,N_e]; linear index into DiscountedEV [N_d2,N_a1,1,N_a2,N_e]
                 entireRHS_ii=ReturnMatrix_ii+DiscountedEV(d2aprime);
                 [~,maxindex]=max(entireRHS_ii,[],2);
@@ -267,7 +267,7 @@ else
                     % loweredge is n_d-by-1-by-1-by-n_a2
                     a1primeindexes=loweredge+(0:1:maxgap(ii));
                     % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_a2
-                    ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2,maxgap(ii)+1,level1iidiff(ii),n_a2,special_n_e, d_gridvals, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, e_val, ReturnFnParamsVec,3,0); % Level 3 as DC1+GI; Level=3, Refine=0
+                    ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2,maxgap(ii)+1,level1iidiff(ii),n_a2,special_n_e, d_gridvals, a1_gridvals(a1primeindexes), a1_gridvals(curraindex), a2_gridvals, e_val, ReturnFnParamsVec,3,0); % Level 3 as DC1+GI; Level=3, Refine=0
                     d2aprime=d2ind+N_d2*(a1primeindexes-1)+N_d2*N_a1*a2ind; % [N_d,maxgap+1,1,N_a2]; linear index into DiscountedEV_e [N_d2,N_a1,1,N_a2]
                     entireRHS_ii=ReturnMatrix_ii+DiscountedEV_e(d2aprime);
                     [~,maxindex]=max(entireRHS_ii,[],2);
@@ -330,7 +330,7 @@ for reverse_j=1:N_j-1
     aprimeplus1Index=repelem(gpuArray(1:1:N_a1)',N_d2,N_a2,N_e)+N_a1*repmat(a2primeIndex,N_a1,1,1); % [N_d2*N_a1,N_a2,N_e]
     aprimeProbs=repmat(a2primeProbs,N_a1,1,1);  % [N_d2*N_a1,N_a2,N_e]    (e dim already present, no repmat over e)
 
-    EVpre=sum(pi_e_J(:,jj)'.*V(:,:,jj+1),2);    % Integrate out eprime: [N_a,1]
+    EVpre=sum(pi_e_J(:,jj+1)'.*V(:,:,jj+1),2);    % Integrate out eprime: [N_a,1]
 
     Vlower=reshape(EVpre(aprimeIndex(:)),[N_d2*N_a1,N_a2,N_e]); % (d2*a1prime,a2,e_cur)
     Vupper=reshape(EVpre(aprimeplus1Index(:)),[N_d2*N_a1,N_a2,N_e]);
@@ -367,7 +367,7 @@ for reverse_j=1:N_j-1
                 % loweredge is n_d-by-1-by-1-by-n_a2-by-n_e
                 a1primeindexes=loweredge+(0:1:maxgap(ii));
                 % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_a2-by-n_e
-                ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2,maxgap(ii)+1,level1iidiff(ii),n_a2,n_e, d_gridvals, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, e_gridvals_J(:,:,jj), ReturnFnParamsVec,3,0); % Level 3 as DC1+GI; Level=3, Refine=0
+                ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2,maxgap(ii)+1,level1iidiff(ii),n_a2,n_e, d_gridvals, a1_gridvals(a1primeindexes), a1_gridvals(curraindex), a2_gridvals, e_gridvals_J(:,:,jj), ReturnFnParamsVec,3,0); % Level 3 as DC1+GI; Level=3, Refine=0
                 d2aprime=d2ind+N_d2*(a1primeindexes-1)+N_d2*N_a1*a2ind+N_d2*N_a1*N_a2*eind; % [N_d,maxgap+1,1,N_a2,N_e]; linear index into DiscountedEV [N_d2,N_a1,1,N_a2,N_e]
                 entireRHS_ii=ReturnMatrix_ii+DiscountedEV(d2aprime);
                 [~,maxindex]=max(entireRHS_ii,[],2);
@@ -430,7 +430,7 @@ for reverse_j=1:N_j-1
                     % loweredge is n_d-by-1-by-1-by-n_a2
                     a1primeindexes=loweredge+(0:1:maxgap(ii));
                     % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_a2
-                    ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2,maxgap(ii)+1,level1iidiff(ii),n_a2,special_n_e, d_gridvals, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, e_val, ReturnFnParamsVec,3,0); % Level 3 as DC1+GI; Level=3, Refine=0
+                    ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2,maxgap(ii)+1,level1iidiff(ii),n_a2,special_n_e, d_gridvals, a1_gridvals(a1primeindexes), a1_gridvals(curraindex), a2_gridvals, e_val, ReturnFnParamsVec,3,0); % Level 3 as DC1+GI; Level=3, Refine=0
                     d2aprime=d2ind+N_d2*(a1primeindexes-1)+N_d2*N_a1*a2ind; % [N_d,maxgap+1,1,N_a2]; linear index into DiscountedEV_e [N_d2,N_a1,1,N_a2]
                     entireRHS_ii=ReturnMatrix_ii+DiscountedEV_e(d2aprime);
                     [~,maxindex]=max(entireRHS_ii,[],2);

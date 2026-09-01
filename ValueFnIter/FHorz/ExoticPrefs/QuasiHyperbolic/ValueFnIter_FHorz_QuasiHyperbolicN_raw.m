@@ -13,14 +13,14 @@ N_d=prod(n_d);
 N_a=prod(n_a);
 N_z=prod(n_z);
 
-Valt=zeros(N_a,N_z,N_j,'gpuArray');
+Valt=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(N_a,N_z,N_j,'gpuArray'); % indexes the optimal choice for d and aprime, rest of dimensions a,z
 Policyalt=zeros(N_a,N_z,N_j,'gpuArray'); % exponential discounter optimal choice (Valt is computed at this)
 
 %%
 if vfoptions.lowmemory>0
     l_z=length(n_z);
-    special_n_z=ones(1,l_z);
+    special_n_z=ones(1,l_z,vfoptions.precision,'gpuArray');
 end
 
 
@@ -77,7 +77,7 @@ else
         EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
         EV=sum(EV,2); % sum over z', leaving a singular second dimension
 
-        entireEV=repelem(EV,ones(N_d,1));
+        entireEV=repelem(EV,N_d,1,1);
 
         % For naive, we compute Valt which is the exponential
         % discounter case, and then from this we get Vtilde and

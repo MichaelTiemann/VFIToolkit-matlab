@@ -107,16 +107,19 @@ if heteroagentoptions.useintermediateEqns==1
     intermediateEqnsVec=zeros(1,length(intEqnnames));
     % Do the intermediateEqns, in order
     for gg=1:length(intEqnnames)
-        intermediateEqnsVec(gg)=real(GeneralEqmConditions_Case1_v3g(heteroagentoptions.intermediateEqnsCell{gg}, heteroagentoptions.intermediateEqnParamNames(gg).Names, Parameters));
+        % intermediateEqnsVec(gg)=real(GeneralEqmConditions_Case1_v3g(heteroagentoptions.intermediateEqnsCell{gg}, heteroagentoptions.intermediateEqnParamNames(gg).Names, Parameters));
+        intermediateEqnsVec(gg)=GeneralEqmConditions_Case1_v3g(heteroagentoptions.intermediateEqnsCell{gg}, heteroagentoptions.intermediateEqnParamNames(gg).Names, Parameters);
         Parameters.(intEqnnames{gg})=intermediateEqnsVec(gg);
     end
 end
 
 %% Evaluate General Eqm Eqns
 % use of real() is a hack that could disguise errors, but I couldn't find why matlab was treating output as complex
+% use of real() has been disabled, see how it goes without
 GeneralEqmConditionsVec=zeros(1,length(GEeqnNames));
 for gg=1:length(GEeqnNames)
-    GeneralEqmConditionsVec(gg)=real(GeneralEqmConditions_Case1_v3g(GeneralEqmEqnsCell{gg}, GeneralEqmEqnParamNames(gg).Names, Parameters));
+    % GeneralEqmConditionsVec(gg)=real(GeneralEqmConditions_Case1_v3g(GeneralEqmEqnsCell{gg}, GeneralEqmEqnParamNames(gg).Names, Parameters));
+    GeneralEqmConditionsVec(gg)=GeneralEqmConditions_Case1_v3g(GeneralEqmEqnsCell{gg}, GeneralEqmEqnParamNames(gg).Names, Parameters);
 end
 
 
@@ -182,6 +185,11 @@ if heteroagentoptions.pricehistory==1
     GEpricepath(:,itercount)=GEpricesvec;
     GEcondnpath(:,itercount)=GeneralEqmConditionsVec;
     save pricehistory.mat GEpricepath GEcondnpath itercount
+end
+
+% If counting model solves (GE-condn evaluations), do that
+if heteroagentoptions.countGEsolves==1
+    StationaryGeneralEqm_subcode_GEsolvecounter('incr'); % opt-in model-solve counter (benchmarking)
 end
 
 

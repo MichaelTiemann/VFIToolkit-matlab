@@ -130,7 +130,7 @@ for reverse_j=0:N_j-1
     jj=N_j-reverse_j;
 
     % Evaluate ReturnFn at policy
-    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj);
+    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj,vfoptions.precision);
     if N_e==0
         F_jj=EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell, PolicyValuesPermute(:,:,:,jj), l_daprime, n_a, n_shocks, a_gridvals, joint_gridvals_J(:,:,jj));
         % F_jj shape: [N_a, N_shocks]
@@ -152,8 +152,8 @@ for reverse_j=0:N_j-1
             V_next=V(:,:,jj+1); % [N_a, N_shocks]
         else
             V_next=V(:,:,:,jj+1); % [N_a, N_shocks, N_e]
-            % Integrate over e' using iid pi_e_J(:,jj)
-            V_next=sum(V_next .* shiftdim(vfoptions.pi_e_J(:,jj), -2), 3); % [N_a, N_shocks, 1]
+            % Integrate over e' using iid pi_e_J(:,jj+1) (the distribution of the e realized in period jj+1)
+            V_next=sum(V_next .* shiftdim(vfoptions.pi_e_J(:,jj+1), -2), 3); % [N_a, N_shocks, 1]
             V_next=reshape(V_next, [N_a, N_shocks]);
         end
 

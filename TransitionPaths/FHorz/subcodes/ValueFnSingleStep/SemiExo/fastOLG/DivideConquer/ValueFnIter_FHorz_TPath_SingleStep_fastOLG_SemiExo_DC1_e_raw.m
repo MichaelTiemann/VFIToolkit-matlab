@@ -2,6 +2,8 @@ function [V,Policy]=ValueFnIter_FHorz_TPath_SingleStep_fastOLG_SemiExo_DC1_e_raw
 % fastOLG just means parallelize over "age" (j)
 % fastOLG is done as (a,j,z,e), rather than standard (a,z,e,j)
 % V is (a,j)-by-z-by-e
+% pi_z_J is (j,z',z) for fastOLG, with N_j slices: same j=N_j convention as pi_semiz_J
+% pi_semiz_J is (j,semiz',semiz,d2) for fastOLG [transitions depend on d2], with N_j slices: under EVpre==0 the j=N_j slice is the zero 'no continuation value in the final period' row appended by the TPath setup; an EVpre==1/MEP caller must instead supply a genuine final transition row
 
 n_d=[n_d1,n_d2];
 N_d1=prod(n_d1);
@@ -18,7 +20,6 @@ N_e=prod(n_e);
 d_gridvals=[repmat(d1_gridvals,N_d2,1),repelem(d2_gridvals,N_d1,1)];
 bothz_gridvals_J=cat(3,repmat(semiz_gridvals_J,1,N_z,1),repelem(z_gridvals_J,1,N_semiz,1)); % (j,N_bothz,l_semiz+l_z), semiz indexes fastest
 bothz_gridvals_J=shiftdim(bothz_gridvals_J,-3); % [1,1,1,N_j,N_bothz,l_bothz]
-pi_semiz_J=permute(pi_semiz_J,[4,2,1,3]); % (j,semiz',semiz,d2)
 e_gridvals_J=reshape(e_gridvals_J,[1,1,1,N_j,1,N_e,length(n_e)]);
 
 Policy=zeros(N_a,N_j,N_bothz,N_e,'gpuArray'); % first dim indexes the optimal choice for d and aprime
@@ -46,10 +47,11 @@ DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamN
 ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision); % this will be a matrix, row indexes ages and column indexes the parameters (parameters which are not dependent on age appear as a constant valued column)
 
 if vfoptions.EVpre==0
-    EVpre=[sum(V(N_a+1:end,:,:).*pi_e_J(1:end-N_a,:,:),3); zeros(N_a,N_bothz,'gpuArray')]; % I use zeros in j=N_j so that can just use the transition probabilities to create expectations
+    EVpre=[sum(V(N_a+1:end,:,:).*pi_e_J(N_a+1:end,:,:),3); zeros(N_a,N_bothz,'gpuArray')]; % I use zeros in j=N_j so that can just use the transition probabilities to create expectations
     EVpre=reshape(EVpre,[N_a,1,N_j,N_bothz]);
 elseif vfoptions.EVpre==1
     % This is used for 'Matched Expecations Path'
+    % EVpre==1 is the Matched Expectations Path: the age axis is time along the path and the caller supplies pi arrays whose j=N_j slice is genuine (the transition into the continuing future) rather than the TPath setup's zero row
     EVpre=sum(reshape(V,[N_a*N_j,N_bothz,N_e]).*pi_e_J,3); % input V is already of size [N_a*N_j,N_bothz,N_e] and we want to use the whole thing
     EVpre=reshape(EVpre,[N_a,1,N_j,N_bothz]);
 end
@@ -119,7 +121,7 @@ if vfoptions.lowmemory==0
 
 elseif vfoptions.lowmemory==1
 
-    special_n_e=ones(1,length(n_e));
+    special_n_e=ones(1,length(n_e),'gpuArray');
 
     for e_c=1:N_e
         e_vals=e_gridvals_J(1,1,1,:,1,e_c,:); % e_gridvals_J has shape (1,1,1,j,1,prod(n_e),l_e)

@@ -17,14 +17,15 @@ Policy=zeros(N_a,N_e,N_j,'gpuArray'); % indexes the optimal choice for aprime, r
 
 %%
 if vfoptions.lowmemory>0
-    special_n_e=ones(1,length(n_e),vfoptions.precision); % vfoptions.lowmemory>0
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
+ % vfoptions.lowmemory>0
 end
 pi_e_J=shiftdim(pi_e_J,-1); % Move to second dimension as no_z
 
 %% j=N_j
 
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 % Nothing extra to do for final period with quasi-hyperbolic preferences
 
 if ~isfield(vfoptions,'V_Jplus1')
@@ -62,7 +63,7 @@ else
     beta0=CreateVectorFromParams(Parameters,{vfoptions.QHadditionaldiscount},N_j,vfoptions.precision);
     beta0beta=beta0*beta; % Discount factor between today and tomorrow.
 
-    EV=sum(V_Jplus1.*pi_e_J(1,:,N_j),2); % Note: The V_Jplus1 input should be Vunderbar for sophisticated
+    EV=sum(V_Jplus1.*pi_e_J(1,:,N_j+1),2); % Note: The V_Jplus1 input should be Vunderbar for sophisticated
 
     if vfoptions.lowmemory==0
 
@@ -122,7 +123,7 @@ for reverse_j=1:N_j-1
 
     EV=Vunderbar(:,:,jj+1); % Use Vunderbar (goes into the equation to determine Vhat)
 
-    EV=sum(EV.*pi_e_J(1,:,jj),2);
+    EV=sum(EV.*pi_e_J(1,:,jj+1),2);
 
     if vfoptions.lowmemory==0
 

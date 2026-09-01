@@ -30,7 +30,7 @@ if vfoptions.lowmemory==0
 elseif vfoptions.lowmemory==1
     ReturnMatrix=zeros(N_a,N_a,N_z,'gpuArray');
     l_z=length(n_z);
-    special_n_z=ones(1,l_z);
+    special_n_z=ones(1,l_z,vfoptions.precision,'gpuArray');
     for z_c=1:N_z
         zvals=z_gridvals(z_c,:);
         ReturnMatrix_z=CreateReturnFnMatrix_Case2_Disc(ReturnFn,n_da, n_a, special_n_z, da_gridvals, a_grid, zvals, ReturnFnParams);
@@ -92,7 +92,7 @@ elseif vfoptions.lowmemory==1
     ReturnMatrixfine=zeros(N_aprime,N_a,N_z,'gpuArray');
     dstar=zeros(N_aprime,N_a,N_z,'gpuArray');
     l_z=length(n_z);
-    special_n_z=ones(1,l_z);
+    special_n_z=ones(1,l_z,vfoptions.precision,'gpuArray');
     for z_c=1:N_z
         zvals=z_gridvals(z_c,:);
         ReturnMatrixfine_z=CreateReturnFnMatrix_Disc_DC1(ReturnFn, n_d, special_n_z, d_gridvals, aprime_grid(:,:,z_c), a_grid, zvals, ReturnFnParams,1);
@@ -164,7 +164,7 @@ while vfoptions.postGIrepeat>0
         ReturnMatrixfine=zeros(N_aprime,N_a,N_z,'gpuArray');
         dstar=zeros(N_aprime,N_a,N_z,'gpuArray');
         l_z=length(n_z);
-        special_n_z=ones(1,l_z);
+        special_n_z=ones(1,l_z,vfoptions.precision,'gpuArray');
         for z_c=1:N_z
             zvals=z_gridvals(z_c,:);
             ReturnMatrixfine_z=CreateReturnFnMatrix_Disc_DC1(ReturnFn, n_d, special_n_z, d_gridvals, aprime_grid(:,:,z_c), a_grid, zvals, ReturnFnParams,1);
@@ -215,7 +215,29 @@ VKron=Vhat;
 ValtKron=Vunderbar;
 Policy_a=reshape(Policy_a,[1,N_a,N_z]);
 
-Policy=local_extract_postGI_d(Policy_a, dstar, aprimeshifter, n2short, vfoptions, N_a, N_z, N_aprime, ReturnMatrixfine, addindexforazfine);
+Policy=zeros(4,N_a,N_z,'gpuArray'); % +1 channel for PolicyL2flag
+temppolicyindex=reshape(Policy_a,[1,N_a*N_z])+N_aprime*(0:1:N_a*N_z-1);
+Policy(1,:,:)=reshape(dstar(temppolicyindex),[N_a,N_z]); % dstar is defined on the fine grid
+
+fineindex=reshape(Policy_a,[N_a*N_z,1]);
+L1a=ceil((fineindex-1)/(n2short+1))-1;
+% the max(L1a,0) matters only at the window's bottom node, where L1a is -1; L2 below is built off the same thing, so L1 has to be too
+L1=max(L1a,0)-vfoptions.maxaprimediff+aprimeshifter(:);
+L1intermediate=max(L1a,0)+1;
+L2=fineindex-(L1intermediate-1)*(n2short+1);
+
+Policy(2,:,:)=reshape(L1,[1,N_a,N_z]);
+Policy(3,:,:)=reshape(L2,[1,N_a,N_z]);
+
+% L2 flag to later avoid -Inf ReturnFn (1=all to lower, 2=usual, 3=all to upper)
+fineindex_lower = (L1intermediate-1)*(n2short+1) + 1;
+fineindex_upper = L1intermediate*(n2short+1) + 1;
+linidx_lower = reshape(fineindex_lower,[N_a,N_z]) + addindexforazfine;
+linidx_upper = reshape(fineindex_upper,[N_a,N_z]) + addindexforazfine;
+isInfLower = (ReturnMatrixfine(linidx_lower(:)) == -Inf);
+isInfUpper = (ReturnMatrixfine(linidx_upper(:)) == -Inf);
+inInterior = (L2 >= 2) & (L2 <= n2short+1);
+Policy(4,:,:) = reshape(2 + (inInterior & isInfLower) - (inInterior & isInfUpper), [1,N_a,N_z]);
 Policyalt=[];
 
 if currdist > vfoptions.tolerance
@@ -224,32 +246,5 @@ if currdist > vfoptions.tolerance
              'Last currdist = %.16g; tolerance = %.16g.'], ...
              currdist, vfoptions.tolerance)
 end
-
-end
-
-
-function P=local_extract_postGI_d(Policy_a, dstar, aprimeshifter, n2short, vfoptions, N_a, N_z, N_aprime, ReturnMatrixfine, addindexforazfine)
-% Convert fine-grid Policy_a into (d, L1, L2, L2flag) quadruple in shape (4,N_a,N_z).
-P=zeros(4,N_a,N_z,'gpuArray');
-temppolicyindex=reshape(Policy_a,[1,N_a*N_z])+N_aprime*(0:1:N_a*N_z-1);
-P(1,:,:)=reshape(dstar(temppolicyindex),[N_a,N_z]);
-
-fineindex=reshape(Policy_a,[N_a*N_z,1]);
-L1a=ceil((fineindex-1)/(n2short+1))-1;
-L1=max(L1a-vfoptions.maxaprimediff+1+aprimeshifter(:)-1,1);
-L1intermediate=max(L1a,0)+1;
-L2=fineindex-(L1intermediate-1)*(n2short+1);
-
-P(2,:,:)=reshape(L1,[1,N_a,N_z]);
-P(3,:,:)=reshape(L2,[1,N_a,N_z]);
-
-fineindex_lower = (L1intermediate-1)*(n2short+1) + 1;
-fineindex_upper = L1intermediate*(n2short+1) + 1;
-linidx_lower = reshape(fineindex_lower,[N_a,N_z]) + addindexforazfine;
-linidx_upper = reshape(fineindex_upper,[N_a,N_z]) + addindexforazfine;
-isInfLower = (ReturnMatrixfine(linidx_lower(:)) == -Inf);
-isInfUpper = (ReturnMatrixfine(linidx_upper(:)) == -Inf);
-inInterior = (L2 >= 2) & (L2 <= n2short+1);
-P(4,:,:) = reshape(2 + (inInterior & isInfLower) - (inInterior & isInfUpper), [1,N_a,N_z]);
 
 end

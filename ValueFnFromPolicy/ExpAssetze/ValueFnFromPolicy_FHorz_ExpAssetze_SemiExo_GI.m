@@ -46,8 +46,14 @@ l_d=length(n_d);
 l_z=length(n_z);
 l_e=length(vfoptions.n_e);
 
+% noa1 case (n_a is scalar -- experience asset is the only endogenous state): GI refines a1, which
+% doesn't apply when there's no a1. Fall back to non-GI version (which handles noa1 correctly).
+% Matches the upstream VFI convention (noa1 has no GI/DC/DC+GI raw files).
 if isscalar(n_a)
-    error('ValueFnFromPolicy_FHorz_ExpAssetze_SemiExo_GI: case with no a1 (experience asset as only asset) not yet implemented')
+    vfoptions.gridinterplayer=0;
+    V=ValueFnFromPolicy_FHorz_ExpAssetze_SemiExo(Policy,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    varargout={V};
+    return
 end
 n_a1=n_a(1:end-1);
 N_a1=prod(n_a1);
@@ -105,19 +111,21 @@ for ii=1:l_dsemiz
     d_semiz_idx=d_semiz_idx+cumprods_dsemiz(ii)*(comp-1);
 end
 
-%% a1prime: midpoint (position l_d+1) + L2 (last). Other a1 components at l_d+2..l_d+l_a1.
-a1_mid=shiftdim(Policy_k(l_d+1,:,:,:,:),1);
+%% a1prime: lower grid index (position l_d+1) + L2 (last). Other a1 components at l_d+2..l_d+l_a1.
+% ValueFnIter converts the midpoint to the lower grid index before returning Policy (the adjust
+% block at the end of the GI raws), so this row is the lower index and not the midpoint.
+a1_lowerind=shiftdim(Policy_k(l_d+1,:,:,:,:),1);
 L2    =shiftdim(Policy_k(l_d+l_a1+1,:,:,:,:),1);
 w_a1_upper=(L2-1)/(n2short+1);
 w_a1_lower=1-w_a1_upper;
 cumprods_a1=[1, cumprod(n_a1(1:end-1))];
-a1_lower=a1_mid;
+a1_lower=a1_lowerind;
 for ii=2:l_a1
     comp=shiftdim(Policy_k(l_d+ii,:,:,:,:),1);
     a1_lower=a1_lower+cumprods_a1(ii)*(comp-1);
 end
 a1_upper=a1_lower+1;
-a1_top_clamp=(a1_mid>=n_a1(1));
+a1_top_clamp=(a1_lowerind>=n_a1(1));
 a1_upper(a1_top_clamp)=a1_lower(a1_top_clamp);
 
 %% Joint Markov-like shock gridvals for ReturnFn (semiz, z)
@@ -135,13 +143,13 @@ for reverse_j=0:N_j-1
     jj=N_j-reverse_j;
 
     % Step 1: a2primeIndex, a2primeProbs at this age
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames, jj);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames, jj, vfoptions.precision);
     Policy_slice=reshape(Policy_k(:,:,:,:,jj), [size_first, N_a, N_shocks*N_e]);
     [a2primeIndex, a2primeProbs]=CreateaprimePolicyExperienceAssetze(Policy_slice, aprimeFn, whichisdforexpasset, n_d, n_a1, n_a2, n_z, vfoptions.n_e, N_semiz, N_z, N_e, d_grid, a2_grid, z_gridvals_J(:,:,jj), vfoptions.e_gridvals_J(:,:,jj), aprimeFnParamsVec);
     % shape [N_a, N_semiz*N_z*N_e]
 
     % Step 2: ReturnFn at policy
-    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj);
+    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj,vfoptions.precision);
     F_jj=reshape(EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell, PolicyValuesPermute(:,:,:,jj), l_daprime, n_a, [n_shocks,vfoptions.n_e], a_gridvals, [repmat(joint_gridvals_J(:,:,jj),N_e,1), repelem(vfoptions.e_gridvals_J(:,:,jj),N_shocks,1)]), [N_a, N_shocks, N_e]);
 
     if jj==N_j
@@ -151,7 +159,7 @@ for reverse_j=0:N_j-1
 
         % Step 3a: integrate over e' (iid)
         V_next=V(:,:,:,jj+1);
-        V_next=sum(V_next .* shiftdim(vfoptions.pi_e_J(:,jj), -2), 3);
+        V_next=sum(V_next .* shiftdim(vfoptions.pi_e_J(:,jj+1), -2), 3);
         V_next=reshape(V_next, [N_a, N_shocks]);
 
         % Step 3b: integrate over z' (markov)

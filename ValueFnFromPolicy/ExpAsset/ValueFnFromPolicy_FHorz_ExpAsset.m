@@ -148,7 +148,7 @@ for reverse_j=0:N_j-1
     jj=N_j-reverse_j;
 
     % Step 1: a2primeIndex, a2primeProbs for each state at this age
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames, jj);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames, jj, vfoptions.precision);
     if N_z==0 && N_e==0
         Policy_slice=Policy_k(:,:,jj); % [l_d+l_a1, N_a]
     else
@@ -160,7 +160,7 @@ for reverse_j=0:N_j-1
     % - else: [N_a, N_ze]
 
     % Step 2: ReturnFn at policy
-    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj);
+    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj,vfoptions.precision);
     if N_z==0 && N_e==0
         F_jj=EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell, PolicyValuesPermute(:,:,jj), l_daprime, n_a, 0, a_gridvals, []);
         % F_jj shape: [N_a, 1]
@@ -192,14 +192,14 @@ for reverse_j=0:N_j-1
             EVnext=V(:,jj+1); % [N_a]
         elseif N_z==0 && N_e>0
             % e iid: integrate over e' to collapse to EVnext indexed by anext only
-            EVnext=sum(V(:,:,jj+1) .* shiftdim(vfoptions.pi_e_J(:,jj), -1), 2); % [N_a, 1]
+            EVnext=sum(V(:,:,jj+1) .* shiftdim(vfoptions.pi_e_J(:,jj+1), -1), 2); % [N_a, 1]
         elseif N_z>0 && N_e==0
             % EVnext(anext, z_from) = sum_{z_to} pi(z_from, z_to) * V(anext, z_to)
             EVnext=V(:,:,jj+1)*pi_z_J(:,:,jj)'; % [N_a, N_z]
             EVnext(isnan(EVnext))=0;
         else
             % Integrate over e' then over z'
-            EVnext=sum(V(:,:,:,jj+1) .* shiftdim(vfoptions.pi_e_J(:,jj), -2), 3); % [N_a, N_z, 1]
+            EVnext=sum(V(:,:,:,jj+1) .* shiftdim(vfoptions.pi_e_J(:,jj+1), -2), 3); % [N_a, N_z, 1]
             EVnext=reshape(EVnext,[N_a,N_z]) * pi_z_J(:,:,jj)'; % [N_a, N_z]
             EVnext(isnan(EVnext))=0;
         end

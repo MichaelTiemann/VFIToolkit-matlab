@@ -26,7 +26,7 @@ a2_gridvals=CreateGridvals(n_a2,a2_grid,1);
 a1_gridvals=a1_grid;
 d3_gridvals=CreateGridvals(n_d3,d3_grid,1);
 
-if vfoptions.lowmemory==1
+if vfoptions.lowmemory>=1
     special_n_z=ones(1,length(n_z),vfoptions.precision);
 end
 
@@ -76,7 +76,7 @@ if ~isfield(vfoptions,'V_Jplus1')
 
         % d2, which was not in ReturnFn
         Policy(1,:,:,N_j)=ones(1,N_a,N_z,'gpuArray'); % d2 (terminal: d2 doesn't matter, only in expectations)
-    elseif vfoptions.lowmemory==1
+    elseif vfoptions.lowmemory>=1 % lm1 already does the most-looped variant, so it also serves the higher lowmemory values
         for z_c=1:N_z
             z_val=z_gridvals_J(z_c,:,N_j);
             % Layer 1: full ReturnMatrix max for initial midpoint
@@ -114,7 +114,7 @@ else % V_Jplus1
     DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision));
 
     % Build a2primeIndex and a2primeProbs for RisykAsset
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a2, n_u, d23_grid, a2_grid, u_grid, aprimeFnParamsVec,2);
     aprimeIndex=repelem((1:1:N_a1)',N_d23,N_u)+N_a1*repmat(a2primeIndex-1,N_a1,1);
     aprimeplus1Index=repelem((1:1:N_a1)',N_d23,N_u)+N_a1*repmat(a2primeIndex,N_a1,1);
@@ -183,7 +183,7 @@ else % V_Jplus1
         zlin=shiftdim(gpuArray(0:N_z-1),-1); % [1,1,N_z]
         lin=d3opt+N_d3*(a1opt_mid-1)+N_d3*N_a1*zlin;
         Policy(1,:,:,N_j)=d2index_resh(lin);
-    elseif vfoptions.lowmemory==1
+    elseif vfoptions.lowmemory>=1 % lm1 already does the most-looped variant, so it also serves the higher lowmemory values
         for z_c=1:N_z
             z_val=z_gridvals_J(z_c,:,N_j);
             DiscountedEV_z=DiscountedEV(:,:,:,:,z_c);
@@ -309,7 +309,7 @@ for reverse_j=1:N_j-1
         zlin=shiftdim(gpuArray(0:N_z-1),-1); % [1,1,N_z]
         lin=d3opt+N_d3*(a1opt_mid-1)+N_d3*N_a1*zlin;
         Policy(1,:,:,jj)=d2index_resh(lin);
-    elseif vfoptions.lowmemory==1
+    elseif vfoptions.lowmemory>=1 % lm1 already does the most-looped variant, so it also serves the higher lowmemory values
         for z_c=1:N_z
             z_val=z_gridvals_J(z_c,:,jj);
             DiscountedEV_z=DiscountedEV(:,:,:,:,z_c);

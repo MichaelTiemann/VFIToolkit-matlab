@@ -62,7 +62,7 @@ else
 end
 l_daprime=size(PolicyValues,1);
 
-%% Extract per-state indices from Policy: d_semiz_idx, aprime1_midpoint, aprime_other_idx, L2_idx
+%% Extract per-state indices from Policy: d_semiz_idx, aprime1_lowerindex, aprime_other_idx, L2_idx
 % Strip trailing L2flag channel if present (Policy may carry it; we only need l_d+l_aprime+1 channels)
 if size(Policy,1) > (l_d+l_aprime+1)
     tempsize=size(Policy);
@@ -89,17 +89,21 @@ for ii=1:l_dsemiz
     d_semiz_idx=d_semiz_idx+cumprods_dsemiz(ii)*(comp-1);
 end
 
-% aprime: position l_d+1 is a1 midpoint; positions l_d+2..l_d+l_aprime are other aprime; position l_d+l_aprime+1 is L2_idx
-a1_mid=shiftdim(Policy_k(l_d+1,:,:,:,:),1); % [N_a, N_shocks, N_j] or [N_a, N_shocks, N_e, N_j]
+% aprime: position l_d+1 is the a1 lower grid index; positions l_d+2..l_d+l_aprime are other aprime; position l_d+l_aprime+1 is L2_idx
+% ValueFnIter converts the midpoint to the lower grid index before returning Policy (the adjust
+% block at the end of the GI raws), so this row is the lower index and not the midpoint.
+a1_lowerind=shiftdim(Policy_k(l_d+1,:,:,:,:),1); % [N_a, N_shocks, N_j] or [N_a, N_shocks, N_e, N_j]
 L2_idx=shiftdim(Policy_k(l_d+l_aprime+1,:,:,:,:),1);
 
-% Build a1 fine index: a1_fine = (n2short+1)*(a1_mid-1) + L2_idx
-a1_fine_idx=(n2short+1)*(a1_mid-1)+L2_idx;
+% Build a1 fine index: a1_fine = (n2short+1)*(a1_lowerind-1) + L2_idx
+a1_fine_idx=(n2short+1)*(a1_lowerind-1)+L2_idx;
 
 % Convert a1_fine_idx to fractional position in original a1 grid: frac = 1 + (a1_fine_idx-1)/(n2short+1)
 a1_frac=1+(a1_fine_idx-1)/(n2short+1);
 a1_lower=floor(a1_frac);
 a1_weight=a1_frac-a1_lower; % weight on upper point
+% a1_frac is a1_lowerind+(L2_idx-1)/(n2short+1), so floor gives a1_lowerind while L2_idx<=n2short+1,
+% and a1_lowerind+1 with zero weight at L2_idx==n2short+2 (which is the upper grid point). Both correct.
 % Clamp upper to n_a(1)
 a1_upper=min(a1_lower+1, n_a(1));
 % When at the top exactly (a1_frac == n_a(1)), weight should be 0 and upper=lower
@@ -149,7 +153,7 @@ for reverse_j=0:N_j-1
     jj=N_j-reverse_j;
 
     % Evaluate ReturnFn at policy
-    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj);
+    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj,vfoptions.precision);
     if N_e==0
         F_jj=EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell, PolicyValuesPermute(:,:,:,jj), l_daprime, n_a, n_shocks, a_gridvals, joint_gridvals_J(:,:,jj));
     else
@@ -170,7 +174,7 @@ for reverse_j=0:N_j-1
             V_next=V(:,:,jj+1);
         else
             V_next=V(:,:,:,jj+1);
-            V_next=sum(V_next .* shiftdim(vfoptions.pi_e_J(:,jj), -2), 3);
+            V_next=sum(V_next .* shiftdim(vfoptions.pi_e_J(:,jj+1), -2), 3);
             V_next=reshape(V_next, [N_a, N_shocks]);
         end
 

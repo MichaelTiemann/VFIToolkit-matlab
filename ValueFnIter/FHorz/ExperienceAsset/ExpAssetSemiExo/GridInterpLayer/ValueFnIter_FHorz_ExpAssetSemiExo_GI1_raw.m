@@ -29,11 +29,11 @@ bothz_gridvals_J=[repmat(semiz_gridvals_J,N_z,1,1),repelem(z_gridvals_J,N_semiz,
 if vfoptions.lowmemory==1
     special_n_semiz=[n_semiz,ones(1,length(n_z))];
 elseif vfoptions.lowmemory==2
-    special_n_bothz=ones(1,length(n_semiz)+length(n_z));
+    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision,'gpuArray');
 end
 
 % Preallocate
-V_ford3_jj=zeros(N_a,N_semiz*N_z,N_d3,'gpuArray');
+V_ford3_jj=zeros(N_a,N_semiz*N_z,N_d3,vfoptions.precision,'gpuArray');
 Policy4_ford3_jj=zeros(4,N_a,N_semiz*N_z,N_d3,'gpuArray');
 flag_ford3_jj=2*ones(N_a,N_semiz*N_z,N_d3,'gpuArray');
 
@@ -192,7 +192,7 @@ if ~isfield(vfoptions,'V_Jplus1')
     Policy(5,:,:,N_j)=reshape(Policy4_ford3_jj(4+temp),[1,N_a,N_bothz]); % a1primeL2ind
     PolicyL2flag(1,:,:,N_j)=reshape(flag_ford3_jj((1:N_a*N_bothz)'+(N_a*N_bothz)*(maxindex-1)),[1,N_a,N_bothz]);
 else
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix(aprimeFn, n_d2, n_a2, d2_gridvals, a2_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
     % Note: aprimeIndex is [N_d2,N_a2], whereas aprimeProbs is [N_d2,N_a2]
 
@@ -232,11 +232,14 @@ else
             % Interpolate EV over aprime_grid
             DiscountedEVinterp=permute(interp1(a1_gridvals,permute(DiscountedEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]); % [N_d2,N_a1prime,1,N_a2,N_bothz]
 
+            DiscountedEV=repelem(DiscountedEV,N_d1,1,1,1,1);
+            DiscountedEVinterp=repelem(DiscountedEVinterp,N_d1,1,1,1,1);
+
 
             ReturnMatrix_d3=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,[n_d2,1],n_a1,n_a1,n_a2,n_bothz, d123_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,N_j), ReturnFnParamsVec,1,0); % Level=1, Refine=0
             % (d,aprime,a,z)
 
-            entireRHS_d3=ReturnMatrix_d3+repelem(DiscountedEV,N_d1,1,1,1,1); % autofill a1 dim
+            entireRHS_d3=ReturnMatrix_d3+DiscountedEV; % autofill a1 dim
 
             % Calc the max and it's index
             [~,maxindex]=max(entireRHS_d3,[],2);

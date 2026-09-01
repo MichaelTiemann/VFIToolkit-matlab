@@ -9,7 +9,7 @@ Policy=zeros(N_a,N_z,N_j,'gpuArray'); %indexes the optimal choice for d given re
 
 %%
 if vfoptions.lowmemory>0
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 
     z_gridvals=zeros(N_z,length(n_z),'gpuArray');
     for i1=1:N_z
@@ -27,7 +27,7 @@ if vfoptions.lowmemory>0
     end
 end
 %%
-Vold=zeros(N_a,N_z,N_j);
+Vold=zeros(N_a,N_z,N_j,vfoptions.precision);
 tempcounter=1;
 currdist=Inf;
 while currdist>vfoptions.tolerance
@@ -37,7 +37,7 @@ while currdist>vfoptions.tolerance
 
     if Case2_Type==1 % phi_a'(d,a,z,z')
         if vfoptions.phiaprimedependsonage==0
-            PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames);
+            PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames, vfoptions.precision);
             if vfoptions.lowmemory==0
                 [Phi_aprimeMatrix_Prob,Phi_aprimeMatrix_Index]=CreatePhiaprimeMatrix_Case2_Disc_nphi_Par2(Phi_aprime, Case2_Type, n_d, n_a, n_z, d_grid, a_grid, z_grid,PhiaprimeParamsVec);
             end
@@ -115,7 +115,7 @@ while currdist>vfoptions.tolerance
 
     if Case2_Type==11 % phi_a'(d,a,z')
         if vfoptions.phiaprimedependsonage==0
-            PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames);
+            PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames, vfoptions.precision);
             if vfoptions.lowmemory==0
                 [Phi_aprimeMatrix_Index,Phi_aprimeMatrix_Prob]=CreatePhiaprimeMatrix_Case2_Disc_nphi_Par2(Phi_aprime, Case2_Type, n_d, n_a, n_z, d_grid, a_grid, z_grid,PhiaprimeParamsVec);
             end
@@ -198,7 +198,7 @@ while currdist>vfoptions.tolerance
 
     if Case2_Type==12 % phi_a'(d,a,z)
         if vfoptions.phiaprimedependsonage==0
-            PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames);
+            PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames, vfoptions.precision);
             if vfoptions.lowmemory==0
                 [Phi_aprimeMatrix_Index,Phi_aprimeMatrix_Prob]=CreatePhiaprimeMatrix_Case2_Disc_nphi_Par2(Phi_aprime, Case2_Type, n_d, n_a, n_z, d_grid, a_grid, z_grid,PhiaprimeParamsVec);
             end
@@ -306,7 +306,7 @@ while currdist>vfoptions.tolerance
 
     if Case2_Type==3  % phi_a'(d,z')
         if vfoptions.phiaprimedependsonage==0
-            PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames);
+            PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames, vfoptions.precision);
             Phi_aprimeMatrix_Alt=CreatePhiaprimeMatrix_Case2_Disc_nphi_Par2(Phi_aprime, Case2_Type, n_d, n_a, n_z, d_grid, a_grid, z_grid,PhiaprimeParamsVec);
         end
         for reverse_j=0:N_j-1
@@ -417,7 +417,7 @@ while currdist>vfoptions.tolerance
     end
 
     if Case2_Type==4  % phi_a'(d,a)
-        PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames);
+        PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames, vfoptions.precision);
         Phi_aprimeMatrix_Alt=CreatePhiaprimeMatrix_Case2_Disc_nphi_Par2(Phi_aprime, Case2_Type, n_d, n_a, n_z, d_grid, a_grid, z_grid,PhiaprimeParamsVec);
         aaa=kron(pi_z,ones(N_d,1,'gpuArray'));
 
@@ -459,7 +459,7 @@ while currdist>vfoptions.tolerance
                 Phi_aprimeMatrix_e=Phi_aprime;
             elseif vfoptions.phiaprimematrix==2
                 disp('ERROR: COMBINATION OF Case2_Type==5 and vfoptions.phiaprimematrix==2 HAS NOT BEEN IMPLEMENTED')
-                PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames);
+                PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames, vfoptions.precision);
                 %     Phi_aprimeMatrix=CreatePhiaprimeMatrix_Case2_Disc_nphi_Par2(Phi_aprime, Case2_Type, n_d, n_a, n_z,d_grid, a_grid, z_grid,PhiaprimeParamsVec);
                 Phi_aprimeMatrix_e=CreatePhiaprimeMatrix_Case2_Disc_nphi_Par2_e(Phi_aprime, Case2_Type, n_d, n_a, n_z,d_grid, a_grid,e_grid, z_grid, PhiaprimeParamsVec);
             end

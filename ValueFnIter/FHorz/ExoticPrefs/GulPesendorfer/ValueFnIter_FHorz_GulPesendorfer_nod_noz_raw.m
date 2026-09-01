@@ -11,8 +11,8 @@ a_gridvals=CreateGridvals(n_a,a_grid,1); % The 1 at end indicates want output in
 %% j=N_j
 
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
-TemptationFnParamsVec=CreateVectorFromParams(Parameters, TemptationFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
+TemptationFnParamsVec=CreateVectorFromParams(Parameters, TemptationFnParamNames, N_j, vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     ReturnMatrix=CreateReturnFnMatrix_Disc_noz(ReturnFn, 0, n_a, 0, a_grid, ReturnFnParamsVec,0);

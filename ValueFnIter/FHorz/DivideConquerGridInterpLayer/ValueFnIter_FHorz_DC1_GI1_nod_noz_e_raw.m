@@ -3,7 +3,6 @@ function [V, Policy]=ValueFnIter_FHorz_DC1_GI1_nod_noz_e_raw(n_a,n_e,N_j, a_grid
 N_a=prod(n_a);
 N_e=prod(n_e);
 
-cast2precision=str2func(vfoptions.precision);
 V=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(2,N_a,N_e,N_j,'gpuArray'); % first dim indexes the optimal choice for aprime and aprime2 (in GI layer)
 PolicyL2flag=2*ones(1,N_a,N_e,N_j,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
@@ -14,7 +13,7 @@ if vfoptions.lowmemory==0
     midpoints_jj=zeros(1,N_a,N_e,'gpuArray');
 elseif vfoptions.lowmemory==1 % loops over e
     midpoints_jj=zeros(1,N_a,'gpuArray');
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 
 % n-Monotonicity
@@ -37,7 +36,7 @@ aprime_grid=interp1(1:1:N_a,a_grid,linspace(1,N_a,N_a+(N_a-1)*n2short));
 %% j=N_j
 
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 
 pi_e_J=shiftdim(pi_e_J,-1); % Move to second dimension
 
@@ -143,7 +142,7 @@ else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    EV=sum(reshape(vfoptions.V_Jplus1,[N_a,N_e]).*pi_e_J(1,:,N_j),2); % Use V_Jplus1
+    EV=sum(reshape(vfoptions.V_Jplus1,[N_a,N_e]).*pi_e_J(1,:,N_j+1),2); % Use V_Jplus1
 
     % Interpolate EV over aprime_grid
     EVinterp=interp1(a_grid,EV,aprime_grid);
@@ -272,7 +271,7 @@ for reverse_j=1:N_j-1
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    EV=sum(V(:,:,jj+1).*pi_e_J(1,:,jj),2);
+    EV=sum(V(:,:,jj+1).*pi_e_J(1,:,jj+1),2);
 
     % Interpolate EV over aprime_grid
     EVinterp=interp1(a_grid,EV,aprime_grid);

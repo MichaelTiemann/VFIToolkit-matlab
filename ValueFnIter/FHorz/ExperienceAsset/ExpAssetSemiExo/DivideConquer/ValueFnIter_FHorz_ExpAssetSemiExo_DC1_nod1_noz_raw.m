@@ -23,14 +23,14 @@ N_d23=prod(n_d23);
 d23_gridvals=[repmat(d2_gridvals,N_d3,1),repelem(CreateGridvals(n_d3,d3_grid,1),N_d2,1)];
 
 if vfoptions.lowmemory>0
-    special_n_semiz=ones(1,length(n_semiz));
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision,'gpuArray');
 else
     % precompute
     semizind=shiftdim((0:1:N_semiz-1),-1); % already includes -1
 end
 
 % Preallocate
-V_ford3_jj=zeros(N_a,N_semiz,N_d3,'gpuArray');
+V_ford3_jj=zeros(N_a,N_semiz,N_d3,vfoptions.precision,'gpuArray');
 Policy_ford3_jj=zeros(N_a,N_semiz,N_d3,'gpuArray');
 
 
@@ -164,7 +164,7 @@ if ~isfield(vfoptions,'V_Jplus1')
         end
     end
 else
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix(aprimeFn, n_d2, n_a2, d2_gridvals, a2_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
     % Note: aprimeIndex is [N_d2,N_a2], whereas aprimeProbs is [N_d2,N_a2]
 

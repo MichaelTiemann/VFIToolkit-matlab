@@ -10,17 +10,17 @@ Policy=zeros(N_a,N_z,N_e,N_j,'gpuArray'); %first dim indexes the optimal choice 
 Policyalt=zeros(N_a,N_z,N_e,N_j,'gpuArray'); % exponential discounter optimal choice (Valt is computed at this)
 Vtilde=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray'); % agent's-perspective value (beta0*beta-discounted)
 
-Vnext=sum(V.*shiftdim(pi_e_J(:,[1,1:end-1]),-2),3); % Take expectations over e: Vnext(...,jj+1) is read for current age jj, so weight V at age jj+1 by pi_e_J(:,jj) [same timing as standard ValueFnIter commands]; first column is padding, never read
+Vnext=sum(V.*shiftdim(pi_e_J,-2),3); % Take expectations over e: Vnext(...,jj+1) is read for current age jj, so weight V at age jj+1 by pi_e_J(:,jj+1), the distribution of the e realized in period jj+1; first column is never read
 
 %%
 if vfoptions.lowmemory==0
     loweredgesize=[1,1,N_z,N_e];
 elseif vfoptions.lowmemory==1
     loweredgesize=[1,1,N_z];
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 elseif vfoptions.lowmemory==2
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 elseif vfoptions.lowmemory>=3
     error('vfoptions.lowmemory>=3 not supported for ValueFnIter_FHorz_TPath_SingleStep_QHN_DC1_nod_e_raw')
 end

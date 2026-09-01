@@ -20,7 +20,7 @@ Policy=zeros(N_a,N_semiz*N_z,N_e,N_j,'gpuArray');
 d_gridvals=[repmat(d1_gridvals,N_d2,1),repelem(d2_gridvals,N_d1,1)];
 
 if vfoptions.lowmemory>0
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 else
     eind=shiftdim((0:1:N_e-1),-2); % already includes -1
 end
@@ -143,7 +143,7 @@ else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    EV=sum(V_Jplus1.*pi_e_J(1,1,:,N_j),3);
+    EV=sum(V_Jplus1.*pi_e_J(1,1,:,N_j+1),3);
     % (aprime,zprime)
 
     if vfoptions.lowmemory==0
@@ -273,7 +273,7 @@ for reverse_j=1:N_j-1
 
     EV=V(:,:,:,jj+1);
 
-    EV=sum(EV.*pi_e_J(1,1,:,jj),3);
+    EV=sum(EV.*pi_e_J(1,1,:,jj+1),3);
     % (aprime,zprime)
 
     if vfoptions.lowmemory==0

@@ -53,6 +53,7 @@ if ~exist('vfoptions','var')
     %commands and the like, so no need to set them here except for a few.
     vfoptions.n_e=0;
     vfoptions.n_semiz=0;
+    vfoptions.verbose_advice=0; % silence advisory warnings (e.g. the postGI maxaprimediff advice) during the repeated VFI solves of the GE loop
 else
     %Check vfoptions for missing fields, if there are some fill them with the defaults
     if ~isfield(vfoptions,'parallel')
@@ -63,6 +64,9 @@ else
     end
     if ~isfield(vfoptions,'n_semiz')
         vfoptions.n_semiz=0;
+    end
+    if ~isfield(vfoptions,'verbose_advice')
+        vfoptions.verbose_advice=0;
     end
 end
 
@@ -79,17 +83,19 @@ else
     if ~isfield(simoptions,'parallel')
         simoptions.parallel=1+(gpuDeviceCount>0);
     end
-    if isfield(vfoptions,'gridinterplayer')
-        if ~isfield(simoptions,'gridinterplayer')
-            error('When setting vfoptions.gridinterplayer you must also set simoptions.gridinterplayer')
-        end
-    end
     % Exogenous shocks
     if ~isfield(simoptions,'n_e')
         simoptions.n_e=0;
     end
     if ~isfield(simoptions,'n_semiz')
         simoptions.n_semiz=0;
+    end
+end
+% Note: the grid interpolation layer must be set in both vfoptions and simoptions; if it is only set in
+% vfoptions then Policy has an extra row that the agent dist would silently ignore (giving a wrong answer)
+if isfield(vfoptions,'gridinterplayer') && vfoptions.gridinterplayer==1
+    if ~isfield(simoptions,'gridinterplayer')
+        error('When setting vfoptions.gridinterplayer you must also set simoptions.gridinterplayer')
     end
 end
 
@@ -223,6 +229,9 @@ end
 
 heteroagentoptions.verboseaccuracy1=['	%s: %8.',num2str(heteroagentoptions.verboseaccuracy1),'f \n']; % set up a string
 heteroagentoptions.verboseaccuracy2=['	%s: %8.',num2str(heteroagentoptions.verboseaccuracy2),'f \n']; % set up a string
+if heteroagentoptions.countGEsolves==1
+    StationaryGeneralEqm_subcode_GEsolvecounter('reset'); % set up the iteration counter and initialize value
+end
 
 nGEprices=length(GEPriceParamNames);
 GEeqnNames=fieldnames(GeneralEqmEqns);

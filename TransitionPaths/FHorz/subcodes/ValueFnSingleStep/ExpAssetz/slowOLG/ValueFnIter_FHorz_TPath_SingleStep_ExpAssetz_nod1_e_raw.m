@@ -13,10 +13,10 @@ Policy=zeros(N_a,N_z,N_e,N_j,'gpuArray'); %first dim indexes the optimal choice 
 a2_gridvals=CreateGridvals(n_a2,a2_grid,1);
 
 if vfoptions.lowmemory>=1
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 if vfoptions.lowmemory==2
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 end
 
 %% j=N_j
@@ -86,7 +86,7 @@ for reverse_j=1:N_j-1
     aprimeplus1Index=repelem((1:1:N_a1)',N_d2,N_a2,N_z)+N_a1*repmat(a2primeIndex,N_a1,1,1); % [N_d2*N_a1,N_a2,N_z]
     aprimeProbs=repmat(a2primeProbs,N_a1,1,1,N_z); % [N_d2*N_a1,N_a2,N_z]    (z dim already present, no repmat over z; but need to add zprime)
 
-    EVpre=sum(shiftdim(pi_e_J(:,jj),-2).*VKronNext_j,3); % Expectations over e
+    EVpre=sum(shiftdim(pi_e_J(:,jj+1),-2).*VKronNext_j,3); % Expectations over e
 
     Vlower=reshape(EVpre(aprimeIndex(:),:),[N_d2*N_a1,N_a2,N_z,N_z]); % (d2*a1prime,a2,z,zprime)
     Vupper=reshape(EVpre(aprimeplus1Index(:),:),[N_d2*N_a1,N_a2,N_z,N_z]);
@@ -119,7 +119,7 @@ for reverse_j=1:N_j-1
     elseif vfoptions.lowmemory==1
 
         for e_c=1:N_e
-            e_val=e_gridvals_J(e_c,:,N_j);
+            e_val=e_gridvals_J(e_c,:,jj);
             ReturnMatrix_e=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,n_d2,n_a1,n_a1,n_a2,n_z,special_n_e, d2_gridvals, a1_gridvals, a1_gridvals, a2_gridvals, z_gridvals_J(:,:,jj), e_val, ReturnFnParamsVec,0,0); % Level=0, Refine=0
 
             entireRHS_e=ReturnMatrix_e+DiscountedEV;
@@ -132,10 +132,10 @@ for reverse_j=1:N_j-1
         end
     elseif vfoptions.lowmemory==2
         for z_c=1:N_z
-            z_val=z_gridvals_J(z_c,:,N_j);
+            z_val=z_gridvals_J(z_c,:,jj);
             DiscountedEV_z=DiscountedEV(:,:,z_c);
             for e_c=1:N_e
-                e_val=e_gridvals_J(e_c,:,N_j);
+                e_val=e_gridvals_J(e_c,:,jj);
                 ReturnMatrix_ze=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,n_d2,n_a1,n_a1,n_a2,special_n_z,special_n_e, d2_gridvals, a1_gridvals, a1_gridvals, a2_gridvals, z_val, e_val, ReturnFnParamsVec,0,0); % Level=0, Refine=0
 
                 entireRHS_ze=ReturnMatrix_ze+DiscountedEV_z;

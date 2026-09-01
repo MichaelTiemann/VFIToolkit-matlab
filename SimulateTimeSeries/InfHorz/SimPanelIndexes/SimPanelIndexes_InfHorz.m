@@ -96,12 +96,12 @@ if N_bothze==0
         end
     elseif simoptions.gridinterplayer==1
         if l_a==1
-            Policy_aprime=reshape(Policy_aprime,[2,N_a]);
+            Policy_aprime=reshape(Policy_aprime,[3,N_a]); % aprimeIndex, L2index and L2flag
         else %l_a>1
             temp=ones(l_a,1,'gpuArray')-eye(l_a,1,'gpuArray');
             temp2=gpuArray(cumprod(n_a')); % column vector
-            PolicyTemp=(reshape(Policy_aprime(1:end-1,:,:),[l_a,N_a])-temp*ones(1,N_a,'gpuArray')).*([1;temp2(1:end-1)]*ones(1,N_a,'gpuArray'));
-            Policy_aprime=[reshape(sum(PolicyTemp,1),[1,N_a]); Policy_aprime(end,:)];
+            PolicyTemp=(reshape(Policy_aprime(1:end-2,:,:),[l_a,N_a])-temp*ones(1,N_a,'gpuArray')).*([1;temp2(1:end-1)]*ones(1,N_a,'gpuArray'));
+            Policy_aprime=[reshape(sum(PolicyTemp,1),[1,N_a]); Policy_aprime(end-1,:)]; % end-1 is the L2 index; end is the L2flag
         end
         CumPolicyProbs=ones([N_a,2]);
         CumPolicyProbs(:,1)=reshape(Policy_aprime(2,:),[N_a,1]); % L2 index
@@ -122,12 +122,12 @@ else
         end
     elseif simoptions.gridinterplayer==1
         if l_a==1
-            Policy_aprime=reshape(Policy_aprime,[2,N_a,N_bothze]);
+            Policy_aprime=reshape(Policy_aprime,[3,N_a,N_bothze]); % aprimeIndex, L2index and L2flag
         else %l_a>1
             temp=ones(l_a,1,'gpuArray')-eye(l_a,1,'gpuArray');
             temp2=gpuArray(cumprod(n_a')); % column vector
-            PolicyTemp=(reshape(Policy_aprime(1:end-1,:,:,:),[l_a,N_a*N_bothze])-temp*ones(1,N_a*N_bothze,'gpuArray')).*([1;temp2(1:end-1)]*ones(1,N_a*N_bothze,'gpuArray'));
-            Policy_aprime=[reshape(sum(PolicyTemp,1),[1,N_a,N_bothze]); Policy_aprime(end,:,:)];
+            PolicyTemp=(reshape(Policy_aprime(1:end-2,:,:,:),[l_a,N_a*N_bothze])-temp*ones(1,N_a*N_bothze,'gpuArray')).*([1;temp2(1:end-1)]*ones(1,N_a*N_bothze,'gpuArray'));
+            Policy_aprime=[reshape(sum(PolicyTemp,1),[1,N_a,N_bothze]); Policy_aprime(end-1,:,:)]; % end-1 is the L2 index; end is the L2flag
         end
         CumPolicyProbs=ones([N_a,N_bothze,2]);
         CumPolicyProbs(:,:,1)=reshape(Policy_aprime(2,:,:),[N_a,N_bothze,1]); % L2 index

@@ -49,20 +49,13 @@ N_z=prod(n_z);
 [PricePath,ParamPath,PricePathNames,ParamPathNames,PricePathSizeVec,ParamPathSizeVec]=PricePathParamPath_FHorz_StructToMatrix(PricePath,ParamPath,N_j,T);
 
 %% Set up shock grids over the transition path
-[z_gridvals_J, pi_z_J, ~, ~, ~, ~, ~, transpathoptions, vfoptions]=ExogShockSetup_FHorz_TPath(n_z,z_grid,pi_z,N_a,N_j,Parameters,PricePathNames,ParamPathNames,transpathoptions,vfoptions,3);
+[z_gridvals_J, pi_z_J, ~, ~, ~, ~, ~, transpathoptions, vfoptions]=ExogShockSetup_FHorz_TPath(n_z,z_grid,pi_z,N_a,N_j,T,Parameters,PricePathNames,ParamPathNames,transpathoptions,vfoptions,3);
 % transpathoptions.zpathtrivial=1 if z_gridvals_J / pi_z_J don't vary over the path;
 % =0 otherwise (then transpathoptions.z_gridvals_J_T and .pi_z_J_T hold the full path)
 
 PolicyPath=reshape(PolicyPath,[size(PolicyPath,1),N_a,N_z,N_j,T]);
 
-if N_d==0 && isscalar(n_a) && vfoptions.gridinterplayer==0
-    l_daprime=1;
-else
-    l_daprime=size(PolicyPath,1);
-    if vfoptions.gridinterplayer==1
-        l_daprime=l_daprime-1;
-    end
-end
+l_daprime=size(PolicyPath,1)-2*vfoptions.gridinterplayer; % gridinterplayer=1 carries an extra L2 index and L2flag
 a_gridvals=CreateGridvals(n_a,a_grid,1);
 
 %% Implement new way of handling ReturnFn inputs
@@ -108,7 +101,7 @@ for ttr=1:T-1
 
         % Evaluate Return Fn at policy (a, Policy(a,z,jj,tt), z, jj)
         PolicyValuesPermute=permute(PolicyValues_tt(:,:,:,jj),[2,3,1]); %[N_a,N_z,l_d+l_a]
-        FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj);
+        FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj,vfoptions.precision);
         FofPolicy_jj=EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell,PolicyValuesPermute,l_daprime,n_a,n_z,a_gridvals,z_gridvals_J_tt(:,:,jj));
 
         if jj==N_j

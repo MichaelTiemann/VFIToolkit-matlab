@@ -14,7 +14,7 @@ level1ii=round(linspace(1,n_a,vfoptions.level1n));
 % level1iidiff=level1ii(2:end)-level1ii(1:end-1)-1;
 
 if vfoptions.lowmemory==1
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 else
     eind=shiftdim((0:1:N_e-1),-1); % already includes -1
 end
@@ -117,7 +117,7 @@ else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    EV=sum(reshape(vfoptions.V_Jplus1,[N_a,N_e]).*pi_e_J(1,:,N_j),2); % Using V_Jplus1
+    EV=sum(reshape(vfoptions.V_Jplus1,[N_a,N_e]).*pi_e_J(1,:,N_j+1),2); % Using V_Jplus1
 
     if vfoptions.lowmemory==0
         % n-Monotonicity
@@ -228,7 +228,7 @@ for reverse_j=1:N_j-1
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    EV=sum(V(:,:,jj+1).*pi_e_J(1,:,jj),2);
+    EV=sum(V(:,:,jj+1).*pi_e_J(1,:,jj+1),2);
 
     if vfoptions.lowmemory==0
         % n-Monotonicity

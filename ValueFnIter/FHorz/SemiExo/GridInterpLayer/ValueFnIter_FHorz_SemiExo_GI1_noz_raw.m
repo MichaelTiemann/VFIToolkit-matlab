@@ -10,18 +10,18 @@ N_semiz=prod(n_semiz);
 
 V=zeros(N_a,N_semiz,N_j,vfoptions.precision,'gpuArray');
 % For semiz it turns out to be easier to go straight to constructing policy that stores d,d2,aprime seperately
-Policy=zeros(4,N_a,N_semiz,N_j,vfoption.'gpuArray'); % first dim indexes the optimal choice for d1,d2,aprime and aprime2 (in GI layer)
+Policy=zeros(4,N_a,N_semiz,N_j,'gpuArray'); % first dim indexes the optimal choice for d1,d2,aprime and aprime2 (in GI layer)
 PolicyL2flag=2*ones(1,N_a,N_semiz,N_j,'gpuArray'); % 1=all weight to lower coarse pt, 2=usual linear weights, 3=all weight to upper coarse pt
 % When ReturnFn is -Inf on one of the course grid points, we will allow fine index between that and the neighbouring course grid point, but we use L2flag to record this and so later avoid that -Inf point when simulating/iteration
 
 %%
-special_n_d=[n_d1,ones(1,length(n_d2))];
+special_n_d=[cast2precision(n_d1),ones(1,length(n_d2),vfoptions.precision)];
 d_gridvals=[repmat(d1_gridvals,N_d2,1),repelem(d2_gridvals,N_d1,1)];
 
 d12_gridvals=permute(reshape(d_gridvals,[N_d1,N_d2,length(n_d1)+length(n_d2)]),[1,3,2]); % version to use when looping over d2
 
 if vfoptions.lowmemory>0
-    special_n_semiz=ones(1,length(n_semiz));
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision,'gpuArray');
 end
 
 aind=gpuArray(0:1:N_a-1); % already includes -1
@@ -29,7 +29,7 @@ semizind=shiftdim(gpuArray(0:1:N_semiz-1),-1); % already includes -1
 semizBind=shiftdim(gpuArray(0:1:N_semiz-1),-2); % already includes -1
 
 % Preallocate
-V_ford2_jj=zeros(N_a,N_semiz,N_d2,'gpuArray');
+V_ford2_jj=zeros(N_a,N_semiz,N_d2,vfoptions.precision,'gpuArray');
 Policy_ford2_jj=zeros(N_a,N_semiz,N_d2,'gpuArray');
 midpoint_ford2_jj=zeros(N_a,N_semiz,N_d2,'gpuArray');
 flag_ford2_jj=2*ones(N_a,N_semiz,N_d2,'gpuArray');

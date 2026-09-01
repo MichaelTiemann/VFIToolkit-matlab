@@ -26,21 +26,21 @@ N_d23=prod(n_d23);
 d23_gridvals=[repmat(d2_gridvals,N_d3,1),repelem(CreateGridvals(n_d3,d3_grid,1),N_d2,1)];
 
 if vfoptions.lowmemory>0
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 else
     % precompute
     eind=shiftdim((0:1:N_e-1),-2); % already includes -1
 end
 
 if vfoptions.lowmemory>1
-    special_n_semiz=ones(1,length(n_semiz));
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision,'gpuArray');
 else
     % precompute
     semizind=shiftdim((0:1:N_semiz-1),-1); % already includes -1
 end
 
 % Preallocate
-V_ford3_jj=zeros(N_a,N_semiz,N_e,N_d3,'gpuArray');
+V_ford3_jj=zeros(N_a,N_semiz,N_e,N_d3,vfoptions.precision,'gpuArray');
 Policy_ford3_jj=zeros(N_a,N_semiz,N_e,N_d3,'gpuArray');
 
 % n-Monotonicity
@@ -231,7 +231,7 @@ if ~isfield(vfoptions,'V_Jplus1')
         end
     end
 else
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateExperienceAssetuFnMatrix(aprimeFn, n_d2, n_a2, n_u, d2_gridvals, a2_grid, u_gridvals, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
     % Note: aprimeIndex is [N_d2,N_a2,N_u], whereas aprimeProbs is [N_d2,N_a2,N_u]
 
@@ -239,7 +239,7 @@ else
     aprimeplus1Index=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat(a2primeIndex,N_a1,1); % [N_d2*N_a1,N_a2,N_u]
     aprimeProbs=repmat(a2primeProbs,N_a1,1,1,N_semiz);  % [N_d2*N_a1,N_a2,N_u,N_semiz]
 
-    EVpre=sum(reshape(vfoptions.V_Jplus1,[N_a,N_semiz,N_e]).*shiftdim(pi_e_J(:,N_j),-2),3);
+    EVpre=sum(reshape(vfoptions.V_Jplus1,[N_a,N_semiz,N_e]).*shiftdim(pi_e_J(:,N_j+1),-2),3);
 
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
@@ -530,14 +530,14 @@ for reverse_j=1:N_j-1
     aprimeplus1Index=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat(a2primeIndex,N_a1,1); % [N_d2*N_a1,N_a2,N_u]
     aprimeProbs=repmat(a2primeProbs,N_a1,1,1,N_semiz);  % [N_d2*N_a1,N_a2,N_u,N_semiz]
 
-    EVpre=sum(V(:,:,:,jj+1).*shiftdim(pi_e_J(:,jj),-2),3);
+    EVpre=sum(V(:,:,:,jj+1).*shiftdim(pi_e_J(:,jj+1),-2),3);
 
     if vfoptions.lowmemory==0
         for d3_c=1:N_d3
             % d3_val=d3_grid(d3_c);
             d23_gridvals_val=[d2_gridvals,repelem(d3_grid(d3_c),N_d2,1)];
             % Note: By definition V_Jplus1 does not depend on d (only aprime)
-            pi_bothz_d3=pi_semiz_J(:,:,d3_c,N_j);
+            pi_bothz_d3=pi_semiz_J(:,:,d3_c,jj);
 
             EV=EVpre.*shiftdim(pi_bothz_d3',-1);
             EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
@@ -616,7 +616,7 @@ for reverse_j=1:N_j-1
         for d3_c=1:N_d3
             d23_gridvals_val=[d2_gridvals,repelem(d3_grid(d3_c),N_d2,1)];
             % Note: By definition V_Jplus1 does not depend on d (only aprime)
-            pi_bothz_d3=pi_semiz_J(:,:,d3_c,N_j);
+            pi_bothz_d3=pi_semiz_J(:,:,d3_c,jj);
 
             EV=EVpre.*shiftdim(pi_bothz_d3',-1);
             EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
@@ -699,7 +699,7 @@ for reverse_j=1:N_j-1
         for d3_c=1:N_d3
             d23_gridvals_val=[d2_gridvals,repelem(d3_grid(d3_c),N_d2,1)];
             % Note: By definition V_Jplus1 does not depend on d (only aprime)
-            pi_bothz_d3=pi_semiz_J(:,:,d3_c,N_j);
+            pi_bothz_d3=pi_semiz_J(:,:,d3_c,jj);
 
             EV=EVpre.*shiftdim(pi_bothz_d3',-1);
             EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)

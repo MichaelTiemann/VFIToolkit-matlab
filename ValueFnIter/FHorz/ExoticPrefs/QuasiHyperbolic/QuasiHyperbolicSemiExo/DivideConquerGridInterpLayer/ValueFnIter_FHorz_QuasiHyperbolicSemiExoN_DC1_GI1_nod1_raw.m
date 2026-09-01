@@ -17,7 +17,7 @@ Policyalt=zeros(3,N_a,N_semiz*N_z,N_j,'gpuArray'); % exponential discounter opti
 PolicyL2flagalt=2*ones(1,N_a,N_semiz*N_z,N_j,'gpuArray');
 
 %%
-special_n_d2=ones(1,length(n_d2));
+special_n_d2=ones(1,length(n_d2),vfoptions.precision);
 
 aind=gpuArray(0:1:N_a-1);
 bothzind=shiftdim(gpuArray(0:1:N_bothz-1),-1);
@@ -25,8 +25,8 @@ bothzind=shiftdim(gpuArray(0:1:N_bothz-1),-1);
 bothz_gridvals_J=[repmat(semiz_gridvals_J,N_z,1,1),repelem(z_gridvals_J,N_semiz,1,1)];
 
 % Preallocate per-d2 slabs
-Valt_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
-V_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
+Valt_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,vfoptions.precision,'gpuArray');
+V_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,vfoptions.precision,'gpuArray');
 Policy_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
 midpoint_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
 PolicyL2flag_ford2_jj=2*ones(N_a,N_semiz*N_z,N_d2,'gpuArray');

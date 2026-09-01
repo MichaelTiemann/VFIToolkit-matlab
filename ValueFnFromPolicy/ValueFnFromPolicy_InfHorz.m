@@ -24,17 +24,21 @@ else
     % divide-and-conquer is not relevant for ValueFnFromPolicy
 end
 
+%% Grid interpolation layer is handled by its own command
+if vfoptions.gridinterplayer==1
+    V=ValueFnFromPolicy_InfHorz_GI(Policy,n_d,n_a,n_z,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    return
+end
+
 N_d=prod(n_d);
 N_a=prod(n_a);
 N_z=prod(n_z);
 
-if N_d==0 && isscalar(n_a) && vfoptions.gridinterplayer==0
+% Note: gridinterplayer=1 has already been sent to ValueFnFromPolicy_InfHorz_GI above
+if N_d==0 && isscalar(n_a)
     l_daprime=1;
 else
     l_daprime=size(Policy,1);
-    if vfoptions.gridinterplayer==1
-        l_daprime=l_daprime-1;
-    end
 end
 a_gridvals=CreateGridvals(n_a,a_grid,1);
 % Switch to z_gridvals
@@ -48,21 +52,47 @@ ReturnFnParamNames=ReturnFnParamNamesFn(ReturnFn,n_d,n_a,n_z,0,vfoptions,Paramet
 
 %% Calculate FofPolicy (the return fn evaluated at the Policy)
 PolicyValues=PolicyInd2Val_InfHorz(Policy,n_d,n_a,n_z,d_grid,a_grid, vfoptions);
-PolicyValuesPermute=permute(reshape(PolicyValues,[size(PolicyValues,1),N_a,N_z]),[2,3,1]); %[N_a,N_z,l_d+l_a]
+if N_z==0
+    PolicyValuesPermute=permute(reshape(PolicyValues,[size(PolicyValues,1),N_a]),[2,1]); %[N_a,l_d+l_a]
+else
+    PolicyValuesPermute=permute(reshape(PolicyValues,[size(PolicyValues,1),N_a,N_z]),[2,3,1]); %[N_a,N_z,l_d+l_a]
+end
 
 ReturnFnParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,vfoptions.precision);
 FofPolicy=EvalFnOnAgentDist_Grid(ReturnFn, ReturnFnParamsCell,PolicyValuesPermute,l_daprime,n_a,n_z,a_gridvals,z_gridvals);
 
 %% Now that we have FofPolicy, calculate V.
 DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames,vfoptions.precision));
-Policy=KronPolicyIndexes_forValueFnFromPolicy(Policy, n_d, n_a, n_z, 0, vfoptions);
-
-pi_z_howards=repelem(pi_z,N_a,1);
 
 currdist=Inf;
 itercount=1;
 VKron=FofPolicy/(1-DiscountFactorParamsVec); % rough guess
-if vfoptions.gridinterplayer==0
+if N_z==0
+    Policy=KronPolicyIndexes_forValueFnFromPolicy(Policy, n_d, n_a, 1, 0, vfoptions);
+
+    if N_d==0
+        Policy_a=shiftdim(Policy(1,:),1);
+    else
+        Policy_a=shiftdim(ceil(Policy(2,:)),1);
+    end
+
+    while currdist>vfoptions.tolerance && itercount<vfoptions.maxiter
+        VKronold=VKron;
+
+        EVKrontemp=VKron(Policy_a,:);
+
+        VKron=FofPolicy+DiscountFactorParamsVec*EVKrontemp;
+
+        currdist=max(max(abs(VKron-VKronold)));
+        itercount=itercount+1;
+    end
+
+    V=reshape(VKron,[n_a,1]);
+else % N_z>0
+    Policy=KronPolicyIndexes_forValueFnFromPolicy(Policy, n_d, n_a, n_z, 0, vfoptions);
+
+    pi_z_howards=repelem(pi_z,N_a,1);
+
     if N_d==0
         Policy_a=shiftdim(Policy(1,:,:),1);
     else
@@ -83,37 +113,7 @@ if vfoptions.gridinterplayer==0
         itercount=itercount+1;
     end
 
-elseif vfoptions.gridinterplayer==1
-    if N_d==0
-        alowerindex=reshape(Policy(1,:,:),[1,N_a*N_z]);
-        aprimeindex=[alowerindex; alowerindex+1]; % [2,N_a*N_z]
-        PolicyProbs=reshape(ceil(Policy(end,:,:)),[1,N_a*N_z]); % L2 (Kron drops L2flag)
-        PolicyProbs=(PolicyProbs-1)/(vfoptions.ngridinterp+1); % prob of upper point
-        PolicyProbs=[1-PolicyProbs; PolicyProbs]; % [2,N_a*N_z]
-    else
-        alowerindex=reshape(ceil(Policy(2,:,:)),[1,N_a*N_z]);
-        aprimeindex=[alowerindex; alowerindex+1]; % [2,N_a*N_z]
-        PolicyProbs=reshape(ceil(Policy(end,:,:)),[1,N_a*N_z]); % L2 (Kron drops L2flag)
-        PolicyProbs=(PolicyProbs-1)/(vfoptions.ngridinterp+1); % prob of upper point
-        PolicyProbs=[1-PolicyProbs; PolicyProbs]; % [2,N_a*N_z]
-    end
-
-    while currdist>vfoptions.tolerance && itercount<vfoptions.maxiter
-        VKronold=VKron;
-
-        EVKrontemp=reshape(VKron(aprimeindex,:),[2,N_a*N_z,N_z]); % last dimension is zprime
-        EVKrontemp=shiftdim(sum(PolicyProbs.*EVKrontemp,1),1); % [N_a*N_z,N_z]
-
-        EVKrontemp=EVKrontemp.*pi_z_howards;
-        EVKrontemp(isnan(EVKrontemp))=0;
-        EVKrontemp=reshape(sum(EVKrontemp,2),[N_a,N_z]);
-        VKron=FofPolicy+DiscountFactorParamsVec*EVKrontemp;
-
-        currdist=max(max(abs(VKron-VKronold)));
-    end
+    V=reshape(VKron,[n_a,n_z]);
 end
-
-
-V=reshape(VKron,[n_a,n_z]);
 
 end

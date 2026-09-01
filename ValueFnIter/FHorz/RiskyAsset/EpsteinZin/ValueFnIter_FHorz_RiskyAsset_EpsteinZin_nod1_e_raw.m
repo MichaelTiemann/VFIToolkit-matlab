@@ -30,18 +30,20 @@ d23_grid=gpuArray(d23_grid);
 a1_grid=gpuArray(a1_grid);
 a2_grid=gpuArray(a2_grid);
 u_grid=gpuArray(u_grid);
+d3a1_gridvals=CreateGridvals([n_d3,n_a1],[d3_grid;a1_grid],1);
+a1a2_gridvals=CreateGridvals([n_a1,n_a2],[a1_grid;a2_grid],1);
 
 if vfoptions.lowmemory>0
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 if vfoptions.lowmemory>1
     l_z=length(n_z);
-    special_n_z=ones(1,l_z,vfoptions.precision);
+    special_n_z=ones(1,l_z,vfoptions.precision,'gpuArray');
 end
 
 aind=(0:1:N_a-1);
 zind=shiftdim(0:1:N_z-1,-1);
-eind=shiftdim(0:1:N_z-1,-2);
+eind=shiftdim(0:1:N_e-1,-2); % (currently unused, but keep it correct: e not z)
 
 %% j=N_j
 
@@ -59,7 +61,7 @@ pi_e_J=shiftdim(pi_e_J,-2); % Move to third dimension
 
 % If there is a warm-glow at end of the final period, evaluate the warmglowfn
 if warmglow==1
-    WGParamsVec=CreateVectorFromParams(Parameters, vfoptions.WarmGlowBequestsFnParamsNames,N_j);
+    WGParamsVec=CreateVectorFromParams(Parameters, vfoptions.WarmGlowBequestsFnParamsNames,N_j,vfoptions.precision);
     WGmatrixraw=CreateWarmGlowFnMatrix_Case1_Disc_Par2(vfoptions.WarmGlowBequestsFn, n_a2, a2_grid, WGParamsVec);
     WGmatrix=WGmatrixraw;
     WGmatrix(isfinite(WGmatrixraw))=(ezc4*WGmatrixraw(isfinite(WGmatrixraw))).^ezc5(N_j);
@@ -76,17 +78,22 @@ if warmglow==1
 
     % Seems like interpolation has trouble due to numerical precision rounding errors when the two points being interpolated are equal
     % So I will add a check for when this happens, and then overwrite those (by setting aprimeProbs to zero)
-    skipinterp=logical(WGmatrix(aprimeIndex(:))==WGmatrix(aprimeplus1Index(:))); % Note, probably just do this off of a2prime values
-    aprimeProbs(skipinterp)=0;
+    % WG depends only on a2prime (which depends on (d,u), not on a1prime), so use the a2-only indices
+    skipinterp=logical(WGmatrix(a2primeIndex)==WGmatrix(a2primeIndex+1)); % Note, probably just do this off of a2prime values
+    a2primeProbsWG=a2primeProbs;
+    a2primeProbsWG(skipinterp)=0;
 
-    WG1=WGmatrix(aprimeIndex); % (d,u), the lower aprime
-    WG2=WGmatrix(aprimeplus1Index); % (d,u), the upper aprime
-    % Apply the aprimeProbs
-    WG1=reshape(WG1,[N_d23,N_u]).*aprimeProbs; % probability of lower grid point
-    WG2=reshape(WG2,[N_d23,N_u]).*(1-aprimeProbs); % probability of upper grid point
+    WG1=WGmatrix(a2primeIndex); % (d,u), the lower a2prime
+    WG2=WGmatrix(a2primeIndex+1); % (d,u), the upper a2prime
+    % Apply the a2primeProbs
+    WG1=reshape(WG1,[N_d23,N_u]).*a2primeProbsWG; % probability of lower grid point
+    WG2=reshape(WG2,[N_d23,N_u]).*(1-a2primeProbsWG); % probability of upper grid point
+    % If WG1 or WG2 is infinite, and probability is zero, we will get a nan, so get rid of these
+    WG1(isnan(WG1))=0;
+    WG2(isnan(WG2))=0;
     % Expectation over u (using pi_u), and then add the lower and upper
     WGmatrix=sum((WG1.*pi_u'),2)+sum((WG2.*pi_u'),2); % (d,1), sum over u
-    % WGmatrix is over (d,1)
+    WGmatrix=repmat(WGmatrix,N_a1,1); % (d-a1prime,1): WG does not depend on a1prime, expand to the (d,a1prime) rows
 
     if ~isfield(vfoptions,'V_Jplus1')
         becareful=(WGmatrix==0);
@@ -95,12 +102,8 @@ if warmglow==1
     end
     % Now just make it the right shape (currently has d-a1prime, needs the a,z dimensions)
     if isfield(vfoptions,'V_Jplus1')
-        if vfoptions.lowmemory==0
-            WGmatrix=repmat(WGmatrix,1,N_a,N_z,N_e);
-        elseif vfoptions.lowmemory==1
-            WGmatrix=repmat(WGmatrix,1,N_a,N_z);
-        elseif vfoptions.lowmemory==2
-            WGmatrix=repmat(WGmatrix,1,N_a);
+        if vfoptions.lowmemory==0 || vfoptions.lowmemory==1
+            WGmatrix=WGmatrix.*ones(1,1,N_z); % (d-a1prime,1,z), matching temp4 (the e-expectation is already taken, so no e dim; same shaping as the main loop; lowmemory==2 keeps the column)
         end
     end
 else
@@ -109,7 +112,7 @@ end
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0
-        ReturnMatrix=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, [n_d3,n_a1], [n_a1,n_a2], n_z, n_e, [d3_grid; a1_grid], [a1_grid; a2_grid], z_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec);
+        ReturnMatrix=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, [n_d3,n_a1], [n_a1,n_a2], n_z, n_e, d3a1_gridvals, a1a2_gridvals, z_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec);
 
         % Modify the Return Function appropriately for Epstein-Zin Preferences
         becareful=logical(isfinite(ReturnMatrix).*(ReturnMatrix~=0)); % finite but not zero
@@ -128,17 +131,17 @@ if ~isfield(vfoptions,'V_Jplus1')
             [Vtemp,maxindex]=max(entireRHS,[],1);
 
             V(:,:,:,N_j)=Vtemp;
-            Policy(3,:,:,:,N_j)=shiftdim(rem(maxindex-1,N_d3)+1,1);
-            Policy(4,:,:,:,N_j)=shiftdim(ceil(maxindex/N_d3),1);
-            Policy(2,:,:,:,N_j)=shiftdim(d2index(maxindex),1); % note: no a nor z in WGmatrix
+            Policy(2,:,:,:,N_j)=shiftdim(rem(maxindex-1,N_d3)+1,1);
+            Policy(3,:,:,:,N_j)=shiftdim(ceil(maxindex/N_d3),1);
+            Policy(1,:,:,:,N_j)=shiftdim(d2index(maxindex),1); % note: no a nor z in WGmatrix
         elseif warmglow==0
             %Calc the max and it's index
             [Vtemp,maxindex]=max(ReturnMatrix,[],1);
 
             V(:,:,:,N_j)=Vtemp;
-            Policy(2,:,:,:,N_j)=1; % d2, meaningless
-            Policy(3,:,:,:,N_j)=shiftdim(rem(maxindex-1,N_d3)+1,1);
-            Policy(4,:,:,:,N_j)=ceil(maxindex/N_d3);
+            Policy(1,:,:,:,N_j)=1; % d2, meaningless
+            Policy(2,:,:,:,N_j)=shiftdim(rem(maxindex-1,N_d3)+1,1);
+            Policy(3,:,:,:,N_j)=ceil(maxindex/N_d3);
         end
 
 
@@ -146,7 +149,7 @@ if ~isfield(vfoptions,'V_Jplus1')
 
         for e_c=1:N_e
             e_val=e_gridvals_J(e_c,:,N_j);
-            ReturnMatrix_e=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, [n_d3,n_a1], [n_a1,n_a2], n_z, special_n_e, [d3_grid; a1_grid], [a1_grid; a2_grid], z_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec);
+            ReturnMatrix_e=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, [n_d3,n_a1], [n_a1,n_a2], n_z, special_n_e, d3a1_gridvals, a1a2_gridvals, z_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec);
 
             % Modify the Return Function appropriately for Epstein-Zin Preferences
             becareful=logical(isfinite(ReturnMatrix_e).*(ReturnMatrix_e~=0)); % finite and not zero
@@ -185,7 +188,7 @@ if ~isfield(vfoptions,'V_Jplus1')
             e_val=e_gridvals_J(e_c,:,N_j);
             for z_c=1:N_z
                 z_val=z_gridvals_J(z_c,:,N_j);
-                ReturnMatrix_ze=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, [n_d3,n_a1], [n_a1,n_a2], special_n_z, special_n_e, [d3_grid; a1_grid], [a1_grid; a2_grid], z_val, e_val, ReturnFnParamsVec);
+                ReturnMatrix_ze=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, [n_d3,n_a1], [n_a1,n_a2], special_n_z, special_n_e, d3a1_gridvals, a1a2_gridvals, z_val, e_val, ReturnFnParamsVec);
 
                 % Modify the Return Function appropriately for Epstein-Zin Preferences
                 becareful=logical(isfinite(ReturnMatrix_ze).*(ReturnMatrix_ze~=0)); % finite and not zero
@@ -222,7 +225,7 @@ if ~isfield(vfoptions,'V_Jplus1')
     end
 else
     % Using V_Jplus1
-    V_Jplus1=reshape(vfoptions.V_Jplus1,[N_a2,N_z,N_e]);    % First, switch V_Jplus1 into Kron form
+    V_Jplus1=reshape(vfoptions.V_Jplus1,[N_a,N_z,N_e]);    % First, switch V_Jplus1 into Kron form
 
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a2, n_u, d23_grid, a2_grid, u_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
@@ -238,10 +241,10 @@ else
     temp(V_Jplus1==0)=0; % otherwise zero to negative power is set to infinity
 
     % Take expectation over e
-    temp=sum(temp.*pi_e_J(1,1,:,N_j),3);
+    temp=sum(temp.*pi_e_J(1,1,:,N_j+1),3);
 
     if vfoptions.lowmemory==0
-        ReturnMatrix=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, [n_d3,n_a1], [n_a1,n_a2], n_z, n_e, [d3_grid; a1_grid], [a1_grid; a2_grid], z_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec);
+        ReturnMatrix=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, [n_d3,n_a1], [n_a1,n_a2], n_z, n_e, d3a1_gridvals, a1a2_gridvals, z_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec);
         % (d,aprime,a,z,e)
 
         % Modify the Return Function appropriately for Epstein-Zin Preferences
@@ -257,13 +260,14 @@ else
 
         % Seems like interpolation has trouble due to numerical precision rounding errors when the two points being interpolated are equal
         % So I will add a check for when this happens, and then overwrite those (by setting aprimeProbs to zero)
-        skipinterp=logical(EV(aprimeIndex+N_a*((1:1:N_z)-1))==EV(aprimeplus1Index+N_a*((1:1:N_z)-1))); % Note, probably just do this off of a2prime values
-        aprimeProbs=repmat(a2primeProbs,N_a1,1);  % [N_d*N_a1,N_u]
+        skipinterp=logical(EV(aprimeIndex(:)+N_a*((1:1:N_z)-1))==EV(aprimeplus1Index(:)+N_a*((1:1:N_z)-1))); % Note, probably just do this off of a2prime values
+        aprimeProbs=repmat(a2primeProbs,N_a1,N_z);  % [N_d*N_a1,N_u]
         aprimeProbs(skipinterp)=0;
+        aprimeProbs=reshape(aprimeProbs,[N_d23*N_a1,N_u,N_z]);
 
         % Switch EV from being in terms of aprime to being in terms of d (in expectation because of the u shocks)
-        EV1=EV(aprimeIndex+N_a*((1:1:N_z)-1)); % (d&a1prime,u,z), the lower aprime
-        EV2=EV((aprimeplus1Index)+N_a*((1:1:N_z)-1)); % (d&a1prime,u,z), the upper aprime
+        EV1=EV(aprimeIndex(:)+N_a*((1:1:N_z)-1)); % (d&a1prime,u,z), the lower aprime
+        EV2=EV(aprimeplus1Index(:)+N_a*((1:1:N_z)-1)); % (d&a1prime,u,z), the upper aprime
 
         % Apply the aprimeProbs
         EV1=reshape(EV1,[N_d23*N_a1,N_u,N_z]).*aprimeProbs; % probability of lower grid point
@@ -294,7 +298,7 @@ else
         % entireRHS=ezc1*temp2+ezc3*DiscountFactorParamsVec*temp4;
 
         temp5=logical(isfinite(entireRHS).*(entireRHS~=0));
-        entireRHS(temp5)=ezc1*entireRHS(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
+        entireRHS(temp5)=entireRHS(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
         entireRHS(entireRHS==0)=-Inf;
 
         % Calc the max and it's index
@@ -312,13 +316,14 @@ else
 
         % Seems like interpolation has trouble due to numerical precision rounding errors when the two points being interpolated are equal
         % So I will add a check for when this happens, and then overwrite those (by setting aprimeProbs to zero)
-        skipinterp=logical(EV(aprimeIndex+N_a*((1:1:N_z)-1))==EV(aprimeplus1Index+N_a*((1:1:N_z)-1))); % Note, probably just do this off of a2prime values
-        aprimeProbs=repmat(a2primeProbs,N_a1,1);  % [N_d*N_a1,N_u]
+        skipinterp=logical(EV(aprimeIndex(:)+N_a*((1:1:N_z)-1))==EV(aprimeplus1Index(:)+N_a*((1:1:N_z)-1))); % Note, probably just do this off of a2prime values
+        aprimeProbs=repmat(a2primeProbs,N_a1,N_z);  % [N_d*N_a1,N_u]
         aprimeProbs(skipinterp)=0;
+        aprimeProbs=reshape(aprimeProbs,[N_d23*N_a1,N_u,N_z]);
 
         % Switch EV from being in terms of aprime to being in terms of d (in expectation because of the u shocks)
-        EV1=EV(aprimeIndex+N_a*((1:1:N_z)-1)); % (d&a1prime,u,z), the lower aprime
-        EV2=EV((aprimeplus1Index)+N_a*((1:1:N_z)-1)); % (d&a1prime,u,z), the upper aprime
+        EV1=EV(aprimeIndex(:)+N_a*((1:1:N_z)-1)); % (d&a1prime,u,z), the lower aprime
+        EV2=EV(aprimeplus1Index(:)+N_a*((1:1:N_z)-1)); % (d&a1prime,u,z), the upper aprime
 
         % Apply the aprimeProbs
         EV1=reshape(EV1,[N_d23*N_a1,N_u,N_z]).*aprimeProbs; % probability of lower grid point
@@ -345,7 +350,7 @@ else
 
         for e_c=1:N_e
             e_val=e_gridvals_J(e_c,:,N_j);
-            ReturnMatrix_e=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, [n_d3,n_a1], [n_a1,n_a2], n_z, special_n_e, [d3_grid; a1_grid], [a1_grid; a2_grid], z_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec);
+            ReturnMatrix_e=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, [n_d3,n_a1], [n_a1,n_a2], n_z, special_n_e, d3a1_gridvals, a1a2_gridvals, z_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec);
             % (d,aprime,a,z)
 
             % Modify the Return Function appropriately for Epstein-Zin Preferences
@@ -362,7 +367,7 @@ else
             % entireRHS_e=ezc1*temp2+ezc3*DiscountFactorParamsVec*temp4;
 
             temp5=logical(isfinite(entireRHS_e).*(entireRHS_e~=0));
-            entireRHS_e(temp5)=ezc1*entireRHS_e(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
+            entireRHS_e(temp5)=entireRHS_e(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
             entireRHS_e(entireRHS_e==0)=-Inf;
 
             % Calc the max and it's index
@@ -415,7 +420,7 @@ else
             for e_c=1:N_e
                 e_val=e_gridvals_J(e_c,:,N_j);
 
-                ReturnMatrix_ze=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, [n_d3,n_a1], [n_a1,n_a2], special_n_z, special_n_e, [d3_grid; a1_grid], [a1_grid; a2_grid], z_val, e_val, ReturnFnParamsVec);
+                ReturnMatrix_ze=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, [n_d3,n_a1], [n_a1,n_a2], special_n_z, special_n_e, d3a1_gridvals, a1a2_gridvals, z_val, e_val, ReturnFnParamsVec);
 
                 % Modify the Return Function appropriately for Epstein-Zin Preferences
                 becareful=logical(isfinite(ReturnMatrix_ze).*(ReturnMatrix_ze~=0)); % finite and not zero
@@ -431,7 +436,7 @@ else
                 % entireRHS_e=ezc1*temp2+ezc3*DiscountFactorParamsVec*temp4;
 
                 temp5=logical(isfinite(entireRHS_ze).*(entireRHS_ze~=0));
-                entireRHS_ze(temp5)=ezc1*entireRHS_ze(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
+                entireRHS_ze(temp5)=entireRHS_ze(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
                 entireRHS_ze(entireRHS_ze==0)=-Inf;
 
                 %Calc the max and it's index
@@ -484,17 +489,22 @@ for reverse_j=1:N_j-1
 
         % Seems like interpolation has trouble due to numerical precision rounding errors when the two points being interpolated are equal
         % So I will add a check for when this happens, and then overwrite those (by setting aprimeProbs to zero)
-        skipinterp=logical(WGmatrix(aprimeIndex(:))==WGmatrix(aprimeplus1Index(:))); % Note, probably just do this off of a2prime values
-        aprimeProbs(skipinterp)=0;
+        % WG depends only on a2prime (which depends on (d,u), not on a1prime), so use the a2-only indices
+        skipinterp=logical(WGmatrix(a2primeIndex)==WGmatrix(a2primeIndex+1)); % Note, probably just do this off of a2prime values
+        a2primeProbsWG=a2primeProbs;
+        a2primeProbsWG(skipinterp)=0;
 
-        WG1=WGmatrix(aprimeIndex); % (d,u), the lower aprime
-        WG2=WGmatrix(aprimeplus1Index); % (d,u), the upper aprime
-        % Apply the aprimeProbs
-        WG1=reshape(WG1,[N_d23,N_u]).*aprimeProbs; % probability of lower grid point
-        WG2=reshape(WG2,[N_d23,N_u]).*(1-aprimeProbs); % probability of upper grid point
+        WG1=WGmatrix(a2primeIndex); % (d,u), the lower a2prime
+        WG2=WGmatrix(a2primeIndex+1); % (d,u), the upper a2prime
+        % Apply the a2primeProbs
+        WG1=reshape(WG1,[N_d23,N_u]).*a2primeProbsWG; % probability of lower grid point
+        WG2=reshape(WG2,[N_d23,N_u]).*(1-a2primeProbsWG); % probability of upper grid point
+        % If WG1 or WG2 is infinite, and probability is zero, we will get a nan, so get rid of these
+        WG1(isnan(WG1))=0;
+        WG2(isnan(WG2))=0;
         % Expectation over u (using pi_u), and then add the lower and upper
         WGmatrix=sum((WG1.*pi_u'),2)+sum((WG2.*pi_u'),2); % (d,1), sum over u
-        % WGmatrix is over (d,1)
+        WGmatrix=repmat(WGmatrix,N_a1,1); % (d-a1prime,1): WG does not depend on a1prime, expand to the (d,a1prime) rows
         % Now just make it the right shape (currently has aprime, needs the d,a,z dimensions)
         if vfoptions.lowmemory==0
             WGmatrix=WGmatrix.*ones(1,1,N_z);
@@ -513,10 +523,10 @@ for reverse_j=1:N_j-1
     temp(EVpre==0)=0; % otherwise zero to negative power is set to infinity
 
     % Take expectation over e
-    temp=sum(temp.*pi_e_J(1,1,:,jj),3);
+    temp=sum(temp.*pi_e_J(1,1,:,jj+1),3);
 
     if vfoptions.lowmemory==0
-        ReturnMatrix=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, [n_d3,n_a1], [n_a1,n_a2], n_z, n_e, [d3_grid; a1_grid], [a1_grid; a2_grid], z_gridvals_J(:,:,jj), e_gridvals_J(:,:,jj), ReturnFnParamsVec);
+        ReturnMatrix=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, [n_d3,n_a1], [n_a1,n_a2], n_z, n_e, d3a1_gridvals, a1a2_gridvals, z_gridvals_J(:,:,jj), e_gridvals_J(:,:,jj), ReturnFnParamsVec);
         % (d,aprime,a,z,e)
 
         % Modify the Return Function appropriately for Epstein-Zin Preferences
@@ -532,13 +542,14 @@ for reverse_j=1:N_j-1
 
         % Seems like interpolation has trouble due to numerical precision rounding errors when the two points being interpolated are equal
         % So I will add a check for when this happens, and then overwrite those (by setting aprimeProbs to zero)
-        skipinterp=logical(EV(aprimeIndex+N_a*((1:1:N_z)-1))==EV(aprimeplus1Index+N_a*((1:1:N_z)-1))); % Note, probably just do this off of a2prime values
-        aprimeProbs=repmat(a2primeProbs,N_a1,1);  % [N_d*N_a1,N_u]
+        skipinterp=logical(EV(aprimeIndex(:)+N_a*((1:1:N_z)-1))==EV(aprimeplus1Index(:)+N_a*((1:1:N_z)-1))); % Note, probably just do this off of a2prime values
+        aprimeProbs=repmat(a2primeProbs,N_a1,N_z);  % [N_d*N_a1,N_u]
         aprimeProbs(skipinterp)=0;
+        aprimeProbs=reshape(aprimeProbs,[N_d23*N_a1,N_u,N_z]);
 
         % Switch EV from being in terms of aprime to being in terms of d (in expectation because of the u shocks)
-        EV1=EV(aprimeIndex+N_a*((1:1:N_z)-1)); % (d&a1prime,u,z), the lower aprime
-        EV2=EV((aprimeplus1Index)+N_a*((1:1:N_z)-1)); % (d&a1prime,u,z), the upper aprime
+        EV1=EV(aprimeIndex(:)+N_a*((1:1:N_z)-1)); % (d&a1prime,u,z), the lower aprime
+        EV2=EV(aprimeplus1Index(:)+N_a*((1:1:N_z)-1)); % (d&a1prime,u,z), the upper aprime
 
         % Apply the aprimeProbs
         EV1=reshape(EV1,[N_d23*N_a1,N_u,N_z]).*aprimeProbs; % probability of lower grid point
@@ -552,10 +563,10 @@ for reverse_j=1:N_j-1
         temp4=EV;
         if warmglow==1
             becareful=logical(isfinite(temp4).*isfinite(WGmatrix)); % both are finite
-            temp4(becareful)=(sj(jj)*temp4(becareful)+(1-sj(jj))*WGmatrix(becareful)).^ezc6(jj);
+            temp4(becareful)=(sj(jj)*temp4(becareful).^ezc8(jj)+(1-sj(jj))*WGmatrix(becareful).^ezc8(jj)).^ezc6(jj);
             temp4((EV==0)&(WGmatrix==0))=0; % Is actually zero
         else % not using warmglow
-            temp4(isfinite(temp4))=(sj(jj)*temp4(isfinite(temp4))).^ezc6(jj);
+            temp4(isfinite(temp4))=(sj(jj)*temp4(isfinite(temp4)).^ezc8(jj)).^ezc6(jj);
             temp4(EV==0)=0;
         end
 
@@ -569,7 +580,7 @@ for reverse_j=1:N_j-1
         % entireRHS=ezc1*temp2+ezc3*DiscountFactorParamsVec*temp4;
 
         temp5=logical(isfinite(entireRHS).*(entireRHS~=0));
-        entireRHS(temp5)=ezc1*entireRHS(temp5).^ezc7(jj);  % matlab otherwise puts 0 to negative power to infinity
+        entireRHS(temp5)=entireRHS(temp5).^ezc7(jj);  % matlab otherwise puts 0 to negative power to infinity
         entireRHS(entireRHS==0)=-Inf;
 
         % Calc the max and it's index
@@ -588,13 +599,14 @@ for reverse_j=1:N_j-1
 
         % Seems like interpolation has trouble due to numerical precision rounding errors when the two points being interpolated are equal
         % So I will add a check for when this happens, and then overwrite those (by setting aprimeProbs to zero)
-        skipinterp=logical(EV(aprimeIndex+N_a*((1:1:N_z)-1))==EV(aprimeplus1Index+N_a*((1:1:N_z)-1))); % Note, probably just do this off of a2prime values
-        aprimeProbs=repmat(a2primeProbs,N_a1,1);  % [N_d*N_a1,N_u]
+        skipinterp=logical(EV(aprimeIndex(:)+N_a*((1:1:N_z)-1))==EV(aprimeplus1Index(:)+N_a*((1:1:N_z)-1))); % Note, probably just do this off of a2prime values
+        aprimeProbs=repmat(a2primeProbs,N_a1,N_z);  % [N_d*N_a1,N_u]
         aprimeProbs(skipinterp)=0;
+        aprimeProbs=reshape(aprimeProbs,[N_d23*N_a1,N_u,N_z]);
 
         % Switch EV from being in terms of aprime to being in terms of d (in expectation because of the u shocks)
-        EV1=EV(aprimeIndex+N_a*((1:1:N_z)-1)); % (d,u,z), the lower aprime
-        EV2=EV((aprimeplus1Index)+N_a*((1:1:N_z)-1)); % (d,u,z), the upper aprime
+        EV1=EV(aprimeIndex(:)+N_a*((1:1:N_z)-1)); % (d,u,z), the lower aprime
+        EV2=EV(aprimeplus1Index(:)+N_a*((1:1:N_z)-1)); % (d,u,z), the upper aprime
 
         % Apply the aprimeProbs
         EV1=reshape(EV1,[N_d23*N_a1,N_u,N_z]).*aprimeProbs; % probability of lower grid point
@@ -608,10 +620,10 @@ for reverse_j=1:N_j-1
         temp4=EV;
         if warmglow==1
             becareful=logical(isfinite(temp4).*isfinite(WGmatrix)); % both are finite
-            temp4(becareful)=(sj(jj)*temp4(becareful)+(1-sj(jj))*WGmatrix(becareful)).^ezc6(jj);
+            temp4(becareful)=(sj(jj)*temp4(becareful).^ezc8(jj)+(1-sj(jj))*WGmatrix(becareful).^ezc8(jj)).^ezc6(jj);
             temp4((EV==0)&(WGmatrix==0))=0; % Is actually zero
         else % not using warmglow
-            temp4(isfinite(temp4))=(sj(jj)*temp4(isfinite(temp4))).^ezc6(jj);
+            temp4(isfinite(temp4))=(sj(jj)*temp4(isfinite(temp4)).^ezc8(jj)).^ezc6(jj);
             temp4(EV==0)=0;
         end
 
@@ -621,7 +633,7 @@ for reverse_j=1:N_j-1
 
         for e_c=1:N_e
             e_val=e_gridvals_J(e_c,:,jj);
-            ReturnMatrix_e=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, [n_d3,n_a1], [n_a1,n_a2], n_z, special_n_e, [d3_grid; a1_grid], [a1_grid; a2_grid], z_gridvals_J(:,:,jj), e_val, ReturnFnParamsVec);
+            ReturnMatrix_e=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, [n_d3,n_a1], [n_a1,n_a2], n_z, special_n_e, d3a1_gridvals, a1a2_gridvals, z_gridvals_J(:,:,jj), e_val, ReturnFnParamsVec);
             % (d,aprime,a,z)
 
             % Modify the Return Function appropriately for Epstein-Zin Preferences
@@ -638,15 +650,15 @@ for reverse_j=1:N_j-1
             % entireRHS_e=ezc1*temp2+ezc3*DiscountFactorParamsVec*temp4;
 
             temp5=logical(isfinite(entireRHS_e).*(entireRHS_e~=0));
-            entireRHS_e(temp5)=ezc1*entireRHS_e(temp5).^ezc7(jj);  % matlab otherwise puts 0 to negative power to infinity
+            entireRHS_e(temp5)=entireRHS_e(temp5).^ezc7(jj);  % matlab otherwise puts 0 to negative power to infinity
             entireRHS_e(entireRHS_e==0)=-Inf;
 
             % Calc the max and it's index
             [Vtemp,maxindex]=max(entireRHS_e,[],1);
             V(:,:,e_c,jj)=shiftdim(Vtemp,1);
-            Policy(2,:,:,e_c,N_j)=shiftdim(rem(maxindex-1,N_d3)+1,1);
-            Policy(3,:,:,e_c,N_j)=shiftdim(ceil(maxindex/N_d3),1);
-            Policy(1,:,:,e_c,N_j)=shiftdim(d2index(maxindex+N_d3*N_a1*zind),1); % note: no a in temp4
+            Policy(2,:,:,e_c,jj)=shiftdim(rem(maxindex-1,N_d3)+1,1);
+            Policy(3,:,:,e_c,jj)=shiftdim(ceil(maxindex/N_d3),1);
+            Policy(1,:,:,e_c,jj)=shiftdim(d2index(maxindex+N_d3*N_a1*zind),1); % note: no a in temp4
         end
 
     elseif vfoptions.lowmemory==2
@@ -661,7 +673,7 @@ for reverse_j=1:N_j-1
 
             % Seems like interpolation has trouble due to numerical precision rounding errors when the two points being interpolated are equal
             % So I will add a check for when this happens, and then overwrite those (by setting aprimeProbs to zero)
-            skipinterp=logical(EV_z(aprimeIndex)==EV_z(aprimeplus1Index); % Note, probably just do this off of a2prime values
+            skipinterp=logical(EV_z(aprimeIndex)==EV_z(aprimeplus1Index)); % Note, probably just do this off of a2prime values
             aprimeProbs=repmat(a2primeProbs,N_a1,1);  % [N_d*N_a1,N_u]
             aprimeProbs(skipinterp)=0;
 
@@ -678,10 +690,10 @@ for reverse_j=1:N_j-1
             temp4=EV_z;
             if warmglow==1
                 becareful=logical(isfinite(temp4).*isfinite(WGmatrix)); % both are finite
-                temp4(becareful)=(sj(jj)*temp4(becareful)+(1-sj(jj))*WGmatrix(becareful)).^ezc6(jj);
+                temp4(becareful)=(sj(jj)*temp4(becareful).^ezc8(jj)+(1-sj(jj))*WGmatrix(becareful).^ezc8(jj)).^ezc6(jj);
                 temp4((EV_z==0)&(WGmatrix==0))=0; % Is actually zero
             else % not using warmglow
-                temp4(isfinite(temp4))=(sj(jj)*temp4(isfinite(temp4))).^ezc6(jj);
+                temp4(isfinite(temp4))=(sj(jj)*temp4(isfinite(temp4)).^ezc8(jj)).^ezc6(jj);
                 temp4(EV_z==0)=0;
             end
 
@@ -692,7 +704,7 @@ for reverse_j=1:N_j-1
             for e_c=1:N_e
                 e_val=e_gridvals_J(e_c,:,jj);
 
-                ReturnMatrix_ze=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, [n_d3,n_a1], [n_a1,n_a2], special_n_z, special_n_e, [d3_grid; a1_grid], [a1_grid; a2_grid], z_val, e_val, ReturnFnParamsVec);
+                ReturnMatrix_ze=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, [n_d3,n_a1], [n_a1,n_a2], special_n_z, special_n_e, d3a1_gridvals, a1a2_gridvals, z_val, e_val, ReturnFnParamsVec);
 
                 % Modify the Return Function appropriately for Epstein-Zin Preferences
                 becareful=logical(isfinite(ReturnMatrix_ze).*(ReturnMatrix_ze~=0)); % finite and not zero
@@ -708,7 +720,7 @@ for reverse_j=1:N_j-1
                 % entireRHS_e=ezc1*temp2+ezc3*DiscountFactorParamsVec*temp4;
 
                 temp5=logical(isfinite(entireRHS_ze).*(entireRHS_ze~=0));
-                entireRHS_ze(temp5)=ezc1*entireRHS_ze(temp5).^ezc7(jj);  % matlab otherwise puts 0 to negative power to infinity
+                entireRHS_ze(temp5)=entireRHS_ze(temp5).^ezc7(jj);  % matlab otherwise puts 0 to negative power to infinity
                 entireRHS_ze(entireRHS_ze==0)=-Inf;
 
                 %Calc the max and it's index

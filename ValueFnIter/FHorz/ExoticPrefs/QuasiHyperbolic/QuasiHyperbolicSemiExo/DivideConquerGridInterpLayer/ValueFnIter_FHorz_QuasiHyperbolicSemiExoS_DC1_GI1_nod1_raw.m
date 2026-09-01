@@ -15,15 +15,15 @@ Policy=zeros(3,N_a,N_semiz*N_z,N_j,'gpuArray');
 PolicyL2flag=2*ones(1,N_a,N_semiz*N_z,N_j,'gpuArray');
 
 %%
-special_n_d2=ones(1,length(n_d2));
+special_n_d2=ones(1,length(n_d2),vfoptions.precision);
 
 aind=gpuArray(0:1:N_a-1);
 bothzind=shiftdim(gpuArray(0:1:N_bothz-1),-1);
 
 bothz_gridvals_J=[repmat(semiz_gridvals_J,N_z,1,1),repelem(z_gridvals_J,N_semiz,1,1)];
 
-Vhat_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
-Vunderbar_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
+Vhat_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,vfoptions.precision,'gpuArray');
+Vunderbar_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,vfoptions.precision,'gpuArray');
 Policy_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
 midpoint_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
 PolicyL2flag_ford2_jj=2*ones(N_a,N_semiz*N_z,N_d2,'gpuArray');

@@ -10,6 +10,7 @@ if ~exist('vfoptions','var')
     vfoptions.experienceassetz=0;
     vfoptions.experienceassete=0;
     vfoptions.experienceassetze=0;
+    vfoptions.experienceassetsemiz=0;
     vfoptions.riskyasset=0;
     vfoptions.gridinterplayer=0;
     % divide-and-conquer is not relevant for ValueFnFromPolicy
@@ -38,6 +39,9 @@ else
     if ~isfield(vfoptions,'experienceassetze')
         vfoptions.experienceassetze=0;
     end
+    if ~isfield(vfoptions,'experienceassetsemiz')
+        vfoptions.experienceassetsemiz=0;
+    end
     if ~isfield(vfoptions,'riskyasset')
         vfoptions.riskyasset=0;
     end
@@ -64,6 +68,13 @@ Policy=gpuArray(Policy);
 if isfield(vfoptions,'exoticpreferences') && strcmp(vfoptions.exoticpreferences,'QuasiHyperbolic')
     [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic(Policy,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
     varargout={V,Valt};
+    return
+end
+
+%% Dispatch to EpsteinZin subfn if exoticpreferences=='EpsteinZin'
+if isfield(vfoptions,'exoticpreferences') && strcmp(vfoptions.exoticpreferences,'EpsteinZin')
+    V=ValueFnFromPolicy_FHorz_EpsteinZin(Policy,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    varargout={V};
     return
 end
 
@@ -98,6 +109,11 @@ end
 %% Dispatch to ExpAssetze subfn if experienceassetze==1
 if vfoptions.experienceassetze>=1
     V=ValueFnFromPolicy_FHorz_ExpAssetze(Policy,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    varargout={V};
+    return
+end
+if vfoptions.experienceassetsemiz>=1
+    V=ValueFnFromPolicy_FHorz_ExpAssetsemiz(Policy,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
     varargout={V};
     return
 end
@@ -154,7 +170,7 @@ if N_z==0 && N_e==0
         jj=N_j-reverse_j; % current period, counts backwards from J-1
 
         % Evaluate Return Fn
-        FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj);
+        FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj,vfoptions.precision);
         FofPolicy_jj=EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell,PolicyValuesPermute(:,:,jj),l_daprime,n_a,0,a_gridvals,[]);
 
         if jj==N_j
@@ -195,14 +211,14 @@ elseif N_z==0 && N_e>0
         jj=N_j-reverse_j; % current period, counts backwards from J-1
 
         % Evaluate Return Fn
-        FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj);
+        FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj,vfoptions.precision);
         FofPolicy_jj=EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell,PolicyValuesPermute(:,:,:,jj),l_daprime,n_a,vfoptions.n_e,a_gridvals,vfoptions.e_gridvals_J(:,:,jj));
 
         if jj==N_j
             V(:,:,jj)=FofPolicy_jj;
         else
             beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-            EVnext=sum(V(:,:,jj+1).*shiftdim(vfoptions.pi_e_J(:,jj),-1),2); % expectation over iid
+            EVnext=sum(V(:,:,jj+1).*shiftdim(vfoptions.pi_e_J(:,jj+1),-1),2); % expectation over iid
 
             if N_d==0
                 optaprime=PolicyIndexesKron(1,:,:,jj);
@@ -235,7 +251,7 @@ elseif N_z>0 && N_e==0
         jj=N_j-reverse_j; % current period, counts backwards from J-1
 
         % Evaluate Return Fn
-        FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj);
+        FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj,vfoptions.precision);
         FofPolicy_jj=EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell,PolicyValuesPermute(:,:,:,jj),l_daprime,n_a,n_z,a_gridvals,z_gridvals_J(:,:,jj));
 
         if jj==N_j
@@ -279,14 +295,14 @@ elseif N_z>0 && N_e>0
         jj=N_j-reverse_j; % current period, counts backwards from J-1
 
         % Evaluate Return Fn
-        FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj);
+        FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj,vfoptions.precision);
         FofPolicy_jj=reshape(EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell,PolicyValuesPermute(:,:,:,jj),l_daprime,n_a,[n_z,vfoptions.n_e],a_gridvals,[repmat(z_gridvals_J(:,:,jj),N_e,1), repelem(vfoptions.e_gridvals_J(:,:,jj),N_z,1)]),[N_a,N_z,N_e]);
 
         if jj==N_j
             V(:,:,:,jj)=FofPolicy_jj;
         else
             beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-            EVnext=sum(V(:,:,:,jj+1).*shiftdim(vfoptions.pi_e_J(:,jj),-2),3); % expectation over iid
+            EVnext=sum(V(:,:,:,jj+1).*shiftdim(vfoptions.pi_e_J(:,jj+1),-2),3); % expectation over iid
             EVnext=EVnext.*shiftdim(pi_z_J(:,:,jj)',-1); % size N_z-by-1
             EVnext(isnan(EVnext))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
             EVnext=sum(EVnext,2); % sum over z', leaving a singular second dimension

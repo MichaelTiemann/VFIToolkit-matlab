@@ -22,10 +22,10 @@ N_d=prod(n_d);
 d123_gridvals=[repmat(d12_gridvals,N_d3,1),repelem(CreateGridvals(n_d3,d3_grid,1),N_d12,1)];
 
 if vfoptions.lowmemory>0
-    special_n_semiz=ones(1,length(n_semiz));
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision,'gpuArray');
 end
 
-V_ford3_jj=zeros(N_a,N_semiz,N_d3,'gpuArray');
+V_ford3_jj=zeros(N_a,N_semiz,N_d3,vfoptions.precision,'gpuArray');
 Policy_ford3_jj=zeros(N_a,N_semiz,N_d3,'gpuArray');
 
 %% j=N_j
@@ -53,7 +53,7 @@ if ~isfield(vfoptions,'V_Jplus1')
         end
     end
 else
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateExperienceAssetuFnMatrix(aprimeFn, n_d2, n_a2, n_u, d2_gridvals, a2_grid, u_gridvals, aprimeFnParamsVec,2); % [N_d2,N_a2,N_u]
     aprimeIndex=a2primeIndex;        % [N_d2,N_a2,N_u]
     aprimeplus1Index=a2primeIndex+1; % [N_d2,N_a2,N_u]
@@ -70,11 +70,11 @@ else
     if vfoptions.lowmemory==0
         for d3_c=1:N_d3
             d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
-            pi_semi_d3=pi_semiz_J(:,:,d3_c,N_j);
+            pi_semiz_d3=pi_semiz_J(:,:,d3_c,N_j);
 
             ReturnMatrix_d3=CreateReturnFnMatrix_Case2_Disc(ReturnFn, [n_d1,n_d2,1], n_a2, n_semiz, d123_gridvals_val, a2_grid, semiz_gridvals_J(:,:,N_j), ReturnFnParamsVec);
 
-            EV=EVpre.*shiftdim(pi_semi_d3',-1);
+            EV=EVpre.*shiftdim(pi_semiz_d3',-1);
             EV(isnan(EV))=0;
             EV=sum(EV,2);
 
@@ -98,12 +98,12 @@ else
     elseif vfoptions.lowmemory==1
         for d3_c=1:N_d3
             d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
-            pi_semi_d3=pi_semiz_J(:,:,d3_c,N_j);
+            pi_semiz_d3=pi_semiz_J(:,:,d3_c,N_j);
             for z_c=1:N_semiz
                 z_val=semiz_gridvals_J(z_c,:,N_j);
                 ReturnMatrix_d3z=CreateReturnFnMatrix_Case2_Disc(ReturnFn, [n_d1,n_d2,1], n_a2, special_n_semiz, d123_gridvals_val, a2_grid, z_val, ReturnFnParamsVec);
 
-                EV_z=EVpre.*pi_semi_d3(z_c,:);
+                EV_z=EVpre.*pi_semiz_d3(z_c,:);
                 EV_z(isnan(EV_z))=0;
                 EV_z=sum(EV_z,2);
 
@@ -163,11 +163,11 @@ for reverse_j=1:N_j-1
     if vfoptions.lowmemory==0
         for d3_c=1:N_d3
             d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
-            pi_semi_d3=pi_semiz_J(:,:,d3_c,jj);
+            pi_semiz_d3=pi_semiz_J(:,:,d3_c,jj);
 
             ReturnMatrix_d3=CreateReturnFnMatrix_Case2_Disc(ReturnFn, [n_d1,n_d2,1], n_a2, n_semiz, d123_gridvals_val, a2_grid, semiz_gridvals_J(:,:,jj), ReturnFnParamsVec);
 
-            EV=EVpre.*shiftdim(pi_semi_d3',-1);
+            EV=EVpre.*shiftdim(pi_semiz_d3',-1);
             EV(isnan(EV))=0;
             EV=sum(EV,2);
 
@@ -190,12 +190,12 @@ for reverse_j=1:N_j-1
     elseif vfoptions.lowmemory==1
         for d3_c=1:N_d3
             d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
-            pi_semi_d3=pi_semiz_J(:,:,d3_c,jj);
+            pi_semiz_d3=pi_semiz_J(:,:,d3_c,jj);
             for z_c=1:N_semiz
                 z_val=semiz_gridvals_J(z_c,:,jj);
                 ReturnMatrix_d3z=CreateReturnFnMatrix_Case2_Disc(ReturnFn, [n_d1,n_d2,1], n_a2, special_n_semiz, d123_gridvals_val, a2_grid, z_val, ReturnFnParamsVec);
 
-                EV_z=EVpre.*(ones(N_a,1,'gpuArray')*pi_semi_d3(z_c,:));
+                EV_z=EVpre.*(ones(N_a,1,'gpuArray')*pi_semiz_d3(z_c,:));
                 EV_z(isnan(EV_z))=0;
                 EV_z=sum(EV_z,2);
 

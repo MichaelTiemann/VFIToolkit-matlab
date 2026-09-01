@@ -47,7 +47,7 @@ DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamN
 
 if vfoptions.EVpre==0
     % V is (N_a*N_j, N_e); e is i.i.d., integrate it out using pi_e_J.
-    EVpre=[sum(V(N_a+1:end,:).*pi_e_J(1:end-N_a,:),2); zeros(N_a,1,'gpuArray')]; % zeros at j=N_j (terminal age has no continuation in TPath)
+    EVpre=[sum(V(N_a+1:end,:).*pi_e_J(N_a+1:end,:),2); zeros(N_a,1,'gpuArray')]; % zeros at j=N_j (terminal age has no continuation in TPath)
     EV=reshape(EVpre,[N_a1,N_a2,1,1,N_j]); % (a1prime,a2prime,1,1,j)
 elseif vfoptions.EVpre==1
     % 'Matched Expectations Path': input V is already E[V'|.] across e'
@@ -59,7 +59,7 @@ DiscountedEV=shiftdim(reshape(DiscountFactor_J,[1,1,1,1,N_j]).*EV,-1); % [1,N_a1
 
 
 %% Loop over e (lowmemory-style; mirrors GI sibling lowmemory==1 branch)
-special_n_e=ones(1,length(n_e),vfoptions.precision);
+special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 for e_c=1:N_e
     e_vals=e_gridvals_J(1,1,1,1,1,:,e_c,:); % [1,1,1,1,1,N_j,1,l_e]
 

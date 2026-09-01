@@ -4,7 +4,7 @@ function [V,Policy]=ValueFnIter_FHorz_TPath_SingleStep_fastOLG_SemiExo_noz_e_raw
 % V is (a,j)-by-semiz-by-e
 % Policy is (a,j,semiz,e)
 % semiz_gridvals_J is (j,N_semiz,l_semiz) for fastOLG
-% pi_semiz_J is (semiz,semiz',d2,j) [standard form, transitions depend on d2]
+% pi_semiz_J is (j,semiz',semiz,d2) for fastOLG [transitions depend on d2], with N_j slices: the j=N_j slice is the zero 'no continuation value in the final period' row appended by the TPath setup
 % pi_e_J is (a,j)-by-1-by-e for fastOLG
 
 n_d=[n_d1,n_d2];
@@ -22,7 +22,6 @@ d_gridvals=[repmat(d1_gridvals,N_d2,1),repelem(d2_gridvals,N_d1,1)];
 bothz_gridvals_J=shiftdim(semiz_gridvals_J,-3); % [1,1,1,N_j,N_semiz,l_semiz]
 e_gridvals_J=reshape(e_gridvals_J,[1,1,1,N_j,1,N_e,length(n_e)]);
 
-pi_semiz_J=permute(pi_semiz_J,[4,2,1,3]); % (j,semiz',semiz,d2)
 
 %% First, create the big 'next period (of transition path) expected value fn.
 % fastOLG will be N_d*N_aprime by N_a*N_j*N_bothz (note: N_aprime is just equal to N_a)
@@ -34,7 +33,7 @@ DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamN
 ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision); % this will be a matrix, row indexes ages and column indexes the parameters (parameters which are not dependent on age appear as a constant valued column)
 
 % Take expectations over e (Vnext for age jj is V at age jj+1 weighted by pi_e_J at age jj)
-EVpre=[sum(V(N_a+1:end,:,:).*pi_e_J(1:end-N_a,:,:),3); zeros(N_a,N_bothz,'gpuArray')]; % I use zeros in j=N_j so that can just use the transition probabilities to create expectations
+EVpre=[sum(V(N_a+1:end,:,:).*pi_e_J(N_a+1:end,:,:),3); zeros(N_a,N_bothz,'gpuArray')]; % I use zeros in j=N_j so that can just use the transition probabilities to create expectations
 EVpre=reshape(EVpre,[N_a,1,N_j,N_bothz]);
 
 % Expectations over the semi-exogenous state depend on d2: compute them for each d2 and stack over d2 (d2 indexes fastest, then aprime)
@@ -65,7 +64,7 @@ if vfoptions.lowmemory==0
 
 elseif vfoptions.lowmemory==1
 
-    special_n_e=ones(1,length(n_e));
+    special_n_e=ones(1,length(n_e),'gpuArray');
     V=zeros(N_a*N_j,N_bothz,N_e,'gpuArray');
     Policy=zeros(N_a,N_j,N_bothz,N_e,'gpuArray');
 

@@ -22,7 +22,7 @@ Policyalt=zeros(4,N_a,N_semiz*N_z,N_j,'gpuArray'); % exponential discounter opti
 PolicyL2flagalt=2*ones(1,N_a,N_semiz*N_z,N_j,'gpuArray');
 
 %%
-special_n_d=[n_d1,ones(1,length(n_d2))];
+special_n_d=[cast2precision(n_d1),ones(1,length(n_d2),vfoptions.precision)];
 d_gridvals=[repmat(d1_gridvals,N_d2,1),repelem(d2_gridvals,N_d1,1)];
 
 d12_gridvals=permute(reshape(d_gridvals,[N_d1,N_d2,length(n_d1)+length(n_d2)]),[1,3,2]);
@@ -34,8 +34,8 @@ bothzind2=shiftdim(gpuArray(0:1:N_bothz-1),-2);
 bothz_gridvals_J=[repmat(semiz_gridvals_J,N_z,1,1),repelem(z_gridvals_J,N_semiz,1,1)];
 
 % Preallocate per-d2 slabs (for Vtilde -- the agent's choice and the Policy)
-Valt_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray'); % the Valt-slab corresponding to the maxindex selected by Vtilde
-V_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray'); % Vtilde slab
+Valt_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,vfoptions.precision,'gpuArray'); % the Valt-slab corresponding to the maxindex selected by Vtilde
+V_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,vfoptions.precision,'gpuArray'); % Vtilde slab
 Policy_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray'); % d1*aprimeL2ind combined
 midpoint_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
 PolicyL2flag_ford2_jj=2*ones(N_a,N_semiz*N_z,N_d2,'gpuArray');

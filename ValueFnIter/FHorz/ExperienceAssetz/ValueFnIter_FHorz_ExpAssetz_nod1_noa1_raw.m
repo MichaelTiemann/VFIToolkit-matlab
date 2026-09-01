@@ -13,7 +13,7 @@ d2_gridvals=gpuArray(d2_gridvals);
 a2_grid=gpuArray(a2_grid);
 
 if vfoptions.lowmemory==1
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 end
 
 %% j=N_j
@@ -45,13 +45,14 @@ else
 
     EVpre=reshape(vfoptions.V_Jplus1,[N_a,N_z]); % First, switch V_Jplus1 into Kron form
 
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateExperienceAssetzFnMatrix(aprimeFn, n_d2, n_a2, n_z, d2_gridvals, a2_grid, z_gridvals_J(:,:,N_j), aprimeFnParamsVec,1); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
     % Note: aprimeIndex is [N_d2*N_a2*N_z,1], whereas aprimeProbs is [N_d2,N_a2,N_z]   (N_z here is the current z)
 
     Vlower=reshape(EVpre(a2primeIndex,:),[N_d2,N_a2,N_z,N_z]); % (d2,a2,z,zprime)
     Vupper=reshape(EVpre(a2primeIndex+1,:),[N_d2,N_a2,N_z,N_z]);
     % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
+    a2primeProbs=repmat(a2primeProbs,1,1,1,N_z);  % [N_d2,N_a2,N_z,N_zprime]   (replicate over zprime)
     skipinterp=(Vlower==Vupper);
     a2primeProbs(skipinterp)=0; % effectively skips interpolation
 
@@ -113,6 +114,7 @@ for reverse_j=1:N_j-1
     Vlower=reshape(V(a2primeIndex,:,jj+1),[N_d2,N_a2,N_z,N_z]); % (d2,a2,z,zprime)
     Vupper=reshape(V(a2primeIndex+1,:,jj+1),[N_d2,N_a2,N_z,N_z]);
     % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
+    a2primeProbs=repmat(a2primeProbs,1,1,1,N_z);  % [N_d2,N_a2,N_z,N_zprime]   (replicate over zprime)
     skipinterp=(Vlower==Vupper);
     a2primeProbs(skipinterp)=0; % effectively skips interpolation
 

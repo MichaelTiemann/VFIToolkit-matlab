@@ -19,10 +19,10 @@ N_d=prod(n_d);
 d123_gridvals=[repmat(d12_gridvals,N_d3,1),repelem(CreateGridvals(n_d3,d3_grid,1),N_d12,1)];
 
 if vfoptions.lowmemory>0
-    special_n_semiz=ones(1,length(n_semiz));
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision,'gpuArray');
 end
 
-V_ford3_jj=zeros(N_a,N_semiz,N_d3,'gpuArray');
+V_ford3_jj=zeros(N_a,N_semiz,N_d3,vfoptions.precision,'gpuArray');
 Policy_ford3_jj=zeros(N_a,N_semiz,N_d3,'gpuArray');
 
 %% j=N_j
@@ -50,15 +50,10 @@ if ~isfield(vfoptions,'V_Jplus1')
         end
     end
 else
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix(aprimeFn, n_d2, n_a2, d2_gridvals, a2_grid, aprimeFnParamsVec,2);
     aprimeIndex=a2primeIndex;        % [N_d2,N_a2]
     aprimeplus1Index=a2primeIndex+1; % [N_d2,N_a2]
-    if vfoptions.lowmemory>0
-        aprimeProbs=a2primeProbs;
-    else
-        aprimeProbs=repmat(a2primeProbs,1,1,N_semiz);
-    end
 
     V_Jplus1=reshape(vfoptions.V_Jplus1,[N_a,N_semiz]);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
@@ -67,21 +62,22 @@ else
     if vfoptions.lowmemory==0
         for d3_c=1:N_d3
             d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
-            pi_semi_d3=pi_semiz_J(:,:,d3_c,N_j);
+            pi_semiz_d3=pi_semiz_J(:,:,d3_c,N_j);
 
             ReturnMatrix_d3=CreateReturnFnMatrix_Case2_Disc(ReturnFn, [n_d1,n_d2,1], n_a2, n_semiz, d123_gridvals_val, a2_grid, semiz_gridvals_J(:,:,N_j), ReturnFnParamsVec);
 
-            EV=V_Jplus1.*shiftdim(pi_semi_d3',-1);
+            EV=V_Jplus1.*shiftdim(pi_semiz_d3',-1);
             EV(isnan(EV))=0;
             EV=sum(EV,2);
 
             EV1=reshape(EV(aprimeIndex,:),[N_d2,N_a2,N_semiz]);
             EV2=reshape(EV(aprimeplus1Index,:),[N_d2,N_a2,N_semiz]);
 
+            aprimeProbs_d3=repmat(a2primeProbs,1,1,N_semiz);
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0;
+            aprimeProbs_d3(skipinterp)=0;
 
-            entireEV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs);
+            entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
 
             % Need to broadcast over d1: each (d2, a2, semiz) value of entireEV applies to all d1 choices
             entireRHS_d3=ReturnMatrix_d3+DiscountFactorParamsVec*repelem(entireEV,N_d1,1,1);
@@ -93,22 +89,23 @@ else
     elseif vfoptions.lowmemory==1
         for d3_c=1:N_d3
             d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
-            pi_semi_d3=pi_semiz_J(:,:,d3_c,N_j);
+            pi_semiz_d3=pi_semiz_J(:,:,d3_c,N_j);
             for z_c=1:N_semiz
                 z_val=semiz_gridvals_J(z_c,:,N_j);
                 ReturnMatrix_d3z=CreateReturnFnMatrix_Case2_Disc(ReturnFn, [n_d1,n_d2,1], n_a2, special_n_semiz, d123_gridvals_val, a2_grid, z_val, ReturnFnParamsVec);
 
-                EV_z=V_Jplus1.*pi_semi_d3(z_c,:);
+                EV_z=V_Jplus1.*pi_semiz_d3(z_c,:);
                 EV_z(isnan(EV_z))=0;
                 EV_z=sum(EV_z,2);
 
                 EV1=reshape(EV_z(aprimeIndex),[N_d2,N_a2]);
                 EV2=reshape(EV_z(aprimeplus1Index),[N_d2,N_a2]);
 
+                aprimeProbs_d3z=a2primeProbs;
                 skipinterp=(EV1==EV2);
-                aprimeProbs(skipinterp)=0;
+                aprimeProbs_d3z(skipinterp)=0;
 
-                entireEV_z=EV1.*aprimeProbs+EV2.*(1-aprimeProbs);
+                entireEV_z=EV1.*aprimeProbs_d3z+EV2.*(1-aprimeProbs_d3z);
 
                 entireRHS_d3z=ReturnMatrix_d3z+DiscountFactorParamsVec*repelem(entireEV_z,N_d1,1);
 
@@ -145,32 +142,28 @@ for reverse_j=1:N_j-1
     [a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix(aprimeFn, n_d2, n_a2, d2_gridvals, a2_grid, aprimeFnParamsVec,2);
     aprimeIndex=a2primeIndex;
     aprimeplus1Index=a2primeIndex+1;
-    if vfoptions.lowmemory>0
-        aprimeProbs=a2primeProbs;
-    else
-        aprimeProbs=repmat(a2primeProbs,1,1,N_semiz);
-    end
 
     EVpre=V(:,:,jj+1);
 
     if vfoptions.lowmemory==0
         for d3_c=1:N_d3
             d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
-            pi_semi_d3=pi_semiz_J(:,:,d3_c,jj);
+            pi_semiz_d3=pi_semiz_J(:,:,d3_c,jj);
 
             ReturnMatrix_d3=CreateReturnFnMatrix_Case2_Disc(ReturnFn, [n_d1,n_d2,1], n_a2, n_semiz, d123_gridvals_val, a2_grid, semiz_gridvals_J(:,:,jj), ReturnFnParamsVec);
 
-            EV=EVpre.*shiftdim(pi_semi_d3',-1);
+            EV=EVpre.*shiftdim(pi_semiz_d3',-1);
             EV(isnan(EV))=0;
             EV=sum(EV,2);
 
             EV1=reshape(EV(aprimeIndex,:),[N_d2,N_a2,N_semiz]);
             EV2=reshape(EV(aprimeplus1Index,:),[N_d2,N_a2,N_semiz]);
 
+            aprimeProbs_d3=repmat(a2primeProbs,1,1,N_semiz);
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0;
+            aprimeProbs_d3(skipinterp)=0;
 
-            entireEV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs);
+            entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
 
             entireRHS=ReturnMatrix_d3+DiscountFactorParamsVec*repelem(entireEV,N_d1,1,1);
 
@@ -181,22 +174,23 @@ for reverse_j=1:N_j-1
     elseif vfoptions.lowmemory==1
         for d3_c=1:N_d3
             d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
-            pi_semi_d3=pi_semiz_J(:,:,d3_c,jj);
+            pi_semiz_d3=pi_semiz_J(:,:,d3_c,jj);
             for z_c=1:N_semiz
                 z_val=semiz_gridvals_J(z_c,:,jj);
                 ReturnMatrix_d3z=CreateReturnFnMatrix_Case2_Disc(ReturnFn, [n_d1,n_d2,1], n_a2, special_n_semiz, d123_gridvals_val, a2_grid, z_val, ReturnFnParamsVec);
 
-                EV_z=EVpre.*(ones(N_a,1,'gpuArray')*pi_semi_d3(z_c,:));
+                EV_z=EVpre.*(ones(N_a,1,'gpuArray')*pi_semiz_d3(z_c,:));
                 EV_z(isnan(EV_z))=0;
                 EV_z=sum(EV_z,2);
 
                 EV1=reshape(EV_z(aprimeIndex),[N_d2,N_a2]);
                 EV2=reshape(EV_z(aprimeplus1Index),[N_d2,N_a2]);
 
+                aprimeProbs_d3z=a2primeProbs;
                 skipinterp=(EV1==EV2);
-                aprimeProbs(skipinterp)=0;
+                aprimeProbs_d3z(skipinterp)=0;
 
-                entireEV_z=EV1.*aprimeProbs+EV2.*(1-aprimeProbs);
+                entireEV_z=EV1.*aprimeProbs_d3z+EV2.*(1-aprimeProbs_d3z);
 
                 entireRHS_z=ReturnMatrix_d3z+DiscountFactorParamsVec*repelem(entireEV_z,N_d1,1);
 

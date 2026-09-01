@@ -10,7 +10,7 @@ Policy=zeros(1,N_a,N_z,N_j,'gpuArray'); %first dim indexes the optimal choice fo
 if vfoptions.lowmemory==0
     loweredgesize=[1,1,N_z];
 elseif vfoptions.lowmemory==1
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 end
 
 zind=shiftdim(gpuArray((0:1:N_z-1)),-1);
@@ -21,7 +21,7 @@ level1iidiff=level1ii(2:end)-level1ii(1:end-1)-1;
 
 %% j=N_j
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0

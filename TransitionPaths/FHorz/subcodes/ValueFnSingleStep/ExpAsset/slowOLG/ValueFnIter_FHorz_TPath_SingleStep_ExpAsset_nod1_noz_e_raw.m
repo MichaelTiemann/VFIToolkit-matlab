@@ -12,7 +12,7 @@ Policy=zeros(N_a,N_e,N_j,'gpuArray'); %first dim indexes the optimal choice for 
 a2_gridvals=CreateGridvals(n_a2,a2_grid,1);
 
 if vfoptions.lowmemory==1
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 
 %% j=N_j
@@ -64,7 +64,7 @@ for reverse_j=1:N_j-1
     aprimeplus1Index=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat(a2primeIndex,N_a1,1); % [N_d2*N_a1,N_a2]
     aprimeProbs=repmat(a2primeProbs,N_a1,1,1);  % [N_d2*N_a1,N_a2]
 
-    EVpre=sum(pi_e_J(:,jj)'.*VKronNext_j,2); % Expectations over e
+    EVpre=sum(pi_e_J(:,jj+1)'.*VKronNext_j,2); % Expectations over e
 
     Vlower=reshape(EVpre(aprimeIndex(:)),[N_d2*N_a1,N_a2]);
     Vupper=reshape(EVpre(aprimeplus1Index(:)),[N_d2*N_a1,N_a2]);

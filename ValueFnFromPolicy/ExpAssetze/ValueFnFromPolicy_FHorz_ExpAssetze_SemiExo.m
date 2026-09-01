@@ -58,13 +58,17 @@ l_e=length(vfoptions.n_e);
 
 % Split a into a1 (standard) and a2 (experience asset)
 if isscalar(n_a)
-    error('ValueFnFromPolicy_FHorz_ExpAssetze_SemiExo: case with no a1 (experience asset as only asset) not yet implemented')
+    % noa1: the experience asset is the only endogenous state
+    n_a1=0;
+    N_a1=1; % so aprime_low_e=a1p_e+N_a1*(a2pIdx_e-1) reduces to a2pIdx_e (a1prime_idx stays 1)
+    l_a1=0; % Policy contains only the d channels
+else
+    n_a1=n_a(1:end-1);
+    N_a1=prod(n_a1);
+    l_a1=length(n_a1);
 end
-n_a1=n_a(1:end-1);
-N_a1=prod(n_a1);
 n_a2=n_a(end);
 a2_grid=a_grid(sum(n_a1)+1:end);
-l_a1=length(n_a1);
 l_a2=length(n_a2);
 
 % Which d drives the experience asset. With semiz, d ordering is [...other, d_expasset, d_semiz];
@@ -133,23 +137,23 @@ for reverse_j=0:N_j-1
     jj=N_j-reverse_j;
 
     % Step 1: a2primeIndex, a2primeProbs at this age
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames, jj);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames, jj, vfoptions.precision);
     Policy_slice=reshape(Policy_k(:,:,:,:,jj), [l_d+l_a1, N_a, N_shocks*N_e]);
     [a2primeIndex, a2primeProbs]=CreateaprimePolicyExperienceAssetze(Policy_slice, aprimeFn, whichisdforexpasset, n_d, n_a1, n_a2, n_z, vfoptions.n_e, N_semiz, N_z, N_e, d_grid, a2_grid, z_gridvals_J(:,:,jj), vfoptions.e_gridvals_J(:,:,jj), aprimeFnParamsVec);
     % shape [N_a, N_semiz*N_z*N_e]
 
     % Step 2: ReturnFn at policy
-    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj);
+    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj,vfoptions.precision);
     F_jj=reshape(EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell, PolicyValuesPermute(:,:,:,jj), l_daprime, n_a, [n_shocks,vfoptions.n_e], a_gridvals, [repmat(joint_gridvals_J(:,:,jj),N_e,1), repelem(vfoptions.e_gridvals_J(:,:,jj),N_shocks,1)]), [N_a, N_shocks, N_e]);
 
     if jj==N_j
         V(:,:,:,jj)=F_jj;
     else
-        beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
+        beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj,vfoptions.precision)));
 
         % Step 3a: integrate next-period V over e' (iid)
         V_next=V(:,:,:,jj+1);
-        V_next=sum(V_next .* shiftdim(vfoptions.pi_e_J(:,jj), -2), 3);
+        V_next=sum(V_next .* shiftdim(vfoptions.pi_e_J(:,jj+1), -2), 3);
         V_next=reshape(V_next, [N_a, N_shocks]);
 
         % Step 3b: integrate over z' (markov, does not depend on d_semiz)

@@ -1,7 +1,7 @@
 function StationaryDist=StationaryDist_FHorz_ExpAssetu_noz(jequaloneDist,AgeWeightParamNames,Policy,n_d,n_a,n_u,N_j,d_grid,a2_grid,u_grid,pi_u,Parameters,simoptions)
 
 %% Setup related to experience asset
-n_d2=n_d(end);
+n_d2=n_d(end-simoptions.l_dexperienceassetu+1:end); % the last l_dexperienceassetu decision variables control the experience asset
 % Split endogenous assets into the standard ones and the experience asset
 if isscalar(n_a)
     n_a1=0;
@@ -38,7 +38,7 @@ Policy=reshape(Policy,[size(Policy,1),N_a,N_j]);
 Policy=reshape(Policy,[size(Policy,1),N_a,N_j]);
 Policy_aprime=zeros(N_a,N_u,2,N_j,'gpuArray'); % the lower grid point
 PolicyProbs=zeros(N_a,N_u,2,N_j,simoptions.precision,'gpuArray'); % probabilities of grid points
-whichisdforexpasset=length(n_d);  % is just saying which is the decision variable that influences the experience asset (it is the 'last' decision variable)
+whichisdforexpasset=length(n_d)-simoptions.l_dexperienceassetu+1:length(n_d);  % which decision variables influence the experience asset (the last l_dexperienceassetu decision variables)
 for jj=1:N_j
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj,simoptions.precision);
     [aprimeIndexes, aprimeProbs]=CreateaprimePolicyExperienceAssetu(Policy(:,:,jj),simoptions.aprimeFn, whichisdforexpasset, n_d, n_a1,n_a2, 0,n_u, d_grid, a2_grid,u_grid, aprimeFnParamsVec);
@@ -70,7 +70,7 @@ PolicyProbs=reshape(PolicyProbs,[N_a,N_u*2,N_j]);
 %%
 
 if simoptions.gridinterplayer==0
-    StationaryDist=StationaryDist_FHorz_Iteration_nProbs_noz_raw(jequaloneDistKron,AgeWeightParamNames,Policy_aprime,PolicyProbs,N_u*2,N_a,N_j,Parameters);
+    StationaryDist=StationaryDist_FHorz_Iteration_nProbs_noz_raw(jequaloneDistKron,AgeWeightParamNames,Policy_aprime,PolicyProbs,N_u*2,n_a1,n_a2,N_j,Parameters,simoptions);
 
 elseif simoptions.gridinterplayer==1
     % (a,u,2,j)
@@ -83,7 +83,7 @@ elseif simoptions.gridinterplayer==1
     PolicyProbs(:,1:2*N_u,:)=PolicyProbs(:,1:2*N_u,:).*(1-aprimeProbs_upper); % lower a1
     PolicyProbs(:,2*N_u+1:end,:)=PolicyProbs(:,2*N_u+1:end,:).*aprimeProbs_upper; % upper a1
 
-    StationaryDist=StationaryDist_FHorz_Iteration_nProbs_noz_raw(jequaloneDistKron,AgeWeightParamNames,Policy_aprime,PolicyProbs,2*N_u*2,N_a,N_j,Parameters);
+    StationaryDist=StationaryDist_FHorz_Iteration_nProbs_noz_raw(jequaloneDistKron,AgeWeightParamNames,Policy_aprime,PolicyProbs,2*N_u*2,n_a1,n_a2,N_j,Parameters,simoptions);
 end
 
 

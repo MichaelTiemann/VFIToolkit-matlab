@@ -72,7 +72,7 @@ if ~isfield(vfoptions,'V_Jplus1')
         inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
         PolicyL2flag(1,:,:,N_j) = shiftdim(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper), -1);
 
-    elseif vfoptions.lowmemory==1
+    elseif vfoptions.lowmemory>=1 % lm1 already does the most-looped variant, so it also serves the higher lowmemory values
         for e_c=1:N_e
             e_val=e_gridvals_J(e_c,:,N_j);
             % Layer 1: full ReturnMatrix max for initial midpoint
@@ -110,10 +110,10 @@ else % V_Jplus1
 
     DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision));
     V_Jplus1=reshape(vfoptions.V_Jplus1,[N_a,N_e]);
-    EV=sum(V_Jplus1.*shiftdim(pi_e_J(:,N_j),-1),2); % [N_a,1]
+    EV=sum(V_Jplus1.*shiftdim(pi_e_J(:,N_j+1),-1),2); % [N_a,1]
 
     % Build a2primeIndex and a2primeProbs for RisykAsset
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a2, n_u, d23_grid, a2_grid, u_grid, aprimeFnParamsVec,2);
     aprimeIndex=repelem((1:1:N_a1)',N_d23,N_u)+N_a1*repmat(a2primeIndex-1,N_a1,1);
     aprimeplus1Index=repelem((1:1:N_a1)',N_d23,N_u)+N_a1*repmat(a2primeIndex,N_a1,1);
@@ -230,7 +230,7 @@ for reverse_j=1:N_j-1
     aprimeplus1Index=repelem((1:1:N_a1)',N_d23,N_u)+N_a1*repmat(a2primeIndex,N_a1,1);
 
     % Get EV in terms of next period endogenous states
-    EV=sum(V(:,:,jj+1).*shiftdim(pi_e_J(:,jj),-1),2); % [N_a,1]
+    EV=sum(V(:,:,jj+1).*shiftdim(pi_e_J(:,jj+1),-1),2); % [N_a,1]
     % Interpolate EV onto aprime, use skipinterp to avoid numerical errors where the lower and upper points are identical
     skipinterp=logical(EV(aprimeIndex(:))==EV(aprimeplus1Index(:)));
     aprimeProbs=repmat(a2primeProbs,N_a1,1);

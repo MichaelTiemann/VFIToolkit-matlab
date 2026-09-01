@@ -10,7 +10,7 @@ N_a=prod(n_a);
 N_e=prod(n_e);
 
 if vfoptions.lowmemory==1
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 elseif vfoptions.lowmemory>=2
     error('vfoptions.lowmemory>=2 not supported')
 end
@@ -63,7 +63,7 @@ ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames
 
 % V is (N_a*N_j, N_e); e is i.i.d., integrate it out using pi_e_J.
 if vfoptions.EVpre==0
-    EVpre=[sum(V(N_a+1:end,:).*pi_e_J(1:end-N_a,:),2); zeros(N_a,1,'gpuArray')]; % zeros at j=N_j (terminal age has no continuation in TPath)
+    EVpre=[sum(V(N_a+1:end,:).*pi_e_J(N_a+1:end,:),2); zeros(N_a,1,'gpuArray')]; % zeros at j=N_j (terminal age has no continuation in TPath)
     EV=reshape(EVpre,[N_a1,N_a2,1,1,N_j]); % (a1prime,a2prime,1,1,j)
 elseif vfoptions.EVpre==1
     % 'Matched Expectations Path': input V is already E[V'|.] across e'

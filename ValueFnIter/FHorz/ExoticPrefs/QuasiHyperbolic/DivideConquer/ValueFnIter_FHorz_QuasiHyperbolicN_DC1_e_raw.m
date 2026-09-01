@@ -7,18 +7,18 @@ N_a=prod(n_a);
 N_z=prod(n_z);
 N_e=prod(n_e);
 
-Valt=zeros(N_a,N_z,N_e,N_j,'gpuArray');
+Valt=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
 Vtilde=zeros(N_a,N_z,N_e,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(N_a,N_z,N_e,N_j,'gpuArray');
 Policyalt=zeros(N_a,N_z,N_e,N_j,'gpuArray'); % exponential discounter optimal choice (Valt is computed at this)
 
 if vfoptions.lowmemory>=1
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 else
     eind=shiftdim(gpuArray(0:1:N_e-1),-2);
 end
 if vfoptions.lowmemory==2
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 else
     zind=shiftdim(gpuArray(0:1:N_z-1),-1);
 end
@@ -30,7 +30,7 @@ level1ii=round(linspace(1,n_a,vfoptions.level1n));
 pi_e_J=shiftdim(pi_e_J,-2);
 
 %% j=N_j (terminal period)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0
@@ -112,7 +112,7 @@ if ~isfield(vfoptions,'V_Jplus1')
                         [Vtempii,maxindex]=max(ReturnMatrix_ii,[],1);
                         Valt(curraindex,z_c,e_c,N_j)=shiftdim(Vtempii,1);
                         dind=(rem(maxindex-1,N_d)+1);
-                        Policy(curraindex,z_c,e_c,N_j)=shiftdim(maxindex+N_d*(loweredge(dind)-1),1);
+                        Policy(curraindex,z_c,e_c,N_j)=shiftdim(maxindex+N_d*(reshape(loweredge(dind),size(dind))-1),1); % the reshape is just because dind is 1-by-X but loweredge(dind) collapses to X-by-1, so need to stop this
                     else
                         loweredge=maxindex1(:,1,ii);
                         ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn, n_d, special_n_z, special_n_e, d_gridvals, a_grid(loweredge), a_grid(curraindex), z_val, e_val, ReturnFnParamsVec,2);
@@ -134,7 +134,7 @@ else
     beta0=CreateVectorFromParams(Parameters,{vfoptions.QHadditionaldiscount},N_j,vfoptions.precision);
     beta0beta=beta0*beta;
 
-    EV=sum(reshape(vfoptions.V_Jplus1,[N_a,N_z,N_e]).*pi_e_J(1,1,:,N_j),3);
+    EV=sum(reshape(vfoptions.V_Jplus1,[N_a,N_z,N_e]).*pi_e_J(1,1,:,N_j+1),3);
     EV=EV.*shiftdim(pi_z_J(:,:,N_j)',-1);
     EV(isnan(EV))=0;
     EV=sum(EV,2);
@@ -332,7 +332,7 @@ else
                         [Vtempii,maxindex]=max(entireRHS_ii,[],1);
                         Vtilde(curraindex,z_c,e_c,N_j)=shiftdim(Vtempii,1);
                         dind=(rem(maxindex-1,N_d)+1);
-                        Policy(curraindex,z_c,e_c,N_j)=shiftdim(maxindex+N_d*(loweredge(dind)-1),1);
+                        Policy(curraindex,z_c,e_c,N_j)=shiftdim(maxindex+N_d*(reshape(loweredge(dind),size(dind))-1),1); % the reshape is just because dind is 1-by-X but loweredge(dind) collapses to X-by-1, so need to stop this
                     else
                         loweredge=maxindex1(:,1,ii);
                         ReturnMatrix_ii_dc=CreateReturnFnMatrix_Disc_DC1_e(ReturnFn, n_d, special_n_z, special_n_e, d_gridvals, a_grid(loweredge), a_grid(curraindex), z_val, e_val, ReturnFnParamsVec,2);
@@ -363,7 +363,7 @@ for reverse_j=1:N_j-1
     beta0beta=beta0*beta;
 
     EVsource=Valt(:,:,:,jj+1);
-    EV=sum(EVsource.*pi_e_J(1,1,:,jj),3);
+    EV=sum(EVsource.*pi_e_J(1,1,:,jj+1),3);
     EV=EV.*shiftdim(pi_z_J(:,:,jj)',-1);
     EV(isnan(EV))=0;
     EV=sum(EV,2);

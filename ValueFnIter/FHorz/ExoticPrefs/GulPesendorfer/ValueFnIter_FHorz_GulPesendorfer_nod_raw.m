@@ -11,13 +11,13 @@ a_gridvals=CreateGridvals(n_a,a_grid,1); % The 1 at end indicates want output in
 
 if vfoptions.lowmemory>0
     l_z=length(n_z);
-    special_n_z=ones(1,l_z);
+    special_n_z=ones(1,l_z,vfoptions.precision,'gpuArray');
 end
 
 %% j=N_j
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
-TemptationFnParamsVec=CreateVectorFromParams(Parameters, TemptationFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
+TemptationFnParamsVec=CreateVectorFromParams(Parameters, TemptationFnParamNames, N_j, vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0

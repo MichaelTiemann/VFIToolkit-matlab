@@ -46,6 +46,11 @@ function [p_eqm_vec,GEcondns,output] = StationaryGeneralEqm_subcode_fminalgo9_An
 %                                   conditions per Anderson step); 0: accept
 %                                   all Anderson steps (faster per iteration,
 %                                   no fallback protection)
+%      .anderson.type        ['II'] 'II' = classic Type-II (default); 'I' = the
+%                                   stabilized Type-I AA-I-S-m of Zhang,
+%                                   O'Donoghue & Boyd (2020), globally convergent
+%                                   (uses .powell_theta, .restart_tau, .alpha,
+%                                   .safeguard_D, .safeguard_eps)
 %
 % Outputs:
 %   p_eqm_vec: the GE parameter vector at the (approximate) equilibrium
@@ -69,6 +74,12 @@ if ~isfield(andersonoptions,'maxiter'); andersonoptions.maxiter=1000; end
 if ~isfield(andersonoptions,'warmup'); andersonoptions.warmup=2; end
 if ~isfield(andersonoptions,'regularization'); andersonoptions.regularization=1e-10; end
 if ~isfield(andersonoptions,'safeguard'); andersonoptions.safeguard=1; end
+if ~isfield(andersonoptions,'type'); andersonoptions.type='II'; end
+if ~isfield(andersonoptions,'powell_theta'); andersonoptions.powell_theta=0.01; end   % Powell reg threshold, in (0,1)
+if ~isfield(andersonoptions,'restart_tau'); andersonoptions.restart_tau=0.001; end     % restart independence threshold, in (0,1)
+if ~isfield(andersonoptions,'alpha'); andersonoptions.alpha=1; end                     % KM averaging for the safe step, in (0,1]
+if ~isfield(andersonoptions,'safeguard_D'); andersonoptions.safeguard_D=1e6; end        % safeguard constant D>0
+if ~isfield(andersonoptions,'safeguard_eps'); andersonoptions.safeguard_eps=1e-6; end   % safeguard exponent eps>0
 
 % The base fixed-point map is the shooting map (fminalgo=5). Parse
 % heteroagentoptions.fminalgo9.howtoupdate with the same code fminalgo=5 uses;
@@ -87,6 +98,82 @@ updateaccuracycutoff=heteroagentoptions.updateaccuracycutoff;
 
 p=p0(:);
 nP=length(p);
+
+%% Type-I: stabilized AA-I-S-m (Zhang, O'Donoghue & Boyd 2020, Algorithm 3.1)
+if strcmp(andersonoptions.type,'I')
+    thetabar=andersonoptions.powell_theta; tau=andersonoptions.restart_tau;
+    alpha=andersonoptions.alpha; Dsafe=andersonoptions.safeguard_D;
+    epssafe=andersonoptions.safeguard_eps; mmax=andersonoptions.memory;
+    transformindex=0:1:nGEParams;
+    residualpath=nan(andersonoptions.maxiter,1); nKMsteps=0; converged=0;
+
+    % Initialization (line 2): residual g0=x0-Phi(x0); x^1=f_alpha(x^0)
+    GEcondns=GeneralEqmConditionsFnOpt(p); GEcondns=GEcondns(:);
+    if any(~isfinite(GEcondns)); error('fminalgo9 AA-I: GE conditions NaN/Inf at the initial point.'); end
+    g0=p-AAI_shootingstep(p,GEcondns,permute,signedfactor,keepold,updateaccuracycutoff,transformindex,GEPriceParamNames,heteroagentoptions);
+    Ubar=norm(g0);
+    x_prev=p; g_prev=g0; x_tilde=p-alpha*g0; x_cur=x_tilde;
+    H=eye(nP); Shat=zeros(nP,0); mc=0; nAA=0;
+
+    for iter=1:andersonoptions.maxiter
+        % residual at the trial x_tilde (line 5 needs g(x_tilde))
+        GEc_t=GeneralEqmConditionsFnOpt(x_tilde); GEc_t=GEc_t(:);
+        if any(~isfinite(GEc_t)); error('fminalgo9 AA-I: GE conditions NaN/Inf.'); end
+        g_tilde=x_tilde-AAI_shootingstep(x_tilde,GEc_t,permute,signedfactor,keepold,updateaccuracycutoff,transformindex,GEPriceParamNames,heteroagentoptions);
+        % residual at x_cur (reuse if x_cur==x_tilde, i.e. previous step was accepted)
+        if isequal(x_cur,x_tilde)
+            GEc_k=GEc_t; g_k=g_tilde;
+        else
+            GEc_k=GeneralEqmConditionsFnOpt(x_cur); GEc_k=GEc_k(:);
+            if any(~isfinite(GEc_k)); error('fminalgo9 AA-I: GE conditions NaN/Inf.'); end
+            g_k=x_cur-AAI_shootingstep(x_cur,GEc_k,permute,signedfactor,keepold,updateaccuracycutoff,transformindex,GEPriceParamNames,heteroagentoptions);
+        end
+        currentresid=max(abs(GEc_k)); residualpath(iter)=currentresid;
+        if heteroagentoptions.verbose==1
+            fprintf('Anderson Acceleration (Type-I): iteration %i, max(abs(GE condns))=%8.6f \n',iter,currentresid)
+        end
+        if currentresid<heteroagentoptions.toleranceGEcondns; converged=1; break; end
+
+        mc=mc+1;
+        s=x_tilde-x_prev; y=g_tilde-g_prev;                       % secant pair (line 5)
+        shat=s;                                                    % Gram-Schmidt (line 6)
+        for jj=1:size(Shat,2); sj=Shat(:,jj); shat=shat-((sj'*s)/(sj'*sj))*sj; end
+        if mc==mmax+1 || norm(shat)<tau*norm(s)                    % restart checking (lines 7-8)
+            mc=1; shat=s; H=eye(nP); Shat=zeros(nP,0);
+        end
+        gammaP=(shat'*H*y)/(shat'*shat);                          % Powell reg (lines 9-10)
+        if abs(gammaP)>=thetabar
+            theta=1;
+        else
+            sgn=sign(gammaP); if sgn==0; sgn=1; end
+            theta=(1-sgn*thetabar)/(1-gammaP);
+        end
+        ytil=theta*y-(1-theta)*g_prev;
+        H=H+((s-H*ytil)*(shat'*H))/(shat'*H*ytil);                % rank-one update (line 11)
+        x_tilde_next=x_cur-H*g_k;
+        if norm(g_k)<=Dsafe*Ubar*(nAA+1)^(-(1+epssafe))          % safeguard (lines 12-14)
+            x_next=x_tilde_next; nAA=nAA+1;
+        else
+            x_next=x_cur-alpha*g_k; nKMsteps=nKMsteps+1;
+        end
+        Shat=[Shat, shat]; %#ok<AGROW>
+        x_prev=x_cur; g_prev=g_k; x_tilde=x_tilde_next; x_cur=x_next;
+    end
+
+    p_eqm_vec=x_cur;
+    if converged==1
+        GEcondns=GEc_k;
+    else
+        GEcondns=GeneralEqmConditionsFnOpt(x_cur); GEcondns=GEcondns(:);
+        warning('HeteroAgentStationaryEqm_AndersonAcceleration (Type-I): reached maxiter (%i) without convergence; max(abs(GE condns))=%8.6f (%i safeguard/KM steps).',andersonoptions.maxiter,max(abs(GEcondns)),nKMsteps)
+    end
+    output.iterations=iter; output.converged=converged;
+    output.residualpath=residualpath(1:iter); output.nrejectedsteps=nKMsteps;
+    if heteroagentoptions.verbose==1 && converged==1
+        fprintf('Anderson Acceleration (Type-I): converged in %i iterations (%i safeguard/KM steps) \n',iter,nKMsteps)
+    end
+    return
+end
 
 % History matrices: columns hold successive differences of iterates (DeltaX)
 % and of fixed-point residuals (DeltaF). At most 'memory' columns are kept.
@@ -212,4 +299,14 @@ if heteroagentoptions.verbose==1 && converged==1
     fprintf('Anderson Acceleration: converged in %i iterations (%i Anderson steps rejected along the way) \n',iter,nrejectedsteps)
 end
 
+end
+
+function Phi=AAI_shootingstep(p,GEcondns,permute,signedfactor,keepold,updateaccuracycutoff,transformindex,GEPriceParamNames,heteroagentoptions)
+% Plain shooting fixed-point step Phi(p) in unconstrained space (same base map
+% as Type-II): apply the howtoupdate rule in original price space, map back.
+[p_orig,~]=ParameterConstraints_TransformParamsToOriginal(p',transformindex,GEPriceParamNames,heteroagentoptions);
+p_i=GEcondns(permute);
+p_i=(abs(p_i)>updateaccuracycutoff).*p_i;
+p_orig_new=keepold.*p_orig'+signedfactor.*p_i;
+Phi=ParameterConstraints_TransformParamsToUnconstrained(p_orig_new',transformindex,GEPriceParamNames,heteroagentoptions,0)';
 end

@@ -22,13 +22,13 @@ if vfoptions.lowmemory==0
     zind=shiftdim((0:1:N_z-1),-3); % already includes -1
     zBind=shiftdim((0:1:N_z-1),-1); % already includes -1
 elseif vfoptions.lowmemory==1
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
     % precompute
     zind=shiftdim((0:1:N_z-1),-3); % already includes -1
     zBind=shiftdim((0:1:N_z-1),-1); % already includes -1
 elseif vfoptions.lowmemory==2
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 end
 
 % n-Monotonicity
@@ -169,7 +169,7 @@ if ~isfield(vfoptions,'V_Jplus1')
                         % aprime possibilities are n_d-by-maxgap(ii)+1-by-1-by-n_a2
                         ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,n_d2,maxgap(ii)+1,level1iidiff(ii),n_a2,special_n_z,special_n_e, d_gridvals, a1_gridvals(a1primeindexes), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, z_val, e_val, ReturnFnParamsVec,2,0); % Level=2, Refine=0
                         [Vtempii,maxindex]=max(ReturnMatrix_ii,[],1);
-                        V(curraindex,z_c,N_j)=shiftdim(Vtempii,1);
+                        V(curraindex,z_c,e_c,N_j)=shiftdim(Vtempii,1);
                         % maxindex does not need reworking, as with expasset there is no a2prime
                         %  the a1prime is relative to loweredge(allind), need to 'add' the loweredge
                         dind=(rem(maxindex-1,N_d1*N_d2)+1);
@@ -195,9 +195,9 @@ else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    EVpre=sum(shiftdim(pi_e_J(:,N_j),-2).*reshape(vfoptions.V_Jplus1,[N_a,N_z,N_e]),3); % Integrate out eprime first
+    EVpre=sum(shiftdim(pi_e_J(:,N_j+1),-2).*reshape(vfoptions.V_Jplus1,[N_a,N_z,N_e]),3); % Integrate out eprime first
 
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateExperienceAssetzeFnMatrix(aprimeFn, n_d2, n_a2, n_z, n_e, d2_gridvals, a2_grid, z_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
     % l_a2==1: a2primeIndex/a2primeProbs are [N_d2,N_a2,N_z,N_e] (legacy lower-corner)
     % l_a2==2: a2primeIndex/a2primeProbs are [l_a2,N_d2,N_a2,N_z,N_e] (per-dim factored)
@@ -366,8 +366,7 @@ else
             z_val=z_gridvals_J(z_c,:,N_j);
             for e_c=1:N_e
                 e_val=e_gridvals_J(e_c,:,N_j);
-                DiscountedEV_ze=DiscountedEV(:,:,:,:,:,:,z_c,e_c);
-                DiscountedEV_z=DiscountedEV(:,:,:,:,z_c,e_c);
+                DiscountedEV_ze=DiscountedEV(:,:,:,:,z_c,e_c);
 
                 % n-Monotonicity
                 ReturnMatrix_ii_ze=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,n_d2,n_a1,vfoptions.level1n,n_a2,special_n_z,special_n_e, d_gridvals, a1_gridvals, a1_gridvals(level1ii), a2_gridvals, z_val, e_val, ReturnFnParamsVec,1,0); % Level=1, Refine=0
@@ -443,7 +442,7 @@ for reverse_j=1:N_j-1
     % l_a2==1: a2primeIndex/a2primeProbs are [N_d2,N_a2,N_z,N_e] (legacy lower-corner)
     % l_a2==2: a2primeIndex/a2primeProbs are [l_a2,N_d2,N_a2,N_z,N_e] (per-dim factored)
 
-    EVpre=sum(shiftdim(pi_e_J(:,jj),-2).*V(:,:,:,jj+1),3); % Integrate out eprime first
+    EVpre=sum(shiftdim(pi_e_J(:,jj+1),-2).*V(:,:,:,jj+1),3); % Integrate out eprime first
 
     if length(n_a2)==1
         aprimeIndex=repelem((1:1:N_a1)',N_d2,N_a2,N_z,N_e)+N_a1*repmat(a2primeIndex-1,N_a1,1,1,1); % [N_d2*N_a1,N_a2,N_z,N_e]
@@ -610,8 +609,7 @@ for reverse_j=1:N_j-1
             z_val=z_gridvals_J(z_c,:,jj);
             for e_c=1:N_e
                 e_val=e_gridvals_J(e_c,:,jj);
-                DiscountedEV_ze=DiscountedEV(:,:,:,:,:,:,z_c,e_c);
-                DiscountedEV_z=DiscountedEV(:,:,:,:,z_c,e_c);
+                DiscountedEV_ze=DiscountedEV(:,:,:,:,z_c,e_c);
 
                 % n-Monotonicity
                 ReturnMatrix_ii_ze=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,n_d2,n_a1,vfoptions.level1n,n_a2,special_n_z,special_n_e, d_gridvals, a1_gridvals, a1_gridvals(level1ii), a2_gridvals, z_val, e_val, ReturnFnParamsVec,1,0); % Level=1, Refine=0

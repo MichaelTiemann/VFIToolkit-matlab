@@ -5,16 +5,16 @@ N_d2=prod(n_d2);
 N_a=prod(n_a);
 N_semiz=prod(n_semiz);
 
-Vhat=zeros(N_a,N_semiz,N_j,'gpuArray');
-Vunderbar=zeros(N_a,N_semiz,N_j,'gpuArray');
+Vhat=zeros(N_a,N_semiz,N_j,vfoptions.precision,'gpuArray');
+Vunderbar=zeros(N_a,N_semiz,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(3,N_a,N_semiz,N_j,'gpuArray');
 PolicyL2flag=2*ones(1,N_a,N_semiz,N_j,'gpuArray');
 
 %%
-special_n_d2=ones(1,length(n_d2));
+special_n_d2=ones(1,length(n_d2),vfoptions.precision);
 
 if vfoptions.lowmemory>0
-    special_n_semiz=ones(1,length(n_semiz));
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision,'gpuArray');
 end
 
 aind_Nj=gpuArray(0:1:N_a-1);
@@ -22,8 +22,8 @@ aind=gpuArray(1:1:N_a);
 semizind=shiftdim(gpuArray(0:1:N_semiz-1),-1);
 semizBind=shiftdim(gpuArray(0:1:N_semiz-1),-2);
 
-Vhat_ford2_jj=zeros(N_a,N_semiz,N_d2,'gpuArray');
-Vunderbar_ford2_jj=zeros(N_a,N_semiz,N_d2,'gpuArray');
+Vhat_ford2_jj=zeros(N_a,N_semiz,N_d2,vfoptions.precision,'gpuArray');
+Vunderbar_ford2_jj=zeros(N_a,N_semiz,N_d2,vfoptions.precision,'gpuArray');
 Policy_ford2_jj=zeros(N_a,N_semiz,N_d2,'gpuArray');
 midpoint_ford2_jj=zeros(N_a,N_semiz,N_d2,'gpuArray');
 flag_ford2_jj=2*ones(N_a,N_semiz,N_d2,'gpuArray');

@@ -10,7 +10,7 @@ Policy=zeros(N_a,N_e,N_j,'gpuArray'); %first dim indexes the optimal choice for 
 if vfoptions.lowmemory==0
     loweredgesize=[1,1,N_e];
 elseif vfoptions.lowmemory==1
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 
 % n-Monotonicity
@@ -20,7 +20,7 @@ level1iidiff=level1ii(2:end)-level1ii(1:end-1)-1;
 %% j=N_j
 
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 
 pi_e_J=shiftdim(pi_e_J,-1); % Move to second dimension
 
@@ -99,7 +99,7 @@ else
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
     EV=reshape(vfoptions.V_Jplus1,[N_a,N_e]);    % First, switch V_Jplus1 into Kron form
-    EV=sum(EV.*pi_e_J(1,:,N_j),2);
+    EV=sum(EV.*pi_e_J(1,:,N_j+1),2);
 
     if vfoptions.lowmemory==0
         % n-Monotonicity
@@ -195,7 +195,7 @@ for reverse_j=1:N_j-1
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
     EV=V(:,:,jj+1);
-    EV=sum(EV.*pi_e_J(1,:,jj),2);
+    EV=sum(EV.*pi_e_J(1,:,jj+1),2);
 
     if vfoptions.lowmemory==0
         % n-Monotonicity

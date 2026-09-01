@@ -33,14 +33,17 @@ N_d=prod(n_d);
 d123_gridvals=[repmat(d12_gridvals,N_d3,1),repelem(CreateGridvals(n_d3,d3_grid,1),N_d12,1)];
 
 if vfoptions.lowmemory>0
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
-if vfoptions.lowmemory>1
-    special_n_bothz=ones(1,length(n_semiz)+length(n_z));
+if vfoptions.lowmemory==2
+    cast2precision=str2func(vfoptions.precision)
+    special_n_semiz=[cast2precision(n_semiz),ones(1,length(n_z)),vfoptions.precision];
+elseif vfoptions.lowmemory==3
+    special_n_bothz=ones(1,length(n_semiz)+length(n_z),vfoptions.precision,'gpuArray');
 end
 
 % Preallocate
-V_ford3_jj=zeros(N_a,N_semiz*N_z,N_e,N_d3,'gpuArray');
+V_ford3_jj=zeros(N_a,N_semiz*N_z,N_e,N_d3,vfoptions.precision,'gpuArray');
 Policy_ford3_jj=zeros(N_a,N_semiz*N_z,N_e,N_d3,'gpuArray');
 
 
@@ -78,6 +81,24 @@ if ~isfield(vfoptions,'V_Jplus1')
             Policy4(4,:,:,e_c,N_j)=ceil(maxindex/N_d); % d4
         end
     elseif vfoptions.lowmemory==2
+        for z_c=1:N_z
+            semizblock=(z_c-1)*N_semiz+(1:N_semiz);
+            z_val=bothz_gridvals_J(semizblock,:,N_j);
+            for e_c=1:N_e
+                e_val=e_gridvals_J(e_c,:,N_j);
+                ReturnMatrix_ze=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,n_d23,n_a1,n_a1,n_a2,special_n_semiz,special_n_e, d123_gridvals, a1_gridvals, a1_gridvals, a2_gridvals, z_val, e_val, ReturnFnParamsVec,0,0); % Level=0, Refine=0
+                % Calc the max and it's index
+                [Vtemp,maxindex]=max(ReturnMatrix_ze,[],1);
+                V(:,semizblock,e_c,N_j)=shiftdim(Vtemp,1);
+                d_ind=rem(maxindex-1,N_d)+1;
+                d12_ind=rem(d_ind-1,N_d12)+1;
+                Policy4(1,:,semizblock,e_c,N_j)=rem(d12_ind-1,N_d1)+1;
+                Policy4(2,:,semizblock,e_c,N_j)=ceil(d12_ind/N_d1);
+                Policy4(3,:,semizblock,e_c,N_j)=ceil(d_ind/N_d12);
+                Policy4(4,:,semizblock,e_c,N_j)=ceil(maxindex/N_d);
+            end
+        end
+    elseif vfoptions.lowmemory==3
         for e_c=1:N_e
             e_val=e_gridvals_J(e_c,:,N_j);
             for z_c=1:N_bothz
@@ -96,16 +117,15 @@ if ~isfield(vfoptions,'V_Jplus1')
         end
     end
 else
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix(aprimeFn, n_d2, n_a2, d2_gridvals, a2_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
     % Note: aprimeIndex is [N_d2,N_a2], whereas aprimeProbs is [N_d2,N_a2]
 
     aprimeIndex=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat((a2primeIndex-1),N_a1,1); % [N_d2*N_a1,N_a2]
     aprimeplus1Index=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat(a2primeIndex,N_a1,1); % [N_d2*N_a1,N_a2]
-    aprimeProbs=repmat(a2primeProbs,N_a1,1,N_bothz);  % [N_d2*N_a1,N_a2,N_bothz]
 
     % Using V_Jplus1
-    EVpre=sum(reshape(vfoptions.V_Jplus1,[N_a,N_bothz,N_e]).*shiftdim(pi_e_J(:,N_j),-2),3);    % First, switch V_Jplus1 into Kron form
+    EVpre=sum(reshape(vfoptions.V_Jplus1,[N_a,N_bothz,N_e]).*shiftdim(pi_e_J(:,N_j+1),-2),3);    % First, switch V_Jplus1 into Kron form
 
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
@@ -127,11 +147,12 @@ else
             EV2=reshape(EV(aprimeplus1Index,:),[N_d2*N_a1,N_a2,N_bothz]); % (d2,a1prime,a2,z), the upper aprime
 
             % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
+            aprimeProbs_d3=repmat(a2primeProbs,N_a1,1,N_bothz); % [N_d2*N_a1,N_a2,N_bothz]
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0; % effectively skips interpolation
+            aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
 
             % Apply the aprimeProbs
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
             % entireEV is (d2,a1prime, a2,z)
 
             entireRHS_d3=ReturnMatrix_d3+DiscountFactorParamsVec*repelem(EV,N_d1,N_a1,1);
@@ -159,11 +180,12 @@ else
             EV2=reshape(EV(aprimeplus1Index,:),[N_d2*N_a1,N_a2,N_bothz]); % (d2,a1prime,a2,z), the upper aprime
 
             % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
+            aprimeProbs_d3=repmat(a2primeProbs,N_a1,1,N_bothz); % [N_d2*N_a1,N_a2,N_bothz]
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0; % effectively skips interpolation
+            aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
 
             % Apply the aprimeProbs
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
             % entireEV is (d2,a1prime, a2,z)
 
             DiscountedEV=DiscountFactorParamsVec*repelem(EV,N_d1,N_a1,1);
@@ -199,11 +221,56 @@ else
             EV2=reshape(EV(aprimeplus1Index,:),[N_d2*N_a1,N_a2,N_bothz]); % (d2,a1prime,a2,z), the upper aprime
 
             % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
+            aprimeProbs_d3=repmat(a2primeProbs,N_a1,1,N_bothz); % [N_d2*N_a1,N_a2,N_bothz]
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0; % effectively skips interpolation
+            aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
 
             % Apply the aprimeProbs
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            % entireEV is (d2,a1prime, a2,z)
+
+            DiscountedEV=DiscountFactorParamsVec*repelem(EV,N_d1,N_a1,1);
+
+            for z_c=1:N_z
+                semizblock=(z_c-1)*N_semiz+(1:N_semiz);
+                z_val=bothz_gridvals_J(semizblock,:,N_j);
+                DiscountedEV_z=DiscountedEV(:,:,semizblock);
+
+                for e_c=1:N_e
+                    e_val=e_gridvals_J(e_c,:,N_j);
+
+                    ReturnMatrix_d3ze=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n_a1,n_a1,n_a2,special_n_semiz,special_n_e, d123_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, z_val,e_val, ReturnFnParamsVec,0,0); % Level=0, Refine=0
+
+                    entireRHS_d3z=ReturnMatrix_d3ze+DiscountedEV_z;
+
+                    %Calc the max and it's index
+                    [Vtemp,maxindex]=max(entireRHS_d3z,[],1);
+                    V_ford3_jj(:,semizblock,e_c,d3_c)=shiftdim(Vtemp,1);
+                    Policy_ford3_jj(:,semizblock,e_c,d3_c)=shiftdim(maxindex,1);
+                end
+            end
+        end
+    elseif vfoptions.lowmemory==3
+        for d3_c=1:N_d3
+            d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
+            % Note: By definition V_Jplus1 does not depend on d2 (only aprime)
+            pi_bothz=kron(pi_z_J(:,:,N_j),pi_semiz_J(:,:,d3_c,N_j));
+
+            EV=EVpre.*shiftdim(pi_bothz',-1);
+            EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+            EV=sum(EV,2); % sum over z', leaving a singular second dimension
+
+            % Switch EV from being in terms of aprime to being in terms of d and a
+            EV1=reshape(EV(aprimeIndex,:),[N_d2*N_a1,N_a2,N_bothz]); % (d2,a1prime,a2,z), the lower aprime
+            EV2=reshape(EV(aprimeplus1Index,:),[N_d2*N_a1,N_a2,N_bothz]); % (d2,a1prime,a2,z), the upper aprime
+
+            % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
+            aprimeProbs_d3=repmat(a2primeProbs,N_a1,1,N_bothz); % [N_d2*N_a1,N_a2,N_bothz]
+            skipinterp=(EV1==EV2);
+            aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
+
+            % Apply the aprimeProbs
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
             % entireEV is (d2,a1prime, a2,z)
 
             DiscountedEV=DiscountFactorParamsVec*repelem(EV,N_d1,N_a1,1);
@@ -260,9 +327,8 @@ for reverse_j=1:N_j-1
 
     aprimeIndex=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat((a2primeIndex-1),N_a1,1); % [N_d2*N_a1,N_a2]
     aprimeplus1Index=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat(a2primeIndex,N_a1,1); % [N_d2*N_a1,N_a2]
-    aprimeProbs=repmat(a2primeProbs,N_a1,1,N_bothz);  % [N_d2*N_a1,N_a2,N_bothz]
 
-    EVpre=sum(V(:,:,:,jj+1).*shiftdim(pi_e_J(:,jj),-2),3);
+    EVpre=sum(V(:,:,:,jj+1).*shiftdim(pi_e_J(:,jj+1),-2),3);
 
     if vfoptions.lowmemory==0
         for d3_c=1:N_d3
@@ -282,11 +348,12 @@ for reverse_j=1:N_j-1
             EV2=reshape(EV(aprimeplus1Index,:),[N_d2*N_a1,N_a2,N_bothz]); % (d2,a1prime,a2,z), the upper aprime
 
             % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
+            aprimeProbs_d3=repmat(a2primeProbs,N_a1,1,N_bothz); % [N_d2*N_a1,N_a2,N_bothz]
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0; % effectively skips interpolation
+            aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
 
             % Apply the aprimeProbs
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
             % entireEV is (d2,a1prime, a2,z)
 
             entireRHS=ReturnMatrix_d3+DiscountFactorParamsVec*repelem(EV,N_d1,N_a1,1);
@@ -314,11 +381,12 @@ for reverse_j=1:N_j-1
             EV2=reshape(EV(aprimeplus1Index,:),[N_d2*N_a1,N_a2,N_bothz]); % (d2,a1prime,a2,z), the upper aprime
 
             % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
+            aprimeProbs_d3=repmat(a2primeProbs,N_a1,1,N_bothz); % [N_d2*N_a1,N_a2,N_bothz]
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0; % effectively skips interpolation
+            aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
 
             % Apply the aprimeProbs
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
             % entireEV is (d2,a1prime, a2,z)
 
             DiscountedEV=DiscountFactorParamsVec*repelem(EV,N_d1,N_a1,1);
@@ -354,11 +422,57 @@ for reverse_j=1:N_j-1
             EV2=reshape(EV(aprimeplus1Index,:),[N_d2*N_a1,N_a2,N_bothz]); % (d2,a1prime,a2,z), the upper aprime
 
             % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
+            aprimeProbs_d3=repmat(a2primeProbs,N_a1,1,N_bothz); % [N_d2*N_a1,N_a2,N_bothz]
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0; % effectively skips interpolation
+            aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
 
             % Apply the aprimeProbs
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            % entireEV is (d2,a1prime, a2,z)
+
+            DiscountedEV=DiscountFactorParamsVec*repelem(EV,N_d1,N_a1,1);
+
+            for z_c=1:N_z
+                semizblock=(z_c-1)*N_semiz+(1:N_semiz);
+                z_val=bothz_gridvals_J(semizblock,:,jj);
+                DiscountedEV_z=DiscountedEV(:,:,semizblock);
+
+                for e_c=1:N_e
+                    e_val=e_gridvals_J(e_c,:,jj);
+
+                    ReturnMatrix_d3ze=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n_a1,n_a1,n_a2,special_n_semiz,special_n_e, d123_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, z_val,e_val, ReturnFnParamsVec,0,0); % Level=0, Refine=0
+
+                    entireRHS_ze=ReturnMatrix_d3ze+DiscountedEV_z;
+
+                    %Calc the max and it's index
+                    [Vtemp,maxindex]=max(entireRHS_ze,[],1);
+
+                    V_ford3_jj(:,semizblock,e_c,d3_c)=shiftdim(Vtemp,1);
+                    Policy_ford3_jj(:,semizblock,e_c,d3_c)=shiftdim(maxindex,1);
+                end
+            end
+        end
+    elseif vfoptions.lowmemory==3
+        for d3_c=1:N_d3
+            d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
+            % Note: By definition V_Jplus1 does not depend on d2 (only aprime)
+            pi_bothz=kron(pi_z_J(:,:,jj),pi_semiz_J(:,:,d3_c,jj));
+
+            EV=EVpre.*shiftdim(pi_bothz',-1);
+            EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+            EV=sum(EV,2); % sum over z', leaving a singular second dimension
+
+            % Switch EV from being in terms of aprime to being in terms of d and a
+            EV1=reshape(EV(aprimeIndex,:),[N_d2*N_a1,N_a2,N_bothz]); % (d2,a1prime,a2,z), the lower aprime
+            EV2=reshape(EV(aprimeplus1Index,:),[N_d2*N_a1,N_a2,N_bothz]); % (d2,a1prime,a2,z), the upper aprime
+
+            % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
+            aprimeProbs_d3=repmat(a2primeProbs,N_a1,1,N_bothz); % [N_d2*N_a1,N_a2,N_bothz]
+            skipinterp=(EV1==EV2);
+            aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
+
+            % Apply the aprimeProbs
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
             % entireEV is (d2,a1prime, a2,z)
 
             DiscountedEV=DiscountFactorParamsVec*repelem(EV,N_d1,N_a1,1);

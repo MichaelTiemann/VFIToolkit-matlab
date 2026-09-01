@@ -15,16 +15,16 @@ Policy=zeros(3,N_a,N_semiz,N_j,'gpuArray');
 Policyalt=zeros(3,N_a,N_semiz,N_j,'gpuArray'); % exponential discounter optimal (d1, d2, aprime)
 
 %%
-special_n_d=[n_d1,ones(1,length(n_d2))];
+special_n_d=[cast2precision(n_d1),ones(1,length(n_d2),vfoptions.precision)];
 d_gridvals=[repmat(d1_gridvals,N_d2,1),repelem(d2_gridvals,N_d1,1)];
 d12_gridvals=permute(reshape(d_gridvals,[N_d1,N_d2,length(n_d1)+length(n_d2)]),[1,3,2]);
 
 if vfoptions.lowmemory>0
-    special_n_semiz=ones(1,length(n_semiz));
+    special_n_semiz=ones(1,length(n_semiz),vfoptions.precision,'gpuArray');
 end
 
-V_ford2_jj=zeros(N_a,N_semiz,N_d2,'gpuArray');
-Vtilde_ford2_jj=zeros(N_a,N_semiz,N_d2,'gpuArray');
+V_ford2_jj=zeros(N_a,N_semiz,N_d2,vfoptions.precision,'gpuArray');
+Vtilde_ford2_jj=zeros(N_a,N_semiz,N_d2,vfoptions.precision,'gpuArray');
 Policy_ford2_jj=zeros(N_a,N_semiz,N_d2,'gpuArray');
 Policy_V_ford2_jj=zeros(N_a,N_semiz,N_d2,'gpuArray');
 

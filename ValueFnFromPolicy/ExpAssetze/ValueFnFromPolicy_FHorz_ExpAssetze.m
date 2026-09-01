@@ -41,18 +41,19 @@ l_e=length(vfoptions.n_e);
 
 % Split a into a1 (standard) and a2 (experience asset)
 if isscalar(n_a)
+    % noa1: the experience asset is the only endogenous state
     n_a1=0;
-    N_a1=0;
-    error('ValueFnFromPolicy_FHorz_ExpAssetze: case with no a1 (experience asset as only asset) not yet implemented')
+    N_a1=1; % so aprime_low=a1prime_idx+N_a1*(a2primeIndex-1) reduces to a2primeIndex (a1prime_idx stays 1)
+    l_a1=0; % Policy contains only the d channels
 else
     n_a1=n_a(1:end-1);
     N_a1=prod(n_a1);
+    l_a1=length(n_a1);
 end
 n_a2=n_a(end);
 N_a2=prod(n_a2);
 a1_grid=a_grid(1:sum(n_a1));
 a2_grid=a_grid(sum(n_a1)+1:end);
-l_a1=length(n_a1);
 l_a2=length(n_a2);
 l_aprime=l_a1;
 
@@ -109,7 +110,7 @@ V=zeros(N_a, N_z, N_e, N_j, vfoptions.precision, 'gpuArray');
 for reverse_j=0:N_j-1
     jj=N_j-reverse_j;
 
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames, jj);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames, jj, vfoptions.precision);
     Policy_slice=Policy_k(:,:,:,:,jj); % [l_d+l_a1, N_a, N_z, N_e]
 
     % Step 1: a2primeIndex, a2primeProbs -- helper handles (a, z, e) directly
@@ -119,7 +120,7 @@ for reverse_j=0:N_j-1
     a2primeProbs=reshape(a2primeProbs,[N_a,N_z,N_e]);
 
     % Step 2: ReturnFn at policy
-    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj);
+    FnToEvaluateParamsCell=CreateCellFromParams(Parameters,ReturnFnParamNames,jj,vfoptions.precision);
     F_jj=reshape(EvalFnOnAgentDist_Grid(ReturnFn, FnToEvaluateParamsCell, PolicyValuesPermute(:,:,:,jj), l_daprime, n_a, [n_z,vfoptions.n_e], a_gridvals, joint_zegridvals_J(:,:,jj)), [N_a, N_z, N_e]);
 
     if jj==N_j
@@ -128,7 +129,7 @@ for reverse_j=0:N_j-1
         beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
 
         % Step 3: EVnext(anext, z_from) -- integrate e' (iid) then z' (markov)
-        EVnext=sum(V(:,:,:,jj+1) .* shiftdim(vfoptions.pi_e_J(:,jj), -2), 3); % [N_a, N_z, 1]
+        EVnext=sum(V(:,:,:,jj+1) .* shiftdim(vfoptions.pi_e_J(:,jj+1), -2), 3); % [N_a, N_z, 1]
         EVnext=reshape(EVnext,[N_a,N_z]) * pi_z_J(:,:,jj)'; % [N_a, N_z]
         EVnext(isnan(EVnext))=0;
 

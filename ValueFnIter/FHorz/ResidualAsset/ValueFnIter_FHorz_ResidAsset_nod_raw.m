@@ -4,7 +4,7 @@ N_a=prod(n_a);
 N_r=prod(n_r);
 N_z=prod(n_z);
 
-V=zeros(N_a,N_r,N_z,N_j,'gpuArray');
+V=zeros(N_a,N_r,N_z,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(N_a,N_r,N_z,N_j,'gpuArray'); %first dim indexes the optimal choice for aprime rest of dimensions a,z
 
 %%
@@ -12,13 +12,13 @@ r_grid=gpuArray(r_grid);
 
 if vfoptions.lowmemory>0
     l_z=length(n_z);
-    special_n_z=ones(1,l_z);
+    special_n_z=ones(1,l_z,vfoptions.precision,'gpuArray');
 end
 
 
 %% j=N_j
 % Create a vector containing all the return function parameters (in order)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0
@@ -48,7 +48,7 @@ else
     % Residual asset:
     % EV is over (aprime,r,z)
     % Need to convert to be over (aprime,a,z)
-    rprimeFnParamsVec=CreateVectorFromParams(Parameters, rprimeFnParamNames,N_j);
+    rprimeFnParamsVec=CreateVectorFromParams(Parameters, rprimeFnParamNames,N_j,vfoptions.precision));
     [rprimeIndexes,rprimeProbs]=CreateResidualAssetFnMatrix_Case1(rprimeFn, 0, n_a, n_r, n_z, 0, a_grid, r_grid, z_gridvals_J(:,:,N_j), rprimeFnParamsVec);  % Note, is actually rprime_grid (but r_grid is anyway same for all ages)
     % Note: rprimeIndex is [N_d*N_a*N_a*N_z,1], and rprimeProbs is [N_d*N_a*N_a*N_z,1]
     aprimeIndexes=kron(ones(N_a*N_z,1),(1:1:N_a)'); % aprime over (aprime,a,z)

@@ -8,13 +8,13 @@ N_e=prod(n_e);
 Policy=zeros(N_a,N_e,N_j,'gpuArray'); %first dim indexes the optimal choice for aprime rest of dimensions a,e
 Vhat=zeros(N_a,N_e,N_j,vfoptions.precision,'gpuArray'); % agent's-perspective value (beta0*beta-discounted), before the Vunderbar transform
 
-Vnext=sum(V.*shiftdim(pi_e_J(:,[1,1:end-1]),-1),2); % Take expectations over e: Vnext(...,jj+1) is read for current age jj, so weight V at age jj+1 by pi_e_J(:,jj) [same timing as standard ValueFnIter commands]; first column is padding, never read
+Vnext=sum(V.*shiftdim(pi_e_J,-1),2); % Take expectations over e: Vnext(...,jj+1) is read for current age jj, so weight V at age jj+1 by pi_e_J(:,jj+1), the distribution of the e realized in period jj+1; first column is never read
 
 %%
 if vfoptions.lowmemory==0
     loweredgesize=[1,1,N_e];
 elseif vfoptions.lowmemory==1
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 elseif vfoptions.lowmemory>=2
     error('vfoptions.lowmemory>=2 not supported for ValueFnIter_FHorz_TPath_SingleStep_QHS_DC1_nod_noz_e_raw')
 end

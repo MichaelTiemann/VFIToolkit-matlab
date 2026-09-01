@@ -15,10 +15,10 @@ a2_grid=gpuArray(a2_grid);
 
 
 if vfoptions.lowmemory>=1
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 if vfoptions.lowmemory==2
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 end
 
 
@@ -57,12 +57,12 @@ else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateExperienceAssetzeFnMatrix(aprimeFn, n_d2, n_a2, n_z, n_e, d2_gridvals, a2_grid, z_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), aprimeFnParamsVec,1); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
     % l_a2==1: a2primeIndex is [N_d2*N_a2*N_z*N_e,1], a2primeProbs is [N_d2,N_a2,N_z,N_e]
     % l_a2==2: a2primeIndex/a2primeProbs are [l_a2, N_d2*N_a2*N_z*N_e] (per-dim factored, raveled)
 
-    EVpre=sum(shiftdim(pi_e_J(:,N_j),-2).*reshape(vfoptions.V_Jplus1,[N_a,N_z,N_e]),3); % Integrate out eprime first
+    EVpre=sum(shiftdim(pi_e_J(:,N_j+1),-2).*reshape(vfoptions.V_Jplus1,[N_a,N_z,N_e]),3); % Integrate out eprime first
 
     if length(n_a2)==1
         a2primeProbs=repmat(a2primeProbs,1,1,1,1,N_z);  % [N_d2,N_a2,N_z,N_e,N_z]   (replicate over zprime)
@@ -139,7 +139,6 @@ else
 
             for e_c=1:N_e
                 e_val=e_gridvals_J(e_c,:,N_j);
-                DiscountedEV_ze=DiscountedEV(:,:,:,:,:,:,z_c,e_c);
 
                 ReturnMatrix_ze=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn,n_d2, n_a2, special_n_z, special_n_e, d2_gridvals, a2_grid, z_val, e_val, ReturnFnParamsVec); % with only the experience asset, can just use Case2 command
 
@@ -174,7 +173,7 @@ for reverse_j=1:N_j-1
     % l_a2==1: a2primeIndex is [N_d2*N_a2*N_z*N_e,1], a2primeProbs is [N_d2,N_a2,N_z,N_e]
     % l_a2==2: a2primeIndex/a2primeProbs are [l_a2, N_d2*N_a2*N_z*N_e] (per-dim factored, raveled)
 
-    EVpre=sum(shiftdim(pi_e_J(:,jj),-2).*V(:,:,:,jj+1),3); % Integrate out eprime first
+    EVpre=sum(shiftdim(pi_e_J(:,jj+1),-2).*V(:,:,:,jj+1),3); % Integrate out eprime first
 
     if length(n_a2)==1
         a2primeProbs=repmat(a2primeProbs,1,1,1,1,N_z);  % [N_d2,N_a2,N_z,N_e,N_z]   (replicate over zprime)
@@ -252,7 +251,6 @@ for reverse_j=1:N_j-1
 
             for e_c=1:N_e
                 e_val=e_gridvals_J(e_c,:,jj);
-                DiscountedEV_ze=DiscountedEV(:,:,:,:,:,:,z_c,e_c);
 
                 ReturnMatrix_ze=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn,n_d2, n_a2, special_n_z, special_n_e, d2_gridvals, a2_grid, z_val, e_val, ReturnFnParamsVec); % with only the experience asset, can just use Case2 command
 

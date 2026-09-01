@@ -32,13 +32,15 @@ BetaMinusBeta0Beta_J=DiscountFactor_J-Beta0DiscountFactor_J;
 ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j,vfoptions.precision); % this will be a matrix, row indexes ages and column indexes the parameters (parameters which are not dependent on age appear as a constant valued column)
 
 if vfoptions.EVpre==0
-    EVpre=[sum(V(N_a+1:end,:,:).*pi_e_J(1:end-N_a,:,:),3); zeros(N_a,N_z,'gpuArray')]; % I use zeros in j=N_j so that can just use pi_z_J to create expectations
+    pi_z_J=cat(1,pi_z_J,zeros(1,N_z,N_z,'gpuArray')); % append a j=N_j slot of zeros: there is no continuation value in the final period (input pi_z_J has N_j-1 slices, the transitions from periods 1..N_j-1)
+    EVpre=[sum(V(N_a+1:end,:,:).*pi_e_J(N_a+1:end,:,:),3); zeros(N_a,N_z,'gpuArray')]; % I use zeros in j=N_j so that can just use pi_z_J to create expectations
     EVpre=reshape(EVpre,[N_a,1,N_j,N_z]);
     EV=EVpre.*shiftdim(pi_z_J,-2);
     EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
     EV=reshape(sum(EV,4),[N_a,1,N_j,N_z]); % (aprime,1,j,z), 2nd dim will be autofilled with a
 elseif vfoptions.EVpre==1
     % This is used for 'Matched Expecations Path'
+    % EVpre==1 is the Matched Expectations Path: the age axis is time along the path and the caller supplies the pi arrays with all N_j slices genuine (the final slice is the transition into the continuing future), so nothing is appended to them
     EVpre=sum(reshape(V,[N_a*N_j,N_z,N_e]).*pi_e_J,3);  % input V is already of size [N_a,N_j] and we want to use the whole thing
     EVpre=reshape(EVpre,[N_a,1,N_j,N_z]);
     EV=EVpre.*shiftdim(pi_z_J,-2);
@@ -90,7 +92,7 @@ if vfoptions.lowmemory==0
 
 elseif vfoptions.lowmemory==1
 
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 
     for e_c=1:N_e
         e_vals=e_gridvals_J(1,1,:,1,e_c,:); % e_gridvals_J has shape (1,1,j,1,prod(n_e),l_e)
@@ -135,8 +137,8 @@ elseif vfoptions.lowmemory==1
     end
 elseif vfoptions.lowmemory==2
 
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 
     for z_c=1:N_z
         z_vals=z_gridvals_J(1,1,:,z_c,:); % z_gridvals_J has shape (1,1,j,prod(n_z),l_z) for fastOLG

@@ -83,7 +83,7 @@ else % V_Jplus1
     DiscountFactorParamsVec=prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision));
 
     % Build a2primeIndex and a2primeProbs for RisykAsset
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a2primeIndex,a2primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a2, n_u, d23_grid, a2_grid, u_grid, aprimeFnParamsVec,2);
     aprimeIndex=repelem((1:1:N_a1)',N_d23,N_u)+N_a1*repmat(a2primeIndex-1,N_a1,1);
     aprimeplus1Index=repelem((1:1:N_a1)',N_d23,N_u)+N_a1*repmat(a2primeIndex,N_a1,1);
@@ -110,9 +110,7 @@ else % V_Jplus1
 
     % Layer 1
     ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc_noz(ReturnFn, 0,n_d3,n_a1,vfoptions.level1n,n_a2, d3_gridvals, a1_gridvals, a1_gridvals(level1ii), a2_gridvals, ReturnFnParamsVec,1,0);
-    RM=reshape(ReturnMatrix_ii,[N_d3,vfoptions.level1n,N_a1,N_a2]);
-    DEV=reshape(DiscountedEV,[N_d3,1,N_a1,1]);
-    entireRHS_ii=RM+DEV;
+    entireRHS_ii=ReturnMatrix_ii+DiscountedEV;
 
     [~,maxindex1]=max(entireRHS_ii,[],2);
     [Vtempii,maxindex2]=max(reshape(entireRHS_ii,[N_d3*N_a1,vfoptions.level1n*N_a2]),[],1);
@@ -208,9 +206,7 @@ for reverse_j=1:N_j-1
 
     % Layer 1
     ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc_noz(ReturnFn, 0,n_d3,n_a1,vfoptions.level1n,n_a2, d3_gridvals, a1_gridvals, a1_gridvals(level1ii), a2_gridvals, ReturnFnParamsVec,1,0);
-    RM=reshape(ReturnMatrix_ii,[N_d3,vfoptions.level1n,N_a1,N_a2]);
-    DEV=reshape(DiscountedEV,[N_d3,1,N_a1,1]);
-    entireRHS_ii=RM+DEV;
+    entireRHS_ii=ReturnMatrix_ii+DiscountedEV;
 
     [~,maxindex1]=max(entireRHS_ii,[],2);
     [Vtempii,maxindex2]=max(reshape(entireRHS_ii,[N_d3*N_a1,vfoptions.level1n*N_a2]),[],1);

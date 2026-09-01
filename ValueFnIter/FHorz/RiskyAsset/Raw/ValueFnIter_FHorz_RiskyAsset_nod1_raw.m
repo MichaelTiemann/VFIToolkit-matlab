@@ -31,7 +31,7 @@ d3a1_gridvals=CreateGridvals([n_d3,n_a1],[d3_grid;a1_grid],1);
 a1a2_gridvals=CreateGridvals([n_a1,n_a2],[a1_grid;a2_grid],1);
 
 if vfoptions.lowmemory>0
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 end
 
 zind=shiftdim(gpuArray(0:1:N_z-1),-1);
@@ -49,12 +49,12 @@ if ~isfield(vfoptions,'V_Jplus1')
         %Calc the max and it's index
         [Vtemp,maxindex]=max(ReturnMatrix,[],1);
         V(:,:,N_j)=Vtemp;
-        dindex=rem(maxindex-1,N_d)+1;
+        dindex=rem(maxindex-1,N_d3)+1;
         Policy(1,:,:,N_j)=1; % is meaningless anyway
         Policy(2,:,:,N_j)=shiftdim(dindex,-1);
-        Policy(3,:,:,N_j)=shiftdim(ceil(maxindex/N_d),-1);
+        Policy(3,:,:,N_j)=shiftdim(ceil(maxindex/N_d3),-1);
 
-    elseif vfoptions.lowmemory==1
+    elseif vfoptions.lowmemory>=1 % lm1 already does the most-looped variant, so it also serves the higher lowmemory values
 
         for z_c=1:N_z
             z_val=z_gridvals_J(z_c,:,N_j);
@@ -62,10 +62,10 @@ if ~isfield(vfoptions,'V_Jplus1')
             %Calc the max and it's index
             [Vtemp,maxindex]=max(ReturnMatrix_z,[],1);
             V(:,z_c,N_j)=Vtemp;
-            dindex=rem(maxindex-1,N_d)+1;
+            dindex=rem(maxindex-1,N_d3)+1;
             Policy(1,:,z_c,N_j)=1; % is meaningless anyway
             Policy(2,:,z_c,N_j)=shiftdim(dindex,-1);
-            Policy(3,:,z_c,N_j)=shiftdim(ceil(maxindex/N_d),-1);
+            Policy(3,:,z_c,N_j)=shiftdim(ceil(maxindex/N_d3),-1);
         end
     end
 else
@@ -74,8 +74,8 @@ else
 
     EV=reshape(vfoptions.V_Jplus1,[N_a,N_z]); % Using V_Jplus1
 
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
-    [a2primeIndex,a2primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, [n_d23,n_a1], n_a2, n_u, d23_grid, a2_grid, u_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
+    [a2primeIndex,a2primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a2, n_u, d23_grid, a2_grid, u_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
     % Note: a2primeIndex is [N_d,N_u], whereas a2primeProbs is [N_d,N_u]
 
     aprimeIndex=repelem((1:1:N_a1)',N_d23,N_u)+N_a1*repmat(a2primeIndex-1,N_a1,1); % [N_d*N_a1,N_u]
@@ -124,7 +124,7 @@ else
         Policy(3,:,:,N_j)=shiftdim(ceil(maxindex/N_d3),-1);
         Policy(1,:,:,N_j)=shiftdim(d2index(maxindex+N_d3*zind),1);
 
-    elseif vfoptions.lowmemory==1
+    elseif vfoptions.lowmemory>=1 % lm1 already does the most-looped variant, so it also serves the higher lowmemory values
         for z_c=1:N_z
             z_val=z_gridvals_J(z_c,:,N_j);
             DiscountedEV_onlyd3_z=DiscountedEV_onlyd3(:,1,z_c);
@@ -214,7 +214,7 @@ for reverse_j=1:N_j-1
         Policy(3,:,:,jj)=shiftdim(ceil(maxindex/N_d3),-1);
         Policy(1,:,:,jj)=shiftdim(d2index(maxindex+N_d3*zind),1);
 
-    elseif vfoptions.lowmemory==1
+    elseif vfoptions.lowmemory>=1 % lm1 already does the most-looped variant, so it also serves the higher lowmemory values
         for z_c=1:N_z
             z_val=z_gridvals_J(z_c,:,jj);
             DiscountedEV_onlyd3_z=DiscountedEV_onlyd3(:,1,z_c);

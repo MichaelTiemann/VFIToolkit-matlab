@@ -31,11 +31,11 @@ d13a1_gridvals=CreateGridvals([n_d1,n_d3,n_a1],[d1_grid;d3_grid;a1_grid],1);
 a12_gridvals=CreateGridvals([n_a1,n_a2],[a1_grid;a2_grid],1);
 
 if vfoptions.lowmemory>0
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 
 aind=gpuArray(0:1:N_a-1);
-eind=shiftdim(gpuArray(0:1:N_e-1),-2);
+eind=shiftdim(gpuArray(0:1:N_e-1),-1);
 
 %% j=N_j
 
@@ -44,40 +44,40 @@ ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j,vfop
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0
-        ReturnMatrix=CreateReturnFnMatrix_Case2_Disc(ReturnFn, [n_d13,n_a1], [n_a1,n_a2], n_e, d13a1_gridvals, a12_gridvals,e_gridvals_J(:,:,N_j), ReturnFnParamsVec,0);
+        ReturnMatrix=CreateReturnFnMatrix_Case2_Disc(ReturnFn, [n_d13,n_a1], [n_a1,n_a2], n_e, d13a1_gridvals, a12_gridvals,e_gridvals_J(:,:,N_j), ReturnFnParamsVec);
 
         %Calc the max and it's index
         [Vtemp,maxindex]=max(ReturnMatrix,[],1);
-        V(:,N_j)=Vtemp;
-        dindex=rem(maxindex-1,N_d)+1;
-        Policy(1,:,:,N_j)=shiftdim(rem(dindex-1,N_d1)+1,-1);
+        V(:,:,N_j)=shiftdim(Vtemp,1);
+        dindex=rem(maxindex-1,N_d1*N_d3)+1;
+        Policy(1,:,:,N_j)=shiftdim(rem(dindex-1,N_d1)+1,1);
         Policy(2,:,:,N_j)=1; % is meaningless anyway
-        Policy(3,:,:,N_j)=shiftdim(ceil(dindex/N_d1),-1);
-        Policy(4,:,:,N_j)=shiftdim(ceil(maxindex/N_d),-1);
+        Policy(3,:,:,N_j)=shiftdim(ceil(dindex/N_d1),1);
+        Policy(4,:,:,N_j)=shiftdim(ceil(maxindex/(N_d1*N_d3)),-1);
 
-    elseif vfoptions.lowmemory==1
+    elseif vfoptions.lowmemory>=1 % lm1 already does the most-looped variant, so it also serves the higher lowmemory values
         for e_c=1:N_e
-            e_val=e_gridvals_J(a_c,:,N_j);
-            ReturnMatrix_e=CreateReturnFnMatrix_Case2_Disc(ReturnFn, [n_d13,n_a1], [n_a1,n_a2], special_n_e, d13a1_gridvals, a12_gridvals, e_val, ReturnFnParamsVec,0);
+            e_val=e_gridvals_J(e_c,:,N_j);
+            ReturnMatrix_e=CreateReturnFnMatrix_Case2_Disc(ReturnFn, [n_d13,n_a1], [n_a1,n_a2], special_n_e, d13a1_gridvals, a12_gridvals, e_val, ReturnFnParamsVec);
             %Calc the max and it's index
             [Vtemp,maxindex]=max(ReturnMatrix_e,[],1);
             V(:,e_c,N_j)=Vtemp;
-            dindex=rem(maxindex-1,N_d)+1;
-            Policy(1,:,e_c,N_j)=shiftdim(rem(dindex-1,N_d1)+1,-1);
+            dindex=rem(maxindex-1,N_d1*N_d3)+1;
+            Policy(1,:,e_c,N_j)=shiftdim(rem(dindex-1,N_d1)+1,1);
             Policy(2,:,e_c,N_j)=1; % is meaningless anyway
-            Policy(3,:,e_c,N_j)=shiftdim(ceil(dindex/N_d1),-1);
-            Policy(4,:,e_c,N_j)=shiftdim(ceil(maxindex/N_d),-1);
+            Policy(3,:,e_c,N_j)=shiftdim(ceil(dindex/N_d1),1);
+            Policy(4,:,e_c,N_j)=shiftdim(ceil(maxindex/(N_d1*N_d3)),-1);
         end
     end
 else
     % Using V_Jplus1
-    V_Jplus1=sum(reshape(vfoptions.V_Jplus1,[N_a,N_e]).*pi_e_J(:,N_j)',2);    % First, switch V_Jplus1 into Kron form ,take expectation over e
+    V_Jplus1=sum(reshape(vfoptions.V_Jplus1,[N_a,N_e]).*pi_e_J(:,N_j+1)',2);    % First, switch V_Jplus1 into Kron form ,take expectation over e
 
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
-    [a2primeIndex,a2primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, [n_d23,n_a1], n_a2, n_u, d23_grid, a2_grid, u_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
+    [a2primeIndex,a2primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a2, n_u, d23_grid, a2_grid, u_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
     % Note: a2primeIndex is [N_d,N_u], whereas a2primeProbs is [N_d,N_u]
 
     aprimeIndex=repelem((1:1:N_a1)',N_d23,N_u)+N_a1*repmat(a2primeIndex-1,N_a1,1); % [N_d*N_a1,N_u]
@@ -117,19 +117,19 @@ else
         V(:,:,N_j)=shiftdim(Vtemp,1);
         Policy(3,:,:,N_j)=shiftdim(rem(maxindex-1,N_d3)+1,1);
         Policy(4,:,:,N_j)=shiftdim(ceil(maxindex/N_d3),-1);
-        Policy(1,:,:,N_j)=shiftdim(d1index(maxindex+N_d3*aind+N_d3*N_a*eind),1);
+        Policy(1,:,:,N_j)=shiftdim(d1index(maxindex+N_d3*N_a1*aind+N_d3*N_a1*N_a*eind),1);
         Policy(2,:,:,N_j)=shiftdim(d2index(maxindex),1);
 
-    elseif vfoptions.lowmemory==1
+    elseif vfoptions.lowmemory>=1 % lm1 already does the most-looped variant, so it also serves the higher lowmemory values
 
-        betaEV=DiscountFactorParamsVec*EV.*ones(1,N_a,1);
+        betaEV=DiscountFactorParamsVec*EV;
         % Time to refine
         % Second (out of order): EV, we can refine out d2
         [EV_onlyd3,d2index]=max(reshape(betaEV,[N_d2,N_d3*N_a1,1]),[],1);
 
        for e_c=1:N_e
            e_val=e_gridvals_J(e_c,:,N_j);
-           ReturnMatrix_e=CreateReturnFnMatrix_Case2_Disc(ReturnFn, [n_d13,n_a1], [n_a1,n_a2], n_e, special_n_e, d13a1_gridvals, a12_gridvals, e_val, ReturnFnParamsVec);
+           ReturnMatrix_e=CreateReturnFnMatrix_Case2_Disc(ReturnFn, [n_d13,n_a1], [n_a1,n_a2], special_n_e, d13a1_gridvals, a12_gridvals, e_val, ReturnFnParamsVec);
 
            % Time to refine
            % First: ReturnMatrix, we can refine out d1
@@ -142,7 +142,7 @@ else
            V(:,e_c,N_j)=Vtemp;
            Policy(3,:,e_c,N_j)=shiftdim(rem(maxindex-1,N_d3)+1,1);
            Policy(4,:,e_c,N_j)=shiftdim(ceil(maxindex/N_d3),-1);
-           Policy(1,:,e_c,N_j)=shiftdim(d1index(maxindex+N_d3*aind),1);
+           Policy(1,:,e_c,N_j)=shiftdim(d1index(maxindex+N_d3*N_a1*aind),1);
            Policy(2,:,e_c,N_j)=shiftdim(d2index(maxindex),1);
         end
 
@@ -162,10 +162,10 @@ for reverse_j=1:N_j-1
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    EV=sum(V(:,:,jj+1).*pi_e_J(:,jj)',2); % Expectation over e
+    EV=sum(V(:,:,jj+1).*pi_e_J(:,jj+1)',2); % Expectation over e
 
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj,vfoptions.precision);
-    [a2primeIndex,a2primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, [n_d23,n_a1], n_a2, n_u, d23_grid, a2_grid, u_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
+    [a2primeIndex,a2primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a2, n_u, d23_grid, a2_grid, u_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
     % Note: a2primeIndex is [N_d,N_u], whereas a2primeProbs is [N_d,N_u]
 
 
@@ -207,12 +207,12 @@ for reverse_j=1:N_j-1
         V(:,:,jj)=shiftdim(Vtemp,1);
         Policy(3,:,:,jj)=shiftdim(rem(maxindex-1,N_d3)+1,1);
         Policy(4,:,:,jj)=shiftdim(ceil(maxindex/N_d3),-1);
-        Policy(1,:,:,jj)=shiftdim(d1index(maxindex+N_d3*aind+N_d3*N_a*eind),1);
+        Policy(1,:,:,jj)=shiftdim(d1index(maxindex+N_d3*N_a1*aind+N_d3*N_a1*N_a*eind),1);
         Policy(2,:,:,jj)=shiftdim(d2index(maxindex),1);
 
-    elseif vfoptions.lowmemory==1
+    elseif vfoptions.lowmemory>=1 % lm1 already does the most-looped variant, so it also serves the higher lowmemory values
 
-       betaEV=DiscountFactorParamsVec*EV.*ones(1,N_a,1);
+       betaEV=DiscountFactorParamsVec*EV;
        % Time to refine
        % Second (out of order): EV, we can refine out d2
        [EV_onlyd3,d2index]=max(reshape(betaEV,[N_d2,N_d3*N_a1,1]),[],1);
@@ -233,7 +233,7 @@ for reverse_j=1:N_j-1
            V(:,e_c,jj)=Vtemp;
            Policy(3,:,e_c,jj)=shiftdim(rem(maxindex-1,N_d3)+1,1);
            Policy(4,:,e_c,jj)=shiftdim(ceil(maxindex/N_d3),-1);
-           Policy(1,:,e_c,jj)=shiftdim(d1index(maxindex+N_d3*aind),1);
+           Policy(1,:,e_c,jj)=shiftdim(d1index(maxindex+N_d3*N_a1*aind),1);
            Policy(2,:,e_c,jj)=shiftdim(d2index(maxindex),1);
         end
     end

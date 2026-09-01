@@ -6,6 +6,7 @@ function [V,Policy]=ValueFnIter_FHorz_RiskyAsset_noa1_noz_raw(n_d1,n_d2,n_d3,n_a
 N_d1=prod(n_d1);
 N_d2=prod(n_d2);
 N_d3=prod(n_d3);
+N_d=N_d2*N_d3; % aprime d-space (d2,d3); d1 is refined out separately
 N_a=prod(n_a);
 N_u=prod(n_u);
 
@@ -48,7 +49,7 @@ else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j,vfoptions.precision);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [aprimeIndex,aprimeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a, n_u, d23_grid, a_grid, u_grid, aprimeFnParamsVec,1); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
     % Note: aprimeIndex is [N_d*N_u,1], whereas aprimeProbs is [N_d,N_u]
 
@@ -123,9 +124,9 @@ for reverse_j=1:N_j-1
     %Calc the max and it's index
     [Vtemp,maxindex]=max(entireRHS,[],1);
     V(:,jj)=Vtemp;
-    Policy(3,:,N_j)=shiftdim(maxindex,1);
-    Policy(1,:,N_j)=shiftdim(d1index(maxindex+N_d3*aind),1);
-    Policy(2,:,N_j)=shiftdim(d2index(maxindex),1);
+    Policy(3,:,jj)=shiftdim(maxindex,1);
+    Policy(1,:,jj)=shiftdim(d1index(maxindex+N_d3*aind),1);
+    Policy(2,:,jj)=shiftdim(d2index(maxindex),1);
 end
 
 

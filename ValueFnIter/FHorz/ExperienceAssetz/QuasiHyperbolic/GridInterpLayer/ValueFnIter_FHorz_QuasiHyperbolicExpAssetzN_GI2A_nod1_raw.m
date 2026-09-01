@@ -2,7 +2,7 @@ function [Vtilde,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicExpAsse
 % Naive QH + ExpAssetz, GI2A pattern (nod1).
 % Two independent argmax passes per period: one with beta (Valt, Policyalt); one with beta0*beta (Vtilde, Policy).
 % Policy/Policyalt channels: 1=d2, 2=a1prime lower coarse, 3=a2prime, 4=L2 fine, plus L2flag concatenated.
-% lowmemory=0 full vectorization; lowmemory=1 loops z; lowmemory=2 errors (no e dim to nest).
+% lowmemory=0 full vectorization; lowmemory=1 loops z.
 
 N_d2=prod(n_d2);
 N_a1=prod(n_a1);
@@ -11,7 +11,7 @@ N_a3=prod(n_a3);
 N_a=N_a1*N_a2*N_a3;
 N_z=prod(n_z);
 
-Valt=zeros(N_a,N_z,N_j,'gpuArray');
+Valt=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
 Vtilde=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray');
 Policy=zeros(4,N_a,N_z,N_j,'gpuArray');
 Policyalt=zeros(4,N_a,N_z,N_j,'gpuArray');
@@ -27,7 +27,7 @@ aind=gpuArray(0:1:N_a-1);
 zindB=shiftdim(gpuArray(0:1:N_z-1),-1);
 
 if vfoptions.lowmemory==1
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 end
 
 %% j=N_j
@@ -79,8 +79,6 @@ if ~isfield(vfoptions,'V_Jplus1')
             inUpperStrict=(maxindexL2a1>=n2short+3) & (maxindexL2a1<=n2long-1);
             PolicyaltL2flag(1,:,z_c,N_j)=2 + (inLowerStrict & (ReturnMatrix_ii_z(linidx_lower)==-Inf)) - (inUpperStrict & (ReturnMatrix_ii_z(linidx_upper)==-Inf));
         end
-    elseif vfoptions.lowmemory==2
-        error('lowmemory=2 not supported in QH+ExpAssetz _raw (no e dim to nest); use _e_raw variant')
     end
 
     Vtilde(:,:,N_j)=Valt(:,:,N_j);
@@ -95,7 +93,7 @@ else
 
     EVpre=reshape(vfoptions.V_Jplus1,[N_a,N_z]);
 
-    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j,vfoptions.precision);
     [a3primeIndex,a3primeProbs]=CreateExperienceAssetzFnMatrix(aprimeFn, n_d2, n_a3, n_z, d2_gridvals, a3_grid, z_gridvals_J(:,:,N_j), aprimeFnParamsVec,2);
 
     a1_col=repmat(repelem((1:N_a1)',N_d2,1),N_a2,1);
@@ -227,8 +225,6 @@ else
             inUpperStrict=(maxindexL2a1>=n2short+3) & (maxindexL2a1<=n2long-1);
             PolicyL2flag(1,:,z_c,N_j)=2 + (inLowerStrict & (ReturnMatrix_ii_z(linidx_lower)==-Inf)) - (inUpperStrict & (ReturnMatrix_ii_z(linidx_upper)==-Inf));
         end
-    elseif vfoptions.lowmemory==2
-        error('lowmemory=2 not supported in QH+ExpAssetz _raw (no e dim to nest); use _e_raw variant')
     end
 end
 
@@ -381,8 +377,6 @@ for reverse_j=1:N_j-1
             inUpperStrict=(maxindexL2a1>=n2short+3) & (maxindexL2a1<=n2long-1);
             PolicyL2flag(1,:,z_c,jj)=2 + (inLowerStrict & (ReturnMatrix_ii_z(linidx_lower)==-Inf)) - (inUpperStrict & (ReturnMatrix_ii_z(linidx_upper)==-Inf));
         end
-    elseif vfoptions.lowmemory==2
-        error('lowmemory=2 not supported in QH+ExpAssetz _raw (no e dim to nest); use _e_raw variant')
     end
 end
 

@@ -18,11 +18,11 @@ if vfoptions.lowmemory==0
     midpoints_jj=zeros(N_d,1,N_a,N_z,N_e,'gpuArray');
 elseif vfoptions.lowmemory==1
     midpoints_jj=zeros(N_d,1,N_a,N_z,'gpuArray');
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 elseif vfoptions.lowmemory==2
     midpoints_jj=zeros(N_d,1,N_a,'gpuArray');
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
-    special_n_e=ones(1,length(n_e),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
+    special_n_e=ones(1,length(n_e),vfoptions.precision,'gpuArray');
 end
 
 aind=gpuArray(0:1:N_a-1);
@@ -40,7 +40,7 @@ n2aprime=length(aprime_grid);
 pi_e_J=shiftdim(pi_e_J,-2);
 
 %% j=N_j (terminal period)
-ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j, vfoptions.precision);
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0
@@ -175,7 +175,7 @@ else
     beta0=CreateVectorFromParams(Parameters,{vfoptions.QHadditionaldiscount},N_j,vfoptions.precision);
     beta0beta=beta0*beta;
 
-    EV=sum(reshape(vfoptions.V_Jplus1,[N_a,N_z,N_e]).*pi_e_J(1,1,:,N_j),3);
+    EV=sum(reshape(vfoptions.V_Jplus1,[N_a,N_z,N_e]).*pi_e_J(1,1,:,N_j+1),3);
     EV=EV.*shiftdim(pi_z_J(:,:,N_j)',-1);
     EV(isnan(EV))=0;
     EV=sum(EV,2);   % N_a-by-1-by-N_z
@@ -357,7 +357,7 @@ for reverse_j=1:N_j-1
     beta0beta=beta0*beta;
 
     EVsource=Vunderbar(:,:,:,jj+1);
-    EV=sum(EVsource.*pi_e_J(1,1,:,jj),3);
+    EV=sum(EVsource.*pi_e_J(1,1,:,jj+1),3);
     EV=EV.*shiftdim(pi_z_J(:,:,jj)',-1);
     EV(isnan(EV))=0;
     EV=sum(EV,2);   % N_a-by-1-by-N_z

@@ -74,7 +74,7 @@ Policy=reshape(Policy,[size(Policy,1),N_a,N_ze,N_j]);
 % Policy is currently about d and a1prime. Convert it to being about aprime
 % as that is what we need for simulation, and we can then just send it to standard Case1 commands.
 Policy_aprime=zeros(N_a,N_ze,2,N_j,'gpuArray'); % the lower grid point
-PolicyProbs=zeros(N_a,N_ze,2,N_j,simoptions.precision,'gpuArray'); % The fourth dimension is lower/upper grid point
+PolicyProbs=zeros(N_a,N_ze,2,N_j,simoptions.precision,'gpuArray'); % The third dimension is lower/upper grid point
 whichisdforexpasset=length(n_d)-simoptions.l_dexperienceasset+1:length(n_d);  % is just saying which is the decision variable that influences the experience asset (it is the 'last' decision variable)
 for jj=1:N_j
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj,simoptions.precision);
@@ -111,11 +111,11 @@ end
 if simoptions.gridinterplayer==0
     % Note: N_z=0 && N_e=0 is a different code
     if N_e==0 % just z
-        StationaryDist=StationaryDist_FHorz_Iteration_nProbs_raw(jequaloneDist,AgeWeightParamNames,Policy_aprime,PolicyProbs,2,N_a,N_z,N_j,pi_z_J,Parameters);
+        StationaryDist=StationaryDist_FHorz_Iteration_nProbs_raw(jequaloneDist,AgeWeightParamNames,Policy_aprime,PolicyProbs,2,n_a1,n_a2,N_z,N_j,pi_z_J,Parameters,simoptions);
     elseif N_z==0 % just e
-        StationaryDist=StationaryDist_FHorz_Iteration_nProbs_noz_e_raw(jequaloneDist,AgeWeightParamNames,Policy_aprime,PolicyProbs,2,N_a,N_e,N_j,simoptions.pi_e_J,Parameters);
+        StationaryDist=StationaryDist_FHorz_Iteration_nProbs_noz_e_raw(jequaloneDist,AgeWeightParamNames,Policy_aprime,PolicyProbs,2,n_a1,n_a2,N_e,N_j,simoptions.pi_e_J,Parameters,simoptions);
     else % both z and e
-        StationaryDist=StationaryDist_FHorz_Iteration_nProbs_e_raw(jequaloneDist,AgeWeightParamNames,Policy_aprime,PolicyProbs,2,N_a,N_z,N_e,N_j,pi_z_J,simoptions.pi_e_J,Parameters);
+        StationaryDist=StationaryDist_FHorz_Iteration_nProbs_e_raw(jequaloneDist,AgeWeightParamNames,Policy_aprime,PolicyProbs,2,n_a1,n_a2,N_z,N_e,N_j,pi_z_J,simoptions.pi_e_J,Parameters,simoptions);
     end
 elseif simoptions.gridinterplayer==1
     % (a,z,2,j)
@@ -130,11 +130,11 @@ elseif simoptions.gridinterplayer==1
 
     % Note: N_z=0 && N_e=0 is a different code
     if N_e==0 % just z
-        StationaryDist=StationaryDist_FHorz_Iteration_nProbs_raw(jequaloneDist,AgeWeightParamNames,Policy_aprime,PolicyProbs,4,N_a,N_z,N_j,pi_z_J,Parameters);
+        StationaryDist=StationaryDist_FHorz_Iteration_nProbs_raw(jequaloneDist,AgeWeightParamNames,Policy_aprime,PolicyProbs,4,n_a1,n_a2,N_z,N_j,pi_z_J,Parameters,simoptions);
     elseif N_z==0 % just e
-        StationaryDist=StationaryDist_FHorz_Iteration_nProbs_noz_e_raw(jequaloneDist,AgeWeightParamNames,Policy_aprime,PolicyProbs,4,N_a,N_e,N_j,simoptions.pi_e_J,Parameters);
+        StationaryDist=StationaryDist_FHorz_Iteration_nProbs_noz_e_raw(jequaloneDist,AgeWeightParamNames,Policy_aprime,PolicyProbs,4,n_a1,n_a2,N_e,N_j,simoptions.pi_e_J,Parameters,simoptions);
     else % both z and e
-        StationaryDist=StationaryDist_FHorz_Iteration_nProbs_e_raw(jequaloneDist,AgeWeightParamNames,Policy_aprime,PolicyProbs,4,N_a,N_z,N_e,N_j,pi_z_J,simoptions.pi_e_J,Parameters);
+        StationaryDist=StationaryDist_FHorz_Iteration_nProbs_e_raw(jequaloneDist,AgeWeightParamNames,Policy_aprime,PolicyProbs,4,n_a1,n_a2,N_z,N_e,N_j,pi_z_J,simoptions.pi_e_J,Parameters,simoptions);
     end
 end
 

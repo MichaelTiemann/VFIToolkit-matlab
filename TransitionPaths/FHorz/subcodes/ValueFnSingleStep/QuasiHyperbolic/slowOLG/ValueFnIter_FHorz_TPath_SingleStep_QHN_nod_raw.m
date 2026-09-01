@@ -8,7 +8,7 @@ Policyalt=zeros(N_a,N_z,N_j,'gpuArray'); % exponential discounter optimal choice
 Vtilde=zeros(N_a,N_z,N_j,vfoptions.precision,'gpuArray'); % agent's-perspective value at QH-optimal policy under beta0beta
 
 if vfoptions.lowmemory==1
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
 elseif vfoptions.lowmemory>=2
     error('vfoptions.lowmemory=K not supported for ValueFnIter_FHorz_TPath_SingleStep_QHN_nod_raw')
 end

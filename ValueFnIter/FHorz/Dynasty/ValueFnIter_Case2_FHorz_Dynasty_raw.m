@@ -15,16 +15,16 @@ eval('fieldexists_ExogShockFn=1;vfoptions.ExogShockFn;','fieldexists_ExogShockFn
 eval('fieldexists_ExogShockFnParamNames=1;vfoptions.ExogShockFnParamNames;','fieldexists_ExogShockFnParamNames=0;')
 
 if vfoptions.lowmemory>0
-    special_n_z=ones(1,length(n_z),vfoptions.precision);
+    special_n_z=ones(1,length(n_z),vfoptions.precision,'gpuArray');
     z_gridvals=CreateGridvals(n_z,z_grid,1);
 end
 if vfoptions.lowmemory>1
-    special_n_a=ones(1,length(n_a));
+    special_n_a=ones(1,length(n_a),vfoptions.precision,'gpuArray');
     a_gridvals=CreateGridvals(n_a,a_grid,1);
 end
 
 %%
-Vold=zeros(N_a,N_z,N_j);
+Vold=zeros(N_a,N_z,N_j,vfoptions.precision);
 tempcounter=1;
 currdist=Inf;
 while currdist>vfoptions.tolerance
@@ -32,7 +32,7 @@ while currdist>vfoptions.tolerance
 
 
     if Case2_Type==1 % phi_a'(d,a,z,z')
-        PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames);
+        PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames, vfoptions.precision);
         Phi_aprimeMatrix=CreatePhiaprimeMatrix_Case2_Disc_Par2(Phi_aprime, Case2_Type, n_d, n_a, n_z, d_grid, a_grid, z_grid,PhiaprimeParamsVec);
 
         for reverse_j=0:N_j-1
@@ -142,7 +142,7 @@ while currdist>vfoptions.tolerance
 
     if Case2_Type==3  % phi_a'(d,z')
         if vfoptions.phiaprimedependsonage==0
-            PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames);
+            PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames, vfoptions.precision);
             Phi_aprimeMatrix=CreatePhiaprimeMatrix_Case2_Disc_Par2(Phi_aprime, Case2_Type, n_d, n_a, n_z, d_grid, a_grid, z_grid,PhiaprimeParamsVec);
             for reverse_j=0:N_j-1
                 jj=N_j-reverse_j;
@@ -264,7 +264,7 @@ while currdist>vfoptions.tolerance
     end
 
     if Case2_Type==4  % phi_a'(d,a)
-        PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames);
+        PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames, vfoptions.precision);
         Phi_aprimeMatrix=CreatePhiaprimeMatrix_Case2_Disc_Par2(Phi_aprime, Case2_Type, n_d, n_a, n_z, d_grid, a_grid, z_grid,PhiaprimeParamsVec);
         aaa=kron(pi_z,ones(N_d,1,'gpuArray'));
 
@@ -325,7 +325,7 @@ while currdist>vfoptions.tolerance
                 Phi_aprimeMatrix_e=Phi_aprime;
             elseif vfoptions.phiaprimematrix==2
                 disp('ERROR: COMBINATION OF Case2_Type==5 and vfoptions.phiaprimematrix==2 HAS NOT BEEN IMPLEMENTED')
-                PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames);
+                PhiaprimeParamsVec=CreateVectorFromParams(Parameters, PhiaprimeParamNames, vfoptions.precision);
                 %     Phi_aprimeMatrix=CreatePhiaprimeMatrix_Case2_Disc_Par2(Phi_aprime, Case2_Type, n_d, n_a, n_z,d_grid, a_grid, z_grid,PhiaprimeParamsVec);
                 Phi_aprimeMatrix_e=CreatePhiaprimeMatrix_Case2_Disc_Par2_e(Phi_aprime, Case2_Type, n_d, n_a, n_z,d_grid, a_grid,e_grid, z_grid, PhiaprimeParamsVec);
             end
