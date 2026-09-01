@@ -6,6 +6,9 @@ function Policy=UnKronPolicyIndexes_FHorz_noz_CPU(PolicyKron, n_d,n_a, N_j)
 
 N_a=prod(n_a);
 
+l_aprime=length(n_a);
+n_aprime=n_a;
+
 % On CPU
 if n_d(1)==0
     Policy=zeros(l_aprime,N_a,N_j,like=PolicyKron);
