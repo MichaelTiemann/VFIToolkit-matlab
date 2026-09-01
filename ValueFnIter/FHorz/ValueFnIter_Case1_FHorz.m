@@ -417,6 +417,15 @@ end
 
 %% Residual asset (exoticpreferences='None'; no exotic preference supports residualasset)
 if vfoptions.residualasset==1
+    % Note: this block returns before divideandconquer and gridinterplayer are ever consulted, so
+    % they have to be caught here. Silently ignoring them (the previous behaviour) handed the user
+    % a brute-force solve while they believed they had asked for DC or GI.
+    if vfoptions.divideandconquer==1
+        error('divide-and-conquer is not yet implemented for residual assets (only the base solver exists)')
+    end
+    if vfoptions.gridinterplayer==1
+        error('grid interpolation layer is not yet implemented for residual assets (only the base solver exists)')
+    end
     % The split itself is done in SetupNonStandardEndoStates_FHorz (called above); unpack it here.
     n_a1=vfoptions.n_a1;
     n_r=vfoptions.n_r;

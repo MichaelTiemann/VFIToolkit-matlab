@@ -122,4 +122,11 @@ else % N_z>0
     V=reshape(VKron,[n_a,n_z]);
 end
 
+if currdist>vfoptions.tolerance
+    warning(['ValueFnFromPolicy_InfHorz_GI: the policy-evaluation fixed point stopped on reaching ', ...
+             'the maximum number of iterations, not on convergence (set by vfoptions.maxiter). ', ...
+             'The returned V is not the value of the given Policy. ', ...
+             'Last currdist = %.16g; tolerance = %.16g.'], currdist, vfoptions.tolerance)
+end
+
 end

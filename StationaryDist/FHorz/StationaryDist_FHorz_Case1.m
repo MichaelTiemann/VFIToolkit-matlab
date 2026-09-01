@@ -82,6 +82,8 @@ else
         error('When using any kind of experience asset you must set simoptions.d_grid')
     elseif simoptions.riskyasset==1
         error('When using a risky asset you must set simoptions.d_grid')
+    elseif simoptions.residualasset>=1 && n_d(1)>0
+        error('When using a residual asset you must set simoptions.d_grid')
     end
     if isfield(simoptions,'a_grid')
         simoptions.a_grid=gpuArray(simoptions.a_grid);
@@ -94,6 +96,12 @@ else
         error('When using experienceassetz you must set simoptions.z_grid')
     elseif simoptions.experienceassetze>=1
         error('When using experienceassetze you must set simoptions.z_grid')
+    elseif simoptions.residualasset>=1
+        if n_z(1)>0
+            error('When using a residual asset you must set simoptions.z_grid')
+        else
+            z_gridvals_J=[];
+        end
     end
 end
 
@@ -288,7 +296,7 @@ if simoptions.riskyasset==1
     end
 end
 if simoptions.residualasset==1
-    StationaryDist=StationaryDist_FHorz_ResidAsset(jequaloneDist,AgeWeightParamNames,Policy,n_d,n_a,n_z,N_j,pi_z_J,Parameters,simoptions);
+    StationaryDist=StationaryDist_FHorz_ResidAsset(jequaloneDist,AgeWeightParamNames,Policy,n_d,n_a,n_z,N_j,z_gridvals_J,pi_z_J,Parameters,simoptions);
     return
 end
 

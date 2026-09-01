@@ -95,9 +95,10 @@ if ~isfield(options,'GEptype') % For models without permanent type
     % Is same as order of PriceParamNames
     % I do this by just reordering rows of options.GEnewprice3.howtoupdate
     temp=options.GEnewprice3.howtoupdate;
+    rowfound=zeros(length(PriceParamNames),1);
     for pp=1:length(PriceParamNames)
         for jj=1:size(temp,1)
-            if strcmp(temp{jj,1},PriceParamNames{pp}) % Names match
+            if strcmp(temp{jj,2},PriceParamNames{pp}) % Names match: column 2 of howtoupdate is the price name, as in the GEptype branch below
                 options.GEnewprice3.howtoupdate{pp,1}=temp{jj,1}; % general eqm eqn name
                 options.GEnewprice3.howtoupdate{pp,2}=temp{jj,2}; % general eqm price name
                 options.GEnewprice3.howtoupdate{pp,3}=temp{jj,3}; % add(/subtract)
@@ -105,8 +106,12 @@ if ~isfield(options,'GEptype') % For models without permanent type
                 options.GEnewprice3.howtoupdate{pp,5}=temp{jj,5}; % f_add
                 options.GEnewprice3.howtoupdate{pp,6}=temp{jj,6}; % t1_add
                 options.GEnewprice3.howtoupdate{pp,7}=temp{jj,7}; % t2_add
+                rowfound(pp)=1;
             end
         end
+    end
+    if any(rowfound==0)
+        error('options.GEnewprice3.howtoupdate: no row gives an update rule for the price %s',PriceParamNames{find(rowfound==0,1)})
     end
 
     options.GEnewprice3.add=[options.GEnewprice3.howtoupdate{:,3}];

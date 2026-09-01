@@ -1,4 +1,11 @@
-function V=ValueFnFromPolicy_InfHorz(Policy,n_d,n_a,n_z,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions)
+function varargout=ValueFnFromPolicy_InfHorz(Policy,n_d,n_a,n_z,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions)
+% Typically, varargout={V}.
+% Under quasi-hyperbolic discounting it is varargout={V,Valt}; see
+% ValueFnFromPolicy_InfHorz_QuasiHyperbolic for what the two mean in the Naive and
+% Sophisticated cases. Declared as varargout (rather than a fixed output list) so that a
+% two-output call is legal, matching ValueFnFromPolicy_FHorz: MATLAB checks the requested
+% output count against the declared list before any line of the body runs, so a fixed
+% 'function V=' would reject [V,Valt]=... before the dispatch below could ever be reached.
 
 if ~exist('vfoptions','var')
     vfoptions.gridinterplayer=0;
@@ -18,15 +25,27 @@ else
     if ~isfield(vfoptions,'maxiter')
         vfoptions.maxiter=10^4; % Can be used to stop the VFI after a finite number of iterations
     end
-    if isfield(vfoptions,'exoticpreferences')
-        error('ValueFnFromPolicy_InfHorz() does not yet work with exotic preferences. Please ask on forum if you want/need this feature. \n');
-    end
     % divide-and-conquer is not relevant for ValueFnFromPolicy
+end
+
+%% Dispatch to QuasiHyperbolic subfn if exoticpreferences=='QuasiHyperbolic'
+% This sits BEFORE the grid-interpolation hand-off, matching ValueFnFromPolicy_FHorz, where the
+% quasi-hyperbolic dispatch likewise precedes every other dispatch. The subfn handles
+% gridinterplayer itself; sending grid-interpolation models to ValueFnFromPolicy_InfHorz_GI first
+% would strand them in a command that knows nothing about quasi-hyperbolic discounting.
+if isfield(vfoptions,'exoticpreferences') && strcmp(vfoptions.exoticpreferences,'QuasiHyperbolic')
+    [V,Valt]=ValueFnFromPolicy_InfHorz_QuasiHyperbolic(Policy,n_d,n_a,n_z,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    varargout={V,Valt};
+    return
+end
+if isfield(vfoptions,'exoticpreferences') && ~strcmp(vfoptions.exoticpreferences,'None')
+    error('ValueFnFromPolicy_InfHorz() does not yet work with this exotic preference type (QuasiHyperbolic is implemented; the others are not). Please ask on forum if you want/need this feature.')
 end
 
 %% Grid interpolation layer is handled by its own command
 if vfoptions.gridinterplayer==1
     V=ValueFnFromPolicy_InfHorz_GI(Policy,n_d,n_a,n_z,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    varargout={V};
     return
 end
 
@@ -115,5 +134,14 @@ else % N_z>0
 
     V=reshape(VKron,[n_a,n_z]);
 end
+
+if currdist>vfoptions.tolerance
+    warning(['ValueFnFromPolicy_InfHorz: the policy-evaluation fixed point stopped on reaching ', ...
+             'the maximum number of iterations, not on convergence (set by vfoptions.maxiter). ', ...
+             'The returned V is not the value of the given Policy. ', ...
+             'Last currdist = %.16g; tolerance = %.16g.'], currdist, vfoptions.tolerance)
+end
+
+varargout={V};
 
 end
