@@ -38,6 +38,20 @@ end
 
 if ~isfield(vfoptions,'QHadditionaldiscount')
     error('You must declare vfoptions.QHadditionaldiscount when using quasi-hyperbolic discouting (you have vfoptions.exoticpreferences set to QuasiHyperbolic)')
+elseif ~ischar(vfoptions.QHadditionaldiscount)
+    error('vfoptions.QHadditionaldiscount must be the name of the additional discount parameter, given as a character vector such as ''beta0''')
+end
+
+% Reject asset types this dispatcher does not handle: every asset type it does handle is
+% dispatched below and returns, so an unsupported flag would otherwise be silently ignored.
+if vfoptions.riskyasset==1
+    error('Quasi-hyperbolic discounting is not implemented for riskyasset')
+end
+if vfoptions.residualasset==1
+    error('Quasi-hyperbolic discounting is not implemented for residualasset')
+end
+if vfoptions.dynasty==1
+    error('Quasi-hyperbolic discounting is not implemented for dynasty')
 end
 
 % Read the additional discount factor once here, and pass the value (not the parameter name) down to the raws.

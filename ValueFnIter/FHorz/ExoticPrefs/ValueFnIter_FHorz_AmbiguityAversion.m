@@ -33,6 +33,21 @@ if isfield(vfoptions,'n_semiz')
     end
 end
 
+% Reject asset types this dispatcher does not handle: every asset type it does handle is
+% dispatched below and returns, so an unsupported flag would otherwise be silently ignored.
+if vfoptions.experienceasset>=1 || vfoptions.experienceassetu>=1 || vfoptions.experienceassetz>=1 || vfoptions.experienceassete>=1 || vfoptions.experienceassetze>=1 || vfoptions.experienceassetsemiz>=1
+    error('AmbiguityAversion preferences are not implemented for the experience assets (only for the standard endogenous states)')
+end
+if vfoptions.riskyasset==1
+    error('AmbiguityAversion preferences are not implemented for riskyasset (only for the standard endogenous states)')
+end
+if vfoptions.residualasset==1
+    error('AmbiguityAversion preferences are not implemented for residualasset')
+end
+if vfoptions.dynasty==1
+    error('AmbiguityAversion preferences are not implemented for dynasty')
+end
+
 %% Dispatch on divide-and-conquer/grid-interpolation-layer (level 2)
 if vfoptions.divideandconquer==1 && vfoptions.gridinterplayer==1
     [V,Policy]=ValueFnIter_FHorz_AmbAverse_DC_GI(n_ambiguity, n_d, n_a, n_z, N_j, d_gridvals, a_grid, z_gridvals_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);

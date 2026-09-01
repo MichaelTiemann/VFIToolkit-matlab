@@ -255,49 +255,14 @@ end
 % Does nothing when none of them is in use. The splits are unpacked from vfoptions at the point of use below.
 vfoptions=SetupNonStandardEndoStates_FHorz(n_d,n_a,d_grid,a_grid,vfoptions);
 
-%% Check the exotic-preference inputs, and reject preference/asset combinations that are not implemented
-% Every branch of the exotic-preferences dispatch below returns, and the residualasset, dynasty and
-% StateDependentVariables_z blocks sit after it. So without these checks an unsupported flag is
-% silently ignored: the user gets their preferences applied to a model without the asset they asked for.
-if strcmp(vfoptions.exoticpreferences,'QuasiHyperbolic')
-    % (the experienceasset variants of quasi-hyperbolic are dispatched below and never check this themselves)
-    if ~isfield(vfoptions,'QHadditionaldiscount')
-        error('You must declare vfoptions.QHadditionaldiscount when using quasi-hyperbolic discouting (you have vfoptions.exoticpreferences set to QuasiHyperbolic)')
-    elseif ~ischar(vfoptions.QHadditionaldiscount)
-        error('vfoptions.QHadditionaldiscount must be the name of the additional discount parameter, given as a character vector such as ''beta0''')
-    end
-    if vfoptions.riskyasset==1
-        error('Quasi-hyperbolic discounting is not implemented for riskyasset')
-    end
-elseif strcmp(vfoptions.exoticpreferences,'EpsteinZin')
-    if vfoptions.experienceasset>=1 || vfoptions.experienceassetu>=1 || vfoptions.experienceassetz>=1 || vfoptions.experienceassete>=1 || vfoptions.experienceassetze>=1 || vfoptions.experienceassetsemiz>=1
-        error('Epstein-Zin preferences are not implemented for the experience assets (only for riskyasset, or for the standard endogenous states)')
-    end
-elseif strcmp(vfoptions.exoticpreferences,'GulPesendorfer') || strcmp(vfoptions.exoticpreferences,'AmbiguityAversion')
-    if vfoptions.experienceasset>=1 || vfoptions.experienceassetu>=1 || vfoptions.experienceassetz>=1 || vfoptions.experienceassete>=1 || vfoptions.experienceassetze>=1 || vfoptions.experienceassetsemiz>=1
-        error(['',vfoptions.exoticpreferences,' preferences are not implemented for the experience assets (only for the standard endogenous states)'])
-    end
-    if vfoptions.riskyasset==1
-        error(['',vfoptions.exoticpreferences,' preferences are not implemented for riskyasset (only for the standard endogenous states)'])
-    end
-end
-if ~strcmp(vfoptions.exoticpreferences,'None')
-    % residualasset, dynasty and StateDependentVariables_z are all dispatched after the exotic-preferences
-    % block returns, so none of them compose with any exotic preference.
-    if vfoptions.residualasset==1
-        error(['exoticpreferences=',vfoptions.exoticpreferences,' is not implemented for residualasset'])
-    end
-    if vfoptions.dynasty==1
-        error(['exoticpreferences=',vfoptions.exoticpreferences,' is not implemented for dynasty'])
-    end
-    if isfield(vfoptions,'StateDependentVariables_z')==1
-        error(['exoticpreferences=',vfoptions.exoticpreferences,' is not implemented for vfoptions.StateDependentVariables_z'])
-    end
-end
-
 %% Top-level dispatch: on the preferences
 % Each exotic preference has a single dispatcher, which handles every asset type it supports and
 % returns. Everything after this block is therefore the exoticpreferences='None' path.
+% First a whitelist check on the string: an unrecognized name would otherwise fall through the
+% whole dispatch and silently solve the standard (exponential discounting) problem.
+if ~any(strcmp(vfoptions.exoticpreferences,{'None','QuasiHyperbolic','EpsteinZin','GulPesendorfer','AmbiguityAversion'}))
+    error(['vfoptions.exoticpreferences=',vfoptions.exoticpreferences,' is not a recognized option (must be one of None, QuasiHyperbolic, EpsteinZin, GulPesendorfer, AmbiguityAversion; check spelling and capital letters)'])
+end
 if strcmp(vfoptions.exoticpreferences,'None')
     % Nothing to dispatch on: fall through to the asset-type blocks below.
 elseif strcmp(vfoptions.exoticpreferences,'QuasiHyperbolic')

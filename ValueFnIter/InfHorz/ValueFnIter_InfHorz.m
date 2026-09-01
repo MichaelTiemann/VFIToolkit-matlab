@@ -331,6 +331,19 @@ elseif vfoptions.endogenousexit==2 % Mixture of endogenous and exogenous exit.
     return
 end
 
+%% Whitelist check on the exoticpreferences string: an unrecognized name would otherwise fall
+% through the whole exotic-preferences dispatch below and silently solve the standard
+% (exponential discounting) problem.
+if isfield(vfoptions,'exoticpreferences')
+    if isnumeric(vfoptions.exoticpreferences) % legacy numeric options: 0 is standard preferences, 3 is discount factor depending on (next period) exogenous state
+        if ~isscalar(vfoptions.exoticpreferences) || ~any(vfoptions.exoticpreferences==[0,3])
+            error('vfoptions.exoticpreferences is not a recognized option (must be one of None, QuasiHyperbolic, EpsteinZin; or the legacy numeric 0 or 3)')
+        end
+    elseif ~any(strcmp(vfoptions.exoticpreferences,{'None','QuasiHyperbolic','EpsteinZin'}))
+        error(['vfoptions.exoticpreferences=',char(vfoptions.exoticpreferences),' is not a recognized option (must be one of None, QuasiHyperbolic, EpsteinZin; check spelling and capital letters)'])
+    end
+end
+
 %% Create a vector containing all the return function parameters (in order)
 ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames);
 if isfield(vfoptions,'exoticpreferences')

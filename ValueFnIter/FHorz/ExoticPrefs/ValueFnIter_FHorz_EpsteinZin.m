@@ -8,6 +8,18 @@ N_d=prod(n_d);
 N_z=prod(n_z);
 N_e=prod(vfoptions.n_e);
 
+% Reject asset types this dispatcher does not handle: every asset type it does handle is
+% dispatched below and returns, so an unsupported flag would otherwise be silently ignored.
+if vfoptions.experienceasset>=1 || vfoptions.experienceassetu>=1 || vfoptions.experienceassetz>=1 || vfoptions.experienceassete>=1 || vfoptions.experienceassetze>=1 || vfoptions.experienceassetsemiz>=1
+    error('Epstein-Zin preferences are not implemented for the experience assets (only for riskyasset, or for the standard endogenous states)')
+end
+if vfoptions.residualasset==1
+    error('Epstein-Zin preferences are not implemented for residualasset')
+end
+if vfoptions.dynasty==1
+    error('Epstein-Zin preferences are not implemented for dynasty')
+end
+
 %% Some Epstein-Zin specific options need to be set if they are not already declared
 if ~isfield(vfoptions,'EZriskaversion')
     error('When using Epstein-Zin preferences you must declare vfoptions.EZriskaversion (coefficient controlling risk aversion)')
