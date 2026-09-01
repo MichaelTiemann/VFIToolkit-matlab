@@ -73,6 +73,19 @@ if isempty(n_z)
     error('If you have no z (exogenous markov) variables, set n_z=0 (not n_z=[])')
 end
 
+%% Ambiguity aversion: multiple priors over the transition probabilities
+% The priors are sorted out in a subfn: each prior's pi is run back through ExogShockSetup_FHorz
+% (so every accepted pi shape and every timing/trim convention applies to the priors
+% identically), as are the grids and the regular pi_z/pi_e. Only the value fn call (gridpiboth=3,
+% and only vfoptions carries exoticpreferences) takes this branch; the agent-dist/FnsToEvaluate
+% calls proceed as normal.
+if isfield(options,'exoticpreferences')
+    if strcmp(options.exoticpreferences,'AmbiguityAversion') && gridpiboth==3
+        [z_gridvals_J,pi_z_J,options]=ExogShockSetup_FHorz_AmbiguityAversion(n_z,z_grid,pi_z,N_j,Parameters,options);
+        return
+    end
+end
+
 if ~isfield(options,'n_e')
     n_e=0;
 else

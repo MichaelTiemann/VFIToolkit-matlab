@@ -78,6 +78,17 @@ if isfield(vfoptions,'exoticpreferences') && strcmp(vfoptions.exoticpreferences,
     return
 end
 
+%% Dispatch to AmbiguityAversion subfn if exoticpreferences=='AmbiguityAversion'
+% The ExogShockSetup_FHorz call above already ran its AmbiguityAversion branch, so vfoptions
+% holds the processed priors (ambiguity_pi_z_J/ambiguity_pi_e_J, n_ambiguity as [1,N_j]); the
+% subfn gets z_gridvals_J and vfoptions rather than re-running the setup. It handles
+% gridinterplayer itself (hence dispatched before the GI subfn below).
+if isfield(vfoptions,'exoticpreferences') && strcmp(vfoptions.exoticpreferences,'AmbiguityAversion')
+    V=ValueFnFromPolicy_FHorz_AmbiguityAversion(Policy,n_d,n_a,n_z,N_j,d_grid,a_grid,z_gridvals_J, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    varargout={V};
+    return
+end
+
 %% Dispatch to ExpAsset subfn if experienceasset==1
 if vfoptions.experienceasset>=1
     V=ValueFnFromPolicy_FHorz_ExpAsset(Policy,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);

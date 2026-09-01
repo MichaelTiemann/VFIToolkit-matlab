@@ -100,7 +100,7 @@ The function reads the following fields from `vfoptions`. All are optional unles
 | `incrementaltype` | `0` | Vector flagging endogenous states that are incremental (`aprime` either equals `a` or is one grid point higher). Any non-zero element triggers the `Increment` solver. |
 | **Alternative model setup** | | |
 | `exoticpreferences` | `'None'` | One of `'None'`, `'QuasiHyperbolic'`, `'EpsteinZin'`, `'GulPesendorfer'`, `'AmbiguityAversion'`. Selects the corresponding solver branch. |
-| `n_ambiguity` | `0` | Grid size for ambiguity dimension (used with the `AmbiguityAversion` branch). |
+| `n_ambiguity` | `0` | Number of multiple priors for the `AmbiguityAversion` branch; scalar or age-dependent `[1,N_j]` vector. The priors themselves go in `ambiguity_pi_z`/`ambiguity_pi_e` (or their `_J` forms); ambiguity is over the transition probabilities only -- every prior shares the model shock grid. The regular `pi_z`/`pi_e` are used for the agent distribution etc., and a warning is thrown if they are not one of the priors. |
 | `WarmGlowBequestsFn` | (no default) | Function handle for warm-glow-of-bequests term. Only used by Epstein–Zin preferences. Inputs begin with `aprime`. |
 | `dynasty` | `0` | If `1`, solve a dynasty (overlapping-generations-style) problem; sets `tolerance` default if not provided. |
 | `tolerance` | `10^(-9)` | Only used by `dynasty`. Convergence tolerance. |
