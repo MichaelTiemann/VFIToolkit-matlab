@@ -9,8 +9,8 @@ if exist('simoptions','var')==0
     simoptions.experienceassetu=0;
     simoptions.experienceassete=0;
     simoptions.experienceassetz=0;
-    simoptions.experienceassetsemiz=0;
     simoptions.experienceassetze=0;
+    simoptions.experienceassetsemiz=0;
     simoptions.riskyasset=0;
     simoptions.residualasset=0;
     % Exogenous shocks
