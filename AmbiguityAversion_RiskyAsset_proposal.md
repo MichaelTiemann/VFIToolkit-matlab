@@ -39,8 +39,11 @@ donor's max-at-coarse-then-interp and would break T1's bit-exact oracle. The a2 
 riskyasset analog of the standard family's aprime interpolation) IS per-prior, honoring the
 ruling where it binds. FromPolicy GI reworked to per-corner min pipelines (component-tracked)
 mirroring the raws. GPU run 4 (2026-09-02): FULLY GREEN — 208/240 exact zeros, all 32 nonzeros
-at or below 1.8e-14 in the documented benign ULP classes, no errors. COMPLETE, awaiting commit
-(toolkit wave + bank together).**
+at or below 1.8e-14 in the documented benign ULP classes, no errors. COMPLETE, committed
+(toolkit 4db3a1e0, bank 99861b2). Follow-up 2026-09-02: the 20 lowmemory checks in the four
+noz+noe subcodes were removed as vacuous (zero shocks means lowmemory is silently discarded —
+no zero-shock raw mentions it — so each check compared a solve to itself); bank is now 220
+checks.**
 
 Extends AmbiguityAversion (complete for the standard endogenous states,
 `09cceeeb`) to the riskyasset family — and with it, ambiguity over the risky return
