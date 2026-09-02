@@ -1,0 +1,558 @@
+function [V,Policy]=ValueFnIter_FHorz_GulPesendorfer_DC2A_GI2A_nod_noz_e_raw(n_a, n_e, N_j, a_grid, e_gridvals_J, pi_e_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions)
+% Gul-Pesendorfer with divide-and-conquer plus the grid interpolation layer, two endogenous
+% states: DC and interpolation both act on a1 only, a2prime is fully scanned. The DC pass runs
+% on the tempted objective u+v+beta*EV and produces the midpoints for the GI refinement; the
+% most-tempting term is the max of v over the FINE grid (the choice set under GI), found by
+% its own two-stage scheme: v's coarse a1prime argmax (conditional on a2prime) is computed
+% EXACTLY over the full a1prime grid (full-column temptation matrices one a-slab at a time --
+% never a window max, and no monotonicity assumption on v), then refined on the fine a1prime
+% points around it, taking the max over the joint (a1prime-fine,a2prime) first dim. The
+% most-tempting term is subtracted from V after the max.
+% divide-and-conquer in the first endo state
+% lowmemory: =0 vectorize over e, =1 loop over e
+
+N_a=prod(n_a);
+N_e=prod(n_e);
+
+V=zeros(N_a,N_e,N_j,'gpuArray');
+Policy=zeros(3,N_a,N_e,N_j,'gpuArray'); % first dim is (a1prime midpoint,a2prime,a1prime L2)
+PolicyL2flag=2*ones(1,N_a,N_e,N_j,'gpuArray'); % L2 flag: 1=all to lower, 2=usual, 3=all to upper
+
+%%
+n_a1=n_a(1);
+n_a2=n_a(2:end);
+N_a1=n_a1;
+N_a2=n_a2;
+a1_grid=a_grid(1:N_a1);
+a2_grid=a_grid(N_a1+1:end);
+
+% n-Monotonicity
+level1ii=round(linspace(1,N_a1,vfoptions.level1n));
+% level1iidiff=level1ii(2:end)-level1ii(1:end-1)-1;
+
+% Grid interpolation
+% vfoptions.ngridinterp=9;
+n2short=vfoptions.ngridinterp; % number of (evenly spaced) points to put between each grid point (not counting the two points themselves)
+n2long=vfoptions.ngridinterp*2+3; % total number of aprime points we end up looking at in second layer
+a1prime_grid=interp1(1:1:N_a1,a1_grid,linspace(1,N_a1,N_a1+(N_a1-1)*n2short))';
+N_a1fine=length(a1prime_grid);
+% aprime_grid=[a1prime_grid; a2_grid];
+
+pi_e_J=shiftdim(pi_e_J,-1); % Move to second dimension (normally -2, but no z so -1)
+
+% precompute
+a2ind=gpuArray(0:1:N_a2-1); % already includes -1
+a12ind=repmat(gpuArray(0:1:N_a1-1),1,N_a2)+N_a1*repelem(gpuArray(0:1:N_a2-1),1,N_a1);
+if vfoptions.lowmemory==0
+    midpoints_jj=zeros(1,N_a2,N_a1,N_a2,N_e,'gpuArray');
+    midpointsT_jj=zeros(1,N_a2,N_a1,N_a2,N_e,'gpuArray'); % v's own coarse argmax (for the most-tempting term)
+    eind=shiftdim(gpuArray(0:1:N_e-1),-1); % already includes -1
+elseif vfoptions.lowmemory==1
+    midpoints_jj=zeros(1,N_a2,N_a1,N_a2,'gpuArray');
+    midpointsT_jj=zeros(1,N_a2,N_a1,N_a2,'gpuArray'); % v's own coarse argmax (for the most-tempting term)
+    special_n_e=ones(1,length(n_e),'gpuArray');
+end
+
+%% j=N_j
+
+% Create a vector containing all the return function parameters (in order)
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames, N_j);
+TemptationFnParamsVec=CreateVectorFromParams(Parameters, TemptationFnParamNames, N_j);
+
+if ~isfield(vfoptions,'V_Jplus1')
+    if vfoptions.lowmemory==0
+        % n-Monotonicity
+        ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(ReturnFn, n_e, a1_grid, a2_grid, a1_grid(level1ii), a2_grid, e_gridvals_J(:,:,N_j), ReturnFnParamsVec,1);
+        TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn, n_e, a1_grid, a2_grid, a1_grid(level1ii), a2_grid, e_gridvals_J(:,:,N_j), TemptationFnParamsVec,1);
+
+        %Calc the max and it's index
+        [~,maxindex1]=max(ReturnMatrix_ii+TemptationMatrix_ii,[],1);
+
+        % Just keep the 'midpoint' version of maxindex1 [as GI]
+        midpoints_jj(1,:,level1ii,:,:)=maxindex1;
+
+        % v's own coarse argmax at the level-1 stations (full a1prime grid)
+        [~,maxindexT1]=max(TemptationMatrix_ii,[],1);
+        midpointsT_jj(1,:,level1ii,:,:)=maxindexT1;
+
+        % Attempt for improved version
+        maxgap=squeeze(max(max(max(maxindex1(1,:,2:end,:,:)-maxindex1(1,:,1:end-1,:,:),[],5),[],4),[],2));
+        for ii=1:(vfoptions.level1n-1)
+            curraindex=level1ii(ii)+1:1:level1ii(ii+1)-1;
+            % v's coarse argmax over the FULL a1prime grid for these a1 (never just the window)
+            TemptationMatrix_full=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn, n_e, a1_grid, a2_grid, a1_grid(curraindex), a2_grid, e_gridvals_J(:,:,N_j), TemptationFnParamsVec,1);
+            [~,maxindexT]=max(TemptationMatrix_full,[],1);
+            midpointsT_jj(1,:,curraindex,:,:)=maxindexT;
+            if maxgap(ii)>0
+                loweredge=min(maxindex1(1,:,ii,:,:),N_a1-maxgap(ii)); % maxindex1(ii,:), but avoid going off top of grid when we add maxgap(ii) points
+                % loweredge is 1-by-n_a2-by-1-by-n_a2-by-n_e
+                aprimeindexes=loweredge+(0:1:maxgap(ii))';
+                % aprime possibilities are (maxgap(ii)+1)-n_a2-by-1-by-n_a2-by-n_e
+                ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(ReturnFn, n_e, a1_grid(aprimeindexes), a2_grid, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_grid, e_gridvals_J(:,:,N_j), ReturnFnParamsVec,3);
+                TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn, n_e, a1_grid(aprimeindexes), a2_grid, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_grid, e_gridvals_J(:,:,N_j), TemptationFnParamsVec,3);
+                [~,maxindex]=max(ReturnMatrix_ii+TemptationMatrix_ii,[],1);
+                midpoints_jj(1,:,curraindex,:,:)=maxindex+(loweredge-1);
+            else
+                loweredge=maxindex1(1,:,ii,:,:);
+                midpoints_jj(1,:,curraindex,:,:)=repelem(loweredge,1,1,length(curraindex),1);
+            end
+        end
+
+        % Turn this into the 'midpoint'
+        midpoints_jj=max(min(midpoints_jj,n_a1-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
+        % midpoint is 1-by-n_a2-by-n_a1-by-n_a2-by-n_e
+        a1primeindexes=(midpoints_jj+(midpoints_jj-1)*n2short)+(-n2short-1:1:1+n2short)'; % aprime points either side of midpoint
+        % aprime possibilities are n2long-by-n_a2-by-n_a1-by-n_a2-by-n_e
+        ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(ReturnFn,n_e,a1prime_grid(a1primeindexes),a2_grid,a1_grid,a2_grid, e_gridvals_J(:,:,N_j), ReturnFnParamsVec,2);
+        TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn,n_e,a1prime_grid(a1primeindexes),a2_grid,a1_grid,a2_grid, e_gridvals_J(:,:,N_j), TemptationFnParamsVec,2);
+        Ftemp_ii=ReturnMatrix_ii+TemptationMatrix_ii;
+        [Vtempii,maxindexL2]=max(Ftemp_ii,[],1);
+        maxindexL2a1=rem(maxindexL2-1,n2long)+1;
+        maxindexL2a2=ceil(maxindexL2/n2long);
+        % Most-tempting term: fine refinement of v around v's own coarse argmax
+        midpointsT_jj=max(min(midpointsT_jj,n_a1-1),2);
+        a1primeindexesT=(midpointsT_jj+(midpointsT_jj-1)*n2short)+(-n2short-1:1:1+n2short)';
+        TemptationMatrix_Tii=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn,n_e,a1prime_grid(a1primeindexesT),a2_grid,a1_grid,a2_grid, e_gridvals_J(:,:,N_j), TemptationFnParamsVec,2);
+        MostTempting=max(TemptationMatrix_Tii,[],1);
+        V(:,:,N_j)=shiftdim(Vtempii-MostTempting,1);
+        Policy(1,:,:,N_j)=midpoints_jj(maxindexL2a2+N_a2*a12ind+N_a2*N_a*eind); % a1prime midpoint
+        Policy(2,:,:,N_j)=maxindexL2a2; % a2prime
+        Policy(3,:,:,N_j)=maxindexL2a1; % a1primeL2ind
+
+        % L2 flag to later avoid -Inf ReturnFn (1=all to lower, 2=usual, 3=all to upper)
+        linidx_lower = 1      + n2long*(maxindexL2a2-1) + n2long*N_a2*a12ind + n2long*N_a2*N_a*eind;
+        linidx_upper = n2long + n2long*(maxindexL2a2-1) + n2long*N_a2*a12ind + n2long*N_a2*N_a*eind;
+        isInfLower = (Ftemp_ii(linidx_lower) == -Inf);
+        isInfUpper = (Ftemp_ii(linidx_upper) == -Inf);
+        inLowerStrict = (maxindexL2a1 >= 2)         & (maxindexL2a1 <= n2short+1);
+        inUpperStrict = (maxindexL2a1 >= n2short+3) & (maxindexL2a1 <= n2long-1);
+        PolicyL2flag(1,:,:,N_j) = 2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper);
+
+    elseif vfoptions.lowmemory==1
+        for e_c=1:N_e
+            e_val=e_gridvals_J(e_c,:,N_j);
+
+            % n-Monotonicity
+            ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(ReturnFn, special_n_e, a1_grid, a2_grid, a1_grid(level1ii), a2_grid, e_val, ReturnFnParamsVec,1);
+            TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn, special_n_e, a1_grid, a2_grid, a1_grid(level1ii), a2_grid, e_val, TemptationFnParamsVec,1);
+
+            %Calc the max and it's index
+            [~,maxindex1]=max(ReturnMatrix_ii+TemptationMatrix_ii,[],1);
+
+            % Just keep the 'midpoint' version of maxindex1 [as GI]
+            midpoints_jj(1,:,level1ii,:)=maxindex1;
+
+            % v's own coarse argmax at the level-1 stations (full a1prime grid)
+            [~,maxindexT1]=max(TemptationMatrix_ii,[],1);
+            midpointsT_jj(1,:,level1ii,:)=maxindexT1;
+
+            % Attempt for improved version
+            maxgap=squeeze(max(max(maxindex1(1,:,2:end,:)-maxindex1(1,:,1:end-1,:),[],4),[],2));
+            for ii=1:(vfoptions.level1n-1)
+                curraindex=level1ii(ii)+1:1:level1ii(ii+1)-1;
+                % v's coarse argmax over the FULL a1prime grid for these a1 (never just the window)
+                TemptationMatrix_full=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn, special_n_e, a1_grid, a2_grid, a1_grid(curraindex), a2_grid, e_val, TemptationFnParamsVec,1);
+                [~,maxindexT]=max(TemptationMatrix_full,[],1);
+                midpointsT_jj(1,:,curraindex,:)=maxindexT;
+                if maxgap(ii)>0
+                    loweredge=min(maxindex1(1,:,ii,:),N_a1-maxgap(ii)); % maxindex1(ii,:), but avoid going off top of grid when we add maxgap(ii) points
+                    % loweredge is 1-by-n_a2-by-1-by-n_a2
+                    aprimeindexes=loweredge+(0:1:maxgap(ii))';
+                    % aprime possibilities are (maxgap(ii)+1)-n_a2-by-1-by-n_a2
+                    ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(ReturnFn, special_n_e, a1_grid(aprimeindexes), a2_grid, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_grid, e_val, ReturnFnParamsVec,3);
+                    TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn, special_n_e, a1_grid(aprimeindexes), a2_grid, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_grid, e_val, TemptationFnParamsVec,3);
+                    [~,maxindex]=max(ReturnMatrix_ii+TemptationMatrix_ii,[],1);
+                    midpoints_jj(1,:,curraindex,:)=maxindex+(loweredge-1);
+                else
+                    loweredge=maxindex1(1,:,ii,:);
+                    midpoints_jj(1,:,curraindex,:)=repelem(loweredge,1,1,length(curraindex),1);
+                end
+            end
+
+            % Turn this into the 'midpoint'
+            midpoints_jj=max(min(midpoints_jj,n_a1-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
+            % midpoint is 1-by-n_a2-by-n_a1-by-n_a2
+            a1primeindexes=(midpoints_jj+(midpoints_jj-1)*n2short)+(-n2short-1:1:1+n2short)'; % aprime points either side of midpoint
+            % aprime possibilities are n2long-by-n_a2-by-n_a1-by-n_a2
+            ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(ReturnFn, special_n_e,a1prime_grid(a1primeindexes),a2_grid,a1_grid,a2_grid, e_val, ReturnFnParamsVec,2);
+            TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn, special_n_e,a1prime_grid(a1primeindexes),a2_grid,a1_grid,a2_grid, e_val, TemptationFnParamsVec,2);
+            Ftemp_ii=ReturnMatrix_ii+TemptationMatrix_ii;
+            [Vtempii,maxindexL2]=max(Ftemp_ii,[],1);
+            maxindexL2a1=rem(maxindexL2-1,n2long)+1;
+            maxindexL2a2=ceil(maxindexL2/n2long);
+            % Most-tempting term: fine refinement of v around v's own coarse argmax
+            midpointsT_jj=max(min(midpointsT_jj,n_a1-1),2);
+            a1primeindexesT=(midpointsT_jj+(midpointsT_jj-1)*n2short)+(-n2short-1:1:1+n2short)';
+            TemptationMatrix_Tii=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn, special_n_e,a1prime_grid(a1primeindexesT),a2_grid,a1_grid,a2_grid, e_val, TemptationFnParamsVec,2);
+            MostTempting=max(TemptationMatrix_Tii,[],1);
+            V(:,e_c,N_j)=shiftdim(Vtempii-MostTempting,1);
+            Policy(1,:,e_c,N_j)=midpoints_jj(maxindexL2a2+N_a2*a12ind); % a1prime midpoint
+            Policy(2,:,e_c,N_j)=maxindexL2a2; % a2prime
+            Policy(3,:,e_c,N_j)=maxindexL2a1; % a1primeL2ind
+
+            % L2 flag to later avoid -Inf ReturnFn (1=all to lower, 2=usual, 3=all to upper)
+            linidx_lower = 1      + n2long*(maxindexL2a2-1) + n2long*N_a2*a12ind;
+            linidx_upper = n2long + n2long*(maxindexL2a2-1) + n2long*N_a2*a12ind;
+            isInfLower = (Ftemp_ii(linidx_lower) == -Inf);
+            isInfUpper = (Ftemp_ii(linidx_upper) == -Inf);
+            inLowerStrict = (maxindexL2a1 >= 2)         & (maxindexL2a1 <= n2short+1);
+            inUpperStrict = (maxindexL2a1 >= n2short+3) & (maxindexL2a1 <= n2long-1);
+            PolicyL2flag(1,:,e_c,N_j) = 2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper);
+        end
+    end
+
+else
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+    DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
+
+    EV=sum(reshape(vfoptions.V_Jplus1,[N_a,N_e]).*pi_e_J(1,:,N_j+1),2); % Using V_Jplus1
+
+    DiscountedEV=DiscountFactorParamsVec*reshape(EV,[N_a1,N_a2,1,1]);  % autoexpand (a)
+    % Interpolate EV over aprime_grid
+    DiscountedEVinterp=interp1(a1_grid,DiscountedEV,a1prime_grid);
+
+    if vfoptions.lowmemory==0
+        % n-Monotonicity
+        ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(ReturnFn, n_e, a1_grid, a2_grid, a1_grid(level1ii), a2_grid, e_gridvals_J(:,:,N_j), ReturnFnParamsVec,1);
+        TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn, n_e, a1_grid, a2_grid, a1_grid(level1ii), a2_grid, e_gridvals_J(:,:,N_j), TemptationFnParamsVec,1);
+
+        entireRHS_ii=ReturnMatrix_ii+TemptationMatrix_ii+DiscountedEV;
+
+        %Calc the max and it's index
+        [~,maxindex1]=max(entireRHS_ii,[],1);
+
+        % Just keep the 'midpoint' version of maxindex1 [as GI]
+        midpoints_jj(1,:,level1ii,:,:)=maxindex1;
+
+        % v's own coarse argmax at the level-1 stations (full a1prime grid)
+        [~,maxindexT1]=max(TemptationMatrix_ii,[],1);
+        midpointsT_jj(1,:,level1ii,:,:)=maxindexT1;
+
+        % Attempt for improved version
+        maxgap=squeeze(max(max(max(maxindex1(1,:,2:end,:,:)-maxindex1(1,:,1:end-1,:,:),[],5),[],4),[],2));
+        for ii=1:(vfoptions.level1n-1)
+            curraindex=level1ii(ii)+1:1:level1ii(ii+1)-1;
+            % v's coarse argmax over the FULL a1prime grid for these a1 (never just the window)
+            TemptationMatrix_full=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn, n_e, a1_grid, a2_grid, a1_grid(curraindex), a2_grid, e_gridvals_J(:,:,N_j), TemptationFnParamsVec,1);
+            [~,maxindexT]=max(TemptationMatrix_full,[],1);
+            midpointsT_jj(1,:,curraindex,:,:)=maxindexT;
+            if maxgap(ii)>0
+                loweredge=min(maxindex1(1,:,ii,:,:),N_a1-maxgap(ii)); % maxindex1(ii,:), but avoid going off top of grid when we add maxgap(ii) points
+                % loweredge is 1-by-n_a2-by-1-by-n_a2-by-n_e
+                aprimeindexes=loweredge+(0:1:maxgap(ii))';
+                % aprime possibilities are (maxgap(ii)+1)-n_a2-by-1-by-n_a2-by-n_e
+                ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(ReturnFn, n_e, a1_grid(aprimeindexes), a2_grid, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_grid, e_gridvals_J(:,:,N_j), ReturnFnParamsVec,3);
+                TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn, n_e, a1_grid(aprimeindexes), a2_grid, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_grid, e_gridvals_J(:,:,N_j), TemptationFnParamsVec,3);
+                aprime=aprimeindexes+N_a1*a2ind;
+                entireRHS_ii=ReturnMatrix_ii+TemptationMatrix_ii+DiscountedEV(reshape(aprime,[(maxgap(ii)+1),N_a2,1,N_a2,N_e]));  % autoexpand level1iidiff(ii) in 3rd-dim
+                [~,maxindex]=max(entireRHS_ii,[],1);
+                midpoints_jj(1,:,curraindex,:,:)=maxindex+(loweredge-1);
+            else
+                loweredge=maxindex1(1,:,ii,:,:);
+                midpoints_jj(1,:,curraindex,:,:)=repelem(loweredge,1,1,length(curraindex),1);
+            end
+        end
+
+        % Turn this into the 'midpoint'
+        midpoints_jj=max(min(midpoints_jj,n_a1-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
+        % midpoint is 1-by-n_a2-by-n_a1-by-n_a2-by-n_e
+        a1primeindexes=(midpoints_jj+(midpoints_jj-1)*n2short)+(-n2short-1:1:1+n2short)'; % aprime points either side of midpoint
+        % aprime possibilities are n2long-by-n_a2-by-n_a1-by-n_a2-by-n_e
+        ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(ReturnFn,n_e,a1prime_grid(a1primeindexes),a2_grid, a1_grid, a2_grid,e_gridvals_J(:,:,N_j), ReturnFnParamsVec,2);
+        TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn,n_e,a1prime_grid(a1primeindexes),a2_grid, a1_grid, a2_grid,e_gridvals_J(:,:,N_j), TemptationFnParamsVec,2);
+        Ftemp_ii=ReturnMatrix_ii+TemptationMatrix_ii;
+        aprime=a1primeindexes+N_a1fine*a2ind;
+        entireRHS_ii=Ftemp_ii+reshape(DiscountedEVinterp(aprime),[n2long*N_a2,N_a,N_e]);
+        [Vtempii,maxindexL2]=max(entireRHS_ii,[],1);
+        maxindexL2a1=rem(maxindexL2-1,n2long)+1;
+        maxindexL2a2=ceil(maxindexL2/n2long);
+        % Most-tempting term: fine refinement of v around v's own coarse argmax
+        midpointsT_jj=max(min(midpointsT_jj,n_a1-1),2);
+        a1primeindexesT=(midpointsT_jj+(midpointsT_jj-1)*n2short)+(-n2short-1:1:1+n2short)';
+        TemptationMatrix_Tii=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn,n_e,a1prime_grid(a1primeindexesT),a2_grid, a1_grid, a2_grid,e_gridvals_J(:,:,N_j), TemptationFnParamsVec,2);
+        MostTempting=max(TemptationMatrix_Tii,[],1);
+        V(:,:,N_j)=shiftdim(Vtempii-MostTempting,1);
+        Policy(1,:,:,N_j)=midpoints_jj(maxindexL2a2+N_a2*a12ind+N_a2*N_a*eind); % a1prime midpoint
+        Policy(2,:,:,N_j)=maxindexL2a2; % a2prime
+        Policy(3,:,:,N_j)=maxindexL2a1; % a1primeL2ind
+
+        % L2 flag to later avoid -Inf ReturnFn (1=all to lower, 2=usual, 3=all to upper)
+        linidx_lower = 1      + n2long*(maxindexL2a2-1) + n2long*N_a2*a12ind + n2long*N_a2*N_a*eind;
+        linidx_upper = n2long + n2long*(maxindexL2a2-1) + n2long*N_a2*a12ind + n2long*N_a2*N_a*eind;
+        isInfLower = (Ftemp_ii(linidx_lower) == -Inf);
+        isInfUpper = (Ftemp_ii(linidx_upper) == -Inf);
+        inLowerStrict = (maxindexL2a1 >= 2)         & (maxindexL2a1 <= n2short+1);
+        inUpperStrict = (maxindexL2a1 >= n2short+3) & (maxindexL2a1 <= n2long-1);
+        PolicyL2flag(1,:,:,N_j) = 2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper);
+
+    elseif vfoptions.lowmemory==1
+        for e_c=1:N_e
+            e_val=e_gridvals_J(e_c,:,N_j);
+
+            % n-Monotonicity
+            ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(ReturnFn, special_n_e, a1_grid, a2_grid, a1_grid(level1ii), a2_grid, e_val, ReturnFnParamsVec,1);
+            TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn, special_n_e, a1_grid, a2_grid, a1_grid(level1ii), a2_grid, e_val, TemptationFnParamsVec,1);
+
+            entireRHS_ii=ReturnMatrix_ii+TemptationMatrix_ii+DiscountedEV;
+
+            %Calc the max and it's index
+            [~,maxindex1]=max(entireRHS_ii,[],1);
+
+            % Just keep the 'midpoint' version of maxindex1 [as GI]
+            midpoints_jj(1,:,level1ii,:)=maxindex1;
+
+            % v's own coarse argmax at the level-1 stations (full a1prime grid)
+            [~,maxindexT1]=max(TemptationMatrix_ii,[],1);
+            midpointsT_jj(1,:,level1ii,:)=maxindexT1;
+
+            % Attempt for improved version
+            maxgap=squeeze(max(max(maxindex1(1,:,2:end,:)-maxindex1(1,:,1:end-1,:),[],4),[],2));
+            for ii=1:(vfoptions.level1n-1)
+                curraindex=level1ii(ii)+1:1:level1ii(ii+1)-1;
+                % v's coarse argmax over the FULL a1prime grid for these a1 (never just the window)
+                TemptationMatrix_full=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn, special_n_e, a1_grid, a2_grid, a1_grid(curraindex), a2_grid, e_val, TemptationFnParamsVec,1);
+                [~,maxindexT]=max(TemptationMatrix_full,[],1);
+                midpointsT_jj(1,:,curraindex,:)=maxindexT;
+                if maxgap(ii)>0
+                    loweredge=min(maxindex1(1,:,ii,:),N_a1-maxgap(ii)); % maxindex1(ii,:), but avoid going off top of grid when we add maxgap(ii) points
+                    % loweredge is 1-by-n_a2-by-1-by-n_a2
+                    aprimeindexes=loweredge+(0:1:maxgap(ii))';
+                    % aprime possibilities are (maxgap(ii)+1)-n_a2-by-1-by-n_a2
+                    ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(ReturnFn, special_n_e, a1_grid(aprimeindexes), a2_grid, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_grid, e_val, ReturnFnParamsVec,3);
+                    TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn, special_n_e, a1_grid(aprimeindexes), a2_grid, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_grid, e_val, TemptationFnParamsVec,3);
+                    aprime=aprimeindexes+N_a1*a2ind;
+                    entireRHS_ii=ReturnMatrix_ii+TemptationMatrix_ii+DiscountedEV(reshape(aprime,[(maxgap(ii)+1),N_a2,1,N_a2]));  % autoexpand level1iidiff(ii) in 3rd-dim
+                    [~,maxindex]=max(entireRHS_ii,[],1);
+                    midpoints_jj(1,:,curraindex,:)=maxindex+(loweredge-1);
+                else
+                    loweredge=maxindex1(1,:,ii,:);
+                    midpoints_jj(1,:,curraindex,:)=repelem(loweredge,1,1,length(curraindex),1);
+                end
+            end
+
+            % Turn this into the 'midpoint'
+            midpoints_jj=max(min(midpoints_jj,n_a1-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
+            % midpoint is 1-by-n_a2-by-n_a1-by-n_a2
+            a1primeindexes=(midpoints_jj+(midpoints_jj-1)*n2short)+(-n2short-1:1:1+n2short)'; % aprime points either side of midpoint
+            % aprime possibilities are n2long-by-n_a2-by-n_a1-by-n_a2
+            ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(ReturnFn, special_n_e,a1prime_grid(a1primeindexes),a2_grid, a1_grid, a2_grid,e_val, ReturnFnParamsVec,2);
+            TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn, special_n_e,a1prime_grid(a1primeindexes),a2_grid, a1_grid, a2_grid,e_val, TemptationFnParamsVec,2);
+            Ftemp_ii=ReturnMatrix_ii+TemptationMatrix_ii;
+            aprime=a1primeindexes+N_a1fine*a2ind;
+            entireRHS_ii=Ftemp_ii+reshape(DiscountedEVinterp(aprime),[n2long*N_a2,N_a]);
+            [Vtempii,maxindexL2]=max(entireRHS_ii,[],1);
+            maxindexL2a1=rem(maxindexL2-1,n2long)+1;
+            maxindexL2a2=ceil(maxindexL2/n2long);
+            % Most-tempting term: fine refinement of v around v's own coarse argmax
+            midpointsT_jj=max(min(midpointsT_jj,n_a1-1),2);
+            a1primeindexesT=(midpointsT_jj+(midpointsT_jj-1)*n2short)+(-n2short-1:1:1+n2short)';
+            TemptationMatrix_Tii=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn, special_n_e,a1prime_grid(a1primeindexesT),a2_grid, a1_grid, a2_grid,e_val, TemptationFnParamsVec,2);
+            MostTempting=max(TemptationMatrix_Tii,[],1);
+            V(:,e_c,N_j)=shiftdim(Vtempii-MostTempting,1);
+            Policy(1,:,e_c,N_j)=midpoints_jj(maxindexL2a2+N_a2*a12ind); % a1prime midpoint
+            Policy(2,:,e_c,N_j)=maxindexL2a2; % a2prime
+            Policy(3,:,e_c,N_j)=maxindexL2a1; % a1primeL2ind
+
+            % L2 flag to later avoid -Inf ReturnFn (1=all to lower, 2=usual, 3=all to upper)
+            linidx_lower = 1      + n2long*(maxindexL2a2-1) + n2long*N_a2*a12ind;
+            linidx_upper = n2long + n2long*(maxindexL2a2-1) + n2long*N_a2*a12ind;
+            isInfLower = (Ftemp_ii(linidx_lower) == -Inf);
+            isInfUpper = (Ftemp_ii(linidx_upper) == -Inf);
+            inLowerStrict = (maxindexL2a1 >= 2)         & (maxindexL2a1 <= n2short+1);
+            inUpperStrict = (maxindexL2a1 >= n2short+3) & (maxindexL2a1 <= n2long-1);
+            PolicyL2flag(1,:,e_c,N_j) = 2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper);
+        end
+    end
+end
+
+
+%% Iterate backwards through j.
+for reverse_j=1:N_j-1
+    jj=N_j-reverse_j;
+
+    if vfoptions.verbose==1
+        fprintf('Finite horizon: %i of %i (counting backwards to 1) \n',jj, N_j)
+    end
+
+    % Create a vector containing all the return function parameters (in order)
+    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
+    TemptationFnParamsVec=CreateVectorFromParams(Parameters, TemptationFnParamNames,jj);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
+    DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
+
+    EV=sum(V(:,:,jj+1).*pi_e_J(1,:,jj+1),2);
+
+    DiscountedEV=DiscountFactorParamsVec*reshape(EV,[N_a1,N_a2,1,1]);  % autoexpand (a)
+    % Interpolate EV over aprime_grid
+    DiscountedEVinterp=interp1(a1_grid,DiscountedEV,a1prime_grid);
+
+    if vfoptions.lowmemory==0
+        % n-Monotonicity
+        ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(ReturnFn, n_e, a1_grid, a2_grid, a1_grid(level1ii), a2_grid, e_gridvals_J(:,:,jj), ReturnFnParamsVec,1);
+        TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn, n_e, a1_grid, a2_grid, a1_grid(level1ii), a2_grid, e_gridvals_J(:,:,jj), TemptationFnParamsVec,1);
+
+        entireRHS_ii=ReturnMatrix_ii+TemptationMatrix_ii+DiscountedEV; % autofill e
+
+        %Calc the max and it's index
+        [~,maxindex1]=max(entireRHS_ii,[],1);
+
+        % Just keep the 'midpoint' version of maxindex1 [as GI]
+        midpoints_jj(1,:,level1ii,:,:)=maxindex1;
+
+        % v's own coarse argmax at the level-1 stations (full a1prime grid)
+        [~,maxindexT1]=max(TemptationMatrix_ii,[],1);
+        midpointsT_jj(1,:,level1ii,:,:)=maxindexT1;
+
+        % Attempt for improved version
+        maxgap=squeeze(max(max(max(maxindex1(1,:,2:end,:,:)-maxindex1(1,:,1:end-1,:,:),[],5),[],4),[],2));
+        for ii=1:(vfoptions.level1n-1)
+            curraindex=level1ii(ii)+1:1:level1ii(ii+1)-1;
+            % v's coarse argmax over the FULL a1prime grid for these a1 (never just the window)
+            TemptationMatrix_full=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn, n_e, a1_grid, a2_grid, a1_grid(curraindex), a2_grid, e_gridvals_J(:,:,jj), TemptationFnParamsVec,1);
+            [~,maxindexT]=max(TemptationMatrix_full,[],1);
+            midpointsT_jj(1,:,curraindex,:,:)=maxindexT;
+            if maxgap(ii)>0
+                loweredge=min(maxindex1(1,:,ii,:,:),N_a1-maxgap(ii)); % maxindex1(ii,:), but avoid going off top of grid when we add maxgap(ii) points
+                % loweredge is 1-by-n_a2-by-1-by-n_a2-by-n_e
+                aprimeindexes=loweredge+(0:1:maxgap(ii))';
+                % aprime possibilities are (maxgap(ii)+1)-n_a2-by-1-by-n_a2-by-n_e
+                ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(ReturnFn, n_e, a1_grid(aprimeindexes), a2_grid, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_grid, e_gridvals_J(:,:,jj), ReturnFnParamsVec,3);
+                TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn, n_e, a1_grid(aprimeindexes), a2_grid, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_grid, e_gridvals_J(:,:,jj), TemptationFnParamsVec,3);
+                aprime=aprimeindexes+N_a1*a2ind;
+                entireRHS_ii=ReturnMatrix_ii+TemptationMatrix_ii+DiscountedEV(reshape(aprime,[(maxgap(ii)+1),N_a2,1,N_a2,N_e])); % autoexpand level1iidiff(ii) in 3rd-dim
+                [~,maxindex]=max(entireRHS_ii,[],1);
+                midpoints_jj(1,:,curraindex,:,:)=maxindex+(loweredge-1);
+            else
+                loweredge=maxindex1(1,:,ii,:,:);
+                midpoints_jj(1,:,curraindex,:,:)=repelem(loweredge,1,1,length(curraindex),1);
+            end
+        end
+
+        % Turn this into the 'midpoint'
+        midpoints_jj=max(min(midpoints_jj,n_a1-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
+        % midpoint is 1-by-n_a2-by-n_a1-by-n_a2-by-n_e
+        a1primeindexes=(midpoints_jj+(midpoints_jj-1)*n2short)+(-n2short-1:1:1+n2short)'; % aprime points either side of midpoint
+        % aprime possibilities are n2long-by-n_a2-by-n_a1-by-n_a2-by-n_e
+        ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(ReturnFn,n_e,a1prime_grid(a1primeindexes),a2_grid, a1_grid, a2_grid,e_gridvals_J(:,:,jj), ReturnFnParamsVec,2);
+        TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn,n_e,a1prime_grid(a1primeindexes),a2_grid, a1_grid, a2_grid,e_gridvals_J(:,:,jj), TemptationFnParamsVec,2);
+        Ftemp_ii=ReturnMatrix_ii+TemptationMatrix_ii;
+        aprime=a1primeindexes+N_a1fine*a2ind;
+        entireRHS_ii=Ftemp_ii+reshape(DiscountedEVinterp(aprime),[n2long*N_a2,N_a,N_e]);
+        [Vtempii,maxindexL2]=max(entireRHS_ii,[],1);
+        maxindexL2a1=rem(maxindexL2-1,n2long)+1;
+        maxindexL2a2=ceil(maxindexL2/n2long);
+        % Most-tempting term: fine refinement of v around v's own coarse argmax
+        midpointsT_jj=max(min(midpointsT_jj,n_a1-1),2);
+        a1primeindexesT=(midpointsT_jj+(midpointsT_jj-1)*n2short)+(-n2short-1:1:1+n2short)';
+        TemptationMatrix_Tii=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn,n_e,a1prime_grid(a1primeindexesT),a2_grid, a1_grid, a2_grid,e_gridvals_J(:,:,jj), TemptationFnParamsVec,2);
+        MostTempting=max(TemptationMatrix_Tii,[],1);
+        V(:,:,jj)=shiftdim(Vtempii-MostTempting,1);
+        Policy(1,:,:,jj)=midpoints_jj(maxindexL2a2+N_a2*a12ind+N_a2*N_a*eind); % a1prime midpoint
+        Policy(2,:,:,jj)=maxindexL2a2; % a2prime
+        Policy(3,:,:,jj)=maxindexL2a1; % a1primeL2ind
+
+        % L2 flag to later avoid -Inf ReturnFn (1=all to lower, 2=usual, 3=all to upper)
+        linidx_lower = 1      + n2long*(maxindexL2a2-1) + n2long*N_a2*a12ind + n2long*N_a2*N_a*eind;
+        linidx_upper = n2long + n2long*(maxindexL2a2-1) + n2long*N_a2*a12ind + n2long*N_a2*N_a*eind;
+        isInfLower = (Ftemp_ii(linidx_lower) == -Inf);
+        isInfUpper = (Ftemp_ii(linidx_upper) == -Inf);
+        inLowerStrict = (maxindexL2a1 >= 2)         & (maxindexL2a1 <= n2short+1);
+        inUpperStrict = (maxindexL2a1 >= n2short+3) & (maxindexL2a1 <= n2long-1);
+        PolicyL2flag(1,:,:,jj) = 2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper);
+
+    elseif vfoptions.lowmemory==1
+        for e_c=1:N_e
+            e_val=e_gridvals_J(e_c,:,jj);
+
+            % n-Monotonicity
+            ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(ReturnFn, special_n_e, a1_grid, a2_grid, a1_grid(level1ii), a2_grid, e_val, ReturnFnParamsVec,1);
+            TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn, special_n_e, a1_grid, a2_grid, a1_grid(level1ii), a2_grid, e_val, TemptationFnParamsVec,1);
+
+            entireRHS_ii=ReturnMatrix_ii+TemptationMatrix_ii+DiscountedEV; % autofill e
+
+            %Calc the max and it's index
+            [~,maxindex1]=max(entireRHS_ii,[],1);
+
+            % Just keep the 'midpoint' version of maxindex1 [as GI]
+            midpoints_jj(1,:,level1ii,:)=maxindex1;
+
+            % v's own coarse argmax at the level-1 stations (full a1prime grid)
+            [~,maxindexT1]=max(TemptationMatrix_ii,[],1);
+            midpointsT_jj(1,:,level1ii,:)=maxindexT1;
+
+            % Attempt for improved version
+            maxgap=squeeze(max(max(maxindex1(1,:,2:end,:)-maxindex1(1,:,1:end-1,:),[],4),[],2));
+            for ii=1:(vfoptions.level1n-1)
+                curraindex=level1ii(ii)+1:1:level1ii(ii+1)-1;
+                % v's coarse argmax over the FULL a1prime grid for these a1 (never just the window)
+                TemptationMatrix_full=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn, special_n_e, a1_grid, a2_grid, a1_grid(curraindex), a2_grid, e_val, TemptationFnParamsVec,1);
+                [~,maxindexT]=max(TemptationMatrix_full,[],1);
+                midpointsT_jj(1,:,curraindex,:)=maxindexT;
+                if maxgap(ii)>0
+                    loweredge=min(maxindex1(1,:,ii,:),N_a1-maxgap(ii)); % maxindex1(ii,:), but avoid going off top of grid when we add maxgap(ii) points
+                    % loweredge is 1-by-n_a2-by-1-by-n_a2
+                    aprimeindexes=loweredge+(0:1:maxgap(ii))';
+                    % aprime possibilities are (maxgap(ii)+1)-n_a2-by-1-by-n_a2
+                    ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(ReturnFn, special_n_e, a1_grid(aprimeindexes), a2_grid, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_grid, e_val, ReturnFnParamsVec,3);
+                    TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn, special_n_e, a1_grid(aprimeindexes), a2_grid, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_grid, e_val, TemptationFnParamsVec,3);
+                    aprime=aprimeindexes+N_a1*a2ind;
+                    entireRHS_ii=ReturnMatrix_ii+TemptationMatrix_ii+DiscountedEV(reshape(aprime,[(maxgap(ii)+1),N_a2,1,N_a2])); % autoexpand level1iidiff(ii) in 3rd-dim
+                    [~,maxindex]=max(entireRHS_ii,[],1);
+                    midpoints_jj(1,:,curraindex,:)=maxindex+(loweredge-1);
+                else
+                    loweredge=maxindex1(1,:,ii,:);
+                    midpoints_jj(1,:,curraindex,:)=repelem(loweredge,1,1,length(curraindex),1);
+                end
+            end
+
+            % Turn this into the 'midpoint'
+            midpoints_jj=max(min(midpoints_jj,n_a1-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
+            % midpoint is 1-by-n_a2-by-n_a1-by-n_a2
+            a1primeindexes=(midpoints_jj+(midpoints_jj-1)*n2short)+(-n2short-1:1:1+n2short)'; % aprime points either side of midpoint
+            % aprime possibilities are n2long-by-n_a2-by-n_a1-by-n_a2
+            ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(ReturnFn, special_n_e,a1prime_grid(a1primeindexes),a2_grid, a1_grid, a2_grid,e_val, ReturnFnParamsVec,2);
+            TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn, special_n_e,a1prime_grid(a1primeindexes),a2_grid, a1_grid, a2_grid,e_val, TemptationFnParamsVec,2);
+            Ftemp_ii=ReturnMatrix_ii+TemptationMatrix_ii;
+            aprime=a1primeindexes+N_a1fine*a2ind;
+            entireRHS_ii=Ftemp_ii+reshape(DiscountedEVinterp(aprime),[n2long*N_a2,N_a]);
+            [Vtempii,maxindexL2]=max(entireRHS_ii,[],1);
+            maxindexL2a1=rem(maxindexL2-1,n2long)+1;
+            maxindexL2a2=ceil(maxindexL2/n2long);
+            % Most-tempting term: fine refinement of v around v's own coarse argmax
+            midpointsT_jj=max(min(midpointsT_jj,n_a1-1),2);
+            a1primeindexesT=(midpointsT_jj+(midpointsT_jj-1)*n2short)+(-n2short-1:1:1+n2short)';
+            TemptationMatrix_Tii=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn, special_n_e,a1prime_grid(a1primeindexesT),a2_grid, a1_grid, a2_grid,e_val, TemptationFnParamsVec,2);
+            MostTempting=max(TemptationMatrix_Tii,[],1);
+            V(:,e_c,jj)=shiftdim(Vtempii-MostTempting,1);
+            Policy(1,:,e_c,jj)=midpoints_jj(maxindexL2a2+N_a2*a12ind); % a1prime midpoint
+            Policy(2,:,e_c,jj)=maxindexL2a2; % a2prime
+            Policy(3,:,e_c,jj)=maxindexL2a1; % a1primeL2ind
+
+            % L2 flag to later avoid -Inf ReturnFn (1=all to lower, 2=usual, 3=all to upper)
+            linidx_lower = 1      + n2long*(maxindexL2a2-1) + n2long*N_a2*a12ind;
+            linidx_upper = n2long + n2long*(maxindexL2a2-1) + n2long*N_a2*a12ind;
+            isInfLower = (Ftemp_ii(linidx_lower) == -Inf);
+            isInfUpper = (Ftemp_ii(linidx_upper) == -Inf);
+            inLowerStrict = (maxindexL2a1 >= 2)         & (maxindexL2a1 <= n2short+1);
+            inUpperStrict = (maxindexL2a1 >= n2short+3) & (maxindexL2a1 <= n2long-1);
+            PolicyL2flag(1,:,e_c,jj) = 2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper);
+        end
+    end
+end
+
+
+
+
+%% Currently Policy(1,:) is the midpoint, and Policy(3,:) the second layer
+% (which ranges -n2short-1:1:1+n2short). It is much easier to use later if
+% we switch Policy(1,:) to 'lower grid point' and then have Policy(3,:)
+% counting 0:nshort+1 up from this.
+adjust=(Policy(3,:,:,:)<1+n2short+1); % if second layer is choosing below midpoint
+Policy(1,:,:,:)=Policy(1,:,:,:)-adjust; % lower grid point
+Policy(3,:,:,:)=adjust.*Policy(3,:,:,:)+(1-adjust).*(Policy(3,:,:,:)-n2short-1); % from 1 (lower grid point) to 1+n2short+1 (upper grid point)
+
+Policy=[Policy; PolicyL2flag];
+
+
+
+end
