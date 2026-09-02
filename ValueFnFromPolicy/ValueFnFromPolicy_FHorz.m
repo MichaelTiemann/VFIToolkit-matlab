@@ -89,6 +89,16 @@ if isfield(vfoptions,'exoticpreferences') && strcmp(vfoptions.exoticpreferences,
     return
 end
 
+%% Dispatch to GulPesendorfer subfn if exoticpreferences=='GulPesendorfer'
+% V = u(policy) + v(policy) - max v + beta*EV(policy): the generic path below would omit the
+% temptation terms, so GP must have its own subfn. It handles gridinterplayer itself (the
+% most-tempting term is then a max over the FINE grid), hence dispatched before the GI subfn.
+if isfield(vfoptions,'exoticpreferences') && strcmp(vfoptions.exoticpreferences,'GulPesendorfer')
+    V=ValueFnFromPolicy_FHorz_GulPesendorfer(Policy,n_d,n_a,n_z,N_j,d_grid,a_grid,z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    varargout={V};
+    return
+end
+
 %% Dispatch to ExpAsset subfn if experienceasset==1
 if vfoptions.experienceasset>=1
     V=ValueFnFromPolicy_FHorz_ExpAsset(Policy,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
