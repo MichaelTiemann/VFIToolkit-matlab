@@ -37,7 +37,12 @@ else
 end
 
 %% Validate the ambiguity inputs
-if N_z==0 && N_e==0
+if isfield(options,'riskyasset')
+    riskyasset=options.riskyasset;
+else
+    riskyasset=0;
+end
+if N_z==0 && N_e==0 && riskyasset==0
     error('Cannot use Ambiguity Aversion without any shocks (what is the point?); you have n_z=0 and no e variables')
 end
 if isfield(options,'ExogShockFn') || isfield(options,'EiidShockFn')
@@ -57,6 +62,29 @@ if any(options.n_ambiguity<1)
     error('When using Ambiguity Aversion, vfoptions.n_ambiguity must be at least 1 in every period (you must declare the number of multiple priors)')
 end
 maxnamb=max(options.n_ambiguity);
+if riskyasset==1
+    % u is treated as AMBIGUITY, not risk: the agent does not know the risky return distribution,
+    % so the multiple priors over pi_u are mandatory. The regular pi_u is only the true process
+    % (used for the agent distribution etc.), exactly parallel to pi_z/pi_e.
+    if ~isfield(options,'ambiguity_pi_u')
+        error('When using Ambiguity Aversion with riskyasset you must declare vfoptions.ambiguity_pi_u (the multiple priors over the risky return distribution; u is ambiguity, not risk)')
+    end
+    N_u=prod(options.n_u);
+    if size(options.ambiguity_pi_u,1)~=N_u || size(options.ambiguity_pi_u,2)~=maxnamb || ~ismatrix(options.ambiguity_pi_u)
+        error('vfoptions.ambiguity_pi_u must be of size [N_u,max(n_ambiguity)] (one age-independent pi_u per prior); got [%s]',num2str(size(options.ambiguity_pi_u)))
+    end
+    options.ambiguity_pi_u=gpuArray(options.ambiguity_pi_u);
+    % Warn if the regular pi_u is not one of the u-priors (it is what the agent distribution uses)
+    ufound=0;
+    for amb_c=1:maxnamb
+        if isequal(gather(options.pi_u(:)),gather(options.ambiguity_pi_u(:,amb_c)))
+            ufound=1;
+        end
+    end
+    if ufound==0
+        warning('AmbiguityAversion: the regular pi_u input (which the agent distribution, etc., will use) is not equal to any of the ambiguity_pi_u priors')
+    end
+end
 if N_z>0
     if ~isfield(options,'ambiguity_pi_z') && ~isfield(options,'ambiguity_pi_z_J')
         error('When using Ambiguity Aversion with a z variable you must declare vfoptions.ambiguity_pi_z or vfoptions.ambiguity_pi_z_J (the multiple priors)')

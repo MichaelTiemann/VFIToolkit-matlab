@@ -19,6 +19,14 @@ N_e=prod(vfoptions.n_e);
 
 n_ambiguity=vfoptions.n_ambiguity; % [1,N_j]
 
+%% Risky asset routes to its own subfn (u is treated as ambiguity: ambiguity_pi_u mandatory;
+% a riskyasset model with no z and no e is a sensible ambiguity model, so the no-shocks error
+% below does not apply to it)
+if vfoptions.riskyasset==1
+    V=ValueFnFromPolicy_FHorz_AmbAverse_RiskyAsset(Policy,n_d,n_a,n_z,N_j,d_grid,a_grid,z_gridvals_J, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    return
+end
+
 if N_z==0 && N_e==0
     error('Cannot use Ambiguity Aversion without any shocks (what is the point?); you have n_z=0 and no e variables')
 end

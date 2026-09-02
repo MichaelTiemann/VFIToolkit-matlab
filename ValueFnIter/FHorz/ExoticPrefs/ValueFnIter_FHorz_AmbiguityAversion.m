@@ -1,4 +1,4 @@
-function [V, Policy]=ValueFnIter_FHorz_AmbiguityAversion(n_d,n_a,n_z,N_j,d_gridvals, a_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions)
+function [V, Policy]=ValueFnIter_FHorz_AmbiguityAversion(n_d,n_a,n_z,N_j,d_grid, a_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions)
 % Ambiguity Aversion: multiple priors over the exogenous shock transition probabilities, and the
 % continuation EV is the worst case over the priors (maxmin preferences).
 % See appendix to the 'Intro to Life-Cycle models' for an explanation.
@@ -24,13 +24,24 @@ N_e=prod(vfoptions.n_e);
 
 n_ambiguity=vfoptions.n_ambiguity; % [1,N_j], from ExogShockSetup_FHorz_AmbiguityAversion
 
-if N_z==0 && N_e==0
-    error('Cannot use Ambiguity Aversion without any shocks (what is the point?); you have n_z=0 and no e variables')
-end
 if isfield(vfoptions,'n_semiz')
     if prod(vfoptions.n_semiz)>0
         error('AmbiguityAversion is not implemented for semi-exogenous states (vfoptions.n_semiz)')
     end
+end
+
+%% Risky asset routes to its own subfn (level 3), mirroring how EpsteinZin does it
+% (u is treated as ambiguity, not risk: the priors over pi_u are mandatory and were validated by
+% ExogShockSetup_FHorz_AmbiguityAversion, as were any priors over pi_z/pi_e. Note that a
+% riskyasset model with no z and no e is a perfectly sensible ambiguity model -- the ambiguity
+% is over the risky return distribution -- so the no-shocks error below does not apply to it.)
+if vfoptions.riskyasset==1
+    [V, Policy]=ValueFnIter_FHorz_AmbAverse_RiskyAsset(n_ambiguity, n_d,vfoptions.n_a1,vfoptions.n_a2,n_z,vfoptions.n_u,N_j,d_grid,vfoptions.a1_grid, vfoptions.a2_grid, z_gridvals_J, vfoptions.u_grid, vfoptions.ambiguity_pi_z_J, vfoptions.ambiguity_pi_u, ReturnFn, vfoptions.aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+    return
+end
+
+if N_z==0 && N_e==0
+    error('Cannot use Ambiguity Aversion without any shocks (what is the point?); you have n_z=0 and no e variables')
 end
 
 % Reject asset types this dispatcher does not handle: every asset type it does handle is
@@ -38,14 +49,18 @@ end
 if vfoptions.experienceasset>=1 || vfoptions.experienceassetu>=1 || vfoptions.experienceassetz>=1 || vfoptions.experienceassete>=1 || vfoptions.experienceassetze>=1 || vfoptions.experienceassetsemiz>=1
     error('AmbiguityAversion preferences are not implemented for the experience assets (only for the standard endogenous states)')
 end
-if vfoptions.riskyasset==1
-    error('AmbiguityAversion preferences are not implemented for riskyasset (only for the standard endogenous states)')
-end
 if vfoptions.residualasset==1
     error('AmbiguityAversion preferences are not implemented for residualasset')
 end
 if vfoptions.dynasty==1
     error('AmbiguityAversion preferences are not implemented for dynasty')
+end
+
+% Standard endogenous states from here on
+if size(d_grid,2)==1
+    d_gridvals=CreateGridvals(n_d,d_grid,1);
+else % already d_gridvals (or empty when N_d==0)
+    d_gridvals=d_grid;
 end
 
 %% Dispatch on divide-and-conquer/grid-interpolation-layer (level 2)
