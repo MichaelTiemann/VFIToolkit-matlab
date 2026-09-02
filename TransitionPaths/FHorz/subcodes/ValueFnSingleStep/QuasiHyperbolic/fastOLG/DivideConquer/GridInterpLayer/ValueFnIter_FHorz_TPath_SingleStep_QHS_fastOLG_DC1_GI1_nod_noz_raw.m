@@ -34,8 +34,7 @@ jind=shiftdim(gpuArray(0:1:N_j-1),-1);
 ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j); % this will be a matrix, row indexes ages and column indexes the parameters (parameters which are not dependent on age appear as a constant valued column)
 
 beta_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j),2);
-beta0_J=CreateAgeMatrixFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
-beta0beta_J=beta0_J.*beta_J;
+beta0beta_J=vfoptions.beta0*beta_J;
 betaminusbeta0beta_J=beta_J-beta0beta_J;
 
 if vfoptions.EVpre==0

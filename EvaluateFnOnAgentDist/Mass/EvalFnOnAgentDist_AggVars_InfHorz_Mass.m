@@ -11,10 +11,6 @@ else
     end
 end
 
-% l_daprime=size(Policy,1);
-% if simoptions.gridinterplayer==1
-%     l_daprime=l_daprime-1;
-% end
 
 
 if Parallel==2
@@ -25,7 +21,7 @@ if Parallel==2
     n_a=gpuArray(n_a);
     n_z=gpuArray(n_z);
     d_grid=gpuArray(d_grid);
-    l_daprime=size(PolicyIndexes,1);
+    l_daprime=size(PolicyIndexes,1)-2*simoptions.gridinterplayer; % gridinterplayer=1 carries an extra L2 index and L2flag
     a_gridvals=CreateGridvals(n_a,gpuArray(a_grid),1);
     z_gridvals=CreateGridvals(n_z,gpuArray(z_grid),1);
 

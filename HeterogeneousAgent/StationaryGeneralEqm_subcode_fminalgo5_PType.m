@@ -9,7 +9,7 @@ p_old_unconstrained=GEparamsvec0'; % row orientation, to match the add/factor/ke
 [p_old,~]=ParameterConstraints_TransformParamsToOriginal(p_old_unconstrained,GEpriceindexesB,GEPriceParamNames,heteroagentoptions);
 
 % Given current prices solve the model to get the general equilibrium conditions as a structure
-itercounter=0;
+itercounter=1;
 p_change=Inf;
 GeneralEqmConditions=Inf;
 while (any(p_change>heteroagentoptions.toleranceGEprices) || any(GeneralEqmConditions>heteroagentoptions.toleranceGEcondns)) && itercounter<heteroagentoptions.maxiter
@@ -25,7 +25,17 @@ while (any(p_change>heteroagentoptions.toleranceGEprices) || any(GeneralEqmCondi
     I_makescutoff=(abs(p_i)>heteroagentoptions.updateaccuracycutoff);
     p_i=I_makescutoff.*p_i;
 
-    p_new=(p_old.*heteroagentoptions.fminalgo5.keepold)+heteroagentoptions.fminalgo5.add.*heteroagentoptions.fminalgo5.factor.*p_i-(1-heteroagentoptions.fminalgo5.add).*heteroagentoptions.fminalgo5.factor.*p_i;
+    % The additional-factor ramp (howtoupdate columns 5, 6 and 7, set via
+    % heteroagentoptions.fminalgo5.additionalfactor=[f_add,t1_add,t2_add]). rampweight is 0 up to
+    % iteration t1_add and 1 from iteration t2_add on, linear in between, so factor_iter is factor up
+    % to t1_add, runs to f_add*factor by t2_add, and stays there. Written as 1+(f_add-1)*w rather
+    % than min(...,f_add) so that f_add<1, damping the step down over iterations, works as well as
+    % f_add>1. t2_add>t1_add is enforced in setupGEnewprice3_shooting, so the denominator is never
+    % zero. itercounter is 1 on the first pass, the same as on a transition path.
+    % Same arithmetic as in updatePricePathNew_TPath_tt and the non-PType fminalgo5 subcode.
+    rampweight=min(max((itercounter-heteroagentoptions.fminalgo5.t1_add)./(heteroagentoptions.fminalgo5.t2_add-heteroagentoptions.fminalgo5.t1_add),0),1);
+    factor_iter=heteroagentoptions.fminalgo5.factor.*(1+(heteroagentoptions.fminalgo5.f_add-1).*rampweight);
+    p_new=(p_old.*heteroagentoptions.fminalgo5.keepold)+heteroagentoptions.fminalgo5.add.*factor_iter.*p_i-(1-heteroagentoptions.fminalgo5.add).*factor_iter.*p_i;
 
     % Calculate GeneralEqmConditions which measures convergence
     if heteroagentoptions.multiGEcriterion==0
@@ -49,7 +59,7 @@ while (any(p_change>heteroagentoptions.toleranceGEprices) || any(GeneralEqmCondi
     itercounter=itercounter+1; % increment iteration counter
 end
 
-if itercounter>=heteroagentoptions.maxiter
+if itercounter>heteroagentoptions.maxiter
     warning('HeteroAgentStationaryEqm stopped due to reaching maximum number of iterations (you can control using heteroagentoptions.maxiter)')
 end
 

@@ -27,6 +27,7 @@ d23_gridvals=[repmat(d2_gridvals,N_d3,1),repelem(CreateGridvals(n_d3,d3_grid,1),
 
 if vfoptions.lowmemory>0
     special_n_bothz=ones(1,length(n_semiz)+length(n_z));
+    special_n_semiz=[n_semiz,ones(1,length(n_z))]; % semiz vectorised, z scalar (lowmemory=1 split over z)
 end
 
 V_ford3_jj=zeros(N_a,N_bothz,N_d3,'gpuArray');
@@ -44,6 +45,19 @@ if ~isfield(vfoptions,'V_Jplus1')
         Policy2(1,:,:,N_j)=rem(d_ind-1,N_d2)+1;
         Policy2(2,:,:,N_j)=ceil(d_ind/N_d2);
     elseif vfoptions.lowmemory==1
+        % split: parallelise over semiz, loop over z
+        for z_c=1:N_z
+            zind=(1:1:N_semiz)+N_semiz*(z_c-1);
+            z_val=bothz_gridvals_J(zind,:,N_j);
+            ReturnMatrix_z=CreateReturnFnMatrix_Case2_Disc(ReturnFn, n_d23, n_a2, special_n_semiz, d23_gridvals, a2_grid, z_val, ReturnFnParamsVec);
+            [Vtemp,maxindex]=max(ReturnMatrix_z,[],1);
+            V(:,zind,N_j)=shiftdim(Vtemp,1);
+            d_ind=rem(maxindex-1,N_d23)+1;
+            Policy2(1,:,zind,N_j)=rem(d_ind-1,N_d2)+1;
+            Policy2(2,:,zind,N_j)=ceil(d_ind/N_d2);
+        end
+    elseif vfoptions.lowmemory==2
+        % joint: loop over bothz
         for z_c=1:N_bothz
             z_val=bothz_gridvals_J(z_c,:,N_j);
             ReturnMatrix_z=CreateReturnFnMatrix_Case2_Disc(ReturnFn, n_d23, n_a2, special_n_bothz, d23_gridvals, a2_grid, z_val, ReturnFnParamsVec);
@@ -84,9 +98,10 @@ else
             EV2=reshape(EV(aprimeplus1Index,:),[N_d2,N_a2,N_u,N_bothz]);
 
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0;
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0;
 
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs);
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a2,bothz)
             EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
 
@@ -97,6 +112,36 @@ else
             Policy_ford3_jj(:,:,d3_c)=shiftdim(maxindex,1);
         end
     elseif vfoptions.lowmemory==1
+        % split: parallelise over semiz, loop over z
+        for d3_c=1:N_d3
+            d23_gridvals_val=[d2_gridvals,repelem(d3_grid(d3_c),N_d2,1)];
+            pi_bothz=kron(pi_z_J(:,:,N_j),pi_semiz_J(:,:,d3_c,N_j));
+
+            EV=EVpre.*shiftdim(pi_bothz',-1);
+            EV(isnan(EV))=0;
+            EV=sum(EV,2);
+            EV1=reshape(EV(aprimeIndex,:),[N_d2,N_a2,N_u,N_bothz]);
+            EV2=reshape(EV(aprimeplus1Index,:),[N_d2,N_a2,N_u,N_bothz]);
+            aprimeProbs_full=repmat(a2primeProbs,1,1,1,N_bothz);
+            skipinterp=(EV1==EV2);
+            aprimeProbs_full(skipinterp)=0;
+            entireEV=EV1.*aprimeProbs_full+EV2.*(1-aprimeProbs_full);
+            entireEV=squeeze(sum((entireEV.*pi_u),3)); % integrate out u -> (d2,a2,bothz)
+            entireEV(isnan(entireEV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+
+            for z_c=1:N_z
+                zind=(1:1:N_semiz)+N_semiz*(z_c-1);
+                z_val=bothz_gridvals_J(zind,:,N_j);
+                entireEV_z=entireEV(:,:,zind);
+                ReturnMatrix_d3z=CreateReturnFnMatrix_Case2_Disc(ReturnFn, [n_d2,1], n_a2, special_n_semiz, d23_gridvals_val, a2_grid, z_val, ReturnFnParamsVec);
+                entireRHS_d3z=ReturnMatrix_d3z+DiscountFactorParamsVec*entireEV_z;
+                [Vtemp,maxindex]=max(entireRHS_d3z,[],1);
+                V_ford3_jj(:,zind,d3_c)=shiftdim(Vtemp,1);
+                Policy_ford3_jj(:,zind,d3_c)=shiftdim(maxindex,1);
+            end
+        end
+    elseif vfoptions.lowmemory==2
+        % joint: loop over bothz
         for d3_c=1:N_d3
             d23_gridvals_val=[d2_gridvals,repelem(d3_grid(d3_c),N_d2,1)];
             pi_bothz=kron(pi_z_J(:,:,N_j),pi_semiz_J(:,:,d3_c,N_j));
@@ -112,9 +157,10 @@ else
                 EV2=reshape(EV_z(aprimeplus1Index),[N_d2,N_a2,N_u]);
 
                 skipinterp=(EV1==EV2);
-                aprimeProbs(skipinterp)=0;
+                aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+                aprimeProbs_d3(skipinterp)=0;
 
-                EV_z=EV1.*aprimeProbs+EV2.*(1-aprimeProbs);
+                EV_z=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
                 EV_z=sum((EV_z.*pi_u),3); % (d2,a2)
                 EV_z(isnan(EV_z))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
 
@@ -175,9 +221,10 @@ for reverse_j=1:N_j-1
             EV2=reshape(EV(aprimeplus1Index,:),[N_d2,N_a2,N_u,N_bothz]);
 
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0;
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0;
 
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs);
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a2,bothz)
             EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
 
@@ -188,6 +235,36 @@ for reverse_j=1:N_j-1
             Policy_ford3_jj(:,:,d3_c)=shiftdim(maxindex,1);
         end
     elseif vfoptions.lowmemory==1
+        % split: parallelise over semiz, loop over z
+        for d3_c=1:N_d3
+            d23_gridvals_val=[d2_gridvals,repelem(d3_grid(d3_c),N_d2,1)];
+            pi_bothz=kron(pi_z_J(:,:,jj),pi_semiz_J(:,:,d3_c,jj));
+
+            EV=EVpre.*shiftdim(pi_bothz',-1);
+            EV(isnan(EV))=0;
+            EV=sum(EV,2);
+            EV1=reshape(EV(aprimeIndex,:),[N_d2,N_a2,N_u,N_bothz]);
+            EV2=reshape(EV(aprimeplus1Index,:),[N_d2,N_a2,N_u,N_bothz]);
+            aprimeProbs_full=repmat(a2primeProbs,1,1,1,N_bothz);
+            skipinterp=(EV1==EV2);
+            aprimeProbs_full(skipinterp)=0;
+            entireEV=EV1.*aprimeProbs_full+EV2.*(1-aprimeProbs_full);
+            entireEV=squeeze(sum((entireEV.*pi_u),3)); % integrate out u -> (d2,a2,bothz)
+            entireEV(isnan(entireEV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+
+            for z_c=1:N_z
+                zind=(1:1:N_semiz)+N_semiz*(z_c-1);
+                z_val=bothz_gridvals_J(zind,:,jj);
+                entireEV_z=entireEV(:,:,zind);
+                ReturnMatrix_d3z=CreateReturnFnMatrix_Case2_Disc(ReturnFn, [n_d2,1], n_a2, special_n_semiz, d23_gridvals_val, a2_grid, z_val, ReturnFnParamsVec);
+                entireRHS_d3z=ReturnMatrix_d3z+DiscountFactorParamsVec*entireEV_z;
+                [Vtemp,maxindex]=max(entireRHS_d3z,[],1);
+                V_ford3_jj(:,zind,d3_c)=shiftdim(Vtemp,1);
+                Policy_ford3_jj(:,zind,d3_c)=shiftdim(maxindex,1);
+            end
+        end
+    elseif vfoptions.lowmemory==2
+        % joint: loop over bothz
         for d3_c=1:N_d3
             d23_gridvals_val=[d2_gridvals,repelem(d3_grid(d3_c),N_d2,1)];
             pi_bothz=kron(pi_z_J(:,:,jj),pi_semiz_J(:,:,d3_c,jj));
@@ -203,9 +280,10 @@ for reverse_j=1:N_j-1
                 EV2=reshape(EV_z(aprimeplus1Index),[N_d2,N_a2,N_u]);
 
                 skipinterp=(EV1==EV2);
-                aprimeProbs(skipinterp)=0;
+                aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+                aprimeProbs_d3(skipinterp)=0;
 
-                EV_z=EV1.*aprimeProbs+EV2.*(1-aprimeProbs);
+                EV_z=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
                 EV_z=sum((EV_z.*pi_u),3); % (d2,a2)
                 EV_z(isnan(EV_z))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
 

@@ -1,0 +1,1176 @@
+function [Vtilde,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetSemiExoN_GI1_nod1_e_raw(n_d2,n_d3,n_a1,n_a2,n_z,n_semiz,n_e,N_j, d2_gridvals, d3_grid, a1_gridvals, a2_grid, z_gridvals_J, semiz_gridvals_J, e_gridvals_J, pi_z_J, pi_semiz_J, pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions, beta0)
+% Naive quasi-hyperbolic discounting variant of ValueFnIter_FHorz_ExpAssetSemiExo_GI1_nod1_e_raw.
+% ExperienceAsset + semi-exogenous shocks, with the grid interpolation layer on a1. GPU only.
+%
+% Naive:  Valt_j   = max_{d,a1'} u + beta*E[Valt_{j+1}]         (exponential discounter)
+%         Vtilde_j = max_{d,a1'} u + beta_0*beta*E[Valt_{j+1}]  (agent's perceived choice)
+% The two discount factors generally pick different GI midpoints, so each pass re-derives its
+% own midpoint and its own layer-2 return matrix, and each keeps its own d3 choice, its own
+% (midpoint, L2 index) policy pair and its own L2 flag.
+% beta0 is received as a trailing input.
+% d2 determines experience asset, d3 determines semi-exog state
+% a is endogenous state, a2 is experience asset
+% z is exogenous state, semiz is semi-exog state
+
+n_bothz=[n_semiz,n_z]; % These are the return function arguments
+
+N_d2=prod(n_d2);
+N_d3=prod(n_d3);
+N_a1=prod(n_a1);
+N_a2=prod(n_a2);
+N_a=N_a1*N_a2;
+N_semiz=prod(n_semiz);
+N_z=prod(n_z);
+N_bothz=prod(n_bothz);
+N_e=prod(n_e);
+
+Vtilde=zeros(N_a,N_semiz*N_z,N_e,N_j,'gpuArray');
+% For semiz it turns out to be easier to go straight to constructing policy that stores d2,d3,a1prime seperately
+Policy=zeros(4,N_a,N_semiz*N_z,N_e,N_j,'gpuArray');
+PolicyL2flag=2*ones(1,N_a,N_semiz*N_z,N_e,N_j,'gpuArray'); % 1=all weight to lower coarse a1, 2=usual linear weights, 3=all weight to upper coarse a1
+Valt=zeros(N_a,N_semiz*N_z,N_e,N_j,'gpuArray');
+Policyalt=zeros(4,N_a,N_semiz*N_z,N_e,N_j,'gpuArray'); % exponential discounter optimal choice
+PolicyL2flagalt=2*ones(1,N_a,N_semiz*N_z,N_e,N_j,'gpuArray');
+
+%%
+a2_gridvals=CreateGridvals(n_a2,a2_grid,1);
+
+bothz_gridvals_J=[repmat(semiz_gridvals_J,N_z,1,1),repelem(z_gridvals_J,N_semiz,1,1)];
+
+if vfoptions.lowmemory>0
+    special_n_e=ones(1,length(n_e));
+end
+if vfoptions.lowmemory==2
+    special_n_semiz=[n_semiz,ones(1,length(n_z))];
+elseif vfoptions.lowmemory==3
+    special_n_bothz=ones(1,length(n_semiz)+length(n_z));
+end
+
+
+% Preallocate
+V_ford3_tilde=zeros(N_a,N_semiz*N_z,N_e,N_d3,'gpuArray');
+Policy3_ford3_tilde=zeros(3,N_a,N_semiz*N_z,N_e,N_d3,'gpuArray');
+flag_ford3_tilde=2*ones(N_a,N_semiz*N_z,N_e,N_d3,'gpuArray');
+V_ford3_alt=zeros(N_a,N_semiz*N_z,N_e,N_d3,'gpuArray');
+Policy3_ford3_alt=zeros(3,N_a,N_semiz*N_z,N_e,N_d3,'gpuArray');
+flag_ford3_alt=2*ones(N_a,N_semiz*N_z,N_e,N_d3,'gpuArray');
+
+% Grid interpolation
+% vfoptions.ngridinterp=9;
+n2short=vfoptions.ngridinterp; % number of (evenly spaced) points to put between each grid point (not counting the two points themselves)
+n2long=vfoptions.ngridinterp*2+3; % total number of aprime points we end up looking at in second layer
+a1prime_grid=interp1(1:1:n_a1(1),a1_gridvals,linspace(1,n_a1(1),n_a1(1)+(n_a1(1)-1)*n2short));
+N_a1prime=length(a1prime_grid);
+
+aind=gpuArray(0:1:N_a-1); % already includes -1
+
+a2ind=shiftdim(gpuArray(0:1:N_a2-1),-2); % already includes -1
+eBind=shiftdim(gpuArray(0:1:N_e-1),-2); % already includes -1
+bothzind=shiftdim(gpuArray(0:1:N_bothz-1),-3); % already includes -1
+bothzBind=shiftdim(gpuArray(0:1:N_bothz-1),-1); % already includes -1
+semizind=shiftdim(gpuArray(0:1:N_semiz-1),-3); % already includes -1
+semizBind=shiftdim(gpuArray(0:1:N_semiz-1),-1); % already includes -1
+
+
+%% j=N_j
+
+% Create a vector containing all the return function parameters (in order)
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+
+if ~isfield(vfoptions,'V_Jplus1')
+    if vfoptions.lowmemory==0
+
+        % Period N_j could be done without looping over d3, but then it needs much more memory than the rest, and since looping for the other periods the runtime cost of looping here is negligible.
+        for d3_c=1:N_d3
+            d23_gridvals_val=[d2_gridvals,repelem(d3_grid(d3_c),N_d2,1)];
+
+            ReturnMatrix=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n_a1,n_a1,n_a2,n_bothz,n_e, d23_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,1,0); % [N_d2,N_d3,N_a1,N_a1,N_a2,N_bothz,N_e]; Level=1, Refine=0
+
+            % Calc the max and it's index
+            [~,maxindex]=max(ReturnMatrix,[],2);
+
+            % Turn this into the 'midpoint'
+            midpoint=max(min(maxindex,n_a1(1)-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
+            % midpoint is n_d-1-by-n_a1-by-n_a2-by-n_bothz-by-n_e
+            aprimeindexes=(midpoint+(midpoint-1)*n2short)+(-n2short-1:1:1+n2short); % aprime points either side of midpoint
+            % aprime possibilities are n_d-by-n2long-by-n_a1-by-n_a2-by-n_bothz-by-n_e
+            ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n2long,n_a1,n_a2,n_bothz,n_e, d23_gridvals_val, a1prime_grid(aprimeindexes), a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,2,0); % [N_d2,N_d3,N_a1prime,N_a1,N_a2,N_bothz,N_e]; Level=2, Refine=0
+            [Vtempii,maxindexL2]=max(ReturnMatrix_ii,[],1);
+            V_ford3_tilde(:,:,:,d3_c)=shiftdim(Vtempii,1);
+            d_ind=rem(maxindexL2-1,N_d2)+1;
+            allind=d_ind+N_d2*aind+N_d2*N_a*bothzBind+N_d2*N_a*N_bothz*eBind; % midpoint is n_d2-by-1-by-n_a1-by-n_a2-by-n_bothz-by-n_e
+            Policy3_ford3_tilde(1,:,:,:,d3_c)=d_ind; % d2
+            Policy3_ford3_tilde(2,:,:,:,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+            Policy3_ford3_tilde(3,:,:,:,d3_c)=shiftdim(ceil(maxindexL2/N_d2),-1); % a1primeL2ind
+            % L2 flag: detect -Inf on the coarse a1 neighbour we'd put weight on (at chosen d2)
+            L2offset      = ceil(maxindexL2/N_d2);
+            linidx_lower  = d_ind                   + N_d2*n2long*aind + N_d2*n2long*N_a*bothzBind + N_d2*n2long*N_a*N_bothz*eBind;
+            linidx_upper  = d_ind + N_d2*(n2long-1) + N_d2*n2long*aind + N_d2*n2long*N_a*bothzBind + N_d2*n2long*N_a*N_bothz*eBind;
+            isInfLower    = (ReturnMatrix_ii(linidx_lower) == -Inf);
+            isInfUpper    = (ReturnMatrix_ii(linidx_upper) == -Inf);
+            inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
+            inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
+            flag_ford3_tilde(:,:,:,d3_c) = shiftdim(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper), 1);
+        end
+
+    elseif vfoptions.lowmemory==1
+
+        % Period N_j could be done without looping over d3, but then it needs much more memory than the rest, and since looping for the other periods the runtime cost of looping here is negligible.
+        for d3_c=1:N_d3
+            d23_gridvals_val=[d2_gridvals,repelem(d3_grid(d3_c),N_d2,1)];
+
+            for e_c=1:N_e
+                e_val=e_gridvals_J(e_c,:,N_j);
+
+                ReturnMatrix=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n_a1,n_a1,n_a2,n_bothz,special_n_e, d23_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec,1,0); % [N_d2,N_d3,N_a1,N_a1,N_a2,N_bothz]; Level=1, Refine=0
+
+                % Calc the max and it's index
+                [~,maxindex]=max(ReturnMatrix,[],2);
+
+                % Turn this into the 'midpoint'
+                midpoint=max(min(maxindex,n_a1(1)-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
+                % midpoint is n_d-1-by-n_a1-by-n_a2-by-n_bothz
+                aprimeindexes=(midpoint+(midpoint-1)*n2short)+(-n2short-1:1:1+n2short); % aprime points either side of midpoint
+                % aprime possibilities are n_d-by-n2long-by-n_a1-by-n_a2-by-n_bothz
+                ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n2long,n_a1,n_a2,n_bothz,special_n_e, d23_gridvals_val, a1prime_grid(aprimeindexes), a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec,2,0); % [N_d2,N_d3,N_a1prime,N_a1,N_a2,N_bothz]; Level=2, Refine=0
+                [Vtempii,maxindexL2]=max(ReturnMatrix_ii,[],1);
+                V_ford3_tilde(:,:,e_c,d3_c)=shiftdim(Vtempii,1);
+                d_ind=rem(maxindexL2-1,N_d2)+1;
+                allind=d_ind+N_d2*aind+N_d2*N_a*bothzBind; % midpoint is n_d2-by-1-by-n_a1-by-n_a2-by-n_bothz
+                Policy3_ford3_tilde(1,:,:,e_c,d3_c)=d_ind; % d2
+                Policy3_ford3_tilde(2,:,:,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+                Policy3_ford3_tilde(3,:,:,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d2),-1); % a1primeL2ind
+                % L2 flag: detect -Inf on the coarse a1 neighbour we'd put weight on (at chosen d2)
+                L2offset      = ceil(maxindexL2/N_d2);
+                linidx_lower  = d_ind                   + N_d2*n2long*aind + N_d2*n2long*N_a*bothzBind;
+                linidx_upper  = d_ind + N_d2*(n2long-1) + N_d2*n2long*aind + N_d2*n2long*N_a*bothzBind;
+                isInfLower    = (ReturnMatrix_ii(linidx_lower) == -Inf);
+                isInfUpper    = (ReturnMatrix_ii(linidx_upper) == -Inf);
+                inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
+                inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
+                flag_ford3_tilde(:,:,e_c,d3_c) = shiftdim(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper), 1);
+            end
+        end
+
+    elseif vfoptions.lowmemory==2
+
+        % Period N_j could be done without looping over d3, but then it needs much more memory than the rest, and since looping for the other periods the runtime cost of looping here is negligible.
+        for d3_c=1:N_d3
+            d23_gridvals_val=[d2_gridvals,repelem(d3_grid(d3_c),N_d2,1)];
+
+            for z_c=1:N_z
+                zind=(1:1:N_semiz)+N_semiz*(z_c-1);
+                z_val=bothz_gridvals_J(zind,:,N_j);
+
+                for e_c=1:N_e
+                    e_val=e_gridvals_J(e_c,:,N_j);
+
+                    ReturnMatrix=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n_a1,n_a1,n_a2,special_n_semiz,special_n_e, d23_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, z_val, e_val, ReturnFnParamsVec,1,0); % [N_d2,N_d3,N_a1,N_a1,N_a2,N_semiz]; Level=1, Refine=0
+
+                    % Calc the max and it's index
+                    [~,maxindex]=max(ReturnMatrix,[],2);
+
+                    % Turn this into the 'midpoint'
+                    midpoint=max(min(maxindex,n_a1(1)-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
+                    % midpoint is n_d-1-by-n_a1-by-n_a2-by-n_semiz
+                    aprimeindexes=(midpoint+(midpoint-1)*n2short)+(-n2short-1:1:1+n2short); % aprime points either side of midpoint
+                    % aprime possibilities are n_d-by-n2long-by-n_a1-by-n_a2-by-n_semiz
+                    ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n2long,n_a1,n_a2,special_n_semiz,special_n_e, d23_gridvals_val, a1prime_grid(aprimeindexes), a1_gridvals, a2_gridvals, z_val, e_val, ReturnFnParamsVec,2,0); % [N_d2,N_d3,N_a1prime,N_a1,N_a2,N_semiz]; Level=2, Refine=0
+                    [Vtempii,maxindexL2]=max(ReturnMatrix_ii,[],1);
+                    V_ford3_tilde(:,zind,e_c,d3_c)=shiftdim(Vtempii,1);
+                    d_ind=rem(maxindexL2-1,N_d2)+1;
+                    allind=d_ind+N_d2*aind+N_d2*N_a*semizBind; % midpoint is n_d2-by-1-by-n_a1-by-n_a2-by-n_semiz
+                    Policy3_ford3_tilde(1,:,zind,e_c,d3_c)=d_ind; % d2
+                    Policy3_ford3_tilde(2,:,zind,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+                    Policy3_ford3_tilde(3,:,zind,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d2),-1); % a1primeL2ind
+                    % L2 flag: detect -Inf on the coarse a1 neighbour we'd put weight on (at chosen d2)
+                    L2offset      = ceil(maxindexL2/N_d2);
+                    linidx_lower  = d_ind                   + N_d2*n2long*aind + N_d2*n2long*N_a*semizBind;
+                    linidx_upper  = d_ind + N_d2*(n2long-1) + N_d2*n2long*aind + N_d2*n2long*N_a*semizBind;
+                    isInfLower    = (ReturnMatrix_ii(linidx_lower) == -Inf);
+                    isInfUpper    = (ReturnMatrix_ii(linidx_upper) == -Inf);
+                    inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
+                    inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
+                    flag_ford3_tilde(:,zind,e_c,d3_c) = shiftdim(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper), 1);
+                end
+            end
+        end
+
+    elseif vfoptions.lowmemory==3
+
+        % Period N_j could be done without looping over d3, but then it needs much more memory than the rest, and since looping for the other periods the runtime cost of looping here is negligible.
+        for d3_c=1:N_d3
+            d23_gridvals_val=[d2_gridvals,repelem(d3_grid(d3_c),N_d2,1)];
+
+            for z_c=1:N_bothz
+                z_val=bothz_gridvals_J(z_c,:,N_j);
+
+                for e_c=1:N_e
+                    e_val=e_gridvals_J(e_c,:,N_j);
+
+                    ReturnMatrix=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n_a1,n_a1,n_a2,special_n_bothz,special_n_e, d23_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, z_val, e_val, ReturnFnParamsVec,1,0); % [N_d2,N_d3,N_a1,N_a1,N_a2,N_semiz]; Level=1, Refine=0
+
+                    % Calc the max and it's index
+                    [~,maxindex]=max(ReturnMatrix,[],2);
+
+                    % Turn this into the 'midpoint'
+                    midpoint=max(min(maxindex,n_a1(1)-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
+                    % midpoint is n_d-1-by-n_a1-by-n_a2
+                    aprimeindexes=(midpoint+(midpoint-1)*n2short)+(-n2short-1:1:1+n2short); % aprime points either side of midpoint
+                    % aprime possibilities are n_d-by-n2long-by-n_a1-by-n_a2
+                    ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n2long,n_a1,n_a2,special_n_bothz,special_n_e, d23_gridvals_val, a1prime_grid(aprimeindexes), a1_gridvals, a2_gridvals, z_val, e_val, ReturnFnParamsVec,2,0); % [N_d2,N_d3,N_a1prime,N_a1,N_a2,N_semiz]; Level=2, Refine=0
+                    [Vtempii,maxindexL2]=max(ReturnMatrix_ii,[],1);
+                    V_ford3_tilde(:,z_c,e_c,d3_c)=shiftdim(Vtempii,1);
+                    d_ind=rem(maxindexL2-1,N_d2)+1;
+                    allind=d_ind+N_d2*aind; % midpoint is n_d2-by-1-by-n_a1-by-n_a2
+                    Policy3_ford3_tilde(1,:,z_c,e_c,d3_c)=d_ind; % d2
+                    Policy3_ford3_tilde(2,:,z_c,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+                    Policy3_ford3_tilde(3,:,z_c,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d2),-1); % a1primeL2ind
+                    % L2 flag: detect -Inf on the coarse a1 neighbour we'd put weight on (at chosen d2)
+                    L2offset      = ceil(maxindexL2/N_d2);
+                    linidx_lower  = d_ind                   + N_d2*n2long*aind;
+                    linidx_upper  = d_ind + N_d2*(n2long-1) + N_d2*n2long*aind;
+                    isInfLower    = (ReturnMatrix_ii(linidx_lower) == -Inf);
+                    isInfUpper    = (ReturnMatrix_ii(linidx_upper) == -Inf);
+                    inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
+                    inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
+                    flag_ford3_tilde(:,z_c,e_c,d3_c) = shiftdim(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper), 1);
+                end
+            end
+        end
+
+    end
+
+    % Now we just max over d3, and keep the policy that corresponded to that (including modify the policy to include the d3 decision)
+    [V_jj,maxindex]=max(V_ford3_tilde,[],4); % max over d3
+    Vtilde(:,:,:,N_j)=V_jj;
+    Policy(2,:,:,:,N_j)=shiftdim(maxindex,-1); % d3 is just maxindex
+    maxindex=reshape(maxindex,[N_a*N_bothz*N_e,1]); % This is the value of d that corresponds, make it this shape for addition just below
+    temp=3*( (1:1:N_a*N_bothz*N_e)'+(N_a*N_bothz*N_e)*(maxindex-1) -1);
+    Policy(1,:,:,:,N_j)=reshape(Policy3_ford3_tilde(1+temp),[1,N_a,N_bothz,N_e]);
+    Policy(3,:,:,:,N_j)=reshape(Policy3_ford3_tilde(2+temp),[1,N_a,N_bothz,N_e]);
+    Policy(4,:,:,:,N_j)=reshape(Policy3_ford3_tilde(3+temp),[1,N_a,N_bothz,N_e]);
+    PolicyL2flag(1,:,:,:,N_j)=reshape(flag_ford3_tilde((1:N_a*N_bothz*N_e)'+(N_a*N_bothz*N_e)*(maxindex-1)),[1,N_a,N_bothz,N_e]);
+    % Terminal period: no continuation, so the exponential and the QH-perceived problems coincide
+    Valt(:,:,:,N_j)=Vtilde(:,:,:,N_j);
+    Policyalt(:,:,:,:,N_j)=Policy(:,:,:,:,N_j);
+    PolicyL2flagalt(1,:,:,:,N_j)=PolicyL2flag(1,:,:,:,N_j);
+
+else
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
+    [a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix(aprimeFn, n_d2, n_a2, d2_gridvals, a2_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
+    % Note: aprimeIndex is [N_d2,N_a2], whereas aprimeProbs is [N_d2,N_a2]
+
+    aprimeIndex=repelem(gpuArray(1:1:N_a1)',N_d2,N_a2)+N_a1*repmat((a2primeIndex-1),N_a1,1); % [N_d2*N_a1,N_a2]
+    aprimeplus1Index=repelem(gpuArray(1:1:N_a1)',N_d2,N_a2)+N_a1*repmat(a2primeIndex,N_a1,1); % [N_d2*N_a1,N_a2]
+    aprimeProbs=repmat(a2primeProbs,N_a1,1,N_bothz);  % [N_d2*N_a1,N_a2,N_bothz]
+
+    % Using V_Jplus1
+    EVpre=sum(reshape(vfoptions.V_Jplus1,[N_a,N_bothz,N_e]).*shiftdim(pi_e_J(:,N_j+1),-2),3);    % First, switch V_Jplus1 into Kron form
+
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+    beta=prod(DiscountFactorParamsVec);
+    beta0beta=beta0*beta;
+
+
+    if vfoptions.lowmemory==0
+
+        for d3_c=1:N_d3
+            d23_gridvals_val=[d2_gridvals,repelem(d3_grid(d3_c),N_d2,1)];
+            % Note: By definition V_Jplus1 does not depend on d (only aprime)
+            pi_bothz=kron(pi_z_J(:,:,N_j),pi_semiz_J(:,:,d3_c,N_j));
+
+            EV=EVpre.*shiftdim(pi_bothz',-1);
+            EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+            EV=sum(EV,2); % sum over z', leaving a singular second dimension
+
+            % Switch EV from being in terms of aprime to being in terms of d and a
+            EV1=reshape(EV(aprimeIndex,:),[N_d2*N_a1,N_a2,N_bothz]); % (d2,a1prime,a2,z), the lower aprime
+            EV2=reshape(EV(aprimeplus1Index,:),[N_d2*N_a1,N_a2,N_bothz]); % (d2,a1prime,a2,z), the upper aprime
+
+            % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
+            skipinterp=(EV1==EV2);
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
+
+            % Apply the aprimeProbs
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            % entireEV is (d2,a1prime, a2,z)
+
+            entireEV=reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % undiscounted; beta/beta0beta applied at the use sites
+            % Interpolate EV over aprime_grid
+            entireEVinterp=permute(interp1(a1_gridvals,permute(entireEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]); % [N_d2,N_a1prime,1,N_a2,N_semiz]
+
+            ReturnMatrix_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n_a1,n_a1,n_a2,n_bothz,n_e, d23_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,1,0); % Level=1, Refine=0
+            % (d,aprime,a,z)
+
+            % alt pass (exponential discounter): F + beta*EV
+            entireRHS_d3=ReturnMatrix_d3+beta*entireEV;
+
+            % Calc the max and it's index
+            [~,maxindex]=max(entireRHS_d3,[],2);
+
+            % Turn this into the 'midpoint'
+            midpoint=max(min(maxindex,n_a1(1)-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
+            % midpoint is n_d2-1-by-n_a1-by-n_a2-by-n_bothz-by-n_e
+            a1primeindexesfine=(midpoint+(midpoint-1)*n2short)+(-n2short-1:1:1+n2short); % aprime points either side of midpoint
+            % aprime possibilities are n_d2-by-n2long-by-n_a1-by-n_a2-by-n_bothz-by-n_e
+            ReturnMatrix_ii_alt=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n2long,n_a1,n_a2,n_bothz,n_e, d23_gridvals_val, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,2,0); % [N_d2,N_a1prime,N_a1,N_a2,N_bothz,N_e]; Level=2, Refine=0
+            d2a1primea2semiz=(1:1:N_d2)'+N_d2*(a1primeindexesfine-1)+N_d2*N_a1prime*a2ind+N_d2*N_a1prime*N_a2*bothzind;
+            entireRHS_ii_alt=ReturnMatrix_ii_alt+beta*reshape(entireEVinterp(d2a1primea2semiz(:)),[N_d2*n2long,N_a1*N_a2,N_bothz,N_e]);
+            [Vtempii,maxindexL2]=max(entireRHS_ii_alt,[],1);
+            V_ford3_alt(:,:,:,d3_c)=shiftdim(Vtempii,1);
+            d_ind=rem(maxindexL2-1,N_d2)+1;
+            allind=d_ind+N_d2*aind+N_d2*N_a*bothzBind+N_d2*N_a*N_bothz*eBind; % midpoint is n_d2-by-1-by-n_a1-by-n_a2-by-n_bothz-by-n_e
+            Policy3_ford3_alt(1,:,:,:,d3_c)=d_ind; % d2
+            Policy3_ford3_alt(2,:,:,:,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+            Policy3_ford3_alt(3,:,:,:,d3_c)=shiftdim(ceil(maxindexL2/N_d2),-1); % a1primeL2ind
+            % L2 flag: detect -Inf on the coarse a1 neighbour we'd put weight on (at chosen d2)
+            L2offset      = ceil(maxindexL2/N_d2);
+            linidx_lower  = d_ind                   + N_d2*n2long*aind + N_d2*n2long*N_a*bothzBind + N_d2*n2long*N_a*N_bothz*eBind;
+            linidx_upper  = d_ind + N_d2*(n2long-1) + N_d2*n2long*aind + N_d2*n2long*N_a*bothzBind + N_d2*n2long*N_a*N_bothz*eBind;
+            isInfLower    = (ReturnMatrix_ii_alt(linidx_lower) == -Inf);
+            isInfUpper    = (ReturnMatrix_ii_alt(linidx_upper) == -Inf);
+            inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
+            inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
+            flag_ford3_alt(:,:,:,d3_c) = shiftdim(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper), 1);
+
+            % tilde pass (QH-perceived): F + beta0*beta*EV
+            entireRHS_d3=ReturnMatrix_d3+beta0beta*entireEV;
+
+            % Calc the max and it's index
+            [~,maxindex]=max(entireRHS_d3,[],2);
+
+            % Turn this into the 'midpoint'
+            midpoint=max(min(maxindex,n_a1(1)-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
+            % midpoint is n_d2-1-by-n_a1-by-n_a2-by-n_bothz-by-n_e
+            a1primeindexesfine=(midpoint+(midpoint-1)*n2short)+(-n2short-1:1:1+n2short); % aprime points either side of midpoint
+            % aprime possibilities are n_d2-by-n2long-by-n_a1-by-n_a2-by-n_bothz-by-n_e
+            ReturnMatrix_ii_tilde=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n2long,n_a1,n_a2,n_bothz,n_e, d23_gridvals_val, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,2,0); % [N_d2,N_a1prime,N_a1,N_a2,N_bothz,N_e]; Level=2, Refine=0
+            d2a1primea2semiz=(1:1:N_d2)'+N_d2*(a1primeindexesfine-1)+N_d2*N_a1prime*a2ind+N_d2*N_a1prime*N_a2*bothzind;
+            entireRHS_ii_tilde=ReturnMatrix_ii_tilde+beta0beta*reshape(entireEVinterp(d2a1primea2semiz(:)),[N_d2*n2long,N_a1*N_a2,N_bothz,N_e]);
+            [Vtempii,maxindexL2]=max(entireRHS_ii_tilde,[],1);
+            V_ford3_tilde(:,:,:,d3_c)=shiftdim(Vtempii,1);
+            d_ind=rem(maxindexL2-1,N_d2)+1;
+            allind=d_ind+N_d2*aind+N_d2*N_a*bothzBind+N_d2*N_a*N_bothz*eBind; % midpoint is n_d2-by-1-by-n_a1-by-n_a2-by-n_bothz-by-n_e
+            Policy3_ford3_tilde(1,:,:,:,d3_c)=d_ind; % d2
+            Policy3_ford3_tilde(2,:,:,:,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+            Policy3_ford3_tilde(3,:,:,:,d3_c)=shiftdim(ceil(maxindexL2/N_d2),-1); % a1primeL2ind
+            % L2 flag: detect -Inf on the coarse a1 neighbour we'd put weight on (at chosen d2)
+            L2offset      = ceil(maxindexL2/N_d2);
+            linidx_lower  = d_ind                   + N_d2*n2long*aind + N_d2*n2long*N_a*bothzBind + N_d2*n2long*N_a*N_bothz*eBind;
+            linidx_upper  = d_ind + N_d2*(n2long-1) + N_d2*n2long*aind + N_d2*n2long*N_a*bothzBind + N_d2*n2long*N_a*N_bothz*eBind;
+            isInfLower    = (ReturnMatrix_ii_tilde(linidx_lower) == -Inf);
+            isInfUpper    = (ReturnMatrix_ii_tilde(linidx_upper) == -Inf);
+            inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
+            inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
+            flag_ford3_tilde(:,:,:,d3_c) = shiftdim(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper), 1);
+        end
+
+    elseif vfoptions.lowmemory==1
+
+        for d3_c=1:N_d3
+            d23_gridvals_val=[d2_gridvals,repelem(d3_grid(d3_c),N_d2,1)];
+            % Note: By definition V_Jplus1 does not depend on d (only aprime)
+            pi_bothz=kron(pi_z_J(:,:,N_j),pi_semiz_J(:,:,d3_c,N_j));
+
+            EV=EVpre.*shiftdim(pi_bothz',-1);
+            EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+            EV=sum(EV,2); % sum over z', leaving a singular second dimension
+
+            % Switch EV from being in terms of aprime to being in terms of d and a
+            EV1=reshape(EV(aprimeIndex,:),[N_d2*N_a1,N_a2,N_bothz]); % (d2,a1prime,a2,z), the lower aprime
+            EV2=reshape(EV(aprimeplus1Index,:),[N_d2*N_a1,N_a2,N_bothz]); % (d2,a1prime,a2,z), the upper aprime
+
+            % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
+            skipinterp=(EV1==EV2);
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
+
+            % Apply the aprimeProbs
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            % entireEV is (d2,a1prime, a2,z)
+
+            entireEV=reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % undiscounted; beta/beta0beta applied at the use sites
+            % Interpolate EV over aprime_grid
+            entireEVinterp=permute(interp1(a1_gridvals,permute(entireEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]); % [N_d2,N_a1prime,1,N_a2,N_semiz]
+
+            for e_c=1:N_e
+                e_val=e_gridvals_J(e_c,:,N_j);
+
+                ReturnMatrix_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n_a1,n_a1,n_a2,n_bothz,special_n_e, d23_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec,1,0); % Level=1, Refine=0
+                % (d,aprime,a,z)
+
+                % alt pass (exponential discounter): F + beta*EV
+                entireRHS_d3=ReturnMatrix_d3+beta*entireEV;
+
+                % Calc the max and it's index
+                [~,maxindex]=max(entireRHS_d3,[],2);
+
+                % Turn this into the 'midpoint'
+                midpoint=max(min(maxindex,n_a1(1)-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
+                % midpoint is n_d2-1-by-n_a1-by-n_a2-by-n_bothz
+                a1primeindexesfine=(midpoint+(midpoint-1)*n2short)+(-n2short-1:1:1+n2short); % aprime points either side of midpoint
+                % aprime possibilities are n_d2-by-n2long-by-n_a1-by-n_a2-by-n_bothz
+                ReturnMatrix_ii_alt=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n2long,n_a1,n_a2,n_bothz,special_n_e, d23_gridvals_val, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec,2,0); % [N_d2,N_a1prime,N_a1,N_a2,N_bothz]; Level=2, Refine=0
+                d2a1primea2semiz=(1:1:N_d2)'+N_d2*(a1primeindexesfine-1)+N_d2*N_a1prime*a2ind+N_d2*N_a1prime*N_a2*bothzind;
+                entireRHS_ii_alt=ReturnMatrix_ii_alt+beta*reshape(entireEVinterp(d2a1primea2semiz(:)),[N_d2*n2long,N_a1*N_a2,N_bothz]);
+                [Vtempii,maxindexL2]=max(entireRHS_ii_alt,[],1);
+                V_ford3_alt(:,:,e_c,d3_c)=shiftdim(Vtempii,1);
+                d_ind=rem(maxindexL2-1,N_d2)+1;
+                allind=d_ind+N_d2*aind+N_d2*N_a*bothzBind; % midpoint is n_d2-by-1-by-n_a1-by-n_a2-by-n_bothz
+                Policy3_ford3_alt(1,:,:,e_c,d3_c)=d_ind; % d2
+                Policy3_ford3_alt(2,:,:,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+                Policy3_ford3_alt(3,:,:,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d2),-1); % a1primeL2ind
+                % L2 flag: detect -Inf on the coarse a1 neighbour we'd put weight on (at chosen d2)
+                L2offset      = ceil(maxindexL2/N_d2);
+                linidx_lower  = d_ind                   + N_d2*n2long*aind + N_d2*n2long*N_a*bothzBind;
+                linidx_upper  = d_ind + N_d2*(n2long-1) + N_d2*n2long*aind + N_d2*n2long*N_a*bothzBind;
+                isInfLower    = (ReturnMatrix_ii_alt(linidx_lower) == -Inf);
+                isInfUpper    = (ReturnMatrix_ii_alt(linidx_upper) == -Inf);
+                inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
+                inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
+                flag_ford3_alt(:,:,e_c,d3_c) = shiftdim(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper), 1);
+
+                % tilde pass (QH-perceived): F + beta0*beta*EV
+                entireRHS_d3=ReturnMatrix_d3+beta0beta*entireEV;
+
+                % Calc the max and it's index
+                [~,maxindex]=max(entireRHS_d3,[],2);
+
+                % Turn this into the 'midpoint'
+                midpoint=max(min(maxindex,n_a1(1)-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
+                % midpoint is n_d2-1-by-n_a1-by-n_a2-by-n_bothz
+                a1primeindexesfine=(midpoint+(midpoint-1)*n2short)+(-n2short-1:1:1+n2short); % aprime points either side of midpoint
+                % aprime possibilities are n_d2-by-n2long-by-n_a1-by-n_a2-by-n_bothz
+                ReturnMatrix_ii_tilde=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n2long,n_a1,n_a2,n_bothz,special_n_e, d23_gridvals_val, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec,2,0); % [N_d2,N_a1prime,N_a1,N_a2,N_bothz]; Level=2, Refine=0
+                d2a1primea2semiz=(1:1:N_d2)'+N_d2*(a1primeindexesfine-1)+N_d2*N_a1prime*a2ind+N_d2*N_a1prime*N_a2*bothzind;
+                entireRHS_ii_tilde=ReturnMatrix_ii_tilde+beta0beta*reshape(entireEVinterp(d2a1primea2semiz(:)),[N_d2*n2long,N_a1*N_a2,N_bothz]);
+                [Vtempii,maxindexL2]=max(entireRHS_ii_tilde,[],1);
+                V_ford3_tilde(:,:,e_c,d3_c)=shiftdim(Vtempii,1);
+                d_ind=rem(maxindexL2-1,N_d2)+1;
+                allind=d_ind+N_d2*aind+N_d2*N_a*bothzBind; % midpoint is n_d2-by-1-by-n_a1-by-n_a2-by-n_bothz
+                Policy3_ford3_tilde(1,:,:,e_c,d3_c)=d_ind; % d2
+                Policy3_ford3_tilde(2,:,:,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+                Policy3_ford3_tilde(3,:,:,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d2),-1); % a1primeL2ind
+                % L2 flag: detect -Inf on the coarse a1 neighbour we'd put weight on (at chosen d2)
+                L2offset      = ceil(maxindexL2/N_d2);
+                linidx_lower  = d_ind                   + N_d2*n2long*aind + N_d2*n2long*N_a*bothzBind;
+                linidx_upper  = d_ind + N_d2*(n2long-1) + N_d2*n2long*aind + N_d2*n2long*N_a*bothzBind;
+                isInfLower    = (ReturnMatrix_ii_tilde(linidx_lower) == -Inf);
+                isInfUpper    = (ReturnMatrix_ii_tilde(linidx_upper) == -Inf);
+                inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
+                inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
+                flag_ford3_tilde(:,:,e_c,d3_c) = shiftdim(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper), 1);
+            end
+        end
+
+    elseif vfoptions.lowmemory==2
+
+        for d3_c=1:N_d3
+            d23_gridvals_val=[d2_gridvals,repelem(d3_grid(d3_c),N_d2,1)];
+            % Note: By definition V_Jplus1 does not depend on d (only aprime)
+            pi_bothz=kron(pi_z_J(:,:,N_j),pi_semiz_J(:,:,d3_c,N_j));
+
+            EV=EVpre.*shiftdim(pi_bothz',-1);
+            EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+            EV=sum(EV,2); % sum over z', leaving a singular second dimension
+
+            % Switch EV from being in terms of aprime to being in terms of d and a
+            EV1=reshape(EV(aprimeIndex,:),[N_d2*N_a1,N_a2,N_bothz]); % (d2,a1prime,a2,z), the lower aprime
+            EV2=reshape(EV(aprimeplus1Index,:),[N_d2*N_a1,N_a2,N_bothz]); % (d2,a1prime,a2,z), the upper aprime
+
+            % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
+            skipinterp=(EV1==EV2);
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
+
+            % Apply the aprimeProbs
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            % entireEV is (d2,a1prime, a2,z)
+
+            entireEV=reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % undiscounted; beta/beta0beta applied at the use sites
+            % Interpolate EV over aprime_grid
+            entireEVinterp=permute(interp1(a1_gridvals,permute(entireEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]); % [N_d2,N_a1prime,1,N_a2,N_semiz]
+
+            for z_c=1:N_z
+                zind=(1:1:N_semiz)+N_semiz*(z_c-1);
+                z_val=bothz_gridvals_J(zind,:,N_j);
+                entireEV_z=entireEV(:,:,:,:,zind);
+                entireEVinterp_z=entireEVinterp(:,:,:,:,zind);
+
+                for e_c=1:N_e
+                    e_val=e_gridvals_J(e_c,:,N_j);
+
+                    ReturnMatrix_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n_a1,n_a1,n_a2,special_n_semiz,special_n_e, d23_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, z_val, e_val, ReturnFnParamsVec,1,0); % Level=1, Refine=0
+                    % (d,aprime,a,z)
+
+                    % alt pass (exponential discounter): F + beta*EV
+                    entireRHS_d3=ReturnMatrix_d3+beta*entireEV_z;
+
+                    % Calc the max and it's index
+                    [~,maxindex]=max(entireRHS_d3,[],2);
+
+                    % Turn this into the 'midpoint'
+                    midpoint=max(min(maxindex,n_a1(1)-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
+                    % midpoint is n_d2-1-by-n_a1-by-n_a2-by-n_semiz
+                    a1primeindexesfine=(midpoint+(midpoint-1)*n2short)+(-n2short-1:1:1+n2short); % aprime points either side of midpoint
+                    % aprime possibilities are n_d2-by-n2long-by-n_a1-by-n_a2-by-n_semiz
+                    ReturnMatrix_ii_alt=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n2long,n_a1,n_a2,special_n_semiz,special_n_e, d23_gridvals_val, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, z_val, e_val, ReturnFnParamsVec,2,0); % [N_d2,N_a1prime,N_a1,N_a2,N_semiz]; Level=2, Refine=0
+                    d2a1primea2semiz=(1:1:N_d2)'+N_d2*(a1primeindexesfine-1)+N_d2*N_a1prime*a2ind+N_d2*N_a1prime*N_a2*semizind;
+                    entireRHS_ii_alt=ReturnMatrix_ii_alt+beta*reshape(entireEVinterp_z(d2a1primea2semiz(:)),[N_d2*n2long,N_a1*N_a2,N_semiz]);
+                    [Vtempii,maxindexL2]=max(entireRHS_ii_alt,[],1);
+                    V_ford3_alt(:,zind,e_c,d3_c)=shiftdim(Vtempii,1);
+                    d_ind=rem(maxindexL2-1,N_d2)+1;
+                    allind=d_ind+N_d2*aind+N_d2*N_a*semizBind; % midpoint is n_d2-by-1-by-n_a1-by-n_a2-by-n_semiz
+                    Policy3_ford3_alt(1,:,zind,e_c,d3_c)=d_ind; % d2
+                    Policy3_ford3_alt(2,:,zind,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+                    Policy3_ford3_alt(3,:,zind,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d2),-1); % a1primeL2ind
+                    % L2 flag: detect -Inf on the coarse a1 neighbour we'd put weight on (at chosen d2)
+                    L2offset      = ceil(maxindexL2/N_d2);
+                    linidx_lower  = d_ind                   + N_d2*n2long*aind + N_d2*n2long*N_a*semizBind;
+                    linidx_upper  = d_ind + N_d2*(n2long-1) + N_d2*n2long*aind + N_d2*n2long*N_a*semizBind;
+                    isInfLower    = (ReturnMatrix_ii_alt(linidx_lower) == -Inf);
+                    isInfUpper    = (ReturnMatrix_ii_alt(linidx_upper) == -Inf);
+                    inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
+                    inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
+                    flag_ford3_alt(:,zind,e_c,d3_c) = shiftdim(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper), 1);
+
+                    % tilde pass (QH-perceived): F + beta0*beta*EV
+                    entireRHS_d3=ReturnMatrix_d3+beta0beta*entireEV_z;
+
+                    % Calc the max and it's index
+                    [~,maxindex]=max(entireRHS_d3,[],2);
+
+                    % Turn this into the 'midpoint'
+                    midpoint=max(min(maxindex,n_a1(1)-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
+                    % midpoint is n_d2-1-by-n_a1-by-n_a2-by-n_semiz
+                    a1primeindexesfine=(midpoint+(midpoint-1)*n2short)+(-n2short-1:1:1+n2short); % aprime points either side of midpoint
+                    % aprime possibilities are n_d2-by-n2long-by-n_a1-by-n_a2-by-n_semiz
+                    ReturnMatrix_ii_tilde=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n2long,n_a1,n_a2,special_n_semiz,special_n_e, d23_gridvals_val, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, z_val, e_val, ReturnFnParamsVec,2,0); % [N_d2,N_a1prime,N_a1,N_a2,N_semiz]; Level=2, Refine=0
+                    d2a1primea2semiz=(1:1:N_d2)'+N_d2*(a1primeindexesfine-1)+N_d2*N_a1prime*a2ind+N_d2*N_a1prime*N_a2*semizind;
+                    entireRHS_ii_tilde=ReturnMatrix_ii_tilde+beta0beta*reshape(entireEVinterp_z(d2a1primea2semiz(:)),[N_d2*n2long,N_a1*N_a2,N_semiz]);
+                    [Vtempii,maxindexL2]=max(entireRHS_ii_tilde,[],1);
+                    V_ford3_tilde(:,zind,e_c,d3_c)=shiftdim(Vtempii,1);
+                    d_ind=rem(maxindexL2-1,N_d2)+1;
+                    allind=d_ind+N_d2*aind+N_d2*N_a*semizBind; % midpoint is n_d2-by-1-by-n_a1-by-n_a2-by-n_semiz
+                    Policy3_ford3_tilde(1,:,zind,e_c,d3_c)=d_ind; % d2
+                    Policy3_ford3_tilde(2,:,zind,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+                    Policy3_ford3_tilde(3,:,zind,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d2),-1); % a1primeL2ind
+                    % L2 flag: detect -Inf on the coarse a1 neighbour we'd put weight on (at chosen d2)
+                    L2offset      = ceil(maxindexL2/N_d2);
+                    linidx_lower  = d_ind                   + N_d2*n2long*aind + N_d2*n2long*N_a*semizBind;
+                    linidx_upper  = d_ind + N_d2*(n2long-1) + N_d2*n2long*aind + N_d2*n2long*N_a*semizBind;
+                    isInfLower    = (ReturnMatrix_ii_tilde(linidx_lower) == -Inf);
+                    isInfUpper    = (ReturnMatrix_ii_tilde(linidx_upper) == -Inf);
+                    inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
+                    inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
+                    flag_ford3_tilde(:,zind,e_c,d3_c) = shiftdim(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper), 1);
+                end
+            end
+        end
+
+    elseif vfoptions.lowmemory==3
+
+        for d3_c=1:N_d3
+            d23_gridvals_val=[d2_gridvals,repelem(d3_grid(d3_c),N_d2,1)];
+            % Note: By definition V_Jplus1 does not depend on d (only aprime)
+            pi_bothz=kron(pi_z_J(:,:,N_j),pi_semiz_J(:,:,d3_c,N_j));
+
+            EV=EVpre.*shiftdim(pi_bothz',-1);
+            EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+            EV=sum(EV,2); % sum over z', leaving a singular second dimension
+
+            % Switch EV from being in terms of aprime to being in terms of d and a
+            EV1=reshape(EV(aprimeIndex,:),[N_d2*N_a1,N_a2,N_bothz]); % (d2,a1prime,a2,z), the lower aprime
+            EV2=reshape(EV(aprimeplus1Index,:),[N_d2*N_a1,N_a2,N_bothz]); % (d2,a1prime,a2,z), the upper aprime
+
+            % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
+            skipinterp=(EV1==EV2);
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
+
+            % Apply the aprimeProbs
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            % entireEV is (d2,a1prime, a2,z)
+
+            entireEV=reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % undiscounted; beta/beta0beta applied at the use sites
+            % Interpolate EV over aprime_grid
+            entireEVinterp=permute(interp1(a1_gridvals,permute(entireEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]); % [N_d2,N_a1prime,1,N_a2,N_semiz]
+
+            for z_c=1:N_bothz
+                z_val=bothz_gridvals_J(z_c,:,N_j);
+                entireEV_z=entireEV(:,:,:,:,z_c);
+                entireEVinterp_z=entireEVinterp(:,:,:,:,z_c);
+
+                for e_c=1:N_e
+                    e_val=e_gridvals_J(e_c,:,N_j);
+
+                    ReturnMatrix_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n_a1,n_a1,n_a2,special_n_bothz,special_n_e, d23_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, z_val, e_val, ReturnFnParamsVec,1,0); % Level=1, Refine=0
+                    % (d,aprime,a,z)
+
+                    % alt pass (exponential discounter): F + beta*EV
+                    entireRHS_d3=ReturnMatrix_d3+beta*entireEV_z;
+
+                    % Calc the max and it's index
+                    [~,maxindex]=max(entireRHS_d3,[],2);
+
+                    % Turn this into the 'midpoint'
+                    midpoint=max(min(maxindex,n_a1(1)-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
+                    % midpoint is n_d2-1-by-n_a1-by-n_a2
+                    a1primeindexesfine=(midpoint+(midpoint-1)*n2short)+(-n2short-1:1:1+n2short); % aprime points either side of midpoint
+                    % aprime possibilities are n_d2-by-n2long-by-n_a1-by-n_a2
+                    ReturnMatrix_ii_alt=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n2long,n_a1,n_a2,special_n_bothz,special_n_e, d23_gridvals_val, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, z_val, e_val, ReturnFnParamsVec,2,0); % [N_d2,N_a1prime,N_a1,N_a2]; Level=2, Refine=0
+                    d2a1primea2semiz=(1:1:N_d2)'+N_d2*(a1primeindexesfine-1)+N_d2*N_a1prime*a2ind;
+                    entireRHS_ii_alt=ReturnMatrix_ii_alt+beta*reshape(entireEVinterp_z(d2a1primea2semiz(:)),[N_d2*n2long,N_a1*N_a2]);
+                    [Vtempii,maxindexL2]=max(entireRHS_ii_alt,[],1);
+                    V_ford3_alt(:,z_c,e_c,d3_c)=shiftdim(Vtempii,1);
+                    d_ind=rem(maxindexL2-1,N_d2)+1;
+                    allind=d_ind+N_d2*aind; % midpoint is n_d2-by-1-by-n_a1-by-n_a2
+                    Policy3_ford3_alt(1,:,z_c,e_c,d3_c)=d_ind; % d2
+                    Policy3_ford3_alt(2,:,z_c,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+                    Policy3_ford3_alt(3,:,z_c,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d2),-1); % a1primeL2ind
+                    % L2 flag: detect -Inf on the coarse a1 neighbour we'd put weight on (at chosen d2)
+                    L2offset      = ceil(maxindexL2/N_d2);
+                    linidx_lower  = d_ind                   + N_d2*n2long*aind;
+                    linidx_upper  = d_ind + N_d2*(n2long-1) + N_d2*n2long*aind;
+                    isInfLower    = (ReturnMatrix_ii_alt(linidx_lower) == -Inf);
+                    isInfUpper    = (ReturnMatrix_ii_alt(linidx_upper) == -Inf);
+                    inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
+                    inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
+                    flag_ford3_alt(:,z_c,e_c,d3_c) = shiftdim(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper), 1);
+
+                    % tilde pass (QH-perceived): F + beta0*beta*EV
+                    entireRHS_d3=ReturnMatrix_d3+beta0beta*entireEV_z;
+
+                    % Calc the max and it's index
+                    [~,maxindex]=max(entireRHS_d3,[],2);
+
+                    % Turn this into the 'midpoint'
+                    midpoint=max(min(maxindex,n_a1(1)-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
+                    % midpoint is n_d2-1-by-n_a1-by-n_a2
+                    a1primeindexesfine=(midpoint+(midpoint-1)*n2short)+(-n2short-1:1:1+n2short); % aprime points either side of midpoint
+                    % aprime possibilities are n_d2-by-n2long-by-n_a1-by-n_a2
+                    ReturnMatrix_ii_tilde=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n2long,n_a1,n_a2,special_n_bothz,special_n_e, d23_gridvals_val, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, z_val, e_val, ReturnFnParamsVec,2,0); % [N_d2,N_a1prime,N_a1,N_a2]; Level=2, Refine=0
+                    d2a1primea2semiz=(1:1:N_d2)'+N_d2*(a1primeindexesfine-1)+N_d2*N_a1prime*a2ind;
+                    entireRHS_ii_tilde=ReturnMatrix_ii_tilde+beta0beta*reshape(entireEVinterp_z(d2a1primea2semiz(:)),[N_d2*n2long,N_a1*N_a2]);
+                    [Vtempii,maxindexL2]=max(entireRHS_ii_tilde,[],1);
+                    V_ford3_tilde(:,z_c,e_c,d3_c)=shiftdim(Vtempii,1);
+                    d_ind=rem(maxindexL2-1,N_d2)+1;
+                    allind=d_ind+N_d2*aind; % midpoint is n_d2-by-1-by-n_a1-by-n_a2
+                    Policy3_ford3_tilde(1,:,z_c,e_c,d3_c)=d_ind; % d2
+                    Policy3_ford3_tilde(2,:,z_c,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+                    Policy3_ford3_tilde(3,:,z_c,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d2),-1); % a1primeL2ind
+                    % L2 flag: detect -Inf on the coarse a1 neighbour we'd put weight on (at chosen d2)
+                    L2offset      = ceil(maxindexL2/N_d2);
+                    linidx_lower  = d_ind                   + N_d2*n2long*aind;
+                    linidx_upper  = d_ind + N_d2*(n2long-1) + N_d2*n2long*aind;
+                    isInfLower    = (ReturnMatrix_ii_tilde(linidx_lower) == -Inf);
+                    isInfUpper    = (ReturnMatrix_ii_tilde(linidx_upper) == -Inf);
+                    inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
+                    inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
+                    flag_ford3_tilde(:,z_c,e_c,d3_c) = shiftdim(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper), 1);
+                end
+            end
+        end
+
+    end
+
+    % Now we just max over d3, and keep the policy that corresponded to that (including modify the policy to include the d3 decision)
+    [V_jjalt,maxindexalt]=max(V_ford3_alt,[],4); % max over d3
+    Valt(:,:,:,N_j)=V_jjalt;
+    Policyalt(2,:,:,:,N_j)=shiftdim(maxindexalt,-1); % d3 is just maxindexalt
+    maxindexalt=reshape(maxindexalt,[N_a*N_bothz*N_e,1]); % This is the value of d that corresponds, make it this shape for addition just below
+    tempalt=3*( (1:1:N_a*N_bothz*N_e)'+(N_a*N_bothz*N_e)*(maxindexalt-1) -1);
+    Policyalt(1,:,:,:,N_j)=reshape(Policy3_ford3_alt(1+tempalt),[1,N_a,N_bothz,N_e]);
+    Policyalt(3,:,:,:,N_j)=reshape(Policy3_ford3_alt(2+tempalt),[1,N_a,N_bothz,N_e]);
+    Policyalt(4,:,:,:,N_j)=reshape(Policy3_ford3_alt(3+tempalt),[1,N_a,N_bothz,N_e]);
+    PolicyL2flagalt(1,:,:,:,N_j)=reshape(flag_ford3_alt((1:N_a*N_bothz*N_e)'+(N_a*N_bothz*N_e)*(maxindexalt-1)),[1,N_a,N_bothz,N_e]);
+
+    % Now we just max over d3, and keep the policy that corresponded to that (including modify the policy to include the d3 decision)
+    [V_jj,maxindex]=max(V_ford3_tilde,[],4); % max over d3
+    Vtilde(:,:,:,N_j)=V_jj;
+    Policy(2,:,:,:,N_j)=shiftdim(maxindex,-1); % d3 is just maxindex
+    maxindex=reshape(maxindex,[N_a*N_bothz*N_e,1]); % This is the value of d that corresponds, make it this shape for addition just below
+    temp=3*( (1:1:N_a*N_bothz*N_e)'+(N_a*N_bothz*N_e)*(maxindex-1) -1);
+    Policy(1,:,:,:,N_j)=reshape(Policy3_ford3_tilde(1+temp),[1,N_a,N_bothz,N_e]);
+    Policy(3,:,:,:,N_j)=reshape(Policy3_ford3_tilde(2+temp),[1,N_a,N_bothz,N_e]);
+    Policy(4,:,:,:,N_j)=reshape(Policy3_ford3_tilde(3+temp),[1,N_a,N_bothz,N_e]);
+    PolicyL2flag(1,:,:,:,N_j)=reshape(flag_ford3_tilde((1:N_a*N_bothz*N_e)'+(N_a*N_bothz*N_e)*(maxindex-1)),[1,N_a,N_bothz,N_e]);
+
+end
+
+
+%% Iterate backwards through j.
+for reverse_j=1:N_j-1
+    jj=N_j-reverse_j;
+
+    if vfoptions.verbose==1
+        fprintf('Finite horizon: %i of %i \n',jj, N_j)
+    end
+
+
+    % Create a vector containing all the return function parameters (in order)
+    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
+    beta=prod(DiscountFactorParamsVec);
+    beta0beta=beta0*beta;
+
+    aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);
+    [a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix(aprimeFn, n_d2, n_a2, d2_gridvals, a2_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
+    % Note: aprimeIndex is [N_d2*N_a2,1], whereas aprimeProbs is [N_d2,N_a2]
+
+    aprimeIndex=repelem(gpuArray(1:1:N_a1)',N_d2,N_a2)+N_a1*repmat((a2primeIndex-1),N_a1,1); % [N_d2*N_a1,N_a2]
+    aprimeplus1Index=repelem(gpuArray(1:1:N_a1)',N_d2,N_a2)+N_a1*repmat(a2primeIndex,N_a1,1); % [N_d2*N_a1,N_a2]
+    aprimeProbs=repmat(a2primeProbs,N_a1,1,N_bothz);  % [N_d2*N_a1,N_a2,N_bothz]
+
+    EVpre=sum(Valt(:,:,:,jj+1).*shiftdim(pi_e_J(:,jj+1),-2),3);
+
+    if vfoptions.lowmemory==0
+
+        for d3_c=1:N_d3
+            d23_gridvals_val=[d2_gridvals,repelem(d3_grid(d3_c),N_d2,1)];
+            % Note: By definition V_Jplus1 does not depend on d (only aprime)
+            pi_bothz=kron(pi_z_J(:,:,jj),pi_semiz_J(:,:,d3_c,jj));
+
+            EV=EVpre.*shiftdim(pi_bothz',-1);
+            EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+            EV=sum(EV,2); % sum over z', leaving a singular second dimension
+
+            % Switch EV from being in terms of aprime to being in terms of d and a
+            EV1=reshape(EV(aprimeIndex,:),[N_d2*N_a1,N_a2,N_bothz]); % (d2,a1prime,a2,z), the lower aprime
+            EV2=reshape(EV(aprimeplus1Index,:),[N_d2*N_a1,N_a2,N_bothz]); % (d2,a1prime,a2,z), the upper aprime
+
+            % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
+            skipinterp=(EV1==EV2);
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
+
+            % Apply the aprimeProbs
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            % entireEV is (d2,a1prime, a2,z)
+
+            entireEV=reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % undiscounted; beta/beta0beta applied at the use sites
+            % Interpolate EV over aprime_grid
+            entireEVinterp=permute(interp1(a1_gridvals,permute(entireEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]); % [N_d2,N_a1prime,1,N_a2,N_semiz]
+
+            ReturnMatrix_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n_a1,n_a1,n_a2,n_bothz,n_e, d23_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,jj), e_gridvals_J(:,:,jj), ReturnFnParamsVec,1,0); % Level=1, Refine=0
+            % (d,aprime,a,z)
+
+            % alt pass (exponential discounter): F + beta*EV
+            entireRHS_d3=ReturnMatrix_d3+beta*entireEV;
+
+            % Calc the max and it's index
+            [~,maxindex]=max(entireRHS_d3,[],2);
+
+            % Turn this into the 'midpoint'
+            midpoint=max(min(maxindex,n_a1(1)-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
+            % midpoint is n_d2-1-by-n_a1-by-n_a2-by-n_bothz-by-n_e
+            a1primeindexesfine=(midpoint+(midpoint-1)*n2short)+(-n2short-1:1:1+n2short); % aprime points either side of midpoint
+            % aprime possibilities are n_d2-by-n2long-by-n_a1-by-n_a2-by-n_bothz-by-n_e
+            ReturnMatrix_ii_alt=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n2long,n_a1,n_a2,n_bothz,n_e, d23_gridvals_val, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,jj), e_gridvals_J(:,:,jj), ReturnFnParamsVec,2,0); % [N_d2,N_a1prime,N_a1,N_a2,N_bothz,N_e]; Level=2, Refine=0
+            d2a1primea2semiz=(1:1:N_d2)'+N_d2*(a1primeindexesfine-1)+N_d2*N_a1prime*a2ind+N_d2*N_a1prime*N_a2*bothzind;
+            entireRHS_ii_alt=ReturnMatrix_ii_alt+beta*reshape(entireEVinterp(d2a1primea2semiz(:)),[N_d2*n2long,N_a1*N_a2,N_bothz,N_e]);
+            [Vtempii,maxindexL2]=max(entireRHS_ii_alt,[],1);
+            V_ford3_alt(:,:,:,d3_c)=shiftdim(Vtempii,1);
+            d_ind=rem(maxindexL2-1,N_d2)+1;
+            allind=d_ind+N_d2*aind+N_d2*N_a*bothzBind+N_d2*N_a*N_bothz*eBind; % midpoint is n_d2-by-1-by-n_a1-by-n_a2-by-n_bothz-by-n_e
+            Policy3_ford3_alt(1,:,:,:,d3_c)=d_ind; % d2
+            Policy3_ford3_alt(2,:,:,:,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+            Policy3_ford3_alt(3,:,:,:,d3_c)=shiftdim(ceil(maxindexL2/N_d2),-1); % a1primeL2ind
+            % L2 flag: detect -Inf on the coarse a1 neighbour we'd put weight on (at chosen d2)
+            L2offset      = ceil(maxindexL2/N_d2);
+            linidx_lower  = d_ind                   + N_d2*n2long*aind + N_d2*n2long*N_a*bothzBind + N_d2*n2long*N_a*N_bothz*eBind;
+            linidx_upper  = d_ind + N_d2*(n2long-1) + N_d2*n2long*aind + N_d2*n2long*N_a*bothzBind + N_d2*n2long*N_a*N_bothz*eBind;
+            isInfLower    = (ReturnMatrix_ii_alt(linidx_lower) == -Inf);
+            isInfUpper    = (ReturnMatrix_ii_alt(linidx_upper) == -Inf);
+            inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
+            inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
+            flag_ford3_alt(:,:,:,d3_c) = shiftdim(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper), 1);
+
+            % tilde pass (QH-perceived): F + beta0*beta*EV
+            entireRHS_d3=ReturnMatrix_d3+beta0beta*entireEV;
+
+            % Calc the max and it's index
+            [~,maxindex]=max(entireRHS_d3,[],2);
+
+            % Turn this into the 'midpoint'
+            midpoint=max(min(maxindex,n_a1(1)-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
+            % midpoint is n_d2-1-by-n_a1-by-n_a2-by-n_bothz-by-n_e
+            a1primeindexesfine=(midpoint+(midpoint-1)*n2short)+(-n2short-1:1:1+n2short); % aprime points either side of midpoint
+            % aprime possibilities are n_d2-by-n2long-by-n_a1-by-n_a2-by-n_bothz-by-n_e
+            ReturnMatrix_ii_tilde=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n2long,n_a1,n_a2,n_bothz,n_e, d23_gridvals_val, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,jj), e_gridvals_J(:,:,jj), ReturnFnParamsVec,2,0); % [N_d2,N_a1prime,N_a1,N_a2,N_bothz,N_e]; Level=2, Refine=0
+            d2a1primea2semiz=(1:1:N_d2)'+N_d2*(a1primeindexesfine-1)+N_d2*N_a1prime*a2ind+N_d2*N_a1prime*N_a2*bothzind;
+            entireRHS_ii_tilde=ReturnMatrix_ii_tilde+beta0beta*reshape(entireEVinterp(d2a1primea2semiz(:)),[N_d2*n2long,N_a1*N_a2,N_bothz,N_e]);
+            [Vtempii,maxindexL2]=max(entireRHS_ii_tilde,[],1);
+            V_ford3_tilde(:,:,:,d3_c)=shiftdim(Vtempii,1);
+            d_ind=rem(maxindexL2-1,N_d2)+1;
+            allind=d_ind+N_d2*aind+N_d2*N_a*bothzBind+N_d2*N_a*N_bothz*eBind; % midpoint is n_d2-by-1-by-n_a1-by-n_a2-by-n_bothz-by-n_e
+            Policy3_ford3_tilde(1,:,:,:,d3_c)=d_ind; % d2
+            Policy3_ford3_tilde(2,:,:,:,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+            Policy3_ford3_tilde(3,:,:,:,d3_c)=shiftdim(ceil(maxindexL2/N_d2),-1); % a1primeL2ind
+            % L2 flag: detect -Inf on the coarse a1 neighbour we'd put weight on (at chosen d2)
+            L2offset      = ceil(maxindexL2/N_d2);
+            linidx_lower  = d_ind                   + N_d2*n2long*aind + N_d2*n2long*N_a*bothzBind + N_d2*n2long*N_a*N_bothz*eBind;
+            linidx_upper  = d_ind + N_d2*(n2long-1) + N_d2*n2long*aind + N_d2*n2long*N_a*bothzBind + N_d2*n2long*N_a*N_bothz*eBind;
+            isInfLower    = (ReturnMatrix_ii_tilde(linidx_lower) == -Inf);
+            isInfUpper    = (ReturnMatrix_ii_tilde(linidx_upper) == -Inf);
+            inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
+            inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
+            flag_ford3_tilde(:,:,:,d3_c) = shiftdim(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper), 1);
+        end
+
+    elseif vfoptions.lowmemory==1
+
+        for d3_c=1:N_d3
+            d23_gridvals_val=[d2_gridvals,repelem(d3_grid(d3_c),N_d2,1)];
+            % Note: By definition V_Jplus1 does not depend on d (only aprime)
+            pi_bothz=kron(pi_z_J(:,:,jj),pi_semiz_J(:,:,d3_c,jj));
+
+            EV=EVpre.*shiftdim(pi_bothz',-1);
+            EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+            EV=sum(EV,2); % sum over z', leaving a singular second dimension
+
+            % Switch EV from being in terms of aprime to being in terms of d and a
+            EV1=reshape(EV(aprimeIndex,:),[N_d2*N_a1,N_a2,N_bothz]); % (d2,a1prime,a2,z), the lower aprime
+            EV2=reshape(EV(aprimeplus1Index,:),[N_d2*N_a1,N_a2,N_bothz]); % (d2,a1prime,a2,z), the upper aprime
+
+            % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
+            skipinterp=(EV1==EV2);
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
+
+            % Apply the aprimeProbs
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            % entireEV is (d2,a1prime, a2,z)
+
+            entireEV=reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % undiscounted; beta/beta0beta applied at the use sites
+            % Interpolate EV over aprime_grid
+            entireEVinterp=permute(interp1(a1_gridvals,permute(entireEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]); % [N_d2,N_a1prime,1,N_a2,N_semiz]
+
+            for e_c=1:N_e
+                e_val=e_gridvals_J(e_c,:,jj);
+
+                ReturnMatrix_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n_a1,n_a1,n_a2,n_bothz,special_n_e, d23_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,jj), e_val, ReturnFnParamsVec,1,0); % Level=1, Refine=0
+                % (d,aprime,a,z)
+
+                % alt pass (exponential discounter): F + beta*EV
+                entireRHS_d3=ReturnMatrix_d3+beta*entireEV;
+
+                % Calc the max and it's index
+                [~,maxindex]=max(entireRHS_d3,[],2);
+
+                % Turn this into the 'midpoint'
+                midpoint=max(min(maxindex,n_a1(1)-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
+                % midpoint is n_d2-1-by-n_a1-by-n_a2-by-n_bothz
+                a1primeindexesfine=(midpoint+(midpoint-1)*n2short)+(-n2short-1:1:1+n2short); % aprime points either side of midpoint
+                % aprime possibilities are n_d2-by-n2long-by-n_a1-by-n_a2-by-n_bothz
+                ReturnMatrix_ii_alt=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n2long,n_a1,n_a2,n_bothz,special_n_e, d23_gridvals_val, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,jj), e_val, ReturnFnParamsVec,2,0); % [N_d2,N_a1prime,N_a1,N_a2,N_bothz]; Level=2, Refine=0
+                d2a1primea2semiz=(1:1:N_d2)'+N_d2*(a1primeindexesfine-1)+N_d2*N_a1prime*a2ind+N_d2*N_a1prime*N_a2*bothzind;
+                entireRHS_ii_alt=ReturnMatrix_ii_alt+beta*reshape(entireEVinterp(d2a1primea2semiz(:)),[N_d2*n2long,N_a1*N_a2,N_bothz]);
+                [Vtempii,maxindexL2]=max(entireRHS_ii_alt,[],1);
+                V_ford3_alt(:,:,e_c,d3_c)=shiftdim(Vtempii,1);
+                d_ind=rem(maxindexL2-1,N_d2)+1;
+                allind=d_ind+N_d2*aind+N_d2*N_a*bothzBind; % midpoint is n_d2-by-1-by-n_a1-by-n_a2-by-n_bothz
+                Policy3_ford3_alt(1,:,:,e_c,d3_c)=d_ind; % d2
+                Policy3_ford3_alt(2,:,:,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+                Policy3_ford3_alt(3,:,:,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d2),-1); % a1primeL2ind
+                % L2 flag: detect -Inf on the coarse a1 neighbour we'd put weight on (at chosen d2)
+                L2offset      = ceil(maxindexL2/N_d2);
+                linidx_lower  = d_ind                   + N_d2*n2long*aind + N_d2*n2long*N_a*bothzBind;
+                linidx_upper  = d_ind + N_d2*(n2long-1) + N_d2*n2long*aind + N_d2*n2long*N_a*bothzBind;
+                isInfLower    = (ReturnMatrix_ii_alt(linidx_lower) == -Inf);
+                isInfUpper    = (ReturnMatrix_ii_alt(linidx_upper) == -Inf);
+                inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
+                inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
+                flag_ford3_alt(:,:,e_c,d3_c) = shiftdim(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper), 1);
+
+                % tilde pass (QH-perceived): F + beta0*beta*EV
+                entireRHS_d3=ReturnMatrix_d3+beta0beta*entireEV;
+
+                % Calc the max and it's index
+                [~,maxindex]=max(entireRHS_d3,[],2);
+
+                % Turn this into the 'midpoint'
+                midpoint=max(min(maxindex,n_a1(1)-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
+                % midpoint is n_d2-1-by-n_a1-by-n_a2-by-n_bothz
+                a1primeindexesfine=(midpoint+(midpoint-1)*n2short)+(-n2short-1:1:1+n2short); % aprime points either side of midpoint
+                % aprime possibilities are n_d2-by-n2long-by-n_a1-by-n_a2-by-n_bothz
+                ReturnMatrix_ii_tilde=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n2long,n_a1,n_a2,n_bothz,special_n_e, d23_gridvals_val, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,jj), e_val, ReturnFnParamsVec,2,0); % [N_d2,N_a1prime,N_a1,N_a2,N_bothz]; Level=2, Refine=0
+                d2a1primea2semiz=(1:1:N_d2)'+N_d2*(a1primeindexesfine-1)+N_d2*N_a1prime*a2ind+N_d2*N_a1prime*N_a2*bothzind;
+                entireRHS_ii_tilde=ReturnMatrix_ii_tilde+beta0beta*reshape(entireEVinterp(d2a1primea2semiz(:)),[N_d2*n2long,N_a1*N_a2,N_bothz]);
+                [Vtempii,maxindexL2]=max(entireRHS_ii_tilde,[],1);
+                V_ford3_tilde(:,:,e_c,d3_c)=shiftdim(Vtempii,1);
+                d_ind=rem(maxindexL2-1,N_d2)+1;
+                allind=d_ind+N_d2*aind+N_d2*N_a*bothzBind; % midpoint is n_d2-by-1-by-n_a1-by-n_a2-by-n_bothz
+                Policy3_ford3_tilde(1,:,:,e_c,d3_c)=d_ind; % d2
+                Policy3_ford3_tilde(2,:,:,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+                Policy3_ford3_tilde(3,:,:,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d2),-1); % a1primeL2ind
+                % L2 flag: detect -Inf on the coarse a1 neighbour we'd put weight on (at chosen d2)
+                L2offset      = ceil(maxindexL2/N_d2);
+                linidx_lower  = d_ind                   + N_d2*n2long*aind + N_d2*n2long*N_a*bothzBind;
+                linidx_upper  = d_ind + N_d2*(n2long-1) + N_d2*n2long*aind + N_d2*n2long*N_a*bothzBind;
+                isInfLower    = (ReturnMatrix_ii_tilde(linidx_lower) == -Inf);
+                isInfUpper    = (ReturnMatrix_ii_tilde(linidx_upper) == -Inf);
+                inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
+                inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
+                flag_ford3_tilde(:,:,e_c,d3_c) = shiftdim(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper), 1);
+            end
+        end
+
+    elseif vfoptions.lowmemory==2
+
+        for d3_c=1:N_d3
+            d23_gridvals_val=[d2_gridvals,repelem(d3_grid(d3_c),N_d2,1)];
+            % Note: By definition V_Jplus1 does not depend on d (only aprime)
+            pi_bothz=kron(pi_z_J(:,:,jj),pi_semiz_J(:,:,d3_c,jj));
+
+            EV=EVpre.*shiftdim(pi_bothz',-1);
+            EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+            EV=sum(EV,2); % sum over z', leaving a singular second dimension
+
+            % Switch EV from being in terms of aprime to being in terms of d and a
+            EV1=reshape(EV(aprimeIndex,:),[N_d2*N_a1,N_a2,N_bothz]); % (d2,a1prime,a2,z), the lower aprime
+            EV2=reshape(EV(aprimeplus1Index,:),[N_d2*N_a1,N_a2,N_bothz]); % (d2,a1prime,a2,z), the upper aprime
+
+            % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
+            skipinterp=(EV1==EV2);
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
+
+            % Apply the aprimeProbs
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            % entireEV is (d2,a1prime, a2,z)
+
+            entireEV=reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % undiscounted; beta/beta0beta applied at the use sites
+            % Interpolate EV over aprime_grid
+            entireEVinterp=permute(interp1(a1_gridvals,permute(entireEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]); % [N_d2,N_a1prime,1,N_a2,N_semiz]
+
+            for z_c=1:N_z
+                zind=(1:1:N_semiz)+N_semiz*(z_c-1);
+                z_val=bothz_gridvals_J(zind,:,jj);
+                entireEV_z=entireEV(:,:,:,:,zind);
+                entireEVinterp_z=entireEVinterp(:,:,:,:,zind);
+
+                for e_c=1:N_e
+                    e_val=e_gridvals_J(e_c,:,jj);
+
+                    ReturnMatrix_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n_a1,n_a1,n_a2,special_n_semiz,special_n_e, d23_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, z_val, e_val, ReturnFnParamsVec,1,0); % Level=1, Refine=0
+                    % (d,aprime,a,z)
+
+                    % alt pass (exponential discounter): F + beta*EV
+                    entireRHS_d3=ReturnMatrix_d3+beta*entireEV_z;
+
+                    % Calc the max and it's index
+                    [~,maxindex]=max(entireRHS_d3,[],2);
+
+                    % Turn this into the 'midpoint'
+                    midpoint=max(min(maxindex,n_a1(1)-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
+                    % midpoint is n_d2-1-by-n_a1-by-n_a2-by-n_semiz
+                    a1primeindexesfine=(midpoint+(midpoint-1)*n2short)+(-n2short-1:1:1+n2short); % aprime points either side of midpoint
+                    % aprime possibilities are n_d2-by-n2long-by-n_a1-by-n_a2-by-n_semiz
+                    ReturnMatrix_ii_alt=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n2long,n_a1,n_a2,special_n_semiz,special_n_e, d23_gridvals_val, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, z_val, e_val, ReturnFnParamsVec,2,0); % [N_d2,N_a1prime,N_a1,N_a2,N_semiz]; Level=2, Refine=0
+                    d2a1primea2semiz=(1:1:N_d2)'+N_d2*(a1primeindexesfine-1)+N_d2*N_a1prime*a2ind+N_d2*N_a1prime*N_a2*semizind;
+                    entireRHS_ii_alt=ReturnMatrix_ii_alt+beta*reshape(entireEVinterp_z(d2a1primea2semiz(:)),[N_d2*n2long,N_a1*N_a2,N_semiz]);
+                    [Vtempii,maxindexL2]=max(entireRHS_ii_alt,[],1);
+                    V_ford3_alt(:,zind,e_c,d3_c)=shiftdim(Vtempii,1);
+                    d_ind=rem(maxindexL2-1,N_d2)+1;
+                    allind=d_ind+N_d2*aind+N_d2*N_a*semizBind; % midpoint is n_d2-by-1-by-n_a1-by-n_a2-by-n_semiz
+                    Policy3_ford3_alt(1,:,zind,e_c,d3_c)=d_ind; % d2
+                    Policy3_ford3_alt(2,:,zind,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+                    Policy3_ford3_alt(3,:,zind,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d2),-1); % a1primeL2ind
+                    % L2 flag: detect -Inf on the coarse a1 neighbour we'd put weight on (at chosen d2)
+                    L2offset      = ceil(maxindexL2/N_d2);
+                    linidx_lower  = d_ind                   + N_d2*n2long*aind + N_d2*n2long*N_a*semizBind;
+                    linidx_upper  = d_ind + N_d2*(n2long-1) + N_d2*n2long*aind + N_d2*n2long*N_a*semizBind;
+                    isInfLower    = (ReturnMatrix_ii_alt(linidx_lower) == -Inf);
+                    isInfUpper    = (ReturnMatrix_ii_alt(linidx_upper) == -Inf);
+                    inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
+                    inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
+                    flag_ford3_alt(:,zind,e_c,d3_c) = shiftdim(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper), 1);
+
+                    % tilde pass (QH-perceived): F + beta0*beta*EV
+                    entireRHS_d3=ReturnMatrix_d3+beta0beta*entireEV_z;
+
+                    % Calc the max and it's index
+                    [~,maxindex]=max(entireRHS_d3,[],2);
+
+                    % Turn this into the 'midpoint'
+                    midpoint=max(min(maxindex,n_a1(1)-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
+                    % midpoint is n_d2-1-by-n_a1-by-n_a2-by-n_semiz
+                    a1primeindexesfine=(midpoint+(midpoint-1)*n2short)+(-n2short-1:1:1+n2short); % aprime points either side of midpoint
+                    % aprime possibilities are n_d2-by-n2long-by-n_a1-by-n_a2-by-n_semiz
+                    ReturnMatrix_ii_tilde=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n2long,n_a1,n_a2,special_n_semiz,special_n_e, d23_gridvals_val, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, z_val, e_val, ReturnFnParamsVec,2,0); % [N_d2,N_a1prime,N_a1,N_a2,N_semiz]; Level=2, Refine=0
+                    d2a1primea2semiz=(1:1:N_d2)'+N_d2*(a1primeindexesfine-1)+N_d2*N_a1prime*a2ind+N_d2*N_a1prime*N_a2*semizind;
+                    entireRHS_ii_tilde=ReturnMatrix_ii_tilde+beta0beta*reshape(entireEVinterp_z(d2a1primea2semiz(:)),[N_d2*n2long,N_a1*N_a2,N_semiz]);
+                    [Vtempii,maxindexL2]=max(entireRHS_ii_tilde,[],1);
+                    V_ford3_tilde(:,zind,e_c,d3_c)=shiftdim(Vtempii,1);
+                    d_ind=rem(maxindexL2-1,N_d2)+1;
+                    allind=d_ind+N_d2*aind+N_d2*N_a*semizBind; % midpoint is n_d2-by-1-by-n_a1-by-n_a2-by-n_semiz
+                    Policy3_ford3_tilde(1,:,zind,e_c,d3_c)=d_ind; % d2
+                    Policy3_ford3_tilde(2,:,zind,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+                    Policy3_ford3_tilde(3,:,zind,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d2),-1); % a1primeL2ind
+                    % L2 flag: detect -Inf on the coarse a1 neighbour we'd put weight on (at chosen d2)
+                    L2offset      = ceil(maxindexL2/N_d2);
+                    linidx_lower  = d_ind                   + N_d2*n2long*aind + N_d2*n2long*N_a*semizBind;
+                    linidx_upper  = d_ind + N_d2*(n2long-1) + N_d2*n2long*aind + N_d2*n2long*N_a*semizBind;
+                    isInfLower    = (ReturnMatrix_ii_tilde(linidx_lower) == -Inf);
+                    isInfUpper    = (ReturnMatrix_ii_tilde(linidx_upper) == -Inf);
+                    inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
+                    inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
+                    flag_ford3_tilde(:,zind,e_c,d3_c) = shiftdim(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper), 1);
+                end
+            end
+        end
+
+    elseif vfoptions.lowmemory==3
+
+        for d3_c=1:N_d3
+            d23_gridvals_val=[d2_gridvals,repelem(d3_grid(d3_c),N_d2,1)];
+            % Note: By definition V_Jplus1 does not depend on d (only aprime)
+            pi_bothz=kron(pi_z_J(:,:,jj),pi_semiz_J(:,:,d3_c,jj));
+
+            EV=EVpre.*shiftdim(pi_bothz',-1);
+            EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+            EV=sum(EV,2); % sum over z', leaving a singular second dimension
+
+            % Switch EV from being in terms of aprime to being in terms of d and a
+            EV1=reshape(EV(aprimeIndex,:),[N_d2*N_a1,N_a2,N_bothz]); % (d2,a1prime,a2,z), the lower aprime
+            EV2=reshape(EV(aprimeplus1Index,:),[N_d2*N_a1,N_a2,N_bothz]); % (d2,a1prime,a2,z), the upper aprime
+
+            % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
+            skipinterp=(EV1==EV2);
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
+
+            % Apply the aprimeProbs
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            % entireEV is (d2,a1prime, a2,z)
+
+            entireEV=reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % undiscounted; beta/beta0beta applied at the use sites
+            % Interpolate EV over aprime_grid
+            entireEVinterp=permute(interp1(a1_gridvals,permute(entireEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]); % [N_d2,N_a1prime,1,N_a2,N_semiz]
+
+            for z_c=1:N_bothz
+                z_val=bothz_gridvals_J(z_c,:,jj);
+                entireEV_z=entireEV(:,:,:,:,z_c);
+                entireEVinterp_z=entireEVinterp(:,:,:,:,z_c);
+
+                for e_c=1:N_e
+                    e_val=e_gridvals_J(e_c,:,jj);
+
+                    ReturnMatrix_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n_a1,n_a1,n_a2,special_n_bothz,special_n_e, d23_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, z_val, e_val, ReturnFnParamsVec,1,0); % Level=1, Refine=0
+                    % (d,aprime,a,z)
+
+                    % alt pass (exponential discounter): F + beta*EV
+                    entireRHS_d3=ReturnMatrix_d3+beta*entireEV_z;
+
+                    % Calc the max and it's index
+                    [~,maxindex]=max(entireRHS_d3,[],2);
+
+                    % Turn this into the 'midpoint'
+                    midpoint=max(min(maxindex,n_a1(1)-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
+                    % midpoint is n_d2-1-by-n_a1-by-n_a2
+                    a1primeindexesfine=(midpoint+(midpoint-1)*n2short)+(-n2short-1:1:1+n2short); % aprime points either side of midpoint
+                    % aprime possibilities are n_d2-by-n2long-by-n_a1-by-n_a2
+                    ReturnMatrix_ii_alt=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n2long,n_a1,n_a2,special_n_bothz,special_n_e, d23_gridvals_val, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, z_val, e_val, ReturnFnParamsVec,2,0); % [N_d2,N_a1prime,N_a1,N_a2]; Level=2, Refine=0
+                    d2a1primea2semiz=(1:1:N_d2)'+N_d2*(a1primeindexesfine-1)+N_d2*N_a1prime*a2ind;
+                    entireRHS_ii_alt=ReturnMatrix_ii_alt+beta*reshape(entireEVinterp_z(d2a1primea2semiz(:)),[N_d2*n2long,N_a1*N_a2]);
+                    [Vtempii,maxindexL2]=max(entireRHS_ii_alt,[],1);
+                    V_ford3_alt(:,z_c,e_c,d3_c)=shiftdim(Vtempii,1);
+                    d_ind=rem(maxindexL2-1,N_d2)+1;
+                    allind=d_ind+N_d2*aind; % midpoint is n_d2-by-1-by-n_a1-by-n_a2
+                    Policy3_ford3_alt(1,:,z_c,e_c,d3_c)=d_ind; % d2
+                    Policy3_ford3_alt(2,:,z_c,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+                    Policy3_ford3_alt(3,:,z_c,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d2),-1); % a1primeL2ind
+                    % L2 flag: detect -Inf on the coarse a1 neighbour we'd put weight on (at chosen d2)
+                    L2offset      = ceil(maxindexL2/N_d2);
+                    linidx_lower  = d_ind                   + N_d2*n2long*aind;
+                    linidx_upper  = d_ind + N_d2*(n2long-1) + N_d2*n2long*aind;
+                    isInfLower    = (ReturnMatrix_ii_alt(linidx_lower) == -Inf);
+                    isInfUpper    = (ReturnMatrix_ii_alt(linidx_upper) == -Inf);
+                    inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
+                    inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
+                    flag_ford3_alt(:,z_c,e_c,d3_c) = shiftdim(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper), 1);
+
+                    % tilde pass (QH-perceived): F + beta0*beta*EV
+                    entireRHS_d3=ReturnMatrix_d3+beta0beta*entireEV_z;
+
+                    % Calc the max and it's index
+                    [~,maxindex]=max(entireRHS_d3,[],2);
+
+                    % Turn this into the 'midpoint'
+                    midpoint=max(min(maxindex,n_a1(1)-1),2); % avoid the top end (inner), and avoid the bottom end (outer)
+                    % midpoint is n_d2-1-by-n_a1-by-n_a2
+                    a1primeindexesfine=(midpoint+(midpoint-1)*n2short)+(-n2short-1:1:1+n2short); % aprime points either side of midpoint
+                    % aprime possibilities are n_d2-by-n2long-by-n_a1-by-n_a2
+                    ReturnMatrix_ii_tilde=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,[n_d2,1],n2long,n_a1,n_a2,special_n_bothz,special_n_e, d23_gridvals_val, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, z_val, e_val, ReturnFnParamsVec,2,0); % [N_d2,N_a1prime,N_a1,N_a2]; Level=2, Refine=0
+                    d2a1primea2semiz=(1:1:N_d2)'+N_d2*(a1primeindexesfine-1)+N_d2*N_a1prime*a2ind;
+                    entireRHS_ii_tilde=ReturnMatrix_ii_tilde+beta0beta*reshape(entireEVinterp_z(d2a1primea2semiz(:)),[N_d2*n2long,N_a1*N_a2]);
+                    [Vtempii,maxindexL2]=max(entireRHS_ii_tilde,[],1);
+                    V_ford3_tilde(:,z_c,e_c,d3_c)=shiftdim(Vtempii,1);
+                    d_ind=rem(maxindexL2-1,N_d2)+1;
+                    allind=d_ind+N_d2*aind; % midpoint is n_d2-by-1-by-n_a1-by-n_a2
+                    Policy3_ford3_tilde(1,:,z_c,e_c,d3_c)=d_ind; % d2
+                    Policy3_ford3_tilde(2,:,z_c,e_c,d3_c)=shiftdim(squeeze(midpoint(allind)),-1); % a1prime midpoint
+                    Policy3_ford3_tilde(3,:,z_c,e_c,d3_c)=shiftdim(ceil(maxindexL2/N_d2),-1); % a1primeL2ind
+                    % L2 flag: detect -Inf on the coarse a1 neighbour we'd put weight on (at chosen d2)
+                    L2offset      = ceil(maxindexL2/N_d2);
+                    linidx_lower  = d_ind                   + N_d2*n2long*aind;
+                    linidx_upper  = d_ind + N_d2*(n2long-1) + N_d2*n2long*aind;
+                    isInfLower    = (ReturnMatrix_ii_tilde(linidx_lower) == -Inf);
+                    isInfUpper    = (ReturnMatrix_ii_tilde(linidx_upper) == -Inf);
+                    inLowerStrict = (L2offset >= 2)         & (L2offset <= n2short+1);
+                    inUpperStrict = (L2offset >= n2short+3) & (L2offset <= n2long-1);
+                    flag_ford3_tilde(:,z_c,e_c,d3_c) = shiftdim(2 + (inLowerStrict & isInfLower) - (inUpperStrict & isInfUpper), 1);
+                end
+            end
+        end
+
+    end
+
+    % Now we just max over d3, and keep the policy that corresponded to that (including modify the policy to include the d3 decision)
+    [V_jjalt,maxindexalt]=max(V_ford3_alt,[],4); % max over d3
+    Valt(:,:,:,jj)=V_jjalt;
+    Policyalt(2,:,:,:,jj)=shiftdim(maxindexalt,-1); % d3 is just maxindexalt
+    maxindexalt=reshape(maxindexalt,[N_a*N_bothz*N_e,1]); % This is the value of d that corresponds, make it this shape for addition just below
+    tempalt=3*( (1:1:N_a*N_bothz*N_e)'+(N_a*N_bothz*N_e)*(maxindexalt-1) -1);
+    Policyalt(1,:,:,:,jj)=reshape(Policy3_ford3_alt(1+tempalt),[1,N_a,N_bothz,N_e]);
+    Policyalt(3,:,:,:,jj)=reshape(Policy3_ford3_alt(2+tempalt),[1,N_a,N_bothz,N_e]);
+    Policyalt(4,:,:,:,jj)=reshape(Policy3_ford3_alt(3+tempalt),[1,N_a,N_bothz,N_e]);
+    PolicyL2flagalt(1,:,:,:,jj)=reshape(flag_ford3_alt((1:N_a*N_bothz*N_e)'+(N_a*N_bothz*N_e)*(maxindexalt-1)),[1,N_a,N_bothz,N_e]);
+
+    % Now we just max over d3, and keep the policy that corresponded to that (including modify the policy to include the d3 decision)
+    [V_jj,maxindex]=max(V_ford3_tilde,[],4); % max over d3
+    Vtilde(:,:,:,jj)=V_jj;
+    Policy(2,:,:,:,jj)=shiftdim(maxindex,-1); % d3 is just maxindex
+    maxindex=reshape(maxindex,[N_a*N_bothz*N_e,1]); % This is the value of d that corresponds, make it this shape for addition just below
+    temp=3*( (1:1:N_a*N_bothz*N_e)'+(N_a*N_bothz*N_e)*(maxindex-1) -1);
+    Policy(1,:,:,:,jj)=reshape(Policy3_ford3_tilde(1+temp),[1,N_a,N_bothz,N_e]);
+    Policy(3,:,:,:,jj)=reshape(Policy3_ford3_tilde(2+temp),[1,N_a,N_bothz,N_e]);
+    Policy(4,:,:,:,jj)=reshape(Policy3_ford3_tilde(3+temp),[1,N_a,N_bothz,N_e]);
+    PolicyL2flag(1,:,:,:,jj)=reshape(flag_ford3_tilde((1:N_a*N_bothz*N_e)'+(N_a*N_bothz*N_e)*(maxindex-1)),[1,N_a,N_bothz,N_e]);
+
+end
+
+
+
+%% With grid interpolation, which from midpoint to lower grid index
+% Currently Policy(2,:) is the midpoint, and Policy(3,:) the second layer
+% (which ranges -n2short-1:1:1+n2short). It is much easier to use later if
+% we switch Policy(2,:) to 'lower grid point' and then have Policy(3,:)
+% counting 0:nshort+1 up from this.
+adjust=(Policy(4,:,:,:,:)<1+n2short+1); % if second layer is choosing below midpoint
+Policy(3,:,:,:,:)=Policy(3,:,:,:,:)-adjust; % lower grid point
+Policy(4,:,:,:,:)=adjust.*Policy(4,:,:,:,:)+(1-adjust).*(Policy(4,:,:,:,:)-n2short-1); % from 1 (lower grid point) to 1+n2short+1 (upper grid point)
+
+Policy=[Policy; PolicyL2flag];
+
+adjustalt=(Policyalt(4,:,:,:,:)<1+n2short+1); % if second layer is choosing below midpoint
+Policyalt(3,:,:,:,:)=Policyalt(3,:,:,:,:)-adjustalt; % lower grid point
+Policyalt(4,:,:,:,:)=adjustalt.*Policyalt(4,:,:,:,:)+(1-adjustalt).*(Policyalt(4,:,:,:,:)-n2short-1); % from 1 (lower grid point) to 1+n2short+1 (upper grid point)
+
+Policyalt=[Policyalt; PolicyL2flagalt];
+
+
+end

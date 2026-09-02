@@ -151,7 +151,7 @@ else
     aprimeplus1Index=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat(a2primeIndex,N_a1,1); % [N_d2*N_a1,N_a2,N_u]
     aprimeProbs=repmat(a2primeProbs,N_a1,1,1);  % [N_d2*N_a1,N_a2,N_u]
 
-    EVpre=sum(pi_e_J(:,N_j)'.*reshape(vfoptions.V_Jplus1,[N_a,N_e]),2);    % Expectations over e
+    EVpre=sum(pi_e_J(:,N_j+1)'.*reshape(vfoptions.V_Jplus1,[N_a,N_e]),2);    % Expectations over e
 
     Vlower=reshape(EVpre(aprimeIndex(:)),[N_d2*N_a1,N_a2,N_u]);
     Vupper=reshape(EVpre(aprimeplus1Index(:)),[N_d2*N_a1,N_a2,N_u]);
@@ -206,7 +206,7 @@ else
             else
                 loweredge=maxindex1(:,1,ii,:,:);
                 % Just use aprime(ii) for everything
-                ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc_noz(ReturnFn, n_d1,n_d2,1,level1iidiff(ii),n_a2,n_e, d_gridvals, a1_gridvals(loweredge), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, e_gridvals_J(:,:,N_j), ReturnFnParamsVec,3,0); % Level=2, Refine=0
+                ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2,1,level1iidiff(ii),n_a2,n_e, d_gridvals, a1_gridvals(loweredge), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, e_gridvals_J(:,:,N_j), ReturnFnParamsVec,3,0); % Level=2, Refine=0
                 d2aprime=d2ind+N_d2*(loweredge-1)+N_d2*N_a1*shiftdim((0:1:N_a2-1),-2); % [N_d,1,1,N_a2,N_e]; linear index into DiscountedEV [N_d2,N_a1,1,N_a2]
                 entireRHS_ii=reshape(ReturnMatrix_ii+DiscountedEV(d2aprime),[N_d,level1iidiff(ii)*N_a2,N_e]);
                 [Vtempii,maxindex]=max(entireRHS_ii,[],1);
@@ -263,7 +263,7 @@ else
                 else
                     loweredge=maxindex1(:,1,ii,:,:);
                     % Just use aprime(ii) for everything
-                    ReturnMatrix_ii_e=CreateReturnFnMatrix_ExpAsset_Disc_noz(ReturnFn, n_d1,n_d2,1,level1iidiff(ii),n_a2,special_n_e, d_gridvals, a1_gridvals(loweredge), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, e_val, ReturnFnParamsVec,3,0); % Level=2, Refine=0
+                    ReturnMatrix_ii_e=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2,1,level1iidiff(ii),n_a2,special_n_e, d_gridvals, a1_gridvals(loweredge), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, e_val, ReturnFnParamsVec,3,0); % Level=2, Refine=0
                     d2aprime=d2ind+N_d2*(loweredge-1)+N_d2*N_a1*shiftdim((0:1:N_a2-1),-2); % [N_d,1,1,N_a2]; linear index into DiscountedEV [N_d2,N_a1,1,N_a2]
                     entireRHS_ii_e=reshape(ReturnMatrix_ii_e+DiscountedEV(d2aprime),[N_d,level1iidiff(ii)*N_a2]);
                     [Vtempii,maxindex]=max(entireRHS_ii_e,[],1);
@@ -303,7 +303,7 @@ for reverse_j=1:N_j-1
     aprimeplus1Index=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat(a2primeIndex,N_a1,1); % [N_d2*N_a1,N_a2,N_u]
     aprimeProbs=repmat(a2primeProbs,N_a1,1,1);  % [N_d2*N_a1,N_a2,N_u]
 
-    EVpre=sum(pi_e_J(:,jj)'.*V(:,:,jj+1),2);    % Expectations over e
+    EVpre=sum(pi_e_J(:,jj+1)'.*V(:,:,jj+1),2);    % Expectations over e
 
     Vlower=reshape(EVpre(aprimeIndex(:)),[N_d2*N_a1,N_a2,N_u]);
     Vupper=reshape(EVpre(aprimeplus1Index(:)),[N_d2*N_a1,N_a2,N_u]);

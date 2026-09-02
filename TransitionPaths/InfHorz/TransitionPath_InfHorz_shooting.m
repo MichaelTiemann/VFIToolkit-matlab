@@ -21,8 +21,9 @@ GEcondnPath=zeros(T-1,length(GEeqnNames),'gpuArray');
 
 %%
 PricePathDist=Inf;
-pathcounter=0;
-while PricePathDist>transpathoptions.tolerance && pathcounter<transpathoptions.maxiter
+GEcondnPathDist=Inf;
+itercounter=1;
+while (PricePathDist>transpathoptions.toleranceGEprices || GEcondnPathDist>transpathoptions.toleranceGEcondns) && itercounter<=transpathoptions.maxiter
 
     %% Go from T-1 to 1 calculating the Value function and Optimal policy function at each step.
     [~,PolicyIndexesPath]=TransitionPath_InfHorz_substeps_Step1_ValueFnIter(T,PolicyIndexesPath,V_final,Parameters,PricePathOld,ParamPath,PricePathSizeVec,ParamPathSizeVec,PricePathNames,ParamPathNames,n_d,n_a,n_z,n_e,N_z,N_e,d_gridvals, a_grid, z_gridvals,e_gridvals,pi_z,pi_e,ReturnFn,DiscountFactorParamNames, ReturnFnParamNames, transpathoptions,vfoptions);
@@ -127,41 +128,21 @@ while PricePathDist>transpathoptions.tolerance && pathcounter<transpathoptions.m
         end
     
         %% General Eqm Eqns
-        % Evaluate the general eqm conditions, and based on them create PricePathNew (interpretation depends on transpathoptions)
-        [PricePathNew_tt,GEcondnPath_tt]=updatePricePathNew_TPath_tt(Parameters,GeneralEqmEqnsCell,GeneralEqmEqnParamNames,PricePathOld(tt,:),transpathoptions);
-        PricePathNew(tt,:)=PricePathNew_tt;
-        GEcondnPath(tt,:)=GEcondnPath_tt;
-
-        % if tt<=2
-        %     disp('HERE')
-        %     tt
-        %     % Check GDebt_tminus1 is as intended
-        %     if tt==1
-        %         [Parameters.GDebt_tminus1,transpathoptions.initialvalues.GDebt]
-        %     else
-        %         [Parameters.GDebt_tminus1,PricePathNew(tt-1,3)]
-        %     end
-        %     % Check GDebt is as intended
-        %     [Parameters.GDebt,PricePathOld(tt,3)]
-        % 
-        %     % Now, the GEcondn comes out like
-        %     GEcondnPath(tt,2)
-        %     % So the new value should be
-        %     PricePathOld(tt,3)-GEcondnPath(tt,2)
-        %     % While the actual new value is 
-        %     PricePathNew(tt,3)
-        %     disp('END')
-        % 
-        %     PricePathNames
-        % 
-        %     transpathoptions.GEnewprice3.add
-        %     transpathoptions.GEnewprice3.factor
-        %     transpathoptions.GEnewprice3.permute
-        % 
-        %     if tt==2
-        %         return
-        %     end
-        % end
+        if transpathoptions.updatepert==1
+            % Evaluate the general eqm conditions, and based on them create PricePathNew (interpretation depends on transpathoptions)
+            [PricePathNew_tt,GEcondnPath_tt]=updatePricePathNew_TPath_tt(Parameters,GeneralEqmEqnsCell,GeneralEqmEqnParamNames,PricePathOld(tt,:),itercounter,transpathoptions);
+            PricePathNew(tt,:)=PricePathNew_tt;
+            GEcondnPath(tt,:)=GEcondnPath_tt;
+        else
+            % Just evaluate the general eqm conditions for this period. Creating PricePathNew from
+            % them happens after the tt loop, in updatePricePathNew_TPath_T, because the Newton
+            % options need the conditions from every period before they can produce an update.
+            for gg=1:length(GeneralEqmEqnsCell)
+                % Note: _v3 rather than _v3g, so on CPU rather than GPU
+                GEcondnPath(tt,gg)=real(GeneralEqmConditions_Case1_v3(GeneralEqmEqnsCell{gg}, GeneralEqmEqnParamNames(gg).Names, Parameters));
+                % use of real() is a hack that could disguise errors, but I couldn't find why matlab was treating output as complex
+            end
+        end
         
         % Sometimes, want to keep the AggVars to plot them
         if transpathoptions.graphaggvarspath==1
@@ -172,13 +153,26 @@ while PricePathDist>transpathoptions.tolerance && pathcounter<transpathoptions.m
 
         AgentDist=AgentDistnext;
     end
-
+    
 
     %% Now update prices, give verbose feedback, and check for convergence
+    if transpathoptions.updatepert==0
+        % Every general eqm condition, for every period, is now known, so the update can use them together
+        PricePathNew=updatePricePathNew_TPath_T(GEcondnPath,PricePathOld,T,itercounter,transpathoptions);
+    end
 
     % See how far apart the price paths are
     PricePathDist=max(abs(reshape(PricePathNew(1:T-1,:)-PricePathOld(1:T-1,:),[numel(PricePathOld(1:T-1,:)),1])));
     % Notice that the distance is always calculated ignoring the time t=T periods, as these needn't ever converges
+    % And how far the general eqm conditions are from zero. Scalarize across the general eqm eqns in each
+    % time period the same way the stationary general eqm does, then take the L-Infinity norm over time
+    % (the same norm as is used for the prices). GEcondnPath is the raw conditions, before the permute
+    % and before updateaccuracycutoff is applied.
+    if transpathoptions.multiGEcriterion==0
+        GEcondnPathDist=max(sum(abs(transpathoptions.multiGEweights.*GEcondnPath),2));
+    elseif transpathoptions.multiGEcriterion==1
+        GEcondnPathDist=max(sqrt(sum(transpathoptions.multiGEweights.*(GEcondnPath.^2),2)));
+    end
 
     if transpathoptions.verbose==1
         fprintf(' \n')
@@ -194,23 +188,26 @@ while PricePathDist>transpathoptions.tolerance && pathcounter<transpathoptions.m
 
     PricePathOld=updatePricePath(PricePathOld,PricePathNew,transpathoptions,T);
 
-    TransPathConvergence=PricePathDist/transpathoptions.tolerance; %So when this gets to 1 we have convergence (uncomment when you want to see how the convergence isgoing)
+    TransPathConvergence=max(PricePathDist/transpathoptions.toleranceGEprices,GEcondnPathDist/transpathoptions.toleranceGEcondns); % So when this gets to 1 we have convergence, we require convergence in both
     if transpathoptions.verbose==1
-        fprintf('Number of iterations on transition path: %i \n',pathcounter)
-        fprintf('Current distance between old and new price path (in L-Infinity norm): %8.6f \n', PricePathDist)
+        fprintf('Number of iterations on transition path: %i \n',itercounter)
+        if isfinite(transpathoptions.toleranceGEprices)
+            fprintf('Current distance between old and new price path (in L-Infinity norm): %8.6f \n', PricePathDist)
+        end
+        fprintf('Current distance of the general eqm conditions from zero: %8.6f \n', GEcondnPathDist)
         fprintf('Ratio of current distance to the convergence tolerance: %.2f (convergence when reaches 1) \n',TransPathConvergence)
     end
 
     if transpathoptions.historyofpricepath==1
         % Store the whole history of the price path and save it every ten iterations
-        PricePathHistory{pathcounter,1}=PricePathDist;
-        PricePathHistory{pathcounter,2}=PricePathOld;
-        if rem(pathcounter,10)==1
+        PricePathHistory{itercounter,1}=PricePathDist;
+        PricePathHistory{itercounter,2}=PricePathOld;
+        if rem(itercounter,10)==1
             save ./SavedOutput/TransPath_Internal.mat PricePathHistory
         end
     end
 
-    pathcounter=pathcounter+1;
+    itercounter=itercounter+1;
 
 
 end

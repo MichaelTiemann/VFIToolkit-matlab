@@ -1081,7 +1081,7 @@ if simoptions.lowmemory==0
                                 temp2(ii)=StationaryDist.ptweights(ii)*sum(FnsAndPTypeIndicator(ff,1:(ii-1)).*(StationaryDist.ptweights(1:(ii-1))').*(temp.^2));
                             end
                         end
-                        AgeConditionalStats.(FnsToEvalNames{ff}).StdDeviation(jj)=sqrt(sum(FnsAndPTypeIndicator(ff,:).*(StationaryDist.ptweights').*StdDevVec(ff,:,jj))/SigmaNxi + sum(temp2)/(SigmaNxi^2));
+                        AgeConditionalStats.(FnsToEvalNames{ff}).StdDeviation(jj)=sqrt(sum(FnsAndPTypeIndicator(ff,:).*(StationaryDist.ptweights').*(StdDevVec(ff,:,jj).^2))/SigmaNxi + sum(temp2)/(SigmaNxi^2));
                     end
                     AgeConditionalStats.(FnsToEvalNames{ff}).Variance(jj)=(AgeConditionalStats.(FnsToEvalNames{ff}).StdDeviation(jj))^2;
                 end
@@ -1319,9 +1319,9 @@ elseif simoptions.lowmemory==1
             % Turn (semiz,z,e) into z_gridvals_J_temp as FnsToEvalute do not distinguish them
             [n_z_temp,z_gridvals_J_temp,N_z_temp,l_z_temp,simoptions_temp]=CreateGridvals_FnsToEvaluate_FHorz(n_z_temp,z_grid_temp,N_j_temp,simoptions_temp);
 
-            l_daprime_temp=size(PolicyIndexes_temp,1);
             % Switch to PolicyVals
             PolicyValues_temp=PolicyInd2Val_FHorz(PolicyIndexes_temp,n_d_temp,n_a_temp,n_z_temp,N_j_temp,d_grid_temp,a_grid_temp,simoptions_temp,1);
+            l_daprime_temp=size(PolicyValues_temp,1);
             clear PolicyIndexes_temp % trying to reduce memory usage
             if l_z_temp==0
                 PolicyValuesPermute_temp=permute(PolicyValues_temp,[2,3,1]); % (N_a,N_j,l_daprime)
@@ -1638,7 +1638,7 @@ elseif simoptions.lowmemory==1
                                 temp2(ii)=StationaryDist.ptweights(ii)*sum(FnsAndPTypeIndicator(ff,1:(ii-1)).*(StationaryDist.ptweights(1:(ii-1))').*(temp.^2));
                             end
                         end
-                        AgeConditionalStats.(FnsToEvalNames{ff}).StdDeviation(jj)=sqrt(sum(FnsAndPTypeIndicator(ff,:).*(StationaryDist.ptweights').*StdDevVec(ff,:,jj))/SigmaNxi + sum(temp2)/(SigmaNxi^2));
+                        AgeConditionalStats.(FnsToEvalNames{ff}).StdDeviation(jj)=sqrt(sum(FnsAndPTypeIndicator(ff,:).*(StationaryDist.ptweights').*(StdDevVec(ff,:,jj).^2))/SigmaNxi + sum(temp2)/(SigmaNxi^2));
                     end
                     AgeConditionalStats.(FnsToEvalNames{ff}).Variance(jj)=(AgeConditionalStats.(FnsToEvalNames{ff}).StdDeviation(jj))^2;
                 end

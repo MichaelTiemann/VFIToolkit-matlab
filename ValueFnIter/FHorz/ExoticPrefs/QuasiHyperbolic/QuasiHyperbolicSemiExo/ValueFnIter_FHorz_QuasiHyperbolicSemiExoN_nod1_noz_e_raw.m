@@ -1,4 +1,4 @@
-function [Vtilde, Policy, Valt, Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_nod1_noz_e_raw(n_d2, n_a, n_semiz, n_e, N_j, d2_gridvals, a_grid, semiz_gridvals_J, e_gridvals_J, pi_semiz_J, pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions)
+function [Vtilde, Policy, Valt, Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoN_nod1_noz_e_raw(n_d2, n_a, n_semiz, n_e, N_j, d2_gridvals, a_grid, semiz_gridvals_J, e_gridvals_J, pi_semiz_J, pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0)
 % Naive quasi-hyperbolic with semi-exogenous shock and iid e shock, no d1, no z.
 
 N_d2=prod(n_d2);
@@ -18,7 +18,8 @@ special_n_d2=ones(1,length(n_d2));
 if vfoptions.lowmemory==1
     special_n_e=ones(1,length(n_e));
 elseif vfoptions.lowmemory==2
-    error('vfoptions.lowmemory=2 not supported with semi-exogenous states');
+    special_n_semiz=ones(1,length(n_semiz));
+    special_n_e=ones(1,length(n_e));
 end
 
 V_ford2_jj=zeros(N_a,N_semiz,N_e,N_d2,'gpuArray');
@@ -50,16 +51,28 @@ if ~isfield(vfoptions,'V_Jplus1')
             Policy(1,:,:,e_c,N_j)=shiftdim(d_ind,-1);
             Policy(2,:,:,e_c,N_j)=shiftdim(ceil(maxindex/N_d),-1);
         end
+    elseif vfoptions.lowmemory==2 % outer loop semiz, inner loop e
+        for semiz_c=1:N_semiz
+            semiz_val=semiz_gridvals_J(semiz_c,:,N_j);
+            for e_c=1:N_e
+                e_val=e_gridvals_J(e_c,:,N_j);
+                ReturnMatrix_semize=CreateReturnFnMatrix_Disc_e(ReturnFn, n_d2, n_a, special_n_semiz, special_n_e, d2_gridvals, a_grid, semiz_val, e_val, ReturnFnParamsVec,0);
+                [Vtemp,maxindex]=max(ReturnMatrix_semize,[],1);
+                Valt(:,semiz_c,e_c,N_j)=Vtemp;
+                d_ind=shiftdim(rem(maxindex-1,N_d)+1,-1);
+                Policy(1,:,semiz_c,e_c,N_j)=shiftdim(d_ind,-1);
+                Policy(2,:,semiz_c,e_c,N_j)=shiftdim(ceil(maxindex/N_d),-1);
+            end
+        end
     end
     Vtilde=Valt;
     % terminal: QH and exponential discounter coincide
     Policyalt(:,:,:,:,N_j)=Policy(:,:,:,:,N_j);
 else
-    EV_pre=sum(reshape(vfoptions.V_Jplus1,[N_a,N_semiz,N_e]).*pi_e_J(1,1,:,N_j),3);
+    EV_pre=sum(reshape(vfoptions.V_Jplus1,[N_a,N_semiz,N_e]).*pi_e_J(1,1,:,N_j+1),3);
 
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
     beta0beta=beta0*beta;
 
     if vfoptions.lowmemory==0
@@ -107,6 +120,33 @@ else
                 Policy_ford2_jj(:,:,e_c,d2_c)=shiftdim(maxindex,1);
             end
         end
+    elseif vfoptions.lowmemory==2 % outer loop semiz, inner loop e
+        for d2_c=1:N_d2
+            d2_val=d2_gridvals(d2_c,:);
+            pi_semiz=pi_semiz_J(:,:,d2_c,N_j);
+
+            for semiz_c=1:N_semiz
+                semiz_val=semiz_gridvals_J(semiz_c,:,N_j);
+                EV_d2semiz=EV_pre.*pi_semiz(semiz_c,:);
+                EV_d2semiz(isnan(EV_d2semiz))=0;
+                EV_d2semiz=sum(EV_d2semiz,2); % sum over semiz', leaving [N_a,1]
+
+                for e_c=1:N_e
+                    e_val=e_gridvals_J(e_c,:,N_j);
+                    ReturnMatrix_d2semize=CreateReturnFnMatrix_Disc_e(ReturnFn, special_n_d2, n_a, special_n_semiz, special_n_e, d2_val, a_grid, semiz_val, e_val, ReturnFnParamsVec,0);
+
+                    entireRHS_V=ReturnMatrix_d2semize+beta*EV_d2semiz;
+                    [Vtemp,maxindexalt]=max(entireRHS_V,[],1);
+                    V_ford2_jj(:,semiz_c,e_c,d2_c)=Vtemp;
+                    Policy_V_ford2_jj(:,semiz_c,e_c,d2_c)=maxindexalt;
+
+                    entireRHS_e=ReturnMatrix_d2semize+beta0beta*EV_d2semiz;
+                    [Vtemp,maxindex]=max(entireRHS_e,[],1);
+                    Vtilde_ford2_jj(:,semiz_c,e_c,d2_c)=Vtemp;
+                    Policy_ford2_jj(:,semiz_c,e_c,d2_c)=maxindex;
+                end
+            end
+        end
     end
     [Vtilde_jj,maxindex]=max(Vtilde_ford2_jj,[],4);
     Vtilde(:,:,:,N_j)=Vtilde_jj;
@@ -132,10 +172,9 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
     beta0beta=beta0*beta;
 
-    EV_pre=sum(Valt(:,:,:,jj+1).*pi_e_J(1,1,:,jj),3);
+    EV_pre=sum(Valt(:,:,:,jj+1).*pi_e_J(1,1,:,jj+1),3);
 
     if vfoptions.lowmemory==0
         for d2_c=1:N_d2
@@ -180,6 +219,33 @@ for reverse_j=1:N_j-1
                 [Vtemp,maxindex]=max(entireRHS_e,[],1);
                 Vtilde_ford2_jj(:,:,e_c,d2_c)=shiftdim(Vtemp,1);
                 Policy_ford2_jj(:,:,e_c,d2_c)=shiftdim(maxindex,1);
+            end
+        end
+    elseif vfoptions.lowmemory==2 % outer loop semiz, inner loop e
+        for d2_c=1:N_d2
+            d2_val=d2_gridvals(d2_c,:);
+            pi_semiz=pi_semiz_J(:,:,d2_c,jj);
+
+            for semiz_c=1:N_semiz
+                semiz_val=semiz_gridvals_J(semiz_c,:,jj);
+                EV_d2semiz=EV_pre.*pi_semiz(semiz_c,:);
+                EV_d2semiz(isnan(EV_d2semiz))=0;
+                EV_d2semiz=sum(EV_d2semiz,2); % sum over semiz', leaving [N_a,1]
+
+                for e_c=1:N_e
+                    e_val=e_gridvals_J(e_c,:,jj);
+                    ReturnMatrix_d2semize=CreateReturnFnMatrix_Disc_e(ReturnFn, special_n_d2, n_a, special_n_semiz, special_n_e, d2_val, a_grid, semiz_val, e_val, ReturnFnParamsVec,0);
+
+                    entireRHS_V=ReturnMatrix_d2semize+beta*EV_d2semiz;
+                    [Vtemp,maxindexalt]=max(entireRHS_V,[],1);
+                    V_ford2_jj(:,semiz_c,e_c,d2_c)=Vtemp;
+                    Policy_V_ford2_jj(:,semiz_c,e_c,d2_c)=maxindexalt;
+
+                    entireRHS_e=ReturnMatrix_d2semize+beta0beta*EV_d2semiz;
+                    [Vtemp,maxindex]=max(entireRHS_e,[],1);
+                    Vtilde_ford2_jj(:,semiz_c,e_c,d2_c)=Vtemp;
+                    Policy_ford2_jj(:,semiz_c,e_c,d2_c)=maxindex;
+                end
             end
         end
     end

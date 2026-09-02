@@ -53,6 +53,7 @@ if ~exist('vfoptions','var')
     %commands and the like, so no need to set them here except for a few.
     vfoptions.n_e=0;
     vfoptions.n_semiz=0;
+    vfoptions.verbose_advice=0; % silence advisory warnings (e.g. the postGI maxaprimediff advice) during the repeated VFI solves of the GE loop
 else
     %Check vfoptions for missing fields, if there are some fill them with the defaults
     if ~isfield(vfoptions,'parallel')
@@ -63,6 +64,9 @@ else
     end
     if ~isfield(vfoptions,'n_semiz')
         vfoptions.n_semiz=0;
+    end
+    if ~isfield(vfoptions,'verbose_advice')
+        vfoptions.verbose_advice=0;
     end
 end
 
@@ -79,17 +83,19 @@ else
     if ~isfield(simoptions,'parallel')
         simoptions.parallel=1+(gpuDeviceCount>0);
     end
-    if isfield(vfoptions,'gridinterplayer')
-        if ~isfield(simoptions,'gridinterplayer')
-            error('When setting vfoptions.gridinterplayer you must also set simoptions.gridinterplayer')
-        end
-    end
     % Exogenous shocks
     if ~isfield(simoptions,'n_e')
         simoptions.n_e=0;
     end
     if ~isfield(simoptions,'n_semiz')
         simoptions.n_semiz=0;
+    end
+end
+% Note: the grid interpolation layer must be set in both vfoptions and simoptions; if it is only set in
+% vfoptions then Policy has an extra row that the agent dist would silently ignore (giving a wrong answer)
+if isfield(vfoptions,'gridinterplayer') && vfoptions.gridinterplayer==1
+    if ~isfield(simoptions,'gridinterplayer')
+        error('When setting vfoptions.gridinterplayer you must also set simoptions.gridinterplayer')
     end
 end
 
@@ -109,6 +115,7 @@ if exist('heteroagentoptions','var')==0
     heteroagentoptions.verboseaccuracy1=4; % number of decimal places for GEPrices (among others)
     heteroagentoptions.verboseaccuracy2=6; % number of decimal places for GECondns
     heteroagentoptions.pricehistory=0; % =1, saves the history of the GEPrices during the convergence
+    heteroagentoptions.countGEsolves=0; % =1, count GE-condn evaluations (model solves) in the subfn, for benchmarking
     % For internal use only
     % heteroagentoptions.outputGEform=0;
     heteroagentoptions.outputGEstruct=1; % output GE conditions as a structure (=2 will output as a vector)
@@ -170,6 +177,9 @@ else
     if ~isfield(heteroagentoptions,'pricehistory')
         heteroagentoptions.pricehistory=0; % =1, saves the history of the GEPrices during the convergence
     end
+    if ~isfield(heteroagentoptions,'countGEsolves')
+        heteroagentoptions.countGEsolves=0; % =1, count GE-condn evaluations (model solves) in the subfn, for benchmarking
+    end
     % For internal use only
     % heteroagentoptions.outputGEform=0;
     if ~isfield(heteroagentoptions,'outputGEstruct')
@@ -201,6 +211,8 @@ if heteroagentoptions.fminalgo==0
 elseif heteroagentoptions.fminalgo==5
     heteroagentoptions.outputGEform=1; % Need to output GE condns as a vector when using fminalgo=5
     heteroagentoptions.outputgather=0; % leave GE condns vector on GPU
+elseif heteroagentoptions.fminalgo==9
+    heteroagentoptions.outputGEform=1; % Anderson Acceleration needs GE condns as a vector (left on CPU: small least-squares solve)
 elseif heteroagentoptions.fminalgo==7
     heteroagentoptions.outputGEform=1; % Need to output GE condns as a vector when using fminalgo=7
 else
@@ -217,6 +229,9 @@ end
 
 heteroagentoptions.verboseaccuracy1=['	%s: %8.',num2str(heteroagentoptions.verboseaccuracy1),'f \n']; % set up a string
 heteroagentoptions.verboseaccuracy2=['	%s: %8.',num2str(heteroagentoptions.verboseaccuracy2),'f \n']; % set up a string
+if heteroagentoptions.countGEsolves==1
+    StationaryGeneralEqm_subcode_GEsolvecounter('reset'); % set up the iteration counter and initialize value
+end
 
 nGEprices=length(GEPriceParamNames);
 GEeqnNames=fieldnames(GeneralEqmEqns);
@@ -502,6 +517,8 @@ if heteroagentoptions.maxiter>0 % Can use heteroagentoptions.maxiter=0 to just e
     elseif heteroagentoptions.fminalgo==8 % Matlab lsqnonlin()
         minoptions = optimoptions('lsqnonlin','FiniteDifferenceStepSize',1e-2,'TolX',heteroagentoptions.toleranceGEprices,'TolFun',heteroagentoptions.toleranceGEcondns,'MaxFunEvals',heteroagentoptions.maxiter,'MaxIter',heteroagentoptions.maxiter);
         [p_eqm_vec,GeneralEqmConditions]=lsqnonlin(GeneralEqmConditionsFnOpt,GEparamsvec0,[],[],[],[],[],[],[],minoptions);
+    elseif heteroagentoptions.fminalgo==9 % Anderson Acceleration of the shooting fixed-point map
+        [p_eqm_vec,GeneralEqmConditions]=StationaryGeneralEqm_subcode_fminalgo9_AndersonAcceleration(GeneralEqmConditionsFnOpt,GEparamsvec0,GeneralEqmEqns,GEPriceParamNames,nGEParams,heteroagentoptions);
     end
 
     % p_eqm_vec contains the (transformed) unconstrained parameters, not the original (constrained) parameter values.
@@ -575,6 +592,30 @@ if heteroagentoptions.pricehistory==1
 end
 
 
+
+%% Check that the general eqm conditions are actually satisfied
+% None of the fminalgo routines verify the point they stopped at. The tolerances are passed to them
+% as TolX/TolFun, but TolFun is a test on the CHANGE in the objective between iterations, not on its
+% value, so an optimizer that stalls returns a p_eqm that is not a general eqm and says nothing.
+% Only outputGEstruct 1 and 2 hold the conditions evaluated at the returned prices (outputGEstruct=0
+% is the n_p grid, where GeneralEqmConditions covers the whole grid). maxiter=0 is the 'just evaluate
+% the current general eqm eqns' mode, which is not a solve and so is not checked.
+if (heteroagentoptions.outputGEstruct==1 || heteroagentoptions.outputGEstruct==2) && heteroagentoptions.maxiter>0
+    if isstruct(GeneralEqmConditions)
+        % Looped rather than cell2mat(struct2cell()), because a general eqm condition that depends on
+        % permanent type holds one value per ptype, so the fields are not all the same size
+        GEcondnsnames=fieldnames(GeneralEqmConditions);
+        GEcondnsmax=0;
+        for gg=1:length(GEcondnsnames)
+            GEcondnsmax=max(GEcondnsmax,max(abs(GeneralEqmConditions.(GEcondnsnames{gg})(:))));
+        end
+    else
+        GEcondnsmax=max(abs(GeneralEqmConditions(:)));
+    end
+    if GEcondnsmax>heteroagentoptions.toleranceGEcondns
+        warning('HeteroAgentStationaryEqm_InfHorz: the general eqm conditions are not all within heteroagentoptions.toleranceGEcondns (largest is %g, tolerance is %g)',GEcondnsmax,heteroagentoptions.toleranceGEcondns)
+    end
+end
 
 %%
 if heteroagentoptions.pricehistory==0

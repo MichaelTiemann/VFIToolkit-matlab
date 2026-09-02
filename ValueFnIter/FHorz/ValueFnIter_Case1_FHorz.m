@@ -22,6 +22,7 @@ if exist('vfoptions','var')==0
     vfoptions.experienceassete=0;
     vfoptions.experienceassetz=0;
     vfoptions.experienceassetze=0;
+    vfoptions.experienceassetsemiz=0;
     vfoptions.riskyasset=0;
     vfoptions.residualasset=0;
     vfoptions.n_ambiguity=0;
@@ -76,6 +77,9 @@ else
     if ~isfield(vfoptions,'experienceassetze')
         vfoptions.experienceassetze=0;
     end
+    if ~isfield(vfoptions,'experienceassetsemiz')
+        vfoptions.experienceassetsemiz=0;
+    end
     if ~isfield(vfoptions,'riskyasset')
         vfoptions.riskyasset=0;
     end
@@ -110,9 +114,6 @@ end
 if isempty(n_d)
     error('If you have no d (decision) variables, set n_d=0;')
 end
-if isempty(n_z)
-    error('If you have no z (exogenous markov) variables, set n_z=0;')
-end
 N_d=prod(n_d);
 N_a=prod(n_a);
 N_z=prod(n_z);
@@ -144,7 +145,7 @@ if vfoptions.parallel<2
     if ~strcmp(vfoptions.exoticpreferences,'None')
         error('Sorry but exoticpreferences are not implemented for cpu, you will need a gpu to use them')
     end
-    if ~vfoptions.experienceasset==0 || ~vfoptions.experienceassetu==0  || ~vfoptions.experienceassetz==0  || ~vfoptions.experienceassete==0  || ~vfoptions.experienceassetze==0
+    if ~vfoptions.experienceasset==0 || ~vfoptions.experienceassetu==0  || ~vfoptions.experienceassetz==0  || ~vfoptions.experienceassete==0  || ~vfoptions.experienceassetze==0  || ~vfoptions.experienceassetsemiz==0
         error('Sorry but experience assets are not implemented for cpu, you will need a gpu to use them')
     end
     if ~vfoptions.riskyasset==0
@@ -186,9 +187,9 @@ if vfoptions.alreadygridvals==0
     % output: z_gridvals_J, pi_z_J, vfoptions.e_gridvals_J, vfoptions.pi_e_J
     %
     % size(z_gridvals_J)=[prod(n_z),length(n_z),N_j]
-    % size(pi_z_J)=[prod(n_z),prod(n_z),N_j]
+    % size(pi_z_J)=[prod(n_z),prod(n_z),N_j-1], last dim is N_j if vfoptions.V_Jplus1 is used
     % size(e_gridvals_J)=[prod(n_e),length(n_e),N_j]
-    % size(pi_e_J)=[prod(n_e),N_j]
+    % size(pi_e_J)=[prod(n_e),N_j], last dim is N_j+1 if vfoptions.V_Jplus1 is used
     % If no z, then z_gridvals_J=[] and pi_z_J=[]
     % If no e, then e_gridvals_J=[] and pi_e_J=[]
     %
@@ -250,21 +251,37 @@ if vfoptions.verbose>=1
     vfoptions
 end
 
-%% Deal with Exotic preferences if need to do that.
+%% Split n_d/n_a for whichever non-standard endogenous state is in use (experience assets, riskyasset, residualasset)
+% Does nothing when none of them is in use. The splits are unpacked from vfoptions at the point of use below.
+vfoptions=SetupNonStandardEndoStates_FHorz(n_d,n_a,d_grid,a_grid,vfoptions);
+
+%% Top-level dispatch: on the preferences
+% Each exotic preference has a single dispatcher, which handles every asset type it supports and
+% returns. Everything after this block is therefore the exoticpreferences='None' path.
+% First a whitelist check on the string: an unrecognized name would otherwise fall through the
+% whole dispatch and silently solve the standard (exponential discounting) problem.
+if ~any(strcmp(vfoptions.exoticpreferences,{'None','QuasiHyperbolic','EpsteinZin','GulPesendorfer','AmbiguityAversion'}))
+    error(['vfoptions.exoticpreferences=',vfoptions.exoticpreferences,' is not a recognized option (must be one of None, QuasiHyperbolic, EpsteinZin, GulPesendorfer, AmbiguityAversion; check spelling and capital letters)'])
+end
 if strcmp(vfoptions.exoticpreferences,'None')
-    % Just ignore and will then continue on.
-elseif strcmp(vfoptions.exoticpreferences,'QuasiHyperbolic') && vfoptions.experienceasset==0 && vfoptions.experienceassetu==0 && vfoptions.experienceassetz==0 && vfoptions.experienceassete==0 && vfoptions.experienceassetze==0
-    % QH composed with experienceasset variants is handled in the experience-asset
-    % block below, so it can reuse the n_d / n_a splitting there.
+    % Nothing to dispatch on: fall through to the asset-type blocks below.
+elseif strcmp(vfoptions.exoticpreferences,'QuasiHyperbolic')
+    % All of quasi-hyperbolic now goes through this one dispatcher, including the experience-asset
+    % variants: it reads beta0 once and then dispatches on the asset type.
     [V,Policy, Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolic(n_d,n_a,n_z,N_j,d_grid,a_grid,z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+    % The dispatcher always returns four outputs (Policyalt is [] under Sophisticated). Trimming to
+    % three here is deliberate: under Sophisticated there is no Policyalt, so a caller asking for one
+    % should get an error rather than a silent empty. Hence this is not folded into the dispatcher.
     if strcmp(vfoptions.quasi_hyperbolic,'Naive')
         varargout={V, Policy,Valt,Policyalt}; % Vtilde, Policytilde, V, Policy (the last two are the exponential discounter)
     elseif strcmp(vfoptions.quasi_hyperbolic,'Sophisticated')
         varargout={V, Policy,Valt}; % Vhat, Policyhat, Vunderbar (the last is the exponential discounter V from the Policyhat)
     end
     return
-elseif strcmp(vfoptions.exoticpreferences,'EpsteinZin') && vfoptions.riskyasset==0 % deal with risky asset elsewhere
-    [V, Policy]=ValueFnIter_FHorz_EpsteinZin(n_d,n_a,n_z,N_j,d_gridvals, a_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+elseif strcmp(vfoptions.exoticpreferences,'EpsteinZin')
+    % All of Epstein-Zin now goes through this one dispatcher, including riskyasset:
+    % it dispatches on the asset type before setting up the Epstein-Zin constants.
+    [V, Policy]=ValueFnIter_FHorz_EpsteinZin(n_d,n_a,n_z,N_j,d_grid, a_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
     varargout={V, Policy};
     return
 elseif strcmp(vfoptions.exoticpreferences,'GulPesendorfer')
@@ -272,107 +289,32 @@ elseif strcmp(vfoptions.exoticpreferences,'GulPesendorfer')
     varargout={V, Policy};
     return
 elseif strcmp(vfoptions.exoticpreferences,'AmbiguityAversion')
-    [V, Policy]=ValueFnIter_FHorz_Ambiguity(n_d,n_a,n_z,N_j,d_gridvals,a_grid,z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+    [V, Policy]=ValueFnIter_FHorz_AmbiguityAversion(n_d,n_a,n_z,N_j,d_grid,a_grid,z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions); % d_grid (not d_gridvals): the riskyasset branch splits it by refine_d
     varargout={V, Policy};
     return
 end
 
 
-%% Deal with Experience Asset if need to do that
+%% Experience asset (exoticpreferences='None'; the exotic preferences handle their own asset types)
 % experienceasset: aprime(d,a)
 % experienceassetu: aprime(d,a,u)
 % experienceassetz: aprime(d,a,z)
 % experienceassete: aprime(d,a,e)
 % experienceassetze: aprime(d,a,z,e)
 
-if vfoptions.experienceasset>=1 || vfoptions.experienceassetu>=1 || vfoptions.experienceassetz>=1 || vfoptions.experienceassete>=1 || vfoptions.experienceassetze>=1
-    % It is simply assumed that the experience asset is the last asset, and that the decision that influences it is the last decision.
-    % When using both semiexo and experience asset, the last decision variable influences semi-exo and the second last decision variable influences the experience asset
-
-    if vfoptions.experienceasset>=1
-        if ~isfield(vfoptions,'l_dexperienceasset')
-            vfoptions.l_dexperienceasset=1; % by default, only one decision variable influences the experienceasset
-        end
-    elseif vfoptions.experienceassetu>=1
-        if ~isfield(vfoptions,'l_dexperienceassetu')
-            vfoptions.l_dexperienceassetu=1; % by default, only one decision variable influences the experienceassetu
-        end
-    elseif vfoptions.experienceassete>=1
-        if ~isfield(vfoptions,'l_dexperienceassete')
-            vfoptions.l_dexperienceassete=1; % by default, only one decision variable influences the experienceassete
-        end
-    elseif vfoptions.experienceassetz>=1
-        if ~isfield(vfoptions,'l_dexperienceassetz')
-            vfoptions.l_dexperienceassetz=1; % by default, only one decision variable influences the experienceassetz
-        end
-    elseif vfoptions.experienceassetze>=1
-        if ~isfield(vfoptions,'l_dexperienceassetze')
-            vfoptions.l_dexperienceassetze=1; % by default, only one decision variable influences the experienceassetze
-        end
-    end
-    
-    if vfoptions.experienceasset>=1
-        vfoptions.l_d2=vfoptions.l_dexperienceasset;
-        vfoptions.l_a2=vfoptions.experienceasset;
-    elseif vfoptions.experienceassetu>=1
-        vfoptions.l_d2=vfoptions.l_dexperienceassetu;
-        vfoptions.l_a2=vfoptions.experienceassetu;
-    elseif vfoptions.experienceassete>=1
-        vfoptions.l_d2=vfoptions.l_dexperienceassete;
-        vfoptions.l_a2=vfoptions.experienceassete;
-    elseif vfoptions.experienceassetz>=1
-        vfoptions.l_d2=vfoptions.l_dexperienceassetz;
-        vfoptions.l_a2=vfoptions.experienceassetz;
-    elseif vfoptions.experienceassetze>=1
-        vfoptions.l_d2=vfoptions.l_dexperienceassetze;
-        vfoptions.l_a2=vfoptions.experienceassetze;
-    end
-
+if vfoptions.experienceasset>=1 || vfoptions.experienceassetu>=1 || vfoptions.experienceassetz>=1 || vfoptions.experienceassete>=1 || vfoptions.experienceassetze>=1 || vfoptions.experienceassetsemiz>=1
+    % The split itself is done in SetupNonStandardEndoStates_FHorz (called above); unpack it here.
+    n_d1=vfoptions.n_d1;
+    n_d2=vfoptions.n_d2;
+    n_a1=vfoptions.n_a1;
+    n_a2=vfoptions.n_a2;
+    d1_grid=vfoptions.d1_grid;
+    d2_grid=vfoptions.d2_grid;
+    a1_grid=vfoptions.a1_grid;
+    a2_grid=vfoptions.a2_grid;
     if prod(vfoptions.n_semiz)>0
-        if ~isfield(vfoptions,'l_dsemiz')
-            vfoptions.l_dsemiz=1; % by default, only one decision variable influences the semi-exogenous state
-        end
-
-        % Split decision variables (other, semiexo, experienceasset)
-        if length(n_d)>(vfoptions.l_d2+vfoptions.l_dsemiz)
-            n_d1=n_d(1:end-vfoptions.l_d2-vfoptions.l_dsemiz);
-        else
-            n_d1=0;
-        end
-        n_d2=n_d(end-vfoptions.l_d2-vfoptions.l_dsemiz+1:end-vfoptions.l_dsemiz); % n_d2 is the decision variable that influences the experience asset
-        n_d3=n_d(end-vfoptions.l_dsemiz+1:end); % n_d3 is the decision variable that influences the transition probabilities of the semi-exogenous state
-        d1_grid=d_grid(1:sum(n_d1));
-        d2_grid=d_grid(sum(n_d1)+1:sum(n_d1)+sum(n_d2));
-        d3_grid=d_grid(sum(n_d1)+sum(n_d2)+1:end);
-        % Split endogenous assets into the standard ones and the experience asset
-        if length(n_a)<=vfoptions.l_a2
-            n_a1=0;
-        else
-            n_a1=n_a(1:end-vfoptions.l_a2);
-        end
-        n_a2=n_a(end-vfoptions.l_a2+1:end); % last l_a2 (=vfoptions.experienceasset) dims are the experience asset
-        a1_grid=a_grid(1:sum(n_a1));
-        a2_grid=a_grid(sum(n_a1)+1:end);
-
-    else % no semiz
-        % Split decision variables into the standard ones and the one relevant to the experience asset
-        if length(n_d)>vfoptions.l_d2
-            n_d1=n_d(1:end-vfoptions.l_d2);
-        else
-            n_d1=0;
-        end
-        n_d2=n_d(end-vfoptions.l_d2+1:end); % n_d2 is the decision variable that influences next period vale of the experience asset
-        d1_grid=d_grid(1:sum(n_d1));
-        d2_grid=d_grid(sum(n_d1)+1:end);
-        % Split endogenous assets into the standard ones and the experience asset
-        if length(n_a)<=vfoptions.l_a2
-            n_a1=0;
-        else
-            n_a1=n_a(1:end-vfoptions.l_a2);
-        end
-        n_a2=n_a(end-vfoptions.l_a2+1:end); % last l_a2 (=vfoptions.experienceasset) dims are the experience asset
-        a1_grid=a_grid(1:sum(n_a1));
-        a2_grid=a_grid(sum(n_a1)+1:end);
+        n_d3=vfoptions.n_d3;
+        d3_grid=vfoptions.d3_grid;
     end
 
     % Now just send all this to the right value fn iteration command
@@ -397,31 +339,21 @@ if vfoptions.experienceasset>=1 || vfoptions.experienceassetu>=1 || vfoptions.ex
     elseif vfoptions.experienceassetz>=1
         if prod(vfoptions.n_semiz)>0
             [V,Policy]=ValueFnIter_FHorz_ExpAssetzSemiExo(n_d1,n_d2,n_d3,n_a1,n_a2,n_z,vfoptions.n_semiz, N_j, d1_grid , d2_grid, d3_grid, a1_grid, a2_grid, z_gridvals_J, vfoptions.semiz_gridvals_J, pi_z_J, vfoptions.pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
-        elseif strcmp(vfoptions.exoticpreferences,'QuasiHyperbolic')
-            [V,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetz(n_d1,n_d2,n_a1,n_a2,n_z, N_j, d1_grid, d2_grid, a1_grid, a2_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
-            if strcmp(vfoptions.quasi_hyperbolic,'Naive')
-                varargout={V, Policy, Valt, Policyalt};
-            else
-                varargout={V, Policy, Valt};
-            end
-            return
         else
             [V,Policy]=ValueFnIter_FHorz_ExpAssetz(n_d1,n_d2,n_a1,n_a2,n_z, N_j, d1_grid , d2_grid, a1_grid, a2_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
         end
     elseif vfoptions.experienceassetze>=1
         if prod(vfoptions.n_semiz)>0
             [V,Policy]=ValueFnIter_FHorz_ExpAssetzeSemiExo(n_d1,n_d2,n_d3,n_a1,n_a2,n_z,vfoptions.n_semiz, N_j, d1_grid , d2_grid, d3_grid, a1_grid, a2_grid, z_gridvals_J, vfoptions.semiz_gridvals_J, pi_z_J, vfoptions.pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
-        elseif strcmp(vfoptions.exoticpreferences,'QuasiHyperbolic')
-            [V,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetze(n_d1,n_d2,n_a1,n_a2,n_z, N_j, d1_grid, d2_grid, a1_grid, a2_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
-            if strcmp(vfoptions.quasi_hyperbolic,'Naive')
-                varargout={V, Policy, Valt, Policyalt};
-            else
-                varargout={V, Policy, Valt};
-            end
-            return
         else
             [V,Policy]=ValueFnIter_FHorz_ExpAssetze(n_d1,n_d2,n_a1,n_a2,n_z, N_j, d1_grid , d2_grid, a1_grid, a2_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
         end
+    elseif vfoptions.experienceassetsemiz>=1
+        % semiz is always present (it drives the experience asset); aprimeFn=aprimeFn(d2,a2,semiz)
+        if prod(vfoptions.n_semiz)==0
+            error('When using experienceassetsemiz you must set vfoptions.n_semiz (the semi-exogenous state drives the experience asset)')
+        end
+        [V,Policy]=ValueFnIter_FHorz_ExpAssetsemiz(n_d1,n_d2,n_d3,n_a1,n_a2,n_z,vfoptions.n_semiz, N_j, d1_grid , d2_grid, d3_grid, a1_grid, a2_grid, z_gridvals_J, vfoptions.semiz_gridvals_J, pi_z_J, vfoptions.pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
     end
 
     varargout={V, Policy};
@@ -429,68 +361,41 @@ if vfoptions.experienceasset>=1 || vfoptions.experienceassetu>=1 || vfoptions.ex
 end
 
 
-%% Deal with risky asset if need to do that
+%% Risky asset (exoticpreferences='None'; Epstein-Zin handles riskyasset in its own dispatcher)
 if vfoptions.riskyasset==1
-    % It is simply assumed that the risky asset is the last asset, and that all decisions influence it.
-
-    % Split endogenous assets into the standard ones and the risky asset
-    if isscalar(n_a)
-        n_a1=0;
-    else
-        n_a1=n_a(1:end-1);
-    end
-    n_a2=n_a(end); % n_a2 is the risky asset
-    a1_grid=a_grid(1:sum(n_a1));
-    a2_grid=a_grid(sum(n_a1)+1:end);
-
-    % Check that aprimeFn is inputted
-    if ~isfield(vfoptions,'aprimeFn')
-        error('You have vfoptions.riskyasset=1, but have not setup vfoptions.aprimeFn')
-    end
-    % Check that the u shocks are inputted
-    if ~isfield(vfoptions,'n_u')
-        error('You have vfoptions.riskyasset=1, but have not setup vfoptions.n_u')
-    end
-    if ~isfield(vfoptions,'u_grid')
-        error('You have vfoptions.riskyasset=1, but have not setup vfoptions.u_grid')
-    end
-    if ~isfield(vfoptions,'pi_u') % && ~isfield(vfoptions,'pi_u_J')
-        error('You have vfoptions.riskyasset=1, but have not setup vfoptions.pi_u')
-    end
-    if ~isfield(vfoptions,'refine_d')
-        warning('Using vfoptions.riskyasset=1 without setting vfoptions.refine_d is outdated behaviour, it is strongly recommended you set vfoptions.refine_d')
-    end
+    % The split itself is done in SetupNonStandardEndoStates_FHorz (called above); unpack it here.
+    n_a1=vfoptions.n_a1;
+    n_a2=vfoptions.n_a2;
+    a1_grid=vfoptions.a1_grid;
+    a2_grid=vfoptions.a2_grid;
 
     % Now just send all this to the right value fn iteration command
     if prod(vfoptions.n_semiz)>0
-        if strcmp(vfoptions.exoticpreferences,'EpsteinZin')
-            [V, Policy]=ValueFnIter_FHorz_EpsteinZin_RiskyAsset_semiz(n_d,n_a1,n_a2,vfoptions.n_semiz,n_z,vfoptions.n_u, N_j, d_grid, a1_grid, a2_grid, vfoptions.semiz_gridvals_J,z_gridvals_J, vfoptions.u_grid, vfoptions.pi_semiz_J, pi_z_J, vfoptions.pi_u, ReturnFn, vfoptions.aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
-        else
             [V, Policy]=ValueFnIter_FHorz_RiskyAssetSemiExo(n_d,n_a1,n_a2,vfoptions.n_semiz,n_z,vfoptions.n_u, N_j, d_grid, a1_grid, a2_grid, vfoptions.semiz_gridvals_J,z_gridvals_J, vfoptions.u_grid, vfoptions.pi_semiz_J, pi_z_J, vfoptions.pi_u, ReturnFn, vfoptions.aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
-        end
     else
-        if strcmp(vfoptions.exoticpreferences,'EpsteinZin')
-            [V, Policy]=ValueFnIter_FHorz_EpsteinZin_RiskyAsset(n_d,n_a1,n_a2,n_z,vfoptions.n_u,N_j,d_grid,a1_grid, a2_grid, z_gridvals_J, vfoptions.u_grid, pi_z_J, vfoptions.pi_u, ReturnFn, vfoptions.aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
-        else
             [V,Policy]=ValueFnIter_FHorz_RiskyAsset(n_d,n_a1,n_a2,n_z,vfoptions.n_u, N_j, d_grid, a1_grid, a2_grid, z_gridvals_J, vfoptions.u_grid, pi_z_J, vfoptions.pi_u, ReturnFn, vfoptions.aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
-        end
     end
 
     varargout={V, Policy};
     return
 end
 
-%% Deal with residual asset if need to do that
+%% Residual asset (exoticpreferences='None'; no exotic preference supports residualasset)
 if vfoptions.residualasset==1
-    % Split endogenous assets into the standard ones and the residual asset
-    if isscalar(n_a)
-        n_a1=0;
-    else
-        n_a1=n_a(1:end-1);
+    % Note: this block returns before divideandconquer and gridinterplayer are ever consulted, so
+    % they have to be caught here. Silently ignoring them (the previous behaviour) handed the user
+    % a brute-force solve while they believed they had asked for DC or GI.
+    if vfoptions.divideandconquer==1
+        error('divide-and-conquer is not yet implemented for residual assets (only the base solver exists)')
     end
-    n_r=n_a(end); % n_a2 is the residual asset
-    a1_grid=a_grid(1:sum(n_a1));
-    r_grid=a_grid(sum(n_a1)+1:end);
+    if vfoptions.gridinterplayer==1
+        error('grid interpolation layer is not yet implemented for residual assets (only the base solver exists)')
+    end
+    % The split itself is done in SetupNonStandardEndoStates_FHorz (called above); unpack it here.
+    n_a1=vfoptions.n_a1;
+    n_r=vfoptions.n_r;
+    a1_grid=vfoptions.a1_grid;
+    r_grid=vfoptions.r_grid;
 
     % Now just send all this to the right value fn iteration command
     [V,Policy]=ValueFnIter_FHorz_ResidAsset(n_d,n_a1,n_r,n_z, N_j, d_grid, a1_grid, r_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);

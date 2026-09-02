@@ -1,4 +1,4 @@
-function [z_grid_J,pi_z_J]=discretizeLifeCycleVAR1_Tauchen(Mew_J,Rho_J,SigmaSq_J,znum,J,tauchenoptions)
+function [z_grid_J,pi_z_J,jequaloneDistz,otheroutputs]=discretizeLifeCycleVAR1_Tauchen(Mew_J,Rho_J,SigmaSq_J,znum,J,tauchenoptions)
 % This is an extension of the Tauchen method to 'age-dependent parameters'
 %
 % Purpose:
@@ -32,16 +32,18 @@ function [z_grid_J,pi_z_J]=discretizeLifeCycleVAR1_Tauchen(Mew_J,Rho_J,SigmaSq_J
 %               used to set the endpoints of the grid (mew+-nSigmas*standarddeviation)
 %
 % Outputs:
-%   z_grid_J  - (M x znum^M x J) matrix of states. Each column corresponds to an
-%               M-tuple of values which correspond to the state associated
-%               with each row of P. (Puts znum^M points on each variable,
-%               the grids for the variables are codetermined.) There is one
-%               grid for each age/period J.
-%               Note: z_grid_J are jointly determined.
-%   pi_z_J    - (znum^M x znum^M,J) probability transition matrix. Each row
+%   z_grid_J  - (sum(znum) x J) stacked column vector of states, one for each age/period j.
+%               z_grid_J(:,j) stacks the M one-dimensional grids for period j.
+%   pi_z_J    - (prod(znum) x prod(znum) x (J-1)) probability transition matrix. Each row
 %               corresponds to a discrete conditional probability
-%               distribution over the state M-tuples in X. There is one
-%               transition matrix for each age/period j.
+%               distribution over the state M-tuples. pi_z_J(:,:,j) is the
+%               transition from age j to age j+1; there are only J-1 of them,
+%               as there is no period J+1 to transition to.
+%   jequaloneDistz - (prod(znum) x 1) the distribution of z in period 1
+%   otheroutputs   - optional output structure containing info for evaluating the distribution including,
+%        otheroutputs.mewz         - (M-by-J) the mean of z at each age (used to determine grid)
+%        otheroutputs.SigmaSqz     - (M-by-M-by-J) the variance-covariance matrix of z at each age (used to determine grid)
+%        otheroutputs.sigma_z      - (M-by-J) the standard deviation of z at each age (used to determine grid)
 %
 % NOTES:
 % - only accepts non-singular variance-covariance matrices.
@@ -64,7 +66,7 @@ warning off MATLAB:singularMatrix % suppress inversion warnings
 % mewz=zeros(l_z,J); % period j mean of z
 % SigmaSqz = zeros(l_z,l_z,J); % period j covariance-matrix of z
 % z_grid_J = zeros(sum(znum),J); % period j grid on z
-pi_z_J = zeros(prod(znum),prod(znum),J); % period j transition probabilities for z
+pi_z_J = zeros(prod(znum),prod(znum),J-1); % period j transition probabilities for z (only J-1 of them, there is no period J+1 to transition to)
 
 %% Set options
 if ~exist('tauchenoptions','var')
@@ -148,7 +150,7 @@ end
 SigmaSqz=zeros(l_z,l_z,J);
 SigmaSqz(:,:,1) = SigmaSq_J(:,:,1); % because period 0 has no covar, it is just whatever the shocks are
 mewz=zeros(l_z,J);
-mewz(:,1)=Mew_J(:,1); % Start at the unconditional mean
+mewz(:,1)=Mew_J(:,1)+Rho_J(:,:,1)*z0; % period 0 is a point mass at z0 (z0 is zero unless tauchenoptions.initialj0mewz was used)
 % If you have set period 1, then overwrite some of this
 if isfield(tauchenoptions,'initialj1mewz') && isfield(tauchenoptions,'initialj1SigmaSqz')
     mewz(:,1)=tauchenoptions.initialj1mewz;
@@ -165,8 +167,9 @@ end
 sigmaz=zeros(l_z,J);
 sigmaz(:,1)=sqrt(diag(SigmaSqz(:,:,1))); % std dev of z
 for jj = 2:J
-    % Covar(z_j)=rho_j^T Covar(z_{j-1}) rho_j + Covar (epsilon_j)
-    SigmaSqz(:,:,jj) = Rho_J(:,:,jj)'*SigmaSqz(:,:,jj-1)*Rho_J(:,:,jj)+SigmaSq_J(:,:,jj);
+    % Covar(z_j)=rho_j Covar(z_{j-1}) rho_j^T + Covar(epsilon_j)
+    % [z_j=Mew_j+Rho_j*z_{j-1}+e_j with z a column vector, so Var(Rho*z)=Rho*Var(z)*Rho']
+    SigmaSqz(:,:,jj) = Rho_J(:,:,jj)*SigmaSqz(:,:,jj-1)*Rho_J(:,:,jj)'+SigmaSq_J(:,:,jj);
     sigmaz(:,jj)=sqrt(diag(SigmaSqz(:,:,jj))); % std dev of z
 end
 for jj=2:J
@@ -190,8 +193,32 @@ for jj=1:J
 end
 
 
+%% Get the distribution of z in period 1, jequaloneDistz
+% Period 1 is N(mewz(:,1),SigmaSqz(:,:,1)), so just put that onto the period 1 grid
+if min(diag(SigmaSqz(:,:,1)))>0
+    mvnoptions.parallel=1; % want this on cpu, is anyway moved to gpu at the end if needed
+    mvnoptions.verbose=0;
+    jequaloneDistz=MVNormal_ProbabilitiesOnGrid(z_grid_J(:,1),mewz(:,1),SigmaSqz(:,:,1),znum,mvnoptions);
+    jequaloneDistz=jequaloneDistz(:)/sum(jequaloneDistz(:)); % mvncdf() is only accurate to a tolerance, so renormalize
+else
+    % At least one dimension of period 1 has zero variance, so mvncdf() cannot be used.
+    % By construction of the grid, every point of a zero-variance dimension equals mewz, so put the mass on the median point.
+    if max(diag(SigmaSqz(:,:,1)))>0
+        warning('discretizeLifeCycleVAR1_Tauchen: period 1 has zero variance in some but not all dimensions, jequaloneDistz is just being set as a point mass on the median grid point')
+    end
+    jequaloneindex=1;
+    stepsize=1;
+    for z_c=1:l_z
+        jequaloneindex=jequaloneindex+(ceil(znum(z_c)/2)-1)*stepsize;
+        stepsize=stepsize*znum(z_c);
+    end
+    jequaloneDistz=zeros(prod(znum),1);
+    jequaloneDistz(jequaloneindex)=1;
+end
+
+
 %% Create pi_z_J
-pi_z_J=zeros(prod(znum),prod(znum),J); % preallocate
+pi_z_J=zeros(prod(znum),prod(znum),J-1); % preallocate (only J-1, there is no period J+1 to transition to)
 
 for jj=1:J-1
     % P from jj to jj+1
@@ -254,10 +281,17 @@ end
 
 
 
+
+%%
+otheroutputs.mewz=mewz; % period j mean of z
+otheroutputs.SigmaSqz=SigmaSqz; % period j variance-covariance matrix of z
+otheroutputs.sigma_z=sigmaz; % period j standard deviation of z
+
 %%
 if tauchenoptions.parallel==2
     z_grid_J=gpuArray(z_grid_J);
     pi_z_J=gpuArray(pi_z_J); %(z,zprime)
+    jequaloneDistz=gpuArray(jequaloneDistz);
 end
 
 

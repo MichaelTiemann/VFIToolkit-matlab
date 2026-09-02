@@ -223,7 +223,7 @@ else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    EVpre=sum(shiftdim(pi_e_J(:,N_j),-2).*reshape(vfoptions.V_Jplus1,[N_a,N_z,N_e]),3); % Integrate out eprime first
+    EVpre=sum(shiftdim(pi_e_J(:,N_j+1),-2).*reshape(vfoptions.V_Jplus1,[N_a,N_z,N_e]),3); % Integrate out eprime first
 
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
     [a2primeIndex,a2primeProbs]=CreateExperienceAssetzeFnMatrix(aprimeFn, n_d2, n_a2, n_z, n_e, d2_gridvals, a2_grid, z_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
@@ -409,9 +409,7 @@ else
             z_val=z_gridvals_J(z_c,:,N_j);
             for e_c=1:N_e
                 e_val=e_gridvals_J(e_c,:,N_j);
-                DiscountedEV_ze=DiscountedEV(:,:,:,:,:,:,z_c,e_c);
-                DiscountedEVinterp_ze=DiscountedEVinterp(:,:,:,:,:,:,z_c,e_c);
-                DiscountedEV_z=DiscountedEV(:,:,:,:,z_c,e_c);
+                DiscountedEV_ze=DiscountedEV(:,:,:,:,z_c,e_c);
                 DiscountedEVinterp_ze=DiscountedEVinterp(:,:,:,:,z_c,e_c);
 
                 % n-Monotonicity
@@ -492,7 +490,7 @@ for reverse_j=1:N_j-1
     % l_a2==1: a2primeIndex/a2primeProbs are [N_d2,N_a2,N_z,N_e] (legacy lower-corner)
     % l_a2==2: a2primeIndex/a2primeProbs are [l_a2,N_d2,N_a2,N_z,N_e] (per-dim factored)
 
-    EVpre=sum(shiftdim(pi_e_J(:,jj),-2).*V(:,:,:,jj+1),3); % Integrate out eprime first
+    EVpre=sum(shiftdim(pi_e_J(:,jj+1),-2).*V(:,:,:,jj+1),3); % Integrate out eprime first
 
     if length(n_a2)==1
         aprimeIndex=repelem(gpuArray(1:1:N_a1)',N_d2,N_a2,N_z,N_e)+N_a1*repmat(a2primeIndex-1,N_a1,1,1,1); % [N_d2*N_a1,N_a2,N_z,N_e]
@@ -674,9 +672,7 @@ for reverse_j=1:N_j-1
             z_val=z_gridvals_J(z_c,:,jj);
             for e_c=1:N_e
                 e_val=e_gridvals_J(e_c,:,jj);
-                DiscountedEV_ze=DiscountedEV(:,:,:,:,:,:,z_c,e_c);
-                DiscountedEVinterp_ze=DiscountedEVinterp(:,:,:,:,:,:,z_c,e_c);
-                DiscountedEV_z=DiscountedEV(:,:,:,:,z_c,e_c);
+                DiscountedEV_ze=DiscountedEV(:,:,:,:,z_c,e_c);
                 DiscountedEVinterp_ze=DiscountedEVinterp(:,:,:,:,z_c,e_c);
 
                 % n-Monotonicity

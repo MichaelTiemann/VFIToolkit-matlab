@@ -136,10 +136,10 @@ if ~isfield(vfoptions,'V_Jplus1')
             end
         end
     elseif vfoptions.lowmemory==2
-        for e_c=1:N_e
-            e_val=e_gridvals_J(e_c,:,N_j);
-            for z_c=1:N_z
-                z_val=z_gridvals_J(z_c,:,N_j);
+        for z_c=1:N_z
+            z_val=z_gridvals_J(z_c,:,N_j);
+            for e_c=1:N_e
+                e_val=e_gridvals_J(e_c,:,N_j);
                 % n-Monotonicity
                 ReturnMatrix_ii_z=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, 0,n_d2,n_a1,vfoptions.level1n,n_a2,special_n_z,special_n_e, d2_gridvals, a1_gridvals, a1_gridvals(level1ii), a2_gridvals, z_val, e_val, ReturnFnParamsVec,1,0); % Level=1, Refine=0
 
@@ -199,7 +199,7 @@ else
     aprimeplus1Index=repelem((1:1:N_a1)',N_d2,N_a2,N_z)+N_a1*repmat(a2primeIndex,N_a1,1,1); % [N_d2*N_a1,N_a2,N_z]
     aprimeProbs=repmat(a2primeProbs,N_a1,1,1,N_z); % [N_d2*N_a1,N_a2,N_z]    (z dim already present, no repmat over z; but need to add zprime)
 
-    EVpre=sum(shiftdim(pi_e_J(:,N_j),-2).*reshape(vfoptions.V_Jplus1,[N_a,N_z,N_e]),3); % Expectations over e
+    EVpre=sum(shiftdim(pi_e_J(:,N_j+1),-2).*reshape(vfoptions.V_Jplus1,[N_a,N_z,N_e]),3); % Expectations over e
 
     Vlower=reshape(EVpre(aprimeIndex(:),:),[N_d2*N_a1,N_a2,N_z,N_z]); % (d2*a1prime,a2,z_cur,zprime)
     Vupper=reshape(EVpre(aprimeplus1Index(:),:),[N_d2*N_a1,N_a2,N_z,N_z]);
@@ -329,10 +329,10 @@ else
         end
     elseif vfoptions.lowmemory==2
 
-        for e_c=1:N_e
-            e_val=e_gridvals_J(e_c,:,N_j);
-            for z_c=1:N_z
-                z_val=z_gridvals_J(z_c,:,N_j);
+        for z_c=1:N_z
+            z_val=z_gridvals_J(z_c,:,N_j);
+            for e_c=1:N_e
+                e_val=e_gridvals_J(e_c,:,N_j);
                 DiscountedEV_z=DiscountedEV(:,:,:,:,z_c);
 
                 % n-Monotonicity
@@ -411,7 +411,7 @@ for reverse_j=1:N_j-1
     aprimeplus1Index=repelem((1:1:N_a1)',N_d2,N_a2,N_z)+N_a1*repmat(a2primeIndex,N_a1,1,1); % [N_d2*N_a1,N_a2,N_z]
     aprimeProbs=repmat(a2primeProbs,N_a1,1,1,N_z); % [N_d2*N_a1,N_a2,N_z]    (z dim already present, no repmat over z; but need to add zprime)
 
-    EVpre=sum(V(:,:,:,jj+1).*shiftdim(pi_e_J(:,jj),-2),3);
+    EVpre=sum(V(:,:,:,jj+1).*shiftdim(pi_e_J(:,jj+1),-2),3);
 
     Vlower=reshape(EVpre(aprimeIndex(:),:),[N_d2*N_a1,N_a2,N_z,N_z]); % (d2*a1prime,a2,z_cur,zprime)
     Vupper=reshape(EVpre(aprimeplus1Index(:),:),[N_d2*N_a1,N_a2,N_z,N_z]);
@@ -542,10 +542,10 @@ for reverse_j=1:N_j-1
 
     elseif vfoptions.lowmemory==2
 
-        for e_c=1:N_e
-            e_val=e_gridvals_J(e_c,:,jj);
-            for z_c=1:N_z
-                z_val=z_gridvals_J(z_c,:,jj);
+        for z_c=1:N_z
+            z_val=z_gridvals_J(z_c,:,jj);
+            for e_c=1:N_e
+                e_val=e_gridvals_J(e_c,:,jj);
                 DiscountedEV_z=DiscountedEV(:,:,:,:,z_c);
 
                 % n-Monotonicity

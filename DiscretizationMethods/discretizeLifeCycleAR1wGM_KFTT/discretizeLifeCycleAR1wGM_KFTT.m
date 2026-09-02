@@ -27,14 +27,40 @@ function [z_grid_J, pi_z_J, jequaloneDistz,otheroutputs] = discretizeLifeCycleAR
 % Optional inputs (kfttoptions)
 %   parallel:    - set equal to 2 to use GPU, 0 to use CPU
 %   nSigmas      - the grid used will be +-nSigmas*(standard deviation of z)
+%                   Can be a scalar, or a vector with one element per age.
+%                   Note: nSigmas is only used by the 'even', 'gauss-legendre' and 'clenshaw-curtis'
+%                   methods. The 'gauss-hermite' and 'GMQ' methods determine their own grids and
+%                   ignore it.
+%        You can control the initial period with the following:
+%        By default, assume z0=0
+%   initialj0mewz:    - Give period 0 a mean of z0=initialj0mewz (as a point, or as the mean of a normal dist if you are also setting initialj0sigmaz)
+%   initialj0sigmaz:  - Set period 0 to be a N(z0, initialj0sigmaz^2)
+%        Or you set the period 1 (instead of period 0) using
+%   initialj1mewz:    - Set period 1 to have mean initialj1mewz
+%   initialj1sigmaz:  - Set period 1 to be a N(initialj1mewz, initialj1sigmaz^2)
+%        Note, for both period 0 and period 1, you can set one or both of
+%        mean and standard deviation (the other is interpreted as zero valued if not specified).
+%        Period 1 can also be set as a gaussian mixture, rather than as a normal
+%        distribution, by giving initialj1sigmaz as a VECTOR:
+%   initialj1sigmaz:    - (nmix1-by-1) standard deviations of the components
+%   initialj1mixprobs:  - (nmix1-by-1) mixture probabilities of the components (required whenever
+%                         initialj1sigmaz is a vector; must sum to one)
+%   initialj1mewz:      - (nmix1-by-1) means of the components (a scalar is expanded to give every
+%                         component the same mean; if omitted the components are mean zero)
+%        Note, nmix1 need not equal the nmix of the innovations.
 % Output:
 %   z_grid_J       - an znum-by-J matrix, each column stores the Markov state space for period j
-%   pi_z_J         - znum-by-znum-by-J matrix of J (znum-by-znum) transition matrices.
+%   pi_z_J         - znum-by-znum-by-(J-1) matrix of J-1 (znum-by-znum) transition matrices.
 %                       Transition probabilities are arranged by row.
+%                       pi_z_J(:,:,j) is the transition matrix from age j to age j+1. There are
+%                       only J-1 of them, as there is no period J+1 to transition to.
 %   jequaloneDistz - initial distribution of shocks for j=1
 %   otheroutputs   - optional output structure containing info for evaluating the distribution including,
 %        otheroutputs.nMoments_grid  - shows how many moments were  matched from each grid point (for the conditional distribution)
 %        otheroutputs.sigma_z     - the standard deviation of z at each age (used to determine grid)
+%        otheroutputs.mew_z       - the mean of z at each age (used to determine grid)
+%        otheroutputs.jequalzeroDistz - the distribution of z in period 0 (a way to double-check the initialj0 options did what you intended)
+%        otheroutputs.z_grid_0    - the period 0 grid that jequalzeroDistz sits on
 %
 % !========================================================================%
 % Original paper:
@@ -43,7 +69,7 @@ function [z_grid_J, pi_z_J, jequaloneDistz,otheroutputs] = discretizeLifeCycleAR
 mewz=zeros(1,J); % period j mean of z
 sigmaz = zeros(1,J);
 % z_grid_J = zeros(znum,J);
-pi_z_J = zeros(znum,znum,J);
+pi_z_J = zeros(znum,znum,J-1); % pi_z_J(:,:,jj) is the transition from period jj to period jj+1, so there are only J-1 of them
 
 %% Set options
 if ~exist('kfttoptions','var')
@@ -55,6 +81,7 @@ if ~exist('kfttoptions','var')
         kfttoptions.nSigmas = min(sqrt(znum-1),4); % Maximum of +-4 standard deviations
     end
     kfttoptions.parallel=1+(gpuDeviceCount>0);
+    kfttoptions.verbose=1;
     kfttoptions.setmixturemutoenforcezeromean=0;
 else
     if ~isfield(kfttoptions,'method')
@@ -72,6 +99,9 @@ else
     end
     if ~isfield(kfttoptions,'parallel')
         kfttoptions.parallel=1+(gpuDeviceCount>0);
+    end
+    if ~isfield(kfttoptions,'verbose')
+        kfttoptions.verbose=1;
     end
     if ~isfield(kfttoptions,'setmixturemutoenforcezeromean')
         kfttoptions.setmixturemutoenforcezeromean=0;
@@ -138,7 +168,23 @@ if ~isnumeric(kfttoptions.nMoments) || kfttoptions.nMoments < 1 || kfttoptions.n
     error('kfttoptions.nMoments must be either 1, 2, 3, 4')
 end
 
-if kfttoptions.nSigmas<1.2
+% Make sure method is set appropriately
+% Without this the switch on method below simply falls through, leaving the grid variable
+% unassigned, and the failure surfaces a line later as an undefined-variable error naming a
+% variable the caller has never heard of. Checking here names the option instead.
+if ~strcmp(kfttoptions.method,'even') && ~strcmp(kfttoptions.method,'gauss-legendre') && ~strcmp(kfttoptions.method,'clenshaw-curtis') && ~strcmp(kfttoptions.method,'gauss-hermite') && ~strcmp(kfttoptions.method,'GMQ')
+    error('kfttoptions.method must be one of even, gauss-legendre, clenshaw-curtis, gauss-hermite, or GMQ')
+end
+
+% For convenience, make kfttoptions.nSigmas an age-dependent vector
+if isscalar(kfttoptions.nSigmas)
+    kfttoptions.nSigmas=kfttoptions.nSigmas*ones(J,1);
+end
+if length(kfttoptions.nSigmas)~=J
+    error('kfttoptions.nSigmas must be a scalar, or a vector with one element per age (J)')
+end
+
+if any(kfttoptions.nSigmas<1.2) % note: nSigmas is an age-dependent vector by this point, so 'any' (otherwise 'if' would require every age to be below 1.2)
     warning('Trying to hit the 2nd moment with kfttoptions.nSigmas at 1 or less is odd. It will put lots of probability near edges of grid as you are trying to get the std dev, but you max grid points are only about plus/minus one std dev (warning shows for kfttoptions.nSigmas<1.2).')
 end
 
@@ -198,24 +244,87 @@ if isfield(kfttoptions,'initialj0mewz')
     z0=kfttoptions.initialj0mewz;
 end
 % You can add variance to z0 as a N(z0,initialj0sigmaz) using
-if isfield(kfttoptions,'initialj0sigma_z')
-    farmertodaoptions.nSigmas=kfttoptions.nSigmas;
+if isfield(kfttoptions,'initialj0sigmaz')
+    farmertodaoptions.nSigmas=kfttoptions.nSigmas(1); % nSigmas was made an age-dependent vector above; discretizeAR1_FarmerToda() needs a scalar, and period 1 is the relevant age here
     farmertodaoptions.method=kfttoptions.method;
+    if strcmp(kfttoptions.method,'GMQ')
+        % GMQ (gaussian mixture quadrature) is a method of this command but not of
+        % discretizeAR1_FarmerToda(), which has no mixture to build a quadrature on. Period 0 here
+        % is a plain normal, N(z0,initialj0sigmaz^2), so there is no mixture to tune a grid to and
+        % 'even' is the right translation. Without this, method='GMQ' together with initialj0sigmaz
+        % - two documented options of this command, both legal - crashed inside
+        % discretizeAR1_FarmerToda() on an undefined z_grid.
+        farmertodaoptions.method='even';
+    end
     farmertodaoptions.parallel=1; % need to get solution on cpu, otherwise causes errors later
-	[z_grid_0,pi_z_0] = discretizeAR1_FarmerToda(0,0,kfttoptions.initialj0sigma_z,znum,farmertodaoptions);
+	[z_grid_0,pi_z_0] = discretizeAR1_FarmerToda(z0,0,kfttoptions.initialj0sigmaz,znum,farmertodaoptions);
     jequalzeroDistz=pi_z_0(1,:)'; % iid, so first row is the dist
     clear pi_z_0
 else
-    z_grid_0=zeros(znum,1);
-    jequalzeroDistz=[1;zeros(znum-1,1)]; % Is irrelevant where we put the mass
+    z_grid_0=z0*ones(znum,1); % period 0 is a point mass at z0
+    jequalzeroDistz=[1;zeros(znum-1,1)]; % all the grid points are z0, so it does not matter which one carries the mass
 end
+% Note: z_grid_0 and jequalzeroDistz are only reported (as otheroutputs); nothing is computed from
+% them, as the period 1 distribution is built directly further below.
 
-if isfield(kfttoptions,'initialj0sigma_z')
-    sigmaz(1) = sqrt(rho(1)^2*kfttoptions.initialj0sigma_z^2+sigma(1)^2);
+if isfield(kfttoptions,'initialj0sigmaz')
+    sigmaz(1) = sqrt(rho(1)^2*kfttoptions.initialj0sigmaz^2+sigma(1)^2);
 else
     sigmaz(1) = sigma(1);
 end
 mewz(1)=mew(1)+rho(1)*z0;
+
+% If you have set period 1, then overwrite some of this.
+% A scalar kfttoptions.initialj1sigmaz means period 1 is a normal distribution;
+% a vector means period 1 is a gaussian mixture (and kfttoptions.initialj1mixprobs is then required).
+initialj1mixture=0;
+if isfield(kfttoptions,'initialj1sigmaz')
+    if length(kfttoptions.initialj1sigmaz)>1
+        initialj1mixture=1;
+    end
+end
+if isfield(kfttoptions,'initialj1mewz')
+    if length(kfttoptions.initialj1mewz)>1 && initialj1mixture==0
+        error('discretizeLifeCycleAR1wGM_KFTT: kfttoptions.initialj1mewz is a vector but kfttoptions.initialj1sigmaz is not. To set period 1 as a gaussian mixture you must give initialj1sigmaz as a vector of the same length (and initialj1mixprobs)')
+    end
+end
+
+if initialj1mixture==1
+    % Period 1 is a gaussian mixture
+    initialj1sigma_i=kfttoptions.initialj1sigmaz(:);
+    nmix1=length(initialj1sigma_i); % number of components in the period 1 gaussian mixture (need not equal nmix of the innovations)
+    if ~isfield(kfttoptions,'initialj1mixprobs')
+        error('discretizeLifeCycleAR1wGM_KFTT: kfttoptions.initialj1sigmaz is a vector, so period 1 is being set as a gaussian mixture, and you must therefore also set kfttoptions.initialj1mixprobs (the mixture probabilities)')
+    end
+    initialj1mixprobs=kfttoptions.initialj1mixprobs(:);
+    if length(initialj1mixprobs)~=nmix1
+        error('discretizeLifeCycleAR1wGM_KFTT: kfttoptions.initialj1mixprobs must be the same length as kfttoptions.initialj1sigmaz')
+    end
+    if abs(sum(initialj1mixprobs)-1)>10^(-12)
+        error('discretizeLifeCycleAR1wGM_KFTT: kfttoptions.initialj1mixprobs must sum to one')
+    end
+    if isfield(kfttoptions,'initialj1mewz')
+        initialj1mu_i=kfttoptions.initialj1mewz(:);
+        if length(initialj1mu_i)==1
+            initialj1mu_i=initialj1mu_i*ones(nmix1,1); % scalar means every component has this same mean
+        elseif length(initialj1mu_i)~=nmix1
+            error('discretizeLifeCycleAR1wGM_KFTT: kfttoptions.initialj1mewz must be either a scalar or the same length as kfttoptions.initialj1sigmaz')
+        end
+    else
+        initialj1mu_i=zeros(nmix1,1); % components are mean zero if you did not say otherwise
+    end
+    mewz(1)=sum(initialj1mixprobs.*initialj1mu_i); % mean of the gaussian mixture
+    sigmaz(1)=sqrt(sum(initialj1mixprobs.*(initialj1sigma_i.^2+initialj1mu_i.^2))-mewz(1)^2); % standard deviation of the gaussian mixture
+elseif isfield(kfttoptions,'initialj1mewz') && isfield(kfttoptions,'initialj1sigmaz')
+    mewz(1)=kfttoptions.initialj1mewz;
+    sigmaz(1)=kfttoptions.initialj1sigmaz;
+elseif isfield(kfttoptions,'initialj1mewz')
+    mewz(1)=kfttoptions.initialj1mewz;
+    sigmaz(1)=0;
+elseif isfield(kfttoptions,'initialj1sigmaz')
+    mewz(1)=0;
+    sigmaz(1)=kfttoptions.initialj1sigmaz;
+end
 
 % Now that we have period 1, just fill in the rest of the periods
 for jj = 2:J
@@ -231,25 +340,29 @@ for jj=1:J
     % construct the one dimensional grid
     switch kfttoptions.method
         case 'even' % evenly-spaced grid
-            X1 = linspace(mewz(jj)-kfttoptions.nSigmas*sigmaz(jj),mewz(jj)+kfttoptions.nSigmas*sigmaz(jj),znum);
+            X1 = linspace(mewz(jj)-kfttoptions.nSigmas(jj)*sigmaz(jj),mewz(jj)+kfttoptions.nSigmas(jj)*sigmaz(jj),znum);
             W = ones(1,znum);
         case 'gauss-legendre' % Gauss-Legendre quadrature
-            [X1,W] = legpts(znum,[mewz(jj)-kfttoptions.nSigmas*sigmaz(jj),mewz(jj)+kfttoptions.nSigmas*sigmaz(jj)]);
+            [X1,W] = legpts(znum,[mewz(jj)-kfttoptions.nSigmas(jj)*sigmaz(jj),mewz(jj)+kfttoptions.nSigmas(jj)*sigmaz(jj)]);
             X1 = X1';
         case 'clenshaw-curtis' % Clenshaw-Curtis quadrature
-            [X1,W] = fclencurt(znum,mewz(jj)-kfttoptions.nSigmas*sigmaz(jj),mewz(jj)+kfttoptions.nSigmas*sigmaz(jj));
+            [X1,W] = fclencurt(znum,mewz(jj)-kfttoptions.nSigmas(jj)*sigmaz(jj),mewz(jj)+kfttoptions.nSigmas(jj)*sigmaz(jj));
             X1 = fliplr(X1');
             W = fliplr(W');
         case 'gauss-hermite' % Gauss-Hermite quadrature
             if rho(jj) > 0.8
-                warning('Model is persistent; even-spaced grid is recommended')
+                if kfttoptions.verbose==1 && jj==1 % once per call, not once per age
+                    warning('Model is persistent; even-spaced grid is recommended')
+                end
             end
             [X1,W] = GaussHermite(znum);
             X1 = mewz(jj)+sqrt(2)*sigmaz(jj)*X1';
             W = W'./sqrt(pi);
         case 'GMQ' % Gaussian Mixture Quadrature
             if rho(jj) > 0.8
-                warning('Model is persistent; even-spaced grid is recommended')
+                if kfttoptions.verbose==1 && jj==1 % once per call, not once per age
+                    warning('Model is persistent; even-spaced grid is recommended')
+                end
             end
             [X1,W] = GaussianMixtureQuadrature(mixprobs_i(:,jj),mu_i(:,jj),sigma_i(:,jj),znum);
             X1 = X1 + mewz(jj);
@@ -260,28 +373,25 @@ for jj=1:J
 end
 
 
-%% Step 3: Compute the transition matrices trans(:,:,t) from period (t-1) to period t
+%% Step 3: Compute the transition matrices pi_z_J(:,:,jj), from period jj to period jj+1
+% Note: the transition from jj to jj+1 is governed by the period jj+1 parameters, hence the jj+1 indexes below
 
-nMoments_grid=zeros(znum,J); % Used to record number of moments matched in transition from each point
+nMoments_grid=zeros(znum,J-1); % Used to record number of moments matched in transition from each point
 
-parfor jj=1:J
+parfor jj=1:J-1
     %% compute conditional moments
     % fprintf('discretizeLifeCycleAR1wGM_KFTT: now doing period %i of %i \n',jj,J) % commented out as parfor
-    sigmaC2 = sigma_i(:,jj).^2;
+    sigmaC2 = sigma_i(:,jj+1).^2;
 
-    if jj>1
-        zlag_grid=z_grid_J(:,jj-1);
-    else
-        zlag_grid=z_grid_0;
-    end
-    z_grid=z_grid_J(:,jj)';
+    zlag_grid=z_grid_J(:,jj);
+    z_grid=z_grid_J(:,jj+1)';
 
-    TBar=TBar_J(:,jj);
+    TBar=TBar_J(:,jj+1);
 
-    nComp = length(mixprobs_i(:,jj)); % number of mixture components
+    nComp = length(mixprobs_i(:,jj+1)); % number of mixture components
     temp = zeros(1,1,nComp);
     temp(1,1,:) = sigmaC2;
-    gmObj = gmdistribution(mu_i(:,jj),temp,mixprobs_i(:,jj)); % define the Gaussian mixture object
+    gmObj = gmdistribution(mu_i(:,jj+1),temp,mixprobs_i(:,jj+1)); % define the Gaussian mixture object
 
     P = NaN(znum,znum); % transition probability matrix
     P1 = NaN(znum,znum); % matrix to store transition probability
@@ -292,11 +402,11 @@ parfor jj=1:J
     for z_c = 1:znum % For each value z(jj-1) compute the conditional distribution for z(jj) [the row of the transition matrix]
 
         % First, calculate what Farmer & Toda (2017) call qnn', which are essentially an initial guess for pnn'
-        condMean = rho(jj)*zlag_grid(z_c); % z_grid(ii) here is the lag grid point
+        condMean = rho(jj+1)*zlag_grid(z_c); % z_grid(ii) here is the lag grid point
         xPDF = (z_grid-condMean)';
         switch kfttoptions.method
             case 'gauss-hermite'
-                q = W.*(pdf(gmObj,xPDF)./normpdf(xPDF,0,sigma(jj)))';
+                q = W.*(pdf(gmObj,xPDF)./normpdf(xPDF,0,sigma(jj+1)))';
             case 'GMQ'
                 q = W.*(pdf(gmObj,xPDF)./pdf(gmObj,z_grid'))';
             otherwise
@@ -364,14 +474,47 @@ parfor jj=1:J
 
 end
 
-%%
-jequaloneDistz=pi_z_J(:,:,1)'*jequalzeroDistz;
+%% Get the distribution of z in period 1, jequaloneDistz
+% Period 1 is iid, so just discretize it directly onto the period 1 grid.
+% Note: pass method, nSigmas and nMoments so that the grid this builds is the same as z_grid_J(:,1)
+farmertodaoptions_j1.nSigmas=kfttoptions.nSigmas(1); % nSigmas is an age-dependent vector by this point, period 1 is the relevant age
+farmertodaoptions_j1.method=kfttoptions.method;
+farmertodaoptions_j1.nMoments=kfttoptions.nMoments;
+farmertodaoptions_j1.parallel=1; % need to get solution on cpu, otherwise causes errors later
+% Note: a normal distribution is just a one-component gaussian mixture, so every case goes through
+% discretizeAR1wGM_FarmerToda(). Using it rather than discretizeAR1_FarmerToda() also means every
+% kfttoptions.method is supported here, including 'GMQ' which only the mixture command has.
+if initialj1mixture==1
+    % Period 1 was set as a gaussian mixture
+    [z_grid_1,pi_z_1] = discretizeAR1wGM_FarmerToda(0,0,initialj1mixprobs,initialj1mu_i,initialj1sigma_i,znum,farmertodaoptions_j1);
+    jequaloneDistz=pi_z_1(1,:)'; % iid, so first row is the dist
+elseif isfield(kfttoptions,'initialj1mewz') || isfield(kfttoptions,'initialj1sigmaz')
+    % Period 1 was set as a normal distribution
+    if sigmaz(1)>0
+        [z_grid_1,pi_z_1] = discretizeAR1wGM_FarmerToda(0,0,1,mewz(1),sigmaz(1),znum,farmertodaoptions_j1);
+        jequaloneDistz=pi_z_1(1,:)'; % iid, so first row is the dist
+    else
+        % All grid points are same, so just pick an arbitrary one
+        z_grid_1=z_grid_J(:,1);
+        jequaloneDistz=zeros(znum,1);
+        jequaloneDistz(ceil(znum/2))=1; % put the mass on the median point (irrelevant as all points will anyway be same value)
+    end
+else
+    % Period 1 follows from period 0: z(1)=mew(1)+rho(1)*z(0)+e(1), with e(1) the period 1 gaussian mixture.
+    % If period 0 was given a variance, that convolves with the mixture, and the convolution of a normal
+    % with a gaussian mixture is just a gaussian mixture with larger component variances.
+    j1sigma_i=sigma_i(:,1);
+    if isfield(kfttoptions,'initialj0sigmaz')
+        j1sigma_i=sqrt(rho(1)^2*kfttoptions.initialj0sigmaz^2+sigma_i(:,1).^2);
+    end
+    [z_grid_1,pi_z_1] = discretizeAR1wGM_FarmerToda(mew(1)+rho(1)*z0,0,mixprobs_i(:,1),mu_i(:,1),j1sigma_i,znum,farmertodaoptions_j1);
+    jequaloneDistz=pi_z_1(1,:)'; % iid, so first row is the dist
+end
+if max(abs(z_grid_1(:)-z_grid_J(:,1)))>10^(-9)
+    warning('discretizeLifeCycleAR1wGM_KFTT: the period 1 grid used to build jequaloneDistz differs from z_grid_J(:,1), so jequaloneDistz is putting mass on the wrong points')
+end
+clear pi_z_1 z_grid_1
 
-%% Change P_J so that P_J(:,:,jj) is the transition matrix from period jj to period jj+1
-pi_z_J(:,:,1:end-1)=pi_z_J(:,:,2:end);
-
-%% For jj=J, P_J(:,:,J) is kind of meaningless (there is no period J+1 to transition to). I just fill it in as a uniform distribution
-pi_z_J(:,:,J)=ones(znum,znum)/znum;
 
 %% I AM BEING LAZY AND JUST MOVING RESULT TO GPU RATHER THAN CREATING IT THERE IN THE FIRST PLACE
 if kfttoptions.parallel==2
@@ -383,6 +526,8 @@ end
 otheroutputs.nMoments_grid=nMoments_grid; % Heatmap of how many moments where hit by the conditional (difference) distribution
 otheroutputs.sigma_z=sigmaz; % Standard deviation of z (for each period)
 otheroutputs.mew_z=mewz; % Mean of z (for each period)
+otheroutputs.jequalzeroDistz=jequalzeroDistz; % store this so that user can see it to check it looks like they intend (a way to double-check the input options)
+otheroutputs.z_grid_0=z_grid_0; % the period 0 grid that jequalzeroDistz sits on
 
 
 end

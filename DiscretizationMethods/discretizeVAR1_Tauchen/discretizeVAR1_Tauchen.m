@@ -46,23 +46,30 @@ else
 end
 
 % Turn znum and Tauchen_q into column vectors (if they aren't already)
+% Note: the number of variables comes from Rho. It cannot come from znum, which is allowed to be
+% a scalar, and a scalar has length one whatever the size of the VAR.
+l_z=size(Rho,1); % number of variables in VAR
 if size(znum,2)>1 && size(znum,1)==1
     znum=znum';
 end
 if isscalar(znum)
-    znum=znum*ones(length(znum),1);
+    znum=znum*ones(l_z,1);
 end
 if size(Tauchen_q,2)>1 && size(Tauchen_q,1)==1
     Tauchen_q=Tauchen_q';
 end
 if isscalar(Tauchen_q)
-    Tauchen_q=Tauchen_q*ones(length(znum),1);
+    Tauchen_q=Tauchen_q*ones(l_z,1);
+end
+if length(znum)~=l_z
+    error('znum must be a scalar, or a vector with one element per variable of the VAR (which is size(Rho,1))')
+end
+if length(Tauchen_q)~=l_z
+    error('Tauchen_q must be a scalar, or a vector with one element per variable of the VAR (which is size(Rho,1))')
 end
 
-l_z=length(znum); % number of variables in VAR
-
 %% Make sure this is a stationary VAR
-if max(eig(Rho))>=1
+if max(abs(eig(Rho)))>=1
     error('Rho means this VAR is non-stationary (so obviously cannot discretize it)')
 end
 
@@ -76,13 +83,20 @@ else % it is a column vector
     SigmaSq=diag(SigmaSq);
 end
 
+% Check that SigmaSq is a valid variance-covariance matrix
+[~,posDefCheck] = chol(SigmaSq);
+if posDefCheck
+    error('SigmaSq must be a positive definite matrix')
+end
+
 zmean=((eye(l_z,l_z)-Rho)^(-1))*Mew; % Mean value of z itself
 
-% Need the std dev of z (rather than the innovations to z)
-% For an AR(1) this would just be: SigmaSq = 1/(1-Rho^2);
-C1 = chol(SigmaSq,'lower');
-A1 = C1\(Rho*C1);
-SigmaSqz = reshape(((eye(l_z^2)-kron(A1,A1))\eye(l_z^2))*reshape(eye(l_z),l_z^2,1),l_z,l_z); % unconditional variance
+% Need the var-covar of z (rather than of the innovations to z)
+% z'=Mew+Rho*z+e with z a column vector, so Var(z)=Rho*Var(z)*Rho'+SigmaSq.
+% Solve that for Var(z) by vectorizing: vec(Rho*Var(z)*Rho')=kron(Rho,Rho)*vec(Var(z)), hence
+%    vec(Var(z))=(I-kron(Rho,Rho))\vec(SigmaSq)
+% [For an AR(1) this is just the familiar SigmaSqz=SigmaSq/(1-Rho^2)]
+SigmaSqz = reshape((eye(l_z^2)-kron(Rho,Rho))\SigmaSq(:),l_z,l_z); % unconditional var-covar of z
 
 
 sigmaz=sqrt(diag(SigmaSqz)); % std dev of z

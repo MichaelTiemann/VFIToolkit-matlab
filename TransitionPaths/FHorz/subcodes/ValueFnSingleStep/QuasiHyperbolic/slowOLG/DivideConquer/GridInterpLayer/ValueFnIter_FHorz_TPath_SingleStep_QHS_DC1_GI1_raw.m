@@ -92,7 +92,7 @@ elseif vfoptions.lowmemory==1
                 aprimeindexes=loweredge+(0:1:maxgap(ii));
                 ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, n_d, special_n_z, d_gridvals, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_val, ReturnFnParamsVec,3);
                 [~,maxindex]=max(ReturnMatrix_ii,[],2);
-                midpoints_jj(:,1,curraindex)=shiftdim(maxindex+(loweredge-1),1);
+                midpoints_jj(:,1,curraindex)=maxindex+(loweredge-1);
             else
                 loweredge=maxindex1(:,1,ii);
                 midpoints_jj(:,1,curraindex)=repelem(loweredge,1,1,length(curraindex),1);
@@ -129,7 +129,7 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
+    beta0=vfoptions.beta0;
     beta0beta=beta0*beta;
 
     VKronNext_j=Vtemp_j;

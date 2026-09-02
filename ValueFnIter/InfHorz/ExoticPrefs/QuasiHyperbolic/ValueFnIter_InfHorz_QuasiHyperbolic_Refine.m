@@ -28,7 +28,7 @@ if isNaive
         end
     end
     % Then: one QH-Naive step
-    [VKron, Policy_a]=ValueFnIter_InfHorz_QuasiHyperbolicN_nod_raw(ValtKron, n_a, n_z, pi_z, beta0, ReturnMatrix);
+    [VKron, Policy_a]=ValueFnIter_InfHorz_QuasiHyperbolicN_nod_raw(ValtKron, n_a, n_z, pi_z, DiscountFactorParamsVec, beta0, ReturnMatrix);
 else
     % Sophisticated: joint Vhat / Vunderbar iteration (Vunderbar is the 3rd output)
     [VKron, Policy_a, ValtKron]=ValueFnIter_InfHorz_QuasiHyperbolicS_nod_raw(V0, n_a, n_z, pi_z, DiscountFactorParamsVec, beta0, ReturnMatrix, vfoptions.howards, vfoptions.maxhowards, vfoptions.tolerance, vfoptions.maxiter);

@@ -10,6 +10,7 @@ if ~exist('vfoptions','var')
     vfoptions.experienceassetz=0;
     vfoptions.experienceassete=0;
     vfoptions.experienceassetze=0;
+    vfoptions.experienceassetsemiz=0;
     vfoptions.riskyasset=0;
     vfoptions.gridinterplayer=0;
     % divide-and-conquer is not relevant for ValueFnFromPolicy
@@ -38,6 +39,9 @@ else
     if ~isfield(vfoptions,'experienceassetze')
         vfoptions.experienceassetze=0;
     end
+    if ~isfield(vfoptions,'experienceassetsemiz')
+        vfoptions.experienceassetsemiz=0;
+    end
     if ~isfield(vfoptions,'riskyasset')
         vfoptions.riskyasset=0;
     end
@@ -64,6 +68,34 @@ Policy=gpuArray(Policy);
 if isfield(vfoptions,'exoticpreferences') && strcmp(vfoptions.exoticpreferences,'QuasiHyperbolic')
     [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic(Policy,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
     varargout={V,Valt};
+    return
+end
+
+%% Dispatch to EpsteinZin subfn if exoticpreferences=='EpsteinZin'
+if isfield(vfoptions,'exoticpreferences') && strcmp(vfoptions.exoticpreferences,'EpsteinZin')
+    V=ValueFnFromPolicy_FHorz_EpsteinZin(Policy,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    varargout={V};
+    return
+end
+
+%% Dispatch to AmbiguityAversion subfn if exoticpreferences=='AmbiguityAversion'
+% The ExogShockSetup_FHorz call above already ran its AmbiguityAversion branch, so vfoptions
+% holds the processed priors (ambiguity_pi_z_J/ambiguity_pi_e_J, n_ambiguity as [1,N_j]); the
+% subfn gets z_gridvals_J and vfoptions rather than re-running the setup. It handles
+% gridinterplayer itself (hence dispatched before the GI subfn below).
+if isfield(vfoptions,'exoticpreferences') && strcmp(vfoptions.exoticpreferences,'AmbiguityAversion')
+    V=ValueFnFromPolicy_FHorz_AmbiguityAversion(Policy,n_d,n_a,n_z,N_j,d_grid,a_grid,z_gridvals_J, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    varargout={V};
+    return
+end
+
+%% Dispatch to GulPesendorfer subfn if exoticpreferences=='GulPesendorfer'
+% V = u(policy) + v(policy) - max v + beta*EV(policy): the generic path below would omit the
+% temptation terms, so GP must have its own subfn. It handles gridinterplayer itself (the
+% most-tempting term is then a max over the FINE grid), hence dispatched before the GI subfn.
+if isfield(vfoptions,'exoticpreferences') && strcmp(vfoptions.exoticpreferences,'GulPesendorfer')
+    V=ValueFnFromPolicy_FHorz_GulPesendorfer(Policy,n_d,n_a,n_z,N_j,d_grid,a_grid,z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    varargout={V};
     return
 end
 
@@ -98,6 +130,11 @@ end
 %% Dispatch to ExpAssetze subfn if experienceassetze==1
 if vfoptions.experienceassetze>=1
     V=ValueFnFromPolicy_FHorz_ExpAssetze(Policy,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    varargout={V};
+    return
+end
+if vfoptions.experienceassetsemiz>=1
+    V=ValueFnFromPolicy_FHorz_ExpAssetsemiz(Policy,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
     varargout={V};
     return
 end
@@ -202,7 +239,7 @@ elseif N_z==0 && N_e>0
             V(:,:,jj)=FofPolicy_jj;
         else
             beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-            EVnext=sum(V(:,:,jj+1).*shiftdim(vfoptions.pi_e_J(:,jj),-1),2); % expectation over iid
+            EVnext=sum(V(:,:,jj+1).*shiftdim(vfoptions.pi_e_J(:,jj+1),-1),2); % expectation over iid
 
             if N_d==0
                 optaprime=PolicyIndexesKron(1,:,:,jj);
@@ -286,7 +323,7 @@ elseif N_z>0 && N_e>0
             V(:,:,:,jj)=FofPolicy_jj;
         else
             beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-            EVnext=sum(V(:,:,:,jj+1).*shiftdim(vfoptions.pi_e_J(:,jj),-2),3); % expectation over iid
+            EVnext=sum(V(:,:,:,jj+1).*shiftdim(vfoptions.pi_e_J(:,jj+1),-2),3); % expectation over iid
             EVnext=EVnext.*shiftdim(pi_z_J(:,:,jj)',-1); % size N_z-by-1
             EVnext(isnan(EVnext))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
             EVnext=sum(EVnext,2); % sum over z', leaving a singular second dimension

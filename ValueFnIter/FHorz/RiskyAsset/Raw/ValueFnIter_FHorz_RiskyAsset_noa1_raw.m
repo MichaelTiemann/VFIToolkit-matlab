@@ -6,6 +6,7 @@ function [V,Policy]=ValueFnIter_FHorz_RiskyAsset_noa1_raw(n_d1,n_d2,n_d3,n_a,n_z
 N_d1=prod(n_d1);
 N_d2=prod(n_d2);
 N_d3=prod(n_d3);
+N_d=N_d2*N_d3; % aprime d-space (d2,d3); d1 is refined out separately
 N_a=prod(n_a);
 N_z=prod(n_z);
 N_u=prod(n_u);
@@ -50,7 +51,7 @@ if ~isfield(vfoptions,'V_Jplus1')
         Policy(2,:,:,N_j)=1; % is meaningless anyway
         Policy(3,:,:,N_j)=shiftdim(ceil(maxindex/N_d1),-1);
 
-    elseif vfoptions.lowmemory==1
+    elseif vfoptions.lowmemory>=1 % lm1 already does the most-looped variant, so it also serves the higher lowmemory values
 
         for z_c=1:N_z
             z_val=z_gridvals_J(z_c,:,N_j);
@@ -112,7 +113,7 @@ else
         Policy(1,:,:,N_j)=shiftdim(d1index(maxindex+N_d3*aind+N_d3*N_a*zind),1);
         Policy(2,:,:,N_j)=shiftdim(d2index(maxindex+N_d3*zind),1);
 
-    elseif vfoptions.lowmemory==1
+    elseif vfoptions.lowmemory>=1 % lm1 already does the most-looped variant, so it also serves the higher lowmemory values
         for z_c=1:N_z
             z_val=z_gridvals_J(z_c,:,N_j);
             ReturnMatrix_z=CreateReturnFnMatrix_Case2_Disc(ReturnFn, n_d13, n_a, special_n_z, d13_gridvals, a_gridvals, z_val, ReturnFnParamsVec);
@@ -209,7 +210,7 @@ for reverse_j=1:N_j-1
         Policy(2,:,:,jj)=shiftdim(d2index(maxindex+N_d3*zind),1);
 
 
-    elseif vfoptions.lowmemory==1
+    elseif vfoptions.lowmemory>=1 % lm1 already does the most-looped variant, so it also serves the higher lowmemory values
         for z_c=1:N_z
             z_val=z_gridvals_J(z_c,:,jj);
             ReturnMatrix_z=CreateReturnFnMatrix_Case2_Disc(ReturnFn, n_d13, n_a, special_n_z, d13_gridvals, a_gridvals, z_val, ReturnFnParamsVec);

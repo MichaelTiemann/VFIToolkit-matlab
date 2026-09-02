@@ -17,7 +17,7 @@ N_a=prod(n_a);
 l_p=size(PricePathOld,2);
 
 PricePathDist=Inf;
-pathcounter=1;
+itercounter=1;
 
 V_final=reshape(V_final,[N_a,N_z,N_j]);
 AgentDist_initial=reshape(StationaryDist_init,[N_a*N_z,N_j]);
@@ -113,14 +113,14 @@ end
 %     clear AgentDist
 
 % if transpathoptions.historyofpricepath==1
-%     PricePathHistory{pathcounter,1}=PricePathDist;
-%     PricePathHistory{pathcounter,2}=PricePathOld;
+%     PricePathHistory{itercounter,1}=PricePathDist;
+%     PricePathHistory{itercounter,2}=PricePathOld;
 %
-%     if rem(pathcounter,5)==1
+%     if rem(itercounter,5)==1
 %         save ./SavedOutput/TransPath_Internal.mat PricePathHistory
 %     end
 % end
-% pathcounter=pathcounter+1;
+% itercounter=itercounter+1;
 
 WeightedSumSq_GeneralEqmCondnPath=sum(sum(transpathoptions.weightsforpath.*(GeneralEqmCondnPath).^2));
 

@@ -3,10 +3,10 @@ function [V,Policy]=ValueFnIter_FHorz_TPath_SingleStep_fastOLG_SemiExo_raw(V,n_d
 % fastOLG is done as (a,j,bothz), rather than standard (a,bothz,j), where bothz=(semiz,z) with semiz indexing fastest
 % V is (a,j)-by-bothz
 % Policy is (a,j,bothz)
-% pi_z_J is (j,z',z) for fastOLG
+% pi_z_J is (j,z',z) for fastOLG, with N_j slices: same j=N_j convention as pi_semiz_J
 % z_gridvals_J is (j,N_z,l_z) for fastOLG
 % semiz_gridvals_J is (j,N_semiz,l_semiz) for fastOLG
-% pi_semiz_J is (semiz,semiz',d2,j) [standard form, transitions depend on d2]
+% pi_semiz_J is (j,semiz',semiz,d2) for fastOLG [transitions depend on d2], with N_j slices: under EVpre==0 the j=N_j slice is the zero 'no continuation value in the final period' row appended by the TPath setup; an EVpre==1/MEP caller must instead supply a genuine final transition row
 
 n_d=[n_d1,n_d2];
 n_bothz=[n_semiz,n_z]; % These are the return function arguments
@@ -23,7 +23,6 @@ d_gridvals=[repmat(d1_gridvals,N_d2,1),repelem(d2_gridvals,N_d1,1)];
 bothz_gridvals_J=cat(3,repmat(semiz_gridvals_J,1,N_z,1),repelem(z_gridvals_J,1,N_semiz,1)); % (j,N_bothz,l_semiz+l_z), semiz indexes fastest
 bothz_gridvals_J=shiftdim(bothz_gridvals_J,-3); % [1,1,1,N_j,N_bothz,l_bothz]
 
-pi_semiz_J=permute(pi_semiz_J,[4,2,1,3]); % (j,semiz',semiz,d2)
 
 %% First, create the big 'next period (of transition path) expected value fn.
 % fastOLG will be N_d*N_aprime by N_a*N_j*N_bothz (note: N_aprime is just equal to N_a)
@@ -39,6 +38,7 @@ if vfoptions.EVpre==0
     EVpre(:,1,1:N_j-1,:)=reshape(V(N_a+1:end,:),[N_a,1,N_j-1,N_bothz]); % I use zeros in j=N_j so that can just use the transition probabilities to create expectations
 elseif vfoptions.EVpre==1
     % This is used for 'Matched Expecations Path'
+    % EVpre==1 is the Matched Expectations Path: the age axis is time along the path and the caller supplies pi arrays whose j=N_j slice is genuine (the transition into the continuing future) rather than the TPath setup's zero row
     EVpre=reshape(V,[N_a,1,N_j,N_bothz]); % input V is already of size [N_a*N_j,N_bothz] and we want to use the whole thing
 end
 

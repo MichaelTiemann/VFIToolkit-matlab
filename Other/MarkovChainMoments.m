@@ -55,10 +55,10 @@ if mcmomentsoptions.eigenvector==1
     % [V,~] = eigs(Ptranspose,1); % We are only interested in the largest eigenvector
     % Following lines are alternative I found in MNS2016. It includes a bunch
     % of checks of input and output
-    assert(all(abs(sum(pi_z_transpose)-1)<1e-10));
+    assert(all(abs(sum(pi_z_transpose)-1)<1e-10),'MarkovChainMoments: the rows of pi_z must sum to one (largest deviation is %g). Note that a transposed transition matrix is not itself a transition matrix, unless the chain happens to be doubly stochastic.',max(abs(sum(pi_z_transpose)-1)));
     opts.disp=0;
     [x,eval] = eigs(pi_z_transpose,[],1,1+1e-10,opts);
-    assert(abs(eval-1)<1e-10);
+    assert(abs(eval-1)<1e-10,'MarkovChainMoments: the largest eigenvalue of pi_z should be one (it is %g), so pi_z does not look like a valid transition matrix.',eval);
     V = x/sum(x);
     assert(min(V)>-1e-12);
     V = max(V,0);
@@ -100,6 +100,17 @@ mean=(z_grid')*statdist;
 
 secondmoment=(z_grid.^2)'*statdist;
 variance=secondmoment-mean^2;
+
+% If the stationary distribution has collapsed onto a single point then pi_z is (numerically)
+% reducible, and two things go wrong quietly: the unit eigenvector is not unique, so the statdist
+% returned above is an arbitrary choice among the invariant distributions; and the autocorrelation
+% below is 0/0. Warn rather than return a silent NaN.
+% This is not hypothetical: Tauchen-Hussey with baseSigma set to the unconditional standard
+% deviation does exactly this at rho=0.99, because it places its nodes so far apart that the
+% off-diagonal transition probabilities underflow to zero.
+if variance<10^(-12)
+    warning('MarkovChainMoments: the stationary distribution has collapsed onto (essentially) a single point, which means pi_z is numerically reducible. The stationary distribution is then not unique, so statdist is an arbitrary choice among them, and the autocorrelation is not defined.')
+end
 
 covar_withlag=sum(statdist.*sum(pi_z.*((z_grid-mean)*(z_grid-mean)'),2));
 autocorrelation=covar_withlag/variance; % Note: denominator is stdev*stddev, but since they (this period and last period) have the same stdev it is just the variance

@@ -2,6 +2,7 @@ function [V,Policy]=ValueFnIter_FHorz_TPath_SingleStep_fastOLG_SemiExo_GI1_noz_e
 % fastOLG just means parallelize over "age" (j)
 % fastOLG is done as (a,j,z), rather than standard (a,z,j)
 % V is (a,j)-by-z-by-e
+% pi_semiz_J is (j,semiz',semiz,d2) for fastOLG [transitions depend on d2], with N_j slices: the j=N_j slice is the zero 'no continuation value in the final period' row appended by the TPath setup
 
 n_d=[n_d1,n_d2];
 N_d1=prod(n_d1);
@@ -17,7 +18,6 @@ Policy=zeros(4,N_a,N_j,N_bothz,N_e,'gpuArray'); %first dim indexes the optimal c
 
 d_gridvals=[repmat(d1_gridvals,N_d2,1),repelem(d2_gridvals,N_d1,1)];
 bothz_gridvals_J=shiftdim(semiz_gridvals_J,-3); % [1,1,1,N_j,N_semiz,l_semiz]
-pi_semiz_J=permute(pi_semiz_J,[4,2,1,3]); % (j,semiz',semiz,d2)
 e_gridvals_J=reshape(e_gridvals_J,[1,1,1,N_j,1,N_e,length(n_e)]);
 
 
@@ -44,7 +44,7 @@ DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamN
 % Each column will be a specific parameter with the values at every age.
 ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j); % this will be a matrix, row indexes ages and column indexes the parameters (parameters which are not dependent on age appear as a constant valued column)
 
-EVpre=[sum(V(N_a+1:end,:,:).*pi_e_J(1:end-N_a,:,:),3); zeros(N_a,N_bothz,'gpuArray')]; % I use zeros in j=N_j so that can just use the transition probabilities to create expectations
+EVpre=[sum(V(N_a+1:end,:,:).*pi_e_J(N_a+1:end,:,:),3); zeros(N_a,N_bothz,'gpuArray')]; % I use zeros in j=N_j so that can just use the transition probabilities to create expectations
 EVpre=reshape(EVpre,[N_a,1,N_j,N_bothz]);
 
 % Expectations over the semi-exogenous state depend on d2: compute them for each d2 and stack over d2

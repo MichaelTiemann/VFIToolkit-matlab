@@ -1,7 +1,7 @@
-function [Vtilde,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetzN_DC2A_raw(n_d1, n_d2, n_a1, n_a2, n_a3, n_z, N_j, d_gridvals, d2_gridvals, a1_grid, a2_gridvals, a3_grid, z_gridvals_J, pi_z_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions)
+function [Vtilde,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetzN_DC2A_raw(n_d1, n_d2, n_a1, n_a2, n_a3, n_z, N_j, d_gridvals, d2_gridvals, a1_grid, a2_gridvals, a3_grid, z_gridvals_J, pi_z_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions, beta0)
 % Naive QH + ExpAssetz, DC2A pattern (with d1).
 % Policy channels: 1=d (joint d1+d2 kron), 2=a1prime, 3=a2prime.
-% lowmemory=0 full vectorization; lowmemory=1 loops z; lowmemory=2 errors (no e dim to nest).
+% lowmemory=0 full vectorization; lowmemory=1 loops z.
 
 N_d1=prod(n_d1);
 N_d2=prod(n_d2);
@@ -136,8 +136,6 @@ if ~isfield(vfoptions,'V_Jplus1')
                 end
             end
         end
-    elseif vfoptions.lowmemory==2
-        error('lowmemory=2 not supported in QH+ExpAssetz _raw (no e dim to nest); use _e_raw variant')
     end
 
     Vtilde(:,:,N_j)=Valt(:,:,N_j);
@@ -146,7 +144,6 @@ if ~isfield(vfoptions,'V_Jplus1')
 else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
     beta0beta=beta0*beta;
 
     EVpre=reshape(vfoptions.V_Jplus1,[N_a,N_z]);
@@ -386,8 +383,6 @@ else
                 end
             end
         end
-    elseif vfoptions.lowmemory==2
-        error('lowmemory=2 not supported in QH+ExpAssetz _raw (no e dim to nest); use _e_raw variant')
     end
 end
 
@@ -403,7 +398,6 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
     beta0beta=beta0*beta;
 
     EVpre=Valt(:,:,jj+1);
@@ -643,8 +637,6 @@ for reverse_j=1:N_j-1
                 end
             end
         end
-    elseif vfoptions.lowmemory==2
-        error('lowmemory=2 not supported in QH+ExpAssetz _raw (no e dim to nest); use _e_raw variant')
     end
 end
 

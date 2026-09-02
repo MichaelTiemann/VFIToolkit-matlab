@@ -103,7 +103,7 @@ else
     aprimeplus1Index=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat(a2primeIndex,N_a1,1); % [N_d2*N_a1,N_a2,N_u]
     aprimeProbs=repmat(a2primeProbs,N_a1,1,1,N_semiz);  % [N_d2*N_a1,N_a2,N_u,N_semiz]
 
-    EVpre=sum(reshape(vfoptions.V_Jplus1,[N_a,N_semiz,N_e]).*shiftdim(pi_e_J(:,N_j),-2),3);
+    EVpre=sum(reshape(vfoptions.V_Jplus1,[N_a,N_semiz,N_e]).*shiftdim(pi_e_J(:,N_j+1),-2),3);
 
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
@@ -113,9 +113,9 @@ else
             % d3_val=d3_grid(d3_c);
             d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
             % Note: By definition V_Jplus1 does not depend on d (only aprime)
-            pi_semi_d3=pi_semiz_J(:,:,d3_c,N_j);
+            pi_semiz_d3=pi_semiz_J(:,:,d3_c,N_j);
 
-            EV=EVpre.*shiftdim(pi_semi_d3',-1);
+            EV=EVpre.*shiftdim(pi_semiz_d3',-1);
             EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
             EV=sum(EV,2); % sum over z', leaving a singular second dimension
 
@@ -125,10 +125,11 @@ else
 
             % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0; % effectively skips interpolation
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
 
             % Apply the aprimeProbs
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
             % Already applied the probabilities from interpolating onto grid
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,semiz)
             EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
@@ -149,9 +150,9 @@ else
         for d3_c=1:N_d3
             d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
             % Note: By definition V_Jplus1 does not depend on d (only aprime)
-            pi_semi_d3=pi_semiz_J(:,:,d3_c,N_j);
+            pi_semiz_d3=pi_semiz_J(:,:,d3_c,N_j);
 
-            EV=EVpre.*shiftdim(pi_semi_d3',-1);
+            EV=EVpre.*shiftdim(pi_semiz_d3',-1);
             EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
             EV=sum(EV,2); % sum over z', leaving a singular second dimension
 
@@ -161,10 +162,11 @@ else
 
             % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0; % effectively skips interpolation
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
 
             % Apply the aprimeProbs
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
             % Already applied the probabilities from interpolating onto grid
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,semiz)
             EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
@@ -189,9 +191,9 @@ else
             % d3_val=d3_grid(d3_c);
             d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
             % Note: By definition V_Jplus1 does not depend on d2 (only aprime)
-            pi_semi_d3=pi_semiz_J(:,:,d3_c,N_j);
+            pi_semiz_d3=pi_semiz_J(:,:,d3_c,N_j);
 
-            EV=EVpre.*shiftdim(pi_semi_d3',-1);
+            EV=EVpre.*shiftdim(pi_semiz_d3',-1);
             EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
             EV=sum(EV,2); % sum over z', leaving a singular second dimension
 
@@ -201,10 +203,11 @@ else
 
             % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0; % effectively skips interpolation
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
 
             % Apply the aprimeProbs
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
             % Already applied the probabilities from interpolating onto grid
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,semiz)
             EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
@@ -263,16 +266,16 @@ for reverse_j=1:N_j-1
     aprimeplus1Index=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat(a2primeIndex,N_a1,1); % [N_d2*N_a1,N_a2,N_u]
     aprimeProbs=repmat(a2primeProbs,N_a1,1,1,N_semiz);  % [N_d2*N_a1,N_a2,N_u,N_semiz]
 
-    EVpre=sum(V(:,:,:,jj+1).*shiftdim(pi_e_J(:,jj),-2),3);
+    EVpre=sum(V(:,:,:,jj+1).*shiftdim(pi_e_J(:,jj+1),-2),3);
 
     if vfoptions.lowmemory==0
         for d3_c=1:N_d3
             % d3_val=d3_grid(d3_c);
             d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
             % Note: By definition V_Jplus1 does not depend on d (only aprime)
-            pi_semi_d3=pi_semiz_J(:,:,d3_c,jj);
+            pi_semiz_d3=pi_semiz_J(:,:,d3_c,jj);
 
-            EV=EVpre.*shiftdim(pi_semi_d3',-1);
+            EV=EVpre.*shiftdim(pi_semiz_d3',-1);
             EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
             EV=sum(EV,2); % sum over z', leaving a singular second dimension
 
@@ -282,10 +285,11 @@ for reverse_j=1:N_j-1
 
             % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0; % effectively skips interpolation
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
 
             % Apply the aprimeProbs
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
             % Already applied the probabilities from interpolating onto grid
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,semiz)
             EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
@@ -306,9 +310,9 @@ for reverse_j=1:N_j-1
         for d3_c=1:N_d3
             d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
             % Note: By definition V_Jplus1 does not depend on d (only aprime)
-            pi_semi_d3=pi_semiz_J(:,:,d3_c,jj);
+            pi_semiz_d3=pi_semiz_J(:,:,d3_c,jj);
 
-            EV=EVpre.*shiftdim(pi_semi_d3',-1);
+            EV=EVpre.*shiftdim(pi_semiz_d3',-1);
             EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
             EV=sum(EV,2); % sum over z', leaving a singular second dimension
 
@@ -318,10 +322,11 @@ for reverse_j=1:N_j-1
 
             % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0; % effectively skips interpolation
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
 
             % Apply the aprimeProbs
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
             % Already applied the probabilities from interpolating onto grid
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,semiz)
             EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
@@ -345,9 +350,9 @@ for reverse_j=1:N_j-1
         for d3_c=1:N_d3
             d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
             % Note: By definition V_Jplus1 does not depend on d2 (only aprime)
-            pi_semi_d3=pi_semiz_J(:,:,d3_c,jj);
+            pi_semiz_d3=pi_semiz_J(:,:,d3_c,jj);
 
-            EV=EVpre.*shiftdim(pi_semi_d3',-1);
+            EV=EVpre.*shiftdim(pi_semiz_d3',-1);
             EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
             EV=sum(EV,2); % sum over z', leaving a singular second dimension
 
@@ -357,10 +362,11 @@ for reverse_j=1:N_j-1
 
             % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0; % effectively skips interpolation
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
 
             % Apply the aprimeProbs
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
             % Already applied the probabilities from interpolating onto grid
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,semiz)
             EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution

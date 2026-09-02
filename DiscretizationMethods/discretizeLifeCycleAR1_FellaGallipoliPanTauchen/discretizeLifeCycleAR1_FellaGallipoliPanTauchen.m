@@ -21,18 +21,19 @@ function [z_grid_J, pi_z_J,jequaloneDistz,otheroutputs] = discretizeLifeCycleAR1
 %        You can control the initial period with the following:
 %        By default, assume z0=0
 %   initialj0sigmaz:  - Set period 0 to be a N(z0, initialj0sigmaz^2) using initialj0sigmaz
-%   initialj0mewz:    - Give period 0 a mean of z0=initialj0mew_z (as a point, or as mean of normal dist is you are also setting initialj0sigmaz
+%   initialj0mewz:    - Give period 0 a mean of z0=initialj0mewz (as a point, or as mean of normal dist is you are also setting initialj0sigmaz
 %        Or you set the period 1 (instead of period 0) using
-%   initialj1mewz:    - Set period 1 to be mean of initialj1mew_z
+%   initialj1mewz:    - Set period 1 to be mean of initialj1mewz
 %   initialj1sigmaz:  - Set period 1 to be a N(z0, initialj1sigmaz^2) using initialj1sigmaz
 %        Note, for both period 0 and period 1, you can set one or both of
 %        mean and standard deviation (the other is interpreted as zero
 %        valued if not specified).
 % Output: 
 %   z_grid_J       - an znum-by-J matrix, each column stores the Markov state space for period j
-%   pi_z_J         - znum-by-znum-by-J matrix of J (znum-by-znum) transition matrices. 
+%   pi_z_J         - znum-by-znum-by-(J-1) matrix of J-1 (znum-by-znum) transition matrices. 
 %                  Transition probabilities are arranged by row.
 %                  pi_z_J(:,:,j) is transition matrix from age j to j+1 (Modified from FGP where it is j-1 to j)
+%                  There are only J-1 of them, as there is no period J+1 to transition to.
 %   jequaloneDistz - znum-by-1 vector, the distribution of z in period 1
 %   otheroutputs - optional output structure containing info for evaluating the distribution including,
 %        otheroutputs.sigma_z     - the standard deviation of z at each age (used to determine grid)
@@ -44,25 +45,33 @@ function [z_grid_J, pi_z_J,jequaloneDistz,otheroutputs] = discretizeLifeCycleAR1
 % it at the bottom of this script. (VFI Joolkit is GPL3 license, hence
 % having to reproduce.)
 
-fprintf('COMMENT: The Fella-Gallipoli-Pan extended Tauchen method is typically inferior to the KFTT method for discretizing life-cycle AR(1) processes. \n') 
-fprintf('         It is strongly recommended you use KFTT instead. \n')
-
 mewz=zeros(1,J); % period j mean of z
 sigmaz = zeros(1,J);
 % z_grid_J = zeros(znum,J);
-pi_z_J = zeros(znum,znum,J); % period j transition probabilities for z
+pi_z_J = zeros(znum,znum,J-1); % pi_z_J(:,:,jj) is the transition from period jj to period jj+1, so there are only J-1 of them
 
 %% Set options
 if ~exist('fellagallipolipanoptions','var')
     fellagallipolipanoptions.parallel=1+(gpuDeviceCount>0);
+    fellagallipolipanoptions.verbose=1;
     fellagallipolipanoptions.nSigmas=min(sqrt(znum-1),3); % I set a max of 3 as the Tauchen method would anyway typically just put zeros outside +-3 sigma anyway
 else
     if ~isfield(fellagallipolipanoptions,'parallel')
         fellagallipolipanoptions.parallel=1+(gpuDeviceCount>0);
     end
+    if ~isfield(fellagallipolipanoptions,'verbose')
+        fellagallipolipanoptions.verbose=1;
+    end
     if ~isfield(fellagallipolipanoptions,'nSigmas')
         fellagallipolipanoptions.nSigmas=min(sqrt(znum-1),3); % I set a max of 3 as the Tauchen method would anyway typically just put zeros outside +-3 sigma anyway
     end
+end
+
+% The recommendation above is printed once per call, and the test bank that exercises these
+% commands calls them hundreds of times, so it is gated. Set fellagallipolipanoptions.verbose=0 to silence it.
+if fellagallipolipanoptions.verbose==1
+    fprintf('COMMENT: The Fella-Gallipoli-Pan extended Tauchen method is typically inferior to the KFTT method for discretizing life-cycle AR(1) processes. \n') 
+    fprintf('         It is strongly recommended you use KFTT instead. \n')
 end
 
 %% Check inputs
@@ -107,7 +116,7 @@ else
     if rem(znum,2)==1 % znum is odd
         jequalzeroDistz((znum+1)/2)=1; % note, by construction of grid all the mass should be on middle grid point
     else
-        jequalzeroDistz((znum/2-1):znum/2)=[0.5;0.5]; % note, by construction of grid all the mass should be on middle grid point
+        jequalzeroDistz((znum/2):(znum/2+1))=[0.5;0.5]; % note, by construction of grid the two middle grid points straddle z0 symmetrically, so half the mass on each gives a mean of exactly z0
     end
 end
 
@@ -154,15 +163,14 @@ h = 2*fellagallipolipanoptions.nSigmas'.*sigmaz/(znum-1); % grid step
 
 %% Step 2: Compute the transition matrices trans(:,:,t) from period (t-1) to period t
 
-% pi_z_J for periods 2:T, we will deal with period 1 later
-
-% Compute the transition matrices for jj>2
-temp3d=zeros(znum,znum,J); % preallocate
-for jj=2:J
-    z_lag_grid=z_grid_J(:,jj-1);
+% pi_z_J(:,:,jj) is the transition from period jj into period jj+1, and is determined by the
+% period jj+1 parameters, hence the jj+1 indexes. The period 1 distribution is dealt with below.
+temp3d=zeros(znum,znum,J-1); % preallocate
+for jj=1:J-1
+    z_lag_grid=z_grid_J(:,jj);
     for z_c=1:znum
-        condMean=mew(jj)+rho(jj)*z_lag_grid(z_c);
-        temp3d(z_c,:,jj) = (z_grid_J(:,jj) - condMean - h(jj)/2)/sigma(jj);
+        condMean=mew(jj+1)+rho(jj+1)*z_lag_grid(z_c);
+        temp3d(z_c,:,jj) = (z_grid_J(:,jj+1) - condMean - h(jj+1)/2)/sigma(jj+1);
         temp3d(z_c,:,jj) = max(temp3d(z_c,:,jj),-37); % Jo avoid underflow in next line
         cdf(z_c,:) = cdf_normal(temp3d(z_c,:,jj));
     end
@@ -178,19 +186,20 @@ end
 if isfield(fellagallipolipanoptions,'initialj1mewz') || isfield(fellagallipolipanoptions,'initialj1sigmaz')
     % If period 1 was set, we need to get the jequaloneDistz
     if sigmaz(1)>0
-        % jj==1 (might get overwritten later)
+        % Build the period 0 to period 1 transition; it is not part of the output, it is only used here
         cdf=zeros(znum,znum); % preallocate
+        pi_z_0to1=zeros(znum,znum);
         for z_c=1:znum
             temp1d = (z_grid_J(:,1)-mewz(1)-h(1)/2)/sigmaz(1);
             temp1d = max(temp1d,-37); % Jo avoid underflow in next line
             cdf(z_c,:) = cdf_normal(temp1d);
         end
-        pi_z_J(:,1,1) = cdf(:,2);
-        pi_z_J(:,znum,1) = 1-cdf(:,znum);
+        pi_z_0to1(:,1) = cdf(:,2);
+        pi_z_0to1(:,znum) = 1-cdf(:,znum);
         for z_c=2:znum-1
-            pi_z_J(:,z_c,1) = cdf(:,z_c+1)-cdf(:,z_c);
+            pi_z_0to1(:,z_c) = cdf(:,z_c+1)-cdf(:,z_c);
         end
-        jequaloneDistz=pi_z_J(1,:,1)';
+        jequaloneDistz=pi_z_0to1(1,:)';
     else
         % All grid points are same, so just pick an arbitrary one
         jequaloneDistz=zeros(znum,1);
@@ -198,27 +207,23 @@ if isfield(fellagallipolipanoptions,'initialj1mewz') || isfield(fellagallipolipa
     end
 else
     % Otherwise, we already have the jequalzeroDistz, and just use this
-    % jj==1 (might get overwritten later)
+    % Build the period 0 to period 1 transition; it is not part of the output, it is only used here
     cdf=zeros(znum,znum); % preallocate
+    pi_z_0to1=zeros(znum,znum);
     for z_c=1:znum
         temp1d = (z_grid_J(:,1)-mew(1)-rho(1)*z_grid_0(z_c)-h(1)/2)/sigmaz(1);
         temp1d = max(temp1d,-37); % Jo avoid underflow in next line
         cdf(z_c,:) = cdf_normal(temp1d);
     end
-    pi_z_J(:,1,1) = cdf(:,2);
-    pi_z_J(:,znum,1) = 1-cdf(:,znum);
+    pi_z_0to1(:,1) = cdf(:,2);
+    pi_z_0to1(:,znum) = 1-cdf(:,znum);
     for z_c=2:znum-1
-        pi_z_J(:,z_c,1) = cdf(:,z_c+1)-cdf(:,z_c);
+        pi_z_0to1(:,z_c) = cdf(:,z_c+1)-cdf(:,z_c);
     end
-    jequaloneDistz=pi_z_J(:,:,1)'*jequalzeroDistz;
+    jequaloneDistz=pi_z_0to1'*jequalzeroDistz;
     otheroutputs.jequalzeroDistz=jequalzeroDistz; % store this so that user can see it to check it looks like they intend (a way to double-check the input options)
 end
 
-%% Change pi_z_J so that pi_z_J(:,:,jj) is the transition matrix from period jj to period jj+1
-pi_z_J(:,:,1:end-1)=pi_z_J(:,:,2:end);
-
-%% For jj=J, pi_z_J(:,:,J) is kind of meaningless (there is no period J+1 to transition to). I just fill it in as a uniform distribution
-pi_z_J(:,:,J)=ones(znum,znum)/znum;
 
 %% Some additional outputs that can be used to evaluate the discretization
 otheroutputs.sigma_z=sigmaz; % Standard deviation of z (for each period)

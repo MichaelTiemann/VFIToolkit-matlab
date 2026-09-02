@@ -23,11 +23,11 @@ if vfoptions.lowmemory==0
 
         TemptationMatrix=CreateReturnFnMatrix_Disc(TemptationFn, 0, n_a, n_e, 0, a_grid, e_gridvals_J(:,:,N_j), TemptationFnParamsVec,0);
         MostTempting=max(TemptationMatrix,[],1);
-        entireRHS=ReturnMatrix+TemptationMatrix-ones(N_a,1).*MostTempting;
+        entireRHS=ReturnMatrix+TemptationMatrix;
 
         %Calc the max and it's index
         [Vtemp,maxindex]=max(entireRHS,[],1);
-        V(:,:,N_j)=Vtemp;
+        V(:,:,N_j)=Vtemp-MostTempting;
         Policy(:,:,N_j)=maxindex;
     else
         % Using V_Jplus1
@@ -36,18 +36,18 @@ if vfoptions.lowmemory==0
         DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
         DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-        V_Jplus1=sum(V_Jplus1.*pi_e_J(1,:,N_j),2);
+        V_Jplus1=sum(V_Jplus1.*pi_e_J(1,:,N_j+1),2);
 
         ReturnMatrix=CreateReturnFnMatrix_Disc(ReturnFn, 0, n_a, n_e, 0, a_grid, e_gridvals_J(:,:,N_j), ReturnFnParamsVec,0);
 
         TemptationMatrix=CreateReturnFnMatrix_Disc(TemptationFn, 0, n_a, n_e, 0, a_grid, e_gridvals_J(:,:,N_j), TemptationFnParamsVec,0);
         MostTempting=max(TemptationMatrix,[],1);
-        entireRHS=ReturnMatrix+TemptationMatrix-ones(N_a,1).*MostTempting+DiscountFactorParamsVec*V_Jplus1; %.*ones(1,N_a,N_e);
+        entireRHS=ReturnMatrix+TemptationMatrix+DiscountFactorParamsVec*V_Jplus1; %.*ones(1,N_a,N_e);
 
         % Calc the max and it's index
         [Vtemp,maxindex]=max(entireRHS,[],1);
 
-        V(:,:,N_j)=shiftdim(Vtemp,1);
+        V(:,:,N_j)=shiftdim(Vtemp-MostTempting,1);
         Policy(:,:,N_j)=shiftdim(maxindex,1);
     end
 
@@ -68,18 +68,18 @@ if vfoptions.lowmemory==0
 
         EV=V(:,:,jj+1);
 
-        EV=sum(EV.*pi_e_J(1,:,jj),2);
+        EV=sum(EV.*pi_e_J(1,:,jj+1),2);
 
         ReturnMatrix=CreateReturnFnMatrix_Disc(ReturnFn, 0, n_a, n_e, 0, a_grid, e_gridvals_J(:,:,jj), ReturnFnParamsVec,0);
 
         TemptationMatrix=CreateReturnFnMatrix_Disc(TemptationFn, 0, n_a, n_e, 0, a_grid, e_gridvals_J(:,:,jj), TemptationFnParamsVec,0);
         MostTempting=max(TemptationMatrix,[],1);
-        entireRHS=ReturnMatrix+TemptationMatrix-ones(N_a,1).*MostTempting+DiscountFactorParamsVec*EV; %.*ones(1,N_a,N_e);
+        entireRHS=ReturnMatrix+TemptationMatrix+DiscountFactorParamsVec*EV; %.*ones(1,N_a,N_e);
 
         % Calc the max and it's index
         [Vtemp,maxindex]=max(entireRHS,[],1);
 
-        V(:,:,jj)=shiftdim(Vtemp,1);
+        V(:,:,jj)=shiftdim(Vtemp-MostTempting,1);
         Policy(:,:,jj)=shiftdim(maxindex,1);
     end
 
@@ -101,11 +101,11 @@ elseif vfoptions.lowmemory==1
 
             TemptationMatrix_e=CreateReturnFnMatrix_Disc(TemptationFn, 0, n_a, special_n_e, 0, a_grid, e_val, TemptationFnParamsVec,0);
             MostTempting_e=max(TemptationMatrix_e,[],1);
-            entireRHS_e=ReturnMatrix_e+TemptationMatrix_e-ones(N_a,1).*MostTempting_e;
+            entireRHS_e=ReturnMatrix_e+TemptationMatrix_e;
 
             % Calc the max and it's index
             [Vtemp,maxindex]=max(entireRHS_e,[],1);
-            V(:,e_c,N_j)=Vtemp;
+            V(:,e_c,N_j)=Vtemp-MostTempting_e;
             Policy(:,e_c,N_j)=maxindex;
         end
     else
@@ -115,19 +115,19 @@ elseif vfoptions.lowmemory==1
         DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
         DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-        V_Jplus1=sum(V_Jplus1.*pi_e_J(1,:,N_j),2);
+        V_Jplus1=sum(V_Jplus1.*pi_e_J(1,:,N_j+1),2);
         for e_c=1:N_e
             e_val=e_gridvals_J(e_c,:,N_j);
             ReturnMatrix_e=CreateReturnFnMatrix_Disc(ReturnFn, 0, n_a, special_n_e, 0, a_grid, e_val, ReturnFnParamsVec,0);
 
             TemptationMatrix_e=CreateReturnFnMatrix_Disc(TemptationFn, 0, n_a, special_n_e, 0, a_grid, e_val, TemptationFnParamsVec,0);
             MostTempting_e=max(TemptationMatrix_e,[],1);
-            entireRHS_e=ReturnMatrix_e+TemptationMatrix_e-ones(N_a,1).*MostTempting_e+DiscountFactorParamsVec*V_Jplus1; %.*ones(1,N_a,1);
+            entireRHS_e=ReturnMatrix_e+TemptationMatrix_e+DiscountFactorParamsVec*V_Jplus1; %.*ones(1,N_a,1);
 
             % Calc the max and it's index
             [Vtemp,maxindex]=max(entireRHS_e,[],1);
 
-            V(:,e_c,N_j)=shiftdim(Vtemp,1);
+            V(:,e_c,N_j)=shiftdim(Vtemp-MostTempting_e,1);
             Policy(:,e_c,N_j)=shiftdim(maxindex,1);
         end
     end
@@ -148,7 +148,7 @@ elseif vfoptions.lowmemory==1
 
         EV=V(:,:,jj+1);
 
-        EV=sum(EV.*pi_e_J(1,:,jj),2);
+        EV=sum(EV.*pi_e_J(1,:,jj+1),2);
 
         for e_c=1:N_e
             e_val=e_gridvals_J(e_c,:,jj);
@@ -156,12 +156,12 @@ elseif vfoptions.lowmemory==1
 
             TemptationMatrix_e=CreateReturnFnMatrix_Disc(TemptationFn, 0, n_a, special_n_e, 0, a_grid, e_val, TemptationFnParamsVec,0);
             MostTempting_e=max(TemptationMatrix_e,[],1);
-            entireRHS_e=ReturnMatrix_e+TemptationMatrix_e-ones(N_a,1).*MostTempting_e+DiscountFactorParamsVec*EV; %.*ones(1,N_a,1);
+            entireRHS_e=ReturnMatrix_e+TemptationMatrix_e+DiscountFactorParamsVec*EV; %.*ones(1,N_a,1);
 
             % Calc the max and it's index
             [Vtemp,maxindex]=max(entireRHS_e,[],1);
 
-            V(:,e_c,jj)=shiftdim(Vtemp,1);
+            V(:,e_c,jj)=shiftdim(Vtemp-MostTempting_e,1);
             Policy(:,e_c,jj)=shiftdim(maxindex,1);
         end
     end

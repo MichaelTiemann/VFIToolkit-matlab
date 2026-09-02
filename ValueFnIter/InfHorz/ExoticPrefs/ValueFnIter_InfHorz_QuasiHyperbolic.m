@@ -45,6 +45,8 @@ end
 
 if ~isfield(vfoptions,'QHadditionaldiscount')
     error('You must declare vfoptions.QHadditionaldiscount when using quasi-hyperbolic discouting (you have vfoptions.exoticpreferences set to QuasiHyperbolic)')
+elseif ~ischar(vfoptions.QHadditionaldiscount)
+    error('vfoptions.QHadditionaldiscount must be the name of the additional discount parameter, given as a character vector such as ''beta0''')
 end
 
 isNaive=strcmp(vfoptions.quasi_hyperbolic,'Naive');
@@ -54,7 +56,10 @@ isNaive=strcmp(vfoptions.quasi_hyperbolic,'Naive');
 % Create a vector containing all the return function parameters (in order)
 ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames);
 DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames);
-beta0=Parameters.(vfoptions.QHadditionaldiscount{1});
+beta0=Parameters.(vfoptions.QHadditionaldiscount);
+if ~isscalar(beta0)
+    error('The quasi-hyperbolic additional discount factor (the parameter named by vfoptions.QHadditionaldiscount) must be a scalar; it cannot depend on age')
+end
 
 %%
 if vfoptions.gridinterplayer==1
@@ -69,22 +74,27 @@ if vfoptions.gridinterplayer==1
     if ~isfield(vfoptions,'multigridswitch')
         vfoptions.multigridswitch=10;
     end
+    % postGI looks locally for the optimal grid interpolation point, in the area around the point that was optimal on the coarse grid.
+    % By considering the nearest 'maxaprimediff' points on the original coarse grid the hope is that we set the 'local' sweep wide enough to ensure we catch the global optimum. By repeating this process 'postGIrepeat' times, we can hopefully take steps towards the global optimum of the fine grid problem.
     if ~isfield(vfoptions,'postGIrepeat')
-        vfoptions.postGIrepeat=1;
+        vfoptions.postGIrepeat=0;
+        % In practice, the local optima appears to get stuck in a 'local basin', and so setting postGIrepeat>0 fails to achieve anything because each repeat remains stuck in the basin and does not get any closer to the global. This is not true for small values of maxaprimediff, but at the default value of maxaprimediff anything other than postGIrepeat=0 seems pointless. And setting a larger maxaprimediff gives much more robust behaviour than pairing a smaller maxaprimediff with postGIrepeat>0
+        % We therefore set a default of postGIrepeat=0. This can be increased but in tests ran there was nothing to be gained from doing so: without a decision variable postGI was already exact (even for maxaprimediff as small as 3), and with a decision variable the conservatively large default maxaprimediff already reaches the global optimum.
     end
     if ~isfield(vfoptions,'maxaprimediff')
         if N_d==0
-            if vfoptions.postGIrepeat==0
-                vfoptions.maxaprimediff=5;
-            else
-                vfoptions.maxaprimediff=3;
-            end
+            vfoptions.maxaprimediff=5;
         else
-            if vfoptions.postGIrepeat==0
-                vfoptions.maxaprimediff=10;
+            if n_a(1)<300
+                vfoptions.maxaprimediff=ceil(n_a(1)/5);
             else
-                vfoptions.maxaprimediff=5;
+                vfoptions.maxaprimediff=ceil(n_a(1)/10);
             end
+            if vfoptions.verbose_advice==1
+                warning('vfoptions.postGI=1 is not guaranteed to converge globally. The default of vfoptions.maxaprimediff is set to a conservatively large value to hopefully achieve global convergence. You can try higher/lower values, and see if the solution is sensitive.')
+            end
+            % Based on testing models, the default vfoptions.maxaprimediff values set here were sufficient to always acheive global convergence. But this does not guarantee they are for all other models.
+            % These defaults are also so conservative that the 'post' step takes more memory than the original coarse grid step. The vast majority of models will solve just fine for the global solution with lower values of vfoptions.maxaprimediff, and will be faster and use less memory.
         end
     end
     if N_d==0
@@ -114,13 +124,13 @@ else
             % First calculate the exponential discounting solution
             [Valt,Policyalt]=ValueFnIter_InfHorz_nod_raw(V0, n_a, n_z, pi_z, prod(DiscountFactorParamsVec), ReturnMatrix, vfoptions.howards, vfoptions.maxhowards, vfoptions.tolerance, vfoptions.maxiter);
             % Then the Naive quasi-hyperbolic from this
-            [V,Policy]=ValueFnIter_InfHorz_QuasiHyperbolicN_nod_raw(Valt, n_a, n_z, pi_z, beta0, ReturnMatrix);
+            [V,Policy]=ValueFnIter_InfHorz_QuasiHyperbolicN_nod_raw(Valt, n_a, n_z, pi_z, DiscountFactorParamsVec, beta0, ReturnMatrix);
             Policy=shiftdim(Policy,-1);
         else
             % First calculate the exponential discounting solution
             [Valt, Policyalt]=ValueFnIter_InfHorz_raw(V0, n_d,n_a,n_z, pi_z, prod(DiscountFactorParamsVec), ReturnMatrix,vfoptions.howards, vfoptions.maxhowards,vfoptions.tolerance, vfoptions.maxiter);
             % Then the Naive quasi-hyperbolic from this
-            [V, Policy]=ValueFnIter_InfHorz_QuasiHyperbolicN_raw(Valt, n_d,n_a,n_z, pi_z, beta0, ReturnMatrix);
+            [V, Policy]=ValueFnIter_InfHorz_QuasiHyperbolicN_raw(Valt, n_d,n_a,n_z, pi_z, DiscountFactorParamsVec, beta0, ReturnMatrix);
         end
     else % Sophisticated
         if N_d==0

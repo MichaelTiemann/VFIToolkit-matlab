@@ -113,10 +113,10 @@ if ~isfield(vfoptions,'V_Jplus1')
 
     elseif vfoptions.lowmemory==2
 
-        for e_c=1:N_e
-            e_val=e_gridvals_J(e_c,:,N_j);
-            for z_c=1:N_z
-                z_val=z_gridvals_J(z_c,:,N_j);
+        for z_c=1:N_z
+            z_val=z_gridvals_J(z_c,:,N_j);
+            for e_c=1:N_e
+                e_val=e_gridvals_J(e_c,:,N_j);
                 ReturnMatrix_ze=CreateReturnFnMatrix_Disc_e(ReturnFn, n_d, n_a, special_n_z, special_n_e, d_gridvals, a_grid, z_val, e_val, ReturnFnParamsVec,1);
                 % Calc the max and it's index
                 [~,maxindex]=max(ReturnMatrix_ze,[],2);
@@ -153,7 +153,7 @@ else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    EV=sum(reshape(vfoptions.V_Jplus1,[N_a,N_z,N_e]).*pi_e_J(1,1,:,N_j),3);
+    EV=sum(reshape(vfoptions.V_Jplus1,[N_a,N_z,N_e]).*pi_e_J(1,1,:,N_j+1),3);
 
     EV=EV.*shiftdim(pi_z_J(:,:,N_j)',-1);
     EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
@@ -298,7 +298,7 @@ for reverse_j=1:N_j-1
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
-    EV=sum(V(:,:,:,jj+1).*pi_e_J(1,1,:,jj),3);
+    EV=sum(V(:,:,:,jj+1).*pi_e_J(1,1,:,jj+1),3);
 
     EV=EV.*shiftdim(pi_z_J(:,:,jj)',-1);
     EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)

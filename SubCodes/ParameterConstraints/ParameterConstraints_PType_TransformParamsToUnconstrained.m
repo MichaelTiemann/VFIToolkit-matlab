@@ -93,8 +93,8 @@ for pp=1:nCalibParams
             fprintf(['Relating to following error message: Parameter ',num2str(pp),' of ',num2str(nCalibParams),' (',CalibParamNames{nCalibParamsFinder(pp,1)},')\n'])
             error('Initial guess for positive-constrained parameter is negative.');
         end
-        calibparamsvec(pp_index)=max(log(p_val),-49.99);
-        % Note, the max() is because otherwise p=0 returns -Inf. [Matlab evaluates exp(-50) as about 10^-22, I overrule and use exp(-50) as zero, so I set -49.99 here so solver can realise the boundary is there; not sure if this setting -49.99 instead of my -50 cutoff actually helps, but seems like it might so I have done it here].
+        calibparamsvec(pp_index)=min(49.99,max(log(p_val),-49.99));
+        % Note, the max() is because otherwise p=0 returns -Inf, and the min() is because exp() overflows to Inf above about 709. [Matlab evaluates exp(-50) as about 10^-22, I overrule and use exp(-50) as zero, so I set -49.99 here so solver can realise the boundary is there; not sure if this setting -49.99 instead of my -50 cutoff actually helps, but seems like it might so I have done it here].
     end
     if caliboptions.constrainAtoB(pp)==1
         % Constraint parameter to be A to B (by first converting to 0 to 1, and then treating it as constraint 0 to 1)

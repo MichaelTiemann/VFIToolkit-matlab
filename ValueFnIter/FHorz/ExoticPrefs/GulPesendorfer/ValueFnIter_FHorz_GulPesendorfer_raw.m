@@ -26,11 +26,11 @@ if ~isfield(vfoptions,'V_Jplus1')
 
         TemptationMatrix=CreateReturnFnMatrix_Disc(TemptationFn, n_d, n_a, n_z, d_gridvals, a_grid, z_gridvals_J(:,:,N_j), TemptationFnParamsVec,0);
         MostTempting=max(TemptationMatrix,[],1);
-        entireRHS=ReturnMatrix+TemptationMatrix-ones(N_d*N_a,1).*MostTempting;
+        entireRHS=ReturnMatrix+TemptationMatrix;
 
         %Calc the max and it's index
         [Vtemp,maxindex]=max(entireRHS,[],1);
-        V(:,:,N_j)=Vtemp;
+        V(:,:,N_j)=Vtemp-MostTempting;
         Policy(:,:,N_j)=maxindex;
 
     elseif vfoptions.lowmemory==1
@@ -41,11 +41,11 @@ if ~isfield(vfoptions,'V_Jplus1')
 
             TemptationMatrix_z=CreateReturnFnMatrix_Disc(TemptationFn, n_d, n_a, special_n_z, d_gridvals, a_grid, z_val, TemptationFnParamsVec,0);
             MostTempting_z=max(TemptationMatrix_z,[],1);
-            entireRHS_z=ReturnMatrix_z+TemptationMatrix_z-ones(N_d*N_a,1).*MostTempting_z;
+            entireRHS_z=ReturnMatrix_z+TemptationMatrix_z;
 
             %Calc the max and it's index
             [Vtemp,maxindex]=max(entireRHS_z,[],1);
-            V(:,z_c,N_j)=Vtemp;
+            V(:,z_c,N_j)=Vtemp-MostTempting_z;
             Policy(:,z_c,N_j)=maxindex;
         end
     end
@@ -68,15 +68,14 @@ else
         EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
         EV=sum(EV,2); % sum over z', leaving a singular second dimension
 
-        entireEV=kron(EV,ones(N_d,1));
-        %             entireEV=repelem(EV,N_d,1,1); % I tried this instead but appears repelem() is slower than kron()
+        entireEV=repelem(EV,N_d,1,1); % kron() cannot handle the third (z) dimension here
 
-        entireRHS=ReturnMatrix+TemptationMatrix-ones(N_d*N_a,1).*MostTempting+DiscountFactorParamsVec*entireEV; %*repmat(entireEV,1,N_a,1);
+        entireRHS=ReturnMatrix+TemptationMatrix+DiscountFactorParamsVec*entireEV; %*repmat(entireEV,1,N_a,1);
 
         %Calc the max and it's index
         [Vtemp,maxindex]=max(entireRHS,[],1);
 
-        V(:,:,N_j)=shiftdim(Vtemp,1);
+        V(:,:,N_j)=shiftdim(Vtemp-MostTempting,1);
         Policy(:,:,N_j)=shiftdim(maxindex,1);
 
     elseif vfoptions.lowmemory==1
@@ -94,11 +93,11 @@ else
 
             TemptationMatrix_z=CreateReturnFnMatrix_Disc(TemptationFn, n_d, n_a, special_n_z, d_gridvals, a_grid, z_val, TemptationFnParamsVec,0);
             MostTempting_z=max(TemptationMatrix_z,[],1);
-            entireRHS_z=ReturnMatrix_z+TemptationMatrix_z-ones(N_d*N_a,1).*MostTempting_z+DiscountFactorParamsVec*entireEV_z; %*ones(1,N_a,1);
+            entireRHS_z=ReturnMatrix_z+TemptationMatrix_z+DiscountFactorParamsVec*entireEV_z; %*ones(1,N_a,1);
 
             %Calc the max and it's index
             [Vtemp,maxindex]=max(entireRHS_z,[],1);
-            V(:,z_c,N_j)=Vtemp;
+            V(:,z_c,N_j)=Vtemp-MostTempting_z;
             Policy(:,z_c,N_j)=maxindex;
         end
     end
@@ -134,12 +133,12 @@ for reverse_j=1:N_j-1
 
         entireEV=repelem(EV,N_d,1,1);
 
-        entireRHS=ReturnMatrix+TemptationMatrix-ones(N_d*N_a,1).*MostTempting+DiscountFactorParamsVec*entireEV; %*repmat(entireEV,1,N_a,1);
+        entireRHS=ReturnMatrix+TemptationMatrix+DiscountFactorParamsVec*entireEV; %*repmat(entireEV,1,N_a,1);
 
         %Calc the max and it's index
         [Vtemp,maxindex]=max(entireRHS,[],1);
 
-        V(:,:,jj)=shiftdim(Vtemp,1);
+        V(:,:,jj)=shiftdim(Vtemp-MostTempting,1);
         Policy(:,:,jj)=shiftdim(maxindex,1);
 
     elseif vfoptions.lowmemory==1
@@ -157,17 +156,18 @@ for reverse_j=1:N_j-1
 
             TemptationMatrix_z=CreateReturnFnMatrix_Disc(TemptationFn, n_d, n_a, special_n_z, d_gridvals, a_grid, z_val, TemptationFnParamsVec,0);
             MostTempting_z=max(TemptationMatrix_z,[],1);
-            entireRHS_z=ReturnMatrix_z+TemptationMatrix_z-ones(N_d*N_a,1).*MostTempting_z+DiscountFactorParamsVec*entireEV_z; %*ones(1,N_a,1);
+            entireRHS_z=ReturnMatrix_z+TemptationMatrix_z+DiscountFactorParamsVec*entireEV_z; %*ones(1,N_a,1);
 
             %Calc the max and it's index
             [Vtemp,maxindex]=max(entireRHS_z,[],1);
-            V(:,z_c,jj)=Vtemp;
+            V(:,z_c,jj)=Vtemp-MostTempting_z;
             Policy(:,z_c,jj)=maxindex;
         end
     end
 end
 
 %%
-Policy=shiftdim(Policy,-1);
+% Return the joint (d,aprime) Kron index (d fastest); the dispatcher's UnKron does the split
+Policy2=shiftdim(Policy,-1);
 
 end

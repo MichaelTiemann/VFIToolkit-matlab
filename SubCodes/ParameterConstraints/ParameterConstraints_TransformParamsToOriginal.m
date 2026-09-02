@@ -31,9 +31,9 @@ penalty=zeros(length(calibparamsvec),1); % Used to apply penalty to objective fu
 for pp=1:length(CalibParamNames)
     if caliboptions.constrainpositive(pp)==1 % Forcing this parameter to be positive
         temp=calibparamsvec(calibparamsvecindex(pp)+1:calibparamsvecindex(pp+1));
-        penalty((calibparamsvecindex(pp)+1:calibparamsvecindex(pp+1)))=abs(temp/50).*(temp<-51); % 1 if out of range [Note: 51, rather than 50, so penalty only hits once genuinely out of range]
+        penalty((calibparamsvecindex(pp)+1:calibparamsvecindex(pp+1)))=abs(temp/50).*((temp>51)+(temp<-51)); % 1 if out of range [Note: 51, rather than 50, so penalty only hits once genuinely out of range]
         % Constrain parameter to be positive (be working with log(parameter) and then always take exp() before inputting to model)
-        calibparamsvec(calibparamsvecindex(pp)+1:calibparamsvecindex(pp+1))=exp(calibparamsvec(calibparamsvecindex(pp)+1:calibparamsvecindex(pp+1)));
+        calibparamsvec(calibparamsvecindex(pp)+1:calibparamsvecindex(pp+1))=exp(min(temp,50)); % the min() is because exp() overflows to Inf once the unconstrained parameter gets above about 709, and the model would then be given Inf as a parameter value; same +-50 cutoffs as constrain0to1 uses
     elseif caliboptions.constrain0to1(pp)==1
         temp=calibparamsvec(calibparamsvecindex(pp)+1:calibparamsvecindex(pp+1));
         penalty((calibparamsvecindex(pp)+1:calibparamsvecindex(pp+1)))=abs(temp/50).*((temp>51)+(temp<-51)); % 1 if out of range [Note: 51, rather than 50, so penalty only hits once genuinely out of range]

@@ -1,4 +1,4 @@
-function [V, Policy]=ValueFnIter_FHorz_EpsteinZin(n_d,n_a,n_z,N_j,d_gridvals, a_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions)
+function [V, Policy]=ValueFnIter_FHorz_EpsteinZin(n_d,n_a,n_z,N_j,d_grid, a_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions)
 % Epstein-Zin preferences
 % Formulation depends on whether using utility-units or consumption-units
 % See appendix to the 'Intro to Life-Cycle models' for an explanation
@@ -7,6 +7,18 @@ N_d=prod(n_d);
 % N_a=prod(n_a);
 N_z=prod(n_z);
 N_e=prod(vfoptions.n_e);
+
+% Reject asset types this dispatcher does not handle: every asset type it does handle is
+% dispatched below and returns, so an unsupported flag would otherwise be silently ignored.
+if vfoptions.experienceasset>=1 || vfoptions.experienceassetu>=1 || vfoptions.experienceassetz>=1 || vfoptions.experienceassete>=1 || vfoptions.experienceassetze>=1 || vfoptions.experienceassetsemiz>=1
+    error('Epstein-Zin preferences are not implemented for the experience assets (only for riskyasset, or for the standard endogenous states)')
+end
+if vfoptions.residualasset==1
+    error('Epstein-Zin preferences are not implemented for residualasset')
+end
+if vfoptions.dynasty==1
+    error('Epstein-Zin preferences are not implemented for dynasty')
+end
 
 %% Some Epstein-Zin specific options need to be set if they are not already declared
 if ~isfield(vfoptions,'EZriskaversion')
@@ -119,6 +131,22 @@ else
     % This wont do anything
     ezc8=1;
 end
+% When doing the refine (only used by riskyasset), if ezc7 is negative, need to take min(X)
+% instead of max(X) as part of Refine. I do this by taking ezc9*max(ezc9*X) and having
+% ezc9=1 normally but ezc9=-1 when ezc7 is negative.
+ezc9=1;
+if ezc7(1)<0
+    ezc9=-1; % Not allowed to vary by age
+end
+if vfoptions.riskyasset==1 && ~isscalar(ezc7)
+    % Only refine (riskyasset) needs a constant sign of ezc7 across ages; the standard solvers
+    % apply ^ezc7(jj) before every max and so handle mixed signs age-by-age.
+    temp1=any(ezc7<0);
+    temp2=any(ezc7>0);
+    if temp1 && temp2
+        error('Epstein-Zin preferences: you have set the elasticity-of-intertemporal-substution parameter (vfoptions.EZeis) to depend on age. When using vfoptions.riskyasset you must have it either <1 or >1 for all ages (cannot be <1 at some ages and >1 at other ages, which is what you currently have).')
+    end
+end
 
 % setup to permit age-dependence of these (and make them column vectors if they are not already)
 % Note: the only ones that need to permit this are ezc2, ezc5, ezc6, ezc7, ezc8
@@ -166,10 +194,42 @@ end
 
 
 
-%% Just do the standard case
-if N_e==0
+%% Risky asset routes to its own subfn (level 3); the Epstein-Zin constants computed above are passed down
+% (a riskyasset model with semiz is split inside the riskyasset command, so this comes first)
+if vfoptions.riskyasset==1
+    [V, Policy]=ValueFnIter_FHorz_EpsteinZin_RiskyAsset(n_d,vfoptions.n_a1,vfoptions.n_a2,n_z,vfoptions.n_u,N_j,d_grid,vfoptions.a1_grid, vfoptions.a2_grid, z_gridvals_J, vfoptions.u_grid, pi_z_J, vfoptions.pi_u, ReturnFn, vfoptions.aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, sj, warmglow, ezc1,ezc2,ezc3,ezc4,ezc5,ezc6,ezc7,ezc8,ezc9);
+    return
+end
+
+%% Semi-exogenous shocks route to their own subfn (mirrors ValueFnIter_FHorz_QuasiHyperbolic)
+if isfield(vfoptions,'n_semiz')
+    if prod(vfoptions.n_semiz)>0
+        [V,Policy]=ValueFnIter_FHorz_EpsteinZin_SemiExo(n_d,n_a,n_z,vfoptions.n_semiz,N_j,d_grid,a_grid,z_gridvals_J,vfoptions.semiz_gridvals_J,pi_z_J,vfoptions.pi_semiz_J,ReturnFn,Parameters,DiscountFactorParamNames,ReturnFnParamNames,vfoptions,sj,warmglow,ezc1,ezc2,ezc3,ezc4,ezc5,ezc6,ezc7,ezc8);
+        return
+    end
+end
+
+d_gridvals=CreateGridvals(n_d,d_grid,1);
+
+%% Warn if no shocks at all (allowed, but only makes sense as a no-shocks reference version of a model)
+if N_e==0 && N_z==0
+    warning('Epstein-Zin preferences do not make much sense without any shocks (the certainty-equivalent is just the identity), unless all you want is a reference for what happens in your model without shocks; solving anyway')
+end
+
+%% Solve: divide-and-conquer and/or grid-interpolation route to their own subfns, otherwise just do the standard case
+if vfoptions.divideandconquer==1 && vfoptions.gridinterplayer==1
+    [VKron,PolicyKron]=ValueFnIter_FHorz_EpsteinZin_DC_GI(n_d,n_a,n_z,N_j,d_gridvals,a_grid,z_gridvals_J,pi_z_J,ReturnFn,Parameters,DiscountFactorParamNames,ReturnFnParamNames,vfoptions,sj,warmglow,ezc1,ezc2,ezc3,ezc4,ezc5,ezc6,ezc7,ezc8);
+elseif vfoptions.divideandconquer==1
+    [VKron,PolicyKron]=ValueFnIter_FHorz_EpsteinZin_DC(n_d,n_a,n_z,N_j,d_gridvals,a_grid,z_gridvals_J,pi_z_J,ReturnFn,Parameters,DiscountFactorParamNames,ReturnFnParamNames,vfoptions,sj,warmglow,ezc1,ezc2,ezc3,ezc4,ezc5,ezc6,ezc7,ezc8);
+elseif vfoptions.gridinterplayer==1
+    [VKron,PolicyKron]=ValueFnIter_FHorz_EpsteinZin_GI(n_d,n_a,n_z,N_j,d_gridvals,a_grid,z_gridvals_J,pi_z_J,ReturnFn,Parameters,DiscountFactorParamNames,ReturnFnParamNames,vfoptions,sj,warmglow,ezc1,ezc2,ezc3,ezc4,ezc5,ezc6,ezc7,ezc8);
+elseif N_e==0
     if N_z==0
-        error('Cannot use Epstein-Zin preferences without any shocks (what is the point?); you have n_z=0 and no e variables')
+        if N_d==0
+            [VKron,PolicyKron]=ValueFnIter_FHorz_EpsteinZin_nod_noz_raw(n_a, N_j, a_grid, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, sj, warmglow, ezc1,ezc2,ezc3,ezc4,ezc5,ezc6,ezc7,ezc8);
+        else
+            [VKron,PolicyKron]=ValueFnIter_FHorz_EpsteinZin_noz_raw(n_d,n_a, N_j, d_gridvals, a_grid, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, sj, warmglow, ezc1,ezc2,ezc3,ezc4,ezc5,ezc6,ezc7,ezc8);
+        end
     else
         if N_d==0
             [VKron,PolicyKron]=ValueFnIter_FHorz_EpsteinZin_nod_raw(n_a, n_z, N_j, a_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, sj, warmglow, ezc1,ezc2,ezc3,ezc4,ezc5,ezc6,ezc7,ezc8);
@@ -207,7 +267,27 @@ else
     n_daprime=[n_d,n_a];
 end
 
-if N_e==0
+if vfoptions.gridinterplayer==1 && N_d>0
+    % The with-d GI raws return Policy rows (d, aprime-lower, L2, L2flag) separately (not as a
+    % single Kron index), so use the UnKron2 family (mirrors ValueFnIter_FHorz_GI)
+    if N_e==0
+        if N_z==0
+            V=reshape(VKron,[n_a,N_j]);
+            Policy=UnKronPolicyIndexes2_FHorz_noz(PolicyKron,n_d,n_a,n_a,N_j,vfoptions);
+        else
+            V=reshape(VKron,[n_a,n_z,N_j]);
+            Policy=UnKronPolicyIndexes2_FHorz_z(PolicyKron,n_d,n_a,n_a,n_z,N_j,vfoptions);
+        end
+    else
+        if N_z==0
+            V=reshape(VKron,[n_a,vfoptions.n_e,N_j]);
+            Policy=UnKronPolicyIndexes2_FHorz_z(PolicyKron,n_d,n_a,n_a,vfoptions.n_e,N_j,vfoptions);  % Treat e as z (because no z)
+        else
+            V=reshape(VKron,[n_a,n_z,vfoptions.n_e,N_j]);
+            Policy=UnKronPolicyIndexes2_FHorz_z_e(PolicyKron,n_d,n_a,n_a,n_z,vfoptions.n_e,N_j,vfoptions);
+        end
+    end
+elseif N_e==0
     if N_z==0
         V=reshape(VKron,[n_a,N_j]);
         Policy=UnKronPolicyIndexes1_FHorz_noz(PolicyKron,n_daprime,n_a,N_j,vfoptions);

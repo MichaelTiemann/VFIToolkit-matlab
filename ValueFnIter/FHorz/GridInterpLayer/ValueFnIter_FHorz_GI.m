@@ -71,7 +71,7 @@ elseif length(n_a)==2
         error('vfoptions.gridinterplayer=1 with two endogenous states can only be applied to the first of the two endo states (you have length(vfoptions.ngridinterp)>1)')
     end
 else
-    error('Cannot use vfoptions.divideandconquer with more than two endogenous states (you have length(n_a)>2)')
+    error('Cannot use vfoptions.gridinterplayer with more than two endogenous states (you have length(n_a)>2)')
 end
 
 

@@ -32,7 +32,7 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,j);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,j);
     beta=prod(DiscountFactorParamsVec); % Discount factor between any two future periods
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,j);
+    beta0=vfoptions.beta0;
     beta0beta=beta0*beta; % Discount factor between today and tomorrow.
 
     VKronNext_j=Vtemp_j; % Has been presaved before it was

@@ -18,7 +18,11 @@ end
 if exist('transpathoptions','var')==0
     disp('No transpathoptions given, using defaults')
     % If transpathoptions is not given, just use all the defaults
-    transpathoptions.tolerance=10^(-5);
+    transpathoptions.updatepert=0; % 0: build the new price path from all periods at once after the loop over t (updatePricePathNew_TPath_T), 1: build it period by period inside the loop (updatePricePathNew_TPath_tt, the original). Same answer either way for the shooting algorithm; =0 is what the Newton options need, as their Jacobian couples periods
+    transpathoptions.toleranceGEprices=Inf; % convergence criterion for GE prices, set =Inf to turn this off (it is off by default)
+    transpathoptions.toleranceGEcondns=1e-4; % convergence criterion for GE condns
+    transpathoptions.multiGEcriterion=1; % How to combine multiple GE condns (default is sum-of-squares)
+    transpathoptions.multiGEweights=ones(1,length(fieldnames(GeneralEqmEqns)));
     transpathoptions.updateaccuracycutoff=10^(-9); % If the suggested update is less than this then don't bother; 10^(-9) is decent odds to be numerical error anyway (currently only works for transpathoptions.GEnewprice=3)
     transpathoptions.parallel=1+(gpuDeviceCount>0);
     transpathoptions.GEnewprice=1; % 1 is shooting algorithm, 0 is that the GE should evaluate to zero and the 'new' is the old plus the "non-zero" (for each time period seperately);
@@ -37,8 +41,23 @@ if exist('transpathoptions','var')==0
     transpathoptions.tanimprovement=1;
 else
     % Check transpathoptions for missing fields, if there are some fill them with the defaults
-    if ~isfield(transpathoptions,'tolerance')
-        transpathoptions.tolerance=10^(-5);
+    if ~isfield(transpathoptions,'updatepert')
+        transpathoptions.updatepert=0; % 0: build the new price path from all periods at once after the loop over t (updatePricePathNew_TPath_T), 1: build it period by period inside the loop (updatePricePathNew_TPath_tt, the original). Same answer either way for the shooting algorithm; =0 is what the Newton options need, as their Jacobian couples periods
+    end
+    if isfield(transpathoptions,'tolerance')
+        error('Old transpathoptions.tolerance, has now been renamed and you should use transpathoptions.toleranceGEcondns instead')
+    end
+    if ~isfield(transpathoptions,'toleranceGEprices')
+        transpathoptions.toleranceGEprices=Inf; % convergence criterion for GE prices, set =Inf to turn this off (it is off by default)
+    end
+    if ~isfield(transpathoptions,'toleranceGEcondns')
+        transpathoptions.toleranceGEcondns=1e-4; % convergence criterion for GE condns
+    end
+    if ~isfield(transpathoptions,'multiGEcriterion')
+        transpathoptions.multiGEcriterion=1;
+    end
+    if ~isfield(transpathoptions,'multiGEweights')
+        transpathoptions.multiGEweights=ones(1,length(fieldnames(GeneralEqmEqns)));
     end
     if ~isfield(transpathoptions,'updateaccuracycutoff')
         transpathoptions.updateaccuracycutoff=10^(-9);
@@ -290,7 +309,7 @@ end
 ReturnFnParamNames=ReturnFnParamNamesFn(ReturnFn,n_d,n_a,n_z,0,vfoptions,Parameters);
 
 %% Set up exogenous shock processes
-[z_gridvals, pi_z, pi_z_sparse, e_gridvals, pi_e, pi_e_sparse, ze_gridvals, transpathoptions, simoptions]=ExogShockSetup_InfHorz_TPath(n_z,z_grid,pi_z,Parameters,PricePathNames,ParamPathNames,transpathoptions,simoptions,4);
+[z_gridvals, pi_z, pi_z_sparse, e_gridvals, pi_e, pi_e_sparse, ze_gridvals, transpathoptions, simoptions]=ExogShockSetup_InfHorz_TPath(n_z,z_grid,pi_z,Parameters,PricePathNames,ParamPathNames,T,transpathoptions,simoptions,4);
 % Convert z and e to joint-grids and transition matrix
 % output: z_gridvals, pi_z, e_gridvals, pi_e, transpathoptions,vfoptions,simoptions
 
@@ -391,6 +410,7 @@ elseif vfoptions.gridinterplayer==1
         aprime_grid=[a1prime_grid; a_grid(n_a(1)+1:end)];
         aprime_gridvals=CreateGridvals(n_aprime,aprime_grid,1);
     end
+    vfoptions.policyind2val_finegridinput=1; % aprime_gridvals contains the fine grid for the first asset (tells PolicyInd2Val_InfHorz_TPath)
 end
 
 %% GE eqns, switch from structure to cell setup

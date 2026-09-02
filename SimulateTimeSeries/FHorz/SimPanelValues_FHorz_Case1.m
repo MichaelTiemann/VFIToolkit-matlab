@@ -24,6 +24,7 @@ if ~exist('simoptions','var')
     simoptions.experienceassetz=0;
     simoptions.experienceassete=0;
     simoptions.experienceassetze=0;
+    simoptions.experienceassetsemiz=0;
     simoptions.riskyasset=0;
     simoptions.n_semiz=0;
     simoptions.n_e=0;
@@ -69,6 +70,9 @@ else
     if ~isfield(simoptions,'experienceassetze')
         simoptions.experienceassetze=0;
     end
+    if ~isfield(simoptions,'experienceassetsemiz')
+        simoptions.experienceassetsemiz=0;
+    end
     if ~isfield(simoptions,'riskyasset')
         simoptions.riskyasset=0;
     end
@@ -95,14 +99,14 @@ else
     % Some options require certain other inputs, and these have to be on the GPU
     if isfield(simoptions,'d_grid')
         simoptions.d_grid=gpuArray(simoptions.d_grid);
-    elseif simoptions.experienceasset>=1 || simoptions.experienceassetz>=1 || simoptions.experienceassete>=1 || simoptions.experienceassetze>=1 || simoptions.experienceassetu>=1
+    elseif simoptions.experienceasset>=1 || simoptions.experienceassetz>=1 || simoptions.experienceassete>=1 || simoptions.experienceassetze>=1 || simoptions.experienceassetu>=1 || simoptions.experienceassetsemiz>=1
         error('When using any kind of experience asset you must set simoptions.d_grid')
     elseif simoptions.riskyasset==1
         error('When using a risky asset you must set simoptions.d_grid')
     end
     if isfield(simoptions,'a_grid')
         simoptions.a_grid=gpuArray(simoptions.a_grid);
-    elseif simoptions.experienceasset>=1 || simoptions.experienceassetz>=1 || simoptions.experienceassete>=1 || simoptions.experienceassetze>=1 || simoptions.experienceassetu>=1
+    elseif simoptions.experienceasset>=1 || simoptions.experienceassetz>=1 || simoptions.experienceassete>=1 || simoptions.experienceassetze>=1 || simoptions.experienceassetu>=1 || simoptions.experienceassetsemiz>=1
         error('When using any kind of experience asset you must set simoptions.a_grid')
     end
     if isfield(simoptions,'z_grid')
@@ -181,14 +185,20 @@ if simoptions.alreadygridvals==0
     % note: output z_gridvals_J, pi_z_J, and simoptions.e_gridvals_J, simoptions.pi_e_J
     %
     % size(z_gridvals_J)=[prod(n_z),length(n_z),N_j]
-    % size(pi_z_J)=[prod(n_z),prod(n_z),N_j]
+    % size(pi_z_J)=[prod(n_z),prod(n_z),N_j-1], last dim is N_j if vfoptions.V_Jplus1 is used
     % size(e_gridvals_J)=[prod(n_e),length(n_e),N_j]
-    % size(pi_e_J)=[prod(n_e),N_j]
+    % size(pi_e_J)=[prod(n_e),N_j], last dim is N_j+1 if vfoptions.V_Jplus1 is used
     % If no z, then z_gridvals_J=[] and pi_z_J=[]
     % If no e, then e_gridvals_J=[] and pi_e_J=[]
 elseif simoptions.alreadygridvals==1
     z_gridvals_J=z_grid;
     pi_z_J=pi_z;
+end
+
+if N_semiz>0
+    if ~isfield(simoptions,'l_dsemiz')
+        simoptions.l_dsemiz=1; % by default, just one decision variable is used for the semi-exo state
+    end
 end
 
 %% Send off to different simulation commands based on the setup (with/without z and e is handled within the commands)
@@ -211,6 +221,9 @@ elseif simoptions.experienceassetz>=1
     else
         SimPanelIndexes=SimPanelIndexes_FHorz_ExpAssetz_semiz(gather(InitialDist),Policy,n_d,n_a,n_z,N_j,z_gridvals_J,gather(pi_z_J), Parameters, simoptions);
     end
+elseif simoptions.experienceassetsemiz>=1
+    % semiz always present (it drives the experience asset)
+    SimPanelIndexes=SimPanelIndexes_FHorz_ExpAssetsemiz(gather(InitialDist),Policy,n_d,n_a,n_z,N_j,z_gridvals_J,gather(pi_z_J), Parameters, simoptions);
 elseif simoptions.experienceassete>=1
     if N_semiz==0
         SimPanelIndexes=SimPanelIndexes_FHorz_ExpAssete(gather(InitialDist),Policy,n_d,n_a,n_z,N_j,gather(pi_z_J), Parameters, simoptions);
@@ -252,7 +265,7 @@ end
 %% Implement new way of handling FnsToEvaluate
 % Figure out l_aprime and l_daprime
 l_aprime=l_a;
-if simoptions.experienceasset>=1 || simoptions.experienceassetu>=1 || simoptions.experienceassetz>=1 || simoptions.experienceassete>=1 || simoptions.experienceassetze>=1
+if simoptions.experienceasset>=1 || simoptions.experienceassetu>=1 || simoptions.experienceassetz>=1 || simoptions.experienceassete>=1 || simoptions.experienceassetze>=1 || simoptions.experienceassetsemiz>=1 || simoptions.riskyasset>=1
     l_aprime=l_aprime-1;
 end
 l_daprime=l_d+l_aprime;

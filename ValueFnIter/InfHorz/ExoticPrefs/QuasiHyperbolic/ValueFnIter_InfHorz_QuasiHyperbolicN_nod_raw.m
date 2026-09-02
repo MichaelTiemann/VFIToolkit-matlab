@@ -1,4 +1,4 @@
-function [VKron, Policy]=ValueFnIter_InfHorz_QuasiHyperbolicN_nod_raw(VKron, n_a, n_z, pi_z, beta0beta, ReturnMatrix)
+function [VKron, Policy]=ValueFnIter_InfHorz_QuasiHyperbolicN_nod_raw(VKron, n_a, n_z, pi_z, DiscountFactorParamsVec, beta0, ReturnMatrix)
 % (last two entries of) DiscountFactorParamNames contains the names for the two parameters relating to
 % Quasi-hyperbolic preferences.
 % Let V_j be the standard (exponential discounting) solution to the value fn problem
@@ -17,6 +17,9 @@ N_a=prod(n_a);
 N_z=prod(n_z);
 
 Policy=zeros(N_a,N_z,'gpuArray');
+
+beta=prod(DiscountFactorParamsVec); % Discount rate between two future periods
+beta0beta=beta0*beta; % Discount rate between present period and next period
 
 %%
 VKronold=VKron;

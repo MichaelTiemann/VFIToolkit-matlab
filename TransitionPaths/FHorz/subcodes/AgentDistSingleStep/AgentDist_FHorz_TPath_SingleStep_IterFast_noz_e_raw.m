@@ -14,7 +14,7 @@ function AgentDist=AgentDist_FHorz_TPath_SingleStep_IterFast_noz_e_raw(AgentDist
 % Get AgentDist for periods 1:N_j-1
 AgentDist_tt=sparse(gather(reshape(AgentDist(exceptlastj),[N_a*(N_j-1)*N_e,1]))); % avoiding those that correspond to jj=N_j
 
-Gammatranspose=sparse(Policy_aprimej,II1,II2,N_a*(N_j-1),N_a*(N_j-1)*N_e);
+Gammatranspose=sparse(gather(Policy_aprimej),II1,II2,N_a*(N_j-1),N_a*(N_j-1)*N_e);
 % Note: N_j-1, not N_j
 % Note that Gamma goes from (a,j,e) to (a',j) [Gammatranspose is has these reversed]
 

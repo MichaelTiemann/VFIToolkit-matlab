@@ -1,4 +1,4 @@
-function [z_grid,pi_z] = discretizeAR1_FarmerToda(mew,rho,sigma,znum,farmertodaoptions)
+function [z_grid,pi_z,otheroutputs] = discretizeAR1_FarmerToda(mew,rho,sigma,znum,farmertodaoptions)
 % Please cite: Farmer & Toda (2017) - "Discretizing Nonlinear, Non-Gaussian Markov Processes with Exact Conditional Moments
 % [If you use this to discretize and iid normal (rho=0) then instead please cite
 % Tanaka & Toda (2013) - "Discrete approximations of continuous distributions by maximum entropy" instead.]
@@ -22,6 +22,8 @@ function [z_grid,pi_z] = discretizeAR1_FarmerToda(mew,rho,sigma,znum,farmertodao
 %   z_grid         - column vector containing the znum states of the discrete approximation of z
 %   pi_z           - transition matrix of the discrete approximation of z;
 %                    transmatrix(i,j) is the probability of transitioning from state i to state j
+%   otheroutputs   - optional output structure containing info for evaluating the distribution including,
+%        otheroutputs.nMoments_grid  - shows how many moments were matched from each grid point (for the conditional distribution)
 %
 % Helpful info:
 %   Var(z)=(sigma^2)/(1-rho^2). So sigmaz=sigma/sqrt(1-rho^2);   sigma=sigmaz*sqrt(1-rho^2)
@@ -48,11 +50,11 @@ end
 %% Set defaults
 if ~exist('farmertodaoptions','var')
     farmertodaoptions.nMoments=2;
-    if abs(rho) <= 1-2/(znum-1)
-        farmertodaoptions.nSigmas = min(sqrt(2*(znum-1)),3);
-    else
-        farmertodaoptions.nSigmas = min(sqrt(znum-1),3); % Set max of 3
-    end
+    % The grid half-width, in units of the standard deviation of z. sqrt(znum-1) is the width
+    % the Rouwenhorst construction requires, and it is used here so the three AR(1) methods share
+    % a default. It replaces min(sqrt(2*(znum-1)),3) / min(sqrt(znum-1),3), which capped the
+    % width at 3 standard deviations and so stopped widening the grid past znum=10.
+    farmertodaoptions.nSigmas = sqrt(znum-1);
     if rho<=0.8
         farmertodaoptions.method='gauss-hermite';
     else
@@ -66,11 +68,7 @@ else
     end
     % define grid spacing parameter if not provided
     if ~isfield(farmertodaoptions,'nSigmas') % This is just direct from Farmer-Toda code. I am not aware of any results showing it performs 'better'
-        if abs(rho) <= 1-2/(znum-1)
-            farmertodaoptions.nSigmas = min(sqrt(2*(znum-1)),3);
-        else
-            farmertodaoptions.nSigmas = min(sqrt(znum-1),3);
-        end
+        farmertodaoptions.nSigmas = sqrt(znum-1); % see the note above; one default, no cap
     end
     % Set method based on findings of paper of Farmer & Toda (2017): last para on pg 678
     %   method='even' for rho>0.8, 'gauss-hermite' for rho<=0.8
@@ -93,6 +91,13 @@ end
 %% Check for user-supplied grid
 if isfield(farmertodaoptions,'z_grid')
     farmertodaoptions.usergrid=1;
+    % Must be on the cpu: the Farmer-Toda method solves an entropy problem per grid point with
+    % fminunc(), which cannot take gpuArrays. This matters because a gpuArray is exactly what this
+    % command RETURNS by default when a gpu is present (parallel defaults to 1+(gpuDeviceCount>0)),
+    % so handing back the grid you were just given - the obvious use of this option - would
+    % otherwise fail with 'FMINUNC requires all values returned by functions to be of data type
+    % double'.
+    farmertodaoptions.z_grid=gather(farmertodaoptions.z_grid);
     if size(farmertodaoptions.z_grid,1)>1
         farmertodaoptions.z_grid=farmertodaoptions.z_grid'; % use row internally
     end
@@ -112,6 +117,14 @@ end
 % Check that nMoments is a valid number
 if ~isnumeric(farmertodaoptions.nMoments) || farmertodaoptions.nMoments < 1 || farmertodaoptions.nMoments > 4 || ~((rem(farmertodaoptions.nMoments,1) == 0) || (farmertodaoptions.nMoments == 1))
     error('farmertodaoptions.nMoments must be either 1, 2, 3, 4')
+end
+
+% Make sure method is set appropriately
+% Without this the switch on method below simply falls through, leaving the grid variable
+% unassigned, and the failure surfaces a line later as an undefined-variable error naming a
+% variable the caller has never heard of. Checking here names the option instead.
+if ~strcmp(farmertodaoptions.method,'even') && ~strcmp(farmertodaoptions.method,'gauss-legendre') && ~strcmp(farmertodaoptions.method,'clenshaw-curtis') && ~strcmp(farmertodaoptions.method,'gauss-hermite')
+    error('farmertodaoptions.method must be one of even, gauss-legendre, clenshaw-curtis, or gauss-hermite')
 end
 
 if farmertodaoptions.nSigmas<1.2
@@ -155,6 +168,7 @@ TBar = [T1 T2 T3 T4]'; % vector of conditional central moments
 
 %% Farmer-Toda method
 pi_z = NaN(znum);
+nMoments_grid=zeros(znum,1); % Used to record number of moments matched in transition from each point
 scalingFactor = max(abs(z_grid));
 kappa = 1e-8;
 
@@ -173,28 +187,27 @@ for ii = 1:znum
     
     if farmertodaoptions.nMoments == 1 % match only 1 moment
         pi_z(ii,:) = discreteApproximation(z_grid,@(x)(x-condMean)/scalingFactor,TBar(1)./scalingFactor,q,0);
+        nMoments_grid(ii)=1;
     else % match 2 moments first
         [p,lambda,momentError] = discreteApproximation(z_grid,@(x) [(x-condMean)./scalingFactor;...
             ((x-condMean)./scalingFactor).^2],...
             TBar(1:2)./(scalingFactor.^(1:2)'),q,zeros(2,1));
         if norm(momentError) > 1e-5 % if 2 moments fail, then just match 1 moment
-            if farmertodaoptions.verbose==1
-                warning('Failed to match first 2 moments. Just matching 1.')
-            end
             pi_z(ii,:) = discreteApproximation(z_grid,@(x)(x-condMean)/scalingFactor,0,q,0);
+            nMoments_grid(ii)=1;
         elseif farmertodaoptions.nMoments == 2
             pi_z(ii,:) = p;
+            nMoments_grid(ii)=2;
         elseif farmertodaoptions.nMoments == 3 % 3 moments
             [pnew,~,momentError] = discreteApproximation(z_grid,@(x) [(x-condMean)./scalingFactor;...
                 ((x-condMean)./scalingFactor).^2;((x-condMean)./scalingFactor).^3],...
                 TBar(1:3)./(scalingFactor.^(1:3)'),q,[lambda;0]);
             if norm(momentError) > 1e-5
-                if farmertodaoptions.verbose==1
-                    warning('Failed to match first 3 moments.  Just matching 2.')
-                end
                 pi_z(ii,:) = p;
+                nMoments_grid(ii)=2;
             else
                 pi_z(ii,:) = pnew;
+                nMoments_grid(ii)=3;
             end
         elseif farmertodaoptions.nMoments == 4 % 4 moments
             [pnew,~,momentError] = discreteApproximation(z_grid,@(x) [(x-condMean)./scalingFactor;...
@@ -206,21 +219,24 @@ for ii = 1:znum
                     ((x-condMean)./scalingFactor).^2;((x-condMean)./scalingFactor).^3],...
                     TBar(1:3)./(scalingFactor.^(1:3)'),q,[lambda;0]);
                 if norm(momentError) > 1e-5
-                    if farmertodaoptions.verbose==1
-                        warning('Failed to match first 3 moments.  Just matching 2.')
-                    end
                     pi_z(ii,:) = p;
+                    nMoments_grid(ii)=2;
                 else
                     pi_z(ii,:) = pnew;
-                    if farmertodaoptions.verbose==1
-                        warning('Failed to match first 4 moments.  Just matching 3.')
-                    end
+                    nMoments_grid(ii)=3;
                 end
             else
                 pi_z(ii,:) = pnew;
+                nMoments_grid(ii)=4;
             end
         end
     end
+end
+
+% Report the maximum entropy fallbacks once for the whole call, rather than once per grid point.
+% The count is what matters, and nMoments_grid says exactly where.
+if farmertodaoptions.verbose==1 && sum(nMoments_grid<farmertodaoptions.nMoments)>0
+    warning('Matched fewer than the requested %i moments from %i of the %i grid points, as few as %i. See otheroutputs.nMoments_grid for which.',farmertodaoptions.nMoments,sum(nMoments_grid<farmertodaoptions.nMoments),znum,min(nMoments_grid))
 end
 
 % HAVE DONE THE LAZY OPTION. THIS SHOULD REALLY BE REWRITTEN SO THAT JUST
@@ -231,5 +247,8 @@ if farmertodaoptions.parallel==2
 end
 
 z_grid=z_grid'; % Output as column vector
+
+%% Some additional outputs that can be used to evaluate the discretization
+otheroutputs.nMoments_grid=nMoments_grid; % How many moments were hit by the conditional distribution from each grid point
 
 end

@@ -28,6 +28,7 @@ d13_grid=gpuArray(d13_grid);
 d23_grid=gpuArray(d23_grid);
 a2_grid=gpuArray(a2_grid);
 u_grid=gpuArray(u_grid);
+d13_gridvals=CreateGridvals(n_d13,d13_grid,1);
 
 if vfoptions.lowmemory>0
     special_n_e=ones(1,length(n_e));
@@ -75,8 +76,11 @@ if warmglow==1
     % WGmatrix is over (d,1)
 
     if ~isfield(vfoptions,'V_Jplus1')
+        % The warm-glow enters INSIDE the ^ezc7 root at the terminal age (the bequest is the
+        % terminal condition of the recursion, composed like any continuation value), so build
+        % the temp4-analogue of the main loop (with no EV term):
         becareful=(WGmatrix==0);
-        WGmatrix(isfinite(WGmatrix))=ezc3*DiscountFactorParamsVec*(((1-sj(N_j))*WGmatrix(isfinite(WGmatrix)).^ezc8(N_j)).^ezc6(N_j));
+        WGmatrix(isfinite(WGmatrix))=((1-sj(N_j))*WGmatrix(isfinite(WGmatrix)).^ezc8(N_j)).^ezc6(N_j);
         WGmatrix(becareful)=0;
     end
     % Now just make it the right shape (currently has aprime, needs the d,a,z dimensions)
@@ -91,24 +95,28 @@ end
 
 if ~isfield(vfoptions,'V_Jplus1')
     if vfoptions.lowmemory==0
-        ReturnMatrix=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, n_d13, n_a2, n_z, n_e, d13_grid, a2_grid, z_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec);
-
-        % Modify the Return Function appropriately for Epstein-Zin Preferences
-        becareful=logical(isfinite(ReturnMatrix).*(ReturnMatrix~=0)); % finite but not zero
-        ReturnMatrix(becareful)=(ezc1*ReturnMatrix(becareful).^ezc2(N_j)).^ezc7(N_j); % Otherwise can get things like 0 to negative power equals infinity
-        ReturnMatrix(ReturnMatrix==0)=-Inf;
+        ReturnMatrix=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, n_d13, n_a2, n_z, n_e, d13_gridvals, a2_grid, z_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec);
 
         %Calc the max and it's index
         if warmglow==1
-            % Time to refine
-            % First: ReturnMatrix, we can refine out d1
-            [ReturnMatrix_onlyd3,d1index]=max(ezc9*reshape((~isinf(ReturnMatrix)).*ReturnMatrix,[N_d1,N_d3,N_a2,N_z,N_e]),[],1);
-            % Second: EV, we can refine out d2
-            [WGmatrix_onlyd3,d2index]=max(ezc9*reshape((~isinf(WGmatrix)).*WGmatrix,[N_d2,N_d3]),[],1);
-            % Now put together entireRHS, which just depends on d3
-            entireRHS=shiftdim(ezc9*ReturnMatrix_onlyd3+ezc9*WGmatrix_onlyd3,1);
+            % Modify the Return Function appropriately for Epstein-Zin Preferences
+            becareful=logical(isfinite(ReturnMatrix).*(ReturnMatrix~=0)); % finite but not zero
+            temp2=ReturnMatrix;
+            temp2(becareful)=ReturnMatrix(becareful).^ezc2(N_j);
+            temp2(ReturnMatrix==0)=-Inf;
 
-            % no point in Refine
+            % Time to refine (warm-glow composes inside the ^ezc7 root: mirror the main loop with WGmatrix in place of temp4)
+            % First: ReturnMatrix, we can refine out d1
+            [temp2_onlyd3,d1index]=max(ezc9*reshape((~isinf(temp2)).*temp2,[N_d1,N_d3,N_a2,N_z,N_e]),[],1);
+            % Second: WGmatrix, we can refine out d2
+            [temp4_onlyd3,d2index]=max(ezc9*ezc3*reshape((~isinf(WGmatrix)).*WGmatrix,[N_d2,N_d3]),[],1);
+            % Now put together entireRHS, which just depends on d3
+            entireRHS=shiftdim(ezc1*ezc9*temp2_onlyd3+DiscountFactorParamsVec*ezc9*temp4_onlyd3,1);
+
+            temp5=logical(isfinite(entireRHS).*(entireRHS~=0));
+            entireRHS(temp5)=entireRHS(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
+            entireRHS(entireRHS==0)=-Inf;
+
             [Vtemp,maxindex]=max(entireRHS,[],1);
 
             V(:,:,:,N_j)=Vtemp;
@@ -116,6 +124,11 @@ if ~isfield(vfoptions,'V_Jplus1')
             Policy(1,:,:,:,N_j)=shiftdim(d1index(maxindex+N_d3*aind+N_d3*N_a2*zind+N_d3*N_a2*N_z*eind),1);
             Policy(2,:,:,:,N_j)=shiftdim(d2index(maxindex),1); % note: no a nor z in WGmatrix
         else
+            % Modify the Return Function appropriately for Epstein-Zin Preferences
+            becareful=logical(isfinite(ReturnMatrix).*(ReturnMatrix~=0)); % finite but not zero
+            ReturnMatrix(becareful)=(ezc1*ReturnMatrix(becareful).^ezc2(N_j)).^ezc7(N_j); % Otherwise can get things like 0 to negative power equals infinity
+            ReturnMatrix(ReturnMatrix==0)=-Inf;
+
             % no point in Refine (as there effectively is no d2)
             [Vtemp,maxindex]=max(ReturnMatrix,[],1);
 
@@ -129,31 +142,40 @@ if ~isfield(vfoptions,'V_Jplus1')
 
         for e_c=1:N_e
             e_val=e_gridvals_J(e_c,:,N_j);
-            ReturnMatrix_e=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, n_d13, n_a2, n_z, special_n_e, d13_grid, a2_grid, z_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec);
-
-            % Modify the Return Function appropriately for Epstein-Zin Preferences
-            becareful=logical(isfinite(ReturnMatrix_e).*(ReturnMatrix_e~=0)); % finite and not zero
-            ReturnMatrix_e(becareful)=(ezc1*ReturnMatrix_e(becareful).^ezc2(N_j)).^ezc7(N_j); % Otherwise can get things like 0 to negative power equals infinity
-            ReturnMatrix_e(ReturnMatrix_e==0)=-Inf;
+            ReturnMatrix_e=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, n_d13, n_a2, n_z, special_n_e, d13_gridvals, a2_grid, z_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec);
 
             %Calc the max and it's index
             if warmglow==1
-                % Time to refine
-                % First: ReturnMatrix, we can refine out d1
-                [ReturnMatrix_onlyd3,d1index]=max(ezc9*reshape((~isinf(ReturnMatrix_e)).*ReturnMatrix_e,[N_d1,N_d3,N_a2,N_z]),[],1);
-                % Second: EV, we can refine out d2
-                [WGmatrix_onlyd3,d2index]=max(ezc9*reshape((~isinf(WGmatrix)).*WGmatrix,[N_d2,N_d3]),[],1);
-                % Now put together entireRHS, which just depends on d3
-                entireRHS=shiftdim(ezc9*ReturnMatrix_onlyd3+ezc9*WGmatrix_onlyd3,1);
+                % Modify the Return Function appropriately for Epstein-Zin Preferences
+                becareful=logical(isfinite(ReturnMatrix_e).*(ReturnMatrix_e~=0)); % finite and not zero
+                temp2=ReturnMatrix_e;
+                temp2(becareful)=ReturnMatrix_e(becareful).^ezc2(N_j);
+                temp2(ReturnMatrix_e==0)=-Inf;
 
-                % no point in Refine
-                [Vtemp,maxindex]=max(entireRHS,[],1);
+                % Time to refine (warm-glow composes inside the ^ezc7 root: mirror the main loop with WGmatrix in place of temp4)
+                % First: ReturnMatrix, we can refine out d1
+                [temp2_onlyd3,d1index]=max(ezc9*reshape((~isinf(temp2)).*temp2,[N_d1,N_d3,N_a2,N_z]),[],1);
+                % Second: WGmatrix, we can refine out d2
+                [temp4_onlyd3,d2index]=max(ezc9*ezc3*reshape((~isinf(WGmatrix)).*WGmatrix,[N_d2,N_d3]),[],1);
+                % Now put together entireRHS, which just depends on d3
+                entireRHS_e=shiftdim(ezc1*ezc9*temp2_onlyd3+DiscountFactorParamsVec*ezc9*temp4_onlyd3,1);
+
+                temp5=logical(isfinite(entireRHS_e).*(entireRHS_e~=0));
+                entireRHS_e(temp5)=entireRHS_e(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
+                entireRHS_e(entireRHS_e==0)=-Inf;
+
+                [Vtemp,maxindex]=max(entireRHS_e,[],1);
 
                 V(:,:,e_c,N_j)=Vtemp;
                 Policy(3,:,:,e_c,N_j)=shiftdim(maxindex,1);
                 Policy(1,:,:,e_c,N_j)=shiftdim(d1index(maxindex+N_d3*aind+N_d3*N_a2*zind),1);
                 Policy(2,:,:,e_c,N_j)=shiftdim(d2index(maxindex),1); % note: no a nor z in WGmatrix
             else
+                % Modify the Return Function appropriately for Epstein-Zin Preferences
+                becareful=logical(isfinite(ReturnMatrix_e).*(ReturnMatrix_e~=0)); % finite and not zero
+                ReturnMatrix_e(becareful)=(ezc1*ReturnMatrix_e(becareful).^ezc2(N_j)).^ezc7(N_j); % Otherwise can get things like 0 to negative power equals infinity
+                ReturnMatrix_e(ReturnMatrix_e==0)=-Inf;
+
                 % no point in Refine (as there effectively is no d2)
                 [Vtemp,maxindex]=max(ReturnMatrix_e,[],1);
 
@@ -170,24 +192,28 @@ if ~isfield(vfoptions,'V_Jplus1')
             e_val=e_gridvals_J(e_c,:,N_j);
             for z_c=1:N_z
                 z_val=z_gridvals_J(z_c,:,N_j);
-                ReturnMatrix_ze=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, n_d13, n_a2, special_n_z, special_n_e, d13_grid, a2_grid, z_val, e_val, ReturnFnParamsVec);
-
-                % Modify the Return Function appropriately for Epstein-Zin Preferences
-                becareful=logical(isfinite(ReturnMatrix_ze).*(ReturnMatrix_ze~=0)); % finite and not zero
-                ReturnMatrix_ze(becareful)=(ezc1*ReturnMatrix_ze(becareful).^ezc2(N_j)).^ezc7(N_j); % Otherwise can get things like 0 to negative power equals infinity
-                ReturnMatrix_ze(ReturnMatrix_ze==0)=-Inf;
+                ReturnMatrix_ze=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, n_d13, n_a2, special_n_z, special_n_e, d13_gridvals, a2_grid, z_val, e_val, ReturnFnParamsVec);
 
                 %Calc the max and it's index
                 if warmglow==1
-                    % Time to refine
-                    % First: ReturnMatrix, we can refine out d1
-                    [ReturnMatrix_onlyd3,d1index]=max(ezc9*reshape((~isinf(ReturnMatrix_ze)).*ReturnMatrix_ze,[N_d1,N_d3,N_a2]),[],1);
-                    % Second: EV, we can refine out d2
-                    [WGmatrix_onlyd3,d2index]=max(ezc9*reshape((~isinf(WGmatrix)).*WGmatrix,[N_d2,N_d3]),[],1);
-                    % Now put together entireRHS, which just depends on d3
-                    entireRHS=shiftdim(ezc9*ReturnMatrix_onlyd3+ezc9*WGmatrix_onlyd3,1);
+                    % Modify the Return Function appropriately for Epstein-Zin Preferences
+                    becareful=logical(isfinite(ReturnMatrix_ze).*(ReturnMatrix_ze~=0)); % finite and not zero
+                    temp2=ReturnMatrix_ze;
+                    temp2(becareful)=ReturnMatrix_ze(becareful).^ezc2(N_j);
+                    temp2(ReturnMatrix_ze==0)=-Inf;
 
-                    % no point in Refine
+                    % Time to refine (warm-glow composes inside the ^ezc7 root: mirror the main loop with WGmatrix in place of temp4)
+                    % First: ReturnMatrix, we can refine out d1
+                    [temp2_onlyd3,d1index]=max(ezc9*reshape((~isinf(temp2)).*temp2,[N_d1,N_d3,N_a2]),[],1);
+                    % Second: WGmatrix, we can refine out d2
+                    [temp4_onlyd3,d2index]=max(ezc9*ezc3*reshape((~isinf(WGmatrix)).*WGmatrix,[N_d2,N_d3]),[],1);
+                    % Now put together entireRHS, which just depends on d3
+                    entireRHS=shiftdim(ezc1*ezc9*temp2_onlyd3+DiscountFactorParamsVec*ezc9*temp4_onlyd3,1);
+
+                    temp5=logical(isfinite(entireRHS).*(entireRHS~=0));
+                    entireRHS(temp5)=entireRHS(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
+                    entireRHS(entireRHS==0)=-Inf;
+
                     [Vtemp,maxindex]=max(entireRHS,[],1);
 
                     V(:,z_c,e_c,N_j)=Vtemp;
@@ -195,6 +221,11 @@ if ~isfield(vfoptions,'V_Jplus1')
                     Policy(1,:,z_c,e_c,N_j)=shiftdim(d1index(maxindex+N_d3*aind),1);
                     Policy(2,:,z_c,e_c,N_j)=shiftdim(d2index(maxindex),1); % note: no a nor z in WGmatrix
                 else
+                    % Modify the Return Function appropriately for Epstein-Zin Preferences
+                    becareful=logical(isfinite(ReturnMatrix_ze).*(ReturnMatrix_ze~=0)); % finite and not zero
+                    ReturnMatrix_ze(becareful)=(ezc1*ReturnMatrix_ze(becareful).^ezc2(N_j)).^ezc7(N_j); % Otherwise can get things like 0 to negative power equals infinity
+                    ReturnMatrix_ze(ReturnMatrix_ze==0)=-Inf;
+
                     % no point in Refine (as there effectively is no d2)
                     [Vtemp,maxindex]=max(ReturnMatrix_ze,[],1);
 
@@ -221,10 +252,10 @@ else
     temp(V_Jplus1==0)=0; % otherwise zero to negative power is set to infinity
 
     % Take expectation over e
-    temp=sum(temp.*pi_e_J(1,1,:,N_j),3);
+    temp=sum(temp.*pi_e_J(1,1,:,N_j+1),3);
 
     if vfoptions.lowmemory==0
-        ReturnMatrix=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, n_d13, n_a2, n_z, n_e, d13_grid, a2_grid, z_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec);
+        ReturnMatrix=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, n_d13, n_a2, n_z, n_e, d13_gridvals, a2_grid, z_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec);
         % (d,aprime,a,z,e)
 
         % Modify the Return Function appropriately for Epstein-Zin Preferences
@@ -271,7 +302,7 @@ else
         % entireRHS=ezc1*temp2+ezc3*DiscountFactorParamsVec*temp4;
 
         temp5=logical(isfinite(entireRHS).*(entireRHS~=0));
-        entireRHS(temp5)=ezc1*entireRHS(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
+        entireRHS(temp5)=entireRHS(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
         entireRHS(entireRHS==0)=-Inf;
 
         % Calc the max and it's index
@@ -316,7 +347,7 @@ else
 
         for e_c=1:N_e
             e_val=e_gridvals_J(e_c,:,N_j);
-            ReturnMatrix_e=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, n_d13, n_a2, n_z, special_n_e, d13_grid, a2_grid, z_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec);
+            ReturnMatrix_e=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, n_d13, n_a2, n_z, special_n_e, d13_gridvals, a2_grid, z_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec);
             % (d,aprime,a,z)
 
             % Modify the Return Function appropriately for Epstein-Zin Preferences
@@ -333,7 +364,7 @@ else
             % entireRHS=ezc1*temp2+ezc3*DiscountFactorParamsVec*temp4;
 
             temp5=logical(isfinite(entireRHS_e).*(entireRHS_e~=0));
-            entireRHS_e(temp5)=ezc1*entireRHS_e(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
+            entireRHS_e(temp5)=entireRHS_e(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
             entireRHS_e(entireRHS_e==0)=-Inf;
 
             % Calc the max and it's index
@@ -380,7 +411,7 @@ else
             for e_c=1:N_e
                 e_val=e_gridvals_J(e_c,:,N_j);
 
-                ReturnMatrix_ze=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, n_d13, n_a2, special_n_z, special_n_e, d13_grid, a2_grid, z_val, e_val, ReturnFnParamsVec);
+                ReturnMatrix_ze=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, n_d13, n_a2, special_n_z, special_n_e, d13_gridvals, a2_grid, z_val, e_val, ReturnFnParamsVec);
 
                 % Modify the Return Function appropriately for Epstein-Zin Preferences
                 becareful=logical(isfinite(ReturnMatrix_ze).*(ReturnMatrix_ze~=0)); % finite and not zero
@@ -396,7 +427,7 @@ else
                 % entireRHS=ezc1*temp2+ezc3*DiscountFactorParamsVec*temp4;
 
                 temp5=logical(isfinite(entireRHS_ze).*(entireRHS_ze~=0));
-                entireRHS_ze(temp5)=ezc1*entireRHS_ze(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
+                entireRHS_ze(temp5)=entireRHS_ze(temp5).^ezc7(N_j);  % matlab otherwise puts 0 to negative power to infinity
                 entireRHS_ze(entireRHS_ze==0)=-Inf;
 
                 %Calc the max and it's index
@@ -464,10 +495,10 @@ for reverse_j=1:N_j-1
     temp(EVpre==0)=0; % otherwise zero to negative power is set to infinity
 
     % Take expectation over e
-    temp=sum(temp.*pi_e_J(1,1,:,jj),3);
+    temp=sum(temp.*pi_e_J(1,1,:,jj+1),3);
 
     if vfoptions.lowmemory==0
-        ReturnMatrix=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, n_d13, n_a2, n_z, n_e, d13_grid, a2_grid, z_gridvals_J(:,:,jj), e_gridvals_J(:,:,jj), ReturnFnParamsVec);
+        ReturnMatrix=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, n_d13, n_a2, n_z, n_e, d13_gridvals, a2_grid, z_gridvals_J(:,:,jj), e_gridvals_J(:,:,jj), ReturnFnParamsVec);
         % (d,aprime,a,z,e)
 
         % Modify the Return Function appropriately for Epstein-Zin Preferences
@@ -497,10 +528,10 @@ for reverse_j=1:N_j-1
         temp4=EV;
         if warmglow==1
             becareful=logical(isfinite(temp4).*isfinite(WGmatrix)); % both are finite
-            temp4(becareful)=(sj(jj)*temp4(becareful)+(1-sj(jj))*WGmatrix(becareful)).^ezc6(jj);
+            temp4(becareful)=(sj(jj)*temp4(becareful).^ezc8(jj)+(1-sj(jj))*WGmatrix(becareful).^ezc8(jj)).^ezc6(jj);
             temp4((EV==0)&(WGmatrix==0))=0; % Is actually zero
         else % not using warmglow
-            temp4(isfinite(temp4))=(sj(jj)*temp4(isfinite(temp4))).^ezc6(jj);
+            temp4(isfinite(temp4))=(sj(jj)*temp4(isfinite(temp4)).^ezc8(jj)).^ezc6(jj);
             temp4(EV==0)=0;
         end
 
@@ -515,7 +546,7 @@ for reverse_j=1:N_j-1
         % entireRHS=ezc1*temp2+ezc3*DiscountFactorParamsVec*temp4;
 
         temp5=logical(isfinite(entireRHS).*(entireRHS~=0));
-        entireRHS(temp5)=ezc1*entireRHS(temp5).^ezc7(jj);  % matlab otherwise puts 0 to negative power to infinity
+        entireRHS(temp5)=entireRHS(temp5).^ezc7(jj);  % matlab otherwise puts 0 to negative power to infinity
         entireRHS(entireRHS==0)=-Inf;
 
         % Calc the max and it's index
@@ -548,10 +579,10 @@ for reverse_j=1:N_j-1
         temp4=EV;
         if warmglow==1
             becareful=logical(isfinite(temp4).*isfinite(WGmatrix)); % both are finite
-            temp4(becareful)=(sj(jj)*temp4(becareful)+(1-sj(jj))*WGmatrix(becareful)).^ezc6(jj);
+            temp4(becareful)=(sj(jj)*temp4(becareful).^ezc8(jj)+(1-sj(jj))*WGmatrix(becareful).^ezc8(jj)).^ezc6(jj);
             temp4((EV==0)&(WGmatrix==0))=0; % Is actually zero
         else % not using warmglow
-            temp4(isfinite(temp4))=(sj(jj)*temp4(isfinite(temp4))).^ezc6(jj);
+            temp4(isfinite(temp4))=(sj(jj)*temp4(isfinite(temp4)).^ezc8(jj)).^ezc6(jj);
             temp4(EV==0)=0;
         end
 
@@ -561,7 +592,7 @@ for reverse_j=1:N_j-1
 
         for e_c=1:N_e
             e_val=e_gridvals_J(e_c,:,jj);
-            ReturnMatrix_e=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, n_d13, n_a2, n_z, special_n_e, d13_grid, a2_grid, z_gridvals_J(:,:,jj), e_val, ReturnFnParamsVec);
+            ReturnMatrix_e=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, n_d13, n_a2, n_z, special_n_e, d13_gridvals, a2_grid, z_gridvals_J(:,:,jj), e_val, ReturnFnParamsVec);
             % (d,aprime,a,z)
 
             % Modify the Return Function appropriately for Epstein-Zin Preferences
@@ -578,7 +609,7 @@ for reverse_j=1:N_j-1
             % entireRHS=ezc1*temp2+ezc3*DiscountFactorParamsVec*temp4;
 
             temp5=logical(isfinite(entireRHS_e).*(entireRHS_e~=0));
-            entireRHS_e(temp5)=ezc1*entireRHS_e(temp5).^ezc7(jj);  % matlab otherwise puts 0 to negative power to infinity
+            entireRHS_e(temp5)=entireRHS_e(temp5).^ezc7(jj);  % matlab otherwise puts 0 to negative power to infinity
             entireRHS_e(entireRHS_e==0)=-Inf;
 
             % Calc the max and it's index
@@ -612,10 +643,10 @@ for reverse_j=1:N_j-1
             temp4=EV_z;
             if warmglow==1
                 becareful=logical(isfinite(temp4).*isfinite(WGmatrix)); % both are finite
-                temp4(becareful)=(sj(jj)*temp4(becareful)+(1-sj(jj))*WGmatrix(becareful)).^ezc6(jj);
+                temp4(becareful)=(sj(jj)*temp4(becareful).^ezc8(jj)+(1-sj(jj))*WGmatrix(becareful).^ezc8(jj)).^ezc6(jj);
                 temp4((EV_z==0)&(WGmatrix==0))=0; % Is actually zero
             else % not using warmglow
-                temp4(isfinite(temp4))=(sj(jj)*temp4(isfinite(temp4))).^ezc6(jj);
+                temp4(isfinite(temp4))=(sj(jj)*temp4(isfinite(temp4)).^ezc8(jj)).^ezc6(jj);
                 temp4(EV_z==0)=0;
             end
 
@@ -626,7 +657,7 @@ for reverse_j=1:N_j-1
             for e_c=1:N_e
                 e_val=e_gridvals_J(e_c,:,jj);
 
-                ReturnMatrix_ze=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, n_d13, n_a2, special_n_z, special_n_e, d13_grid, a2_grid, z_val, e_val, ReturnFnParamsVec);
+                ReturnMatrix_ze=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, n_d13, n_a2, special_n_z, special_n_e, d13_gridvals, a2_grid, z_val, e_val, ReturnFnParamsVec);
 
                 % Modify the Return Function appropriately for Epstein-Zin Preferences
                 becareful=logical(isfinite(ReturnMatrix_ze).*(ReturnMatrix_ze~=0)); % finite and not zero
@@ -642,7 +673,7 @@ for reverse_j=1:N_j-1
                 % entireRHS=ezc1*temp2+ezc3*DiscountFactorParamsVec*temp4;
 
                 temp5=logical(isfinite(entireRHS_ze).*(entireRHS_ze~=0));
-                entireRHS_ze(temp5)=ezc1*entireRHS_ze(temp5).^ezc7(jj);  % matlab otherwise puts 0 to negative power to infinity
+                entireRHS_ze(temp5)=entireRHS_ze(temp5).^ezc7(jj);  % matlab otherwise puts 0 to negative power to infinity
                 entireRHS_ze(entireRHS_ze==0)=-Inf;
 
                 %Calc the max and it's index

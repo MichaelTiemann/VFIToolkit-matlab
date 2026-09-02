@@ -9,7 +9,7 @@ Policy=zeros(N_a,N_z,N_e,N_j,'gpuArray'); %first dim indexes the optimal choice 
 Policyalt=zeros(N_a,N_z,N_e,N_j,'gpuArray'); % exponential discounter optimal choice (Valt is computed at this)
 Vtilde=zeros(N_a,N_z,N_e,N_j,'gpuArray'); % agent's-perspective value at QH-optimal policy under beta0beta
 
-Vnext=sum(V.*shiftdim(pi_e_J(:,[1,1:end-1]),-2),3); % Take expectations over e: Vnext(...,jj+1) is read for current age jj, so weight V at age jj+1 by pi_e_J(:,jj) [same timing as standard ValueFnIter commands]; first column is padding, never read
+Vnext=sum(V.*shiftdim(pi_e_J,-2),3); % Take expectations over e: Vnext(...,jj+1) is read for current age jj, so weight V at age jj+1 by pi_e_J(:,jj+1), the distribution of the e realized in period jj+1; first column is never read
 
 if vfoptions.lowmemory>0
     special_n_e=ones(1,length(n_e));
@@ -74,7 +74,7 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     beta=prod(DiscountFactorParamsVec); % Discount factor between any two future periods
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
+    beta0=vfoptions.beta0;
     beta0beta=beta0*beta; % Discount factor between today and tomorrow.
 
     VKronNext_j=Vnext(:,:,1,jj+1);

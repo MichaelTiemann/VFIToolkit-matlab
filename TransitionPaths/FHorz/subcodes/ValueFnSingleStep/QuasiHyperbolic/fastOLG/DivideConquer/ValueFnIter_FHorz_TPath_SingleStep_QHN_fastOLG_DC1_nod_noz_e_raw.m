@@ -24,8 +24,7 @@ level1ii=round(linspace(1,n_a,vfoptions.level1n));
 % fastOLG will be N_aprime by N_a*N_j*N_e (note: N_aprime is just equal to N_a)
 
 DiscountFactor_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j),2);
-Beta0_J=CreateAgeMatrixFromParams(Parameters, {vfoptions.QHadditionaldiscount},N_j);
-Beta0DiscountFactor_J=Beta0_J.*DiscountFactor_J;
+Beta0DiscountFactor_J=vfoptions.beta0*DiscountFactor_J;
 
 % Create a matrix containing all the return function parameters (in order).
 % Each column will be a specific parameter with the values at every age.
@@ -33,7 +32,7 @@ ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames
 
 if vfoptions.EVpre==0
     % pi_e_J is (a,j)-by-e
-    EV=[sum(V(N_a+1:end,:).*pi_e_J(1:end-N_a,:),2); zeros(N_a,1,'gpuArray')]; % I use zeros in j=N_j so that can just use pi_z_J to create expectations
+    EV=[sum(V(N_a+1:end,:).*pi_e_J(N_a+1:end,:),2); zeros(N_a,1,'gpuArray')]; % I use zeros in j=N_j so that can just use pi_z_J to create expectations
 elseif vfoptions.EVpre==1
     % This is used for 'Matched Expecations Path'
     EV=sum(reshape(V,[N_a*N_j,N_e]).*pi_e_J,2);  % input V is already of size [N_a,N_j] and we want to use the whole thing

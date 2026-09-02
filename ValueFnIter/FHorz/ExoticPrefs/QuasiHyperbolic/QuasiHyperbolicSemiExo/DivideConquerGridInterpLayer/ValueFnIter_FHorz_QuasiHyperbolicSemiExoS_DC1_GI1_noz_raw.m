@@ -1,4 +1,4 @@
-function [Vhat, Policy, Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC1_GI1_noz_raw(n_d1,n_d2,n_a,n_semiz,N_j, d1_gridvals, d2_gridvals, a_grid, semiz_gridvals_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions)
+function [Vhat, Policy, Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicSemiExoS_DC1_GI1_noz_raw(n_d1,n_d2,n_a,n_semiz,N_j, d1_gridvals, d2_gridvals, a_grid, semiz_gridvals_J, pi_semiz_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0)
 % Sophisticated QH + SemiExo + DC + GI raw, with d1, no z, no e. Output: (Vunderbar, Policy, Vhat) -- matches plain QH SemiExo S raw convention.
 
 n_d=[n_d1,n_d2];
@@ -87,7 +87,6 @@ if ~isfield(vfoptions,'V_Jplus1')
 else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
     beta0beta=beta0*beta;
 
     EV=reshape(vfoptions.V_Jplus1,[N_a,N_semiz]);
@@ -174,7 +173,6 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
     beta0beta=beta0*beta;
 
     EV=Vunderbar(:,:,jj+1);

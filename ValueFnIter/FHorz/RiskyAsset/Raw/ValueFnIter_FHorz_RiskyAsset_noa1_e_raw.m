@@ -6,6 +6,7 @@ function [V,Policy]=ValueFnIter_FHorz_RiskyAsset_noa1_e_raw(n_d1,n_d2,n_d3,n_a,n
 N_d1=prod(n_d1);
 N_d2=prod(n_d2);
 N_d3=prod(n_d3);
+N_d=N_d2*N_d3; % aprime d-space (d2,d3); d1 is refined out separately
 N_a=prod(n_a);
 N_z=prod(n_z);
 N_e=prod(n_e);
@@ -97,7 +98,7 @@ else
     [aprimeIndex,aprimeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a, n_u, d23_grid, a_grid, u_grid, aprimeFnParamsVec,1); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
     % Note: aprimeIndex is [N_d*N_u,1], whereas aprimeProbs is [N_d,N_u]
 
-    V_Jplus1=sum(V_Jplus1.*pi_e_J(1,1,:,N_j),3);
+    V_Jplus1=sum(V_Jplus1.*pi_e_J(1,1,:,N_j+1),3);
 
     if vfoptions.lowmemory==0
         ReturnMatrix=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, n_d13, n_a, n_z, n_e, d13_gridvals, a_gridvals, z_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec);
@@ -154,10 +155,9 @@ else
         EV=sum((EV1.*pi_u'),2)+sum((EV2.*pi_u'),2); % (d,1,z), sum over u
         % EV is over (d,1,z)
 
-        betaEV=DiscountFactorParamsVec*EV.*ones(1,N_a,1);
         % Time to refine
         % Second (out of order): EV, we can refine out d2
-        [EV_onlyd3,d2index]=max(reshape(betaEV,[N_d2,N_d3,1,N_z]),[],1);
+        [EV_onlyd3,d2index]=max(reshape(EV,[N_d2,N_d3,1,N_z]),[],1);
 
         for e_c=1:N_e
             e_val=e_gridvals_J(e_c,:,N_j);
@@ -166,7 +166,7 @@ else
 
             % Time to refine
             % First: ReturnMatrix, we can refine out d1
-            [ReturnMatrix_onlyd3,d1index]=max(reshape(ReturnMatrix,[N_d1,N_d3,N_a,N_z]),[],1);
+            [ReturnMatrix_onlyd3,d1index]=max(reshape(ReturnMatrix_e,[N_d1,N_d3,N_a,N_z]),[],1);
             % Now put together entireRHS, which just depends on d3
             entireRHS_e=shiftdim(ReturnMatrix_onlyd3+DiscountFactorParamsVec*EV_onlyd3,1);
 
@@ -197,10 +197,9 @@ else
             EV_z=sum((EV1_z.*pi_u'),2)+sum((EV2_z.*pi_u'),2); % (d,1,z), sum over u
             % EV is over (d,1)
 
-            betaEV_z=DiscountFactorParamsVec*EV_z.*ones(1,N_a,1);
             % Time to refine
             % Second (out of order): EV, we can refine out d2
-            [EV_onlyd3,d2index]=max(reshape(betaEV_z,[N_d2,N_d3,1]),[],1);
+            [EV_onlyd3,d2index]=max(reshape(EV_z,[N_d2,N_d3,1]),[],1);
 
             for e_c=1:N_e
                 e_val=e_gridvals_J(e_c,:,N_j);
@@ -240,7 +239,7 @@ for reverse_j=1:N_j-1
 
     EV=V(:,:,:,jj+1);
 
-    EV=sum(EV.*pi_e_J(1,1,:,jj),3);
+    EV=sum(EV.*pi_e_J(1,1,:,jj+1),3);
 
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);
     [aprimeIndex,aprimeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a, n_u, d23_grid, a_grid, u_grid, aprimeFnParamsVec,1); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
@@ -302,10 +301,9 @@ for reverse_j=1:N_j-1
         EV=sum((EV1.*pi_u'),2)+sum((EV2.*pi_u'),2); % (d,1,z), sum over u
         % EV is over (d,1,z)
 
-        betaEV=DiscountFactorParamsVec*EV.*ones(1,N_a,1);
         % Time to refine
         % Second (out of order): EV, we can refine out d2
-        [EV_onlyd3,d2index]=max(reshape(betaEV,[N_d2,N_d3,1,N_z]),[],1);
+        [EV_onlyd3,d2index]=max(reshape(EV,[N_d2,N_d3,1,N_z]),[],1);
 
         for e_c=1:N_e
             e_val=e_gridvals_J(e_c,:,jj);
@@ -345,10 +343,9 @@ for reverse_j=1:N_j-1
             EV_z=sum((EV1_z.*pi_u'),2)+sum((EV2_z.*pi_u'),2); % (d,1,z), sum over u
             % EV_z is over (d,1)
 
-            betaEV_z=DiscountFactorParamsVec*EV_z.*ones(1,N_a,1);
             % Time to refine
             % Second (out of order): EV, we can refine out d2
-            [EV_onlyd3,d2index]=max(reshape(betaEV_z,[N_d2,N_d3,1]),[],1);
+            [EV_onlyd3,d2index]=max(reshape(EV_z,[N_d2,N_d3,1]),[],1);
 
             for e_c=1:N_e
                 e_val=e_gridvals_J(e_c,:,jj);

@@ -1,8 +1,8 @@
-function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetzS_DC2A_nod1_raw(n_d2, n_a1, n_a2, n_a3, n_z, N_j, d2_gridvals, a1_grid, a2_gridvals, a3_grid, z_gridvals_J, pi_z_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions)
+function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetzS_DC2A_nod1_raw(n_d2, n_a1, n_a2, n_a3, n_z, N_j, d2_gridvals, a1_grid, a2_gridvals, a3_grid, z_gridvals_J, pi_z_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions, beta0)
 % Sophisticated QH + ExpAssetz, DC2A pattern (nod1).
 % Single argmax per period with beta0*beta -> Vhat, Policy.
 % Vunderbar = value of that policy under the long-run beta (no separate argmax).
-% lowmemory=0 full vectorization; lowmemory=1 loops z; lowmemory=2 errors (no e dim to nest).
+% lowmemory=0 full vectorization; lowmemory=1 loops z.
 
 N_d2=prod(n_d2);
 N_a1=prod(n_a1);
@@ -133,8 +133,6 @@ if ~isfield(vfoptions,'V_Jplus1')
                 end
             end
         end
-    elseif vfoptions.lowmemory==2
-        error('lowmemory=2 not supported in QH+ExpAssetz _raw (no e dim to nest); use _e_raw variant')
     end
 
     Vunderbar(:,:,N_j)=Vhat(:,:,N_j);
@@ -142,7 +140,6 @@ if ~isfield(vfoptions,'V_Jplus1')
 else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
     beta0beta=beta0*beta;
 
     EVpre=reshape(vfoptions.V_Jplus1,[N_a,N_z]);
@@ -328,8 +325,6 @@ else
                 end
             end
         end
-    elseif vfoptions.lowmemory==2
-        error('lowmemory=2 not supported in QH+ExpAssetz _raw (no e dim to nest); use _e_raw variant')
     end
 end
 
@@ -345,7 +340,6 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
     beta0beta=beta0*beta;
 
     EVpre=Vunderbar(:,:,jj+1);
@@ -531,8 +525,6 @@ for reverse_j=1:N_j-1
                 end
             end
         end
-    elseif vfoptions.lowmemory==2
-        error('lowmemory=2 not supported in QH+ExpAssetz _raw (no e dim to nest); use _e_raw variant')
     end
 end
 

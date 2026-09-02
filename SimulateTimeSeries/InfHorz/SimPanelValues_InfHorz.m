@@ -24,7 +24,12 @@ if ~exist('simoptions','var')
     simoptions.lowmemory=0;
     % Model setup
     simoptions.experienceasset=0;
+    simoptions.experienceassetz=0;
+    simoptions.experienceassete=0;
+    simoptions.experienceassetze=0;
     simoptions.experienceassetu=0;
+    simoptions.experienceassetsemiz=0;
+    simoptions.riskyasset=0;
     simoptions.inheritanceasset=0;
     simoptions.n_semiz=0;
     simoptions.n_e=0;
@@ -63,8 +68,23 @@ else
     if ~isfield(simoptions,'experienceasset')
         simoptions.experienceasset=0;
     end
+    if ~isfield(simoptions,'experienceassetz')
+        simoptions.experienceassetz=0;
+    end
+    if ~isfield(simoptions,'experienceassete')
+        simoptions.experienceassete=0;
+    end
+    if ~isfield(simoptions,'experienceassetze')
+        simoptions.experienceassetze=0;
+    end
     if ~isfield(simoptions,'experienceassetu')
         simoptions.experienceassetu=0;
+    end
+    if ~isfield(simoptions,'experienceassetsemiz')
+        simoptions.experienceassetsemiz=0;
+    end
+    if ~isfield(simoptions,'riskyasset')
+        simoptions.riskyasset=0;
     end
     if ~isfield(simoptions,'inheritanceasset')
         simoptions.inheritanceasset=0;
@@ -102,17 +122,19 @@ else
     end
 end
 
-if n_d(1)==0
-    l_d=0;
-else
-    l_d=length(n_d);
-end
-l_a=length(n_a);
-l_z=length(n_z);
-
 N_d=prod(n_d);
 N_a=prod(n_a);
 N_z=prod(n_z);
+
+l_a=length(n_a);
+if N_z==0
+    l_z=0;
+else
+    l_z=length(n_z);
+end
+
+% gridpiboth=1: we only need z_gridvals here (no pi_z)
+[z_gridvals,~,simoptions]=ExogShockSetup_InfHorz(n_z,z_grid,pi_z,Parameters,simoptions,1);
 
 if simoptions.agententryandexit==1 && isfield(simoptions,'SemiEndogShockFn')
     error('Cannot currently use simoptions.agententryandexit==1 and SemiEndogShockFn together. \n')
@@ -122,7 +144,7 @@ end
 % Figure out l_daprime from Policy
 l_daprime=size(Policy,1);
 if simoptions.gridinterplayer==1
-    l_daprime=l_daprime-1;
+    l_daprime=l_daprime-2; % L2index and L2flag
 end
 
 
@@ -253,8 +275,6 @@ else
 end
 
 a_gridvals=gpuArray(CreateGridvals(n_a,a_grid,1)); % 1 at end indicates output as matrices.
-% gridpiboth=1: we only need z_gridvals here (no pi_z)
-[z_gridvals,~,simoptions]=ExogShockSetup_InfHorz(n_z,z_grid,pi_z,Parameters,simoptions,1);
 
 %% Now switch everything to gpu so can use arrayfun() to evaluates all the FnsToEvaluate
 daprimePolicy_gridvals=gpuArray(daprimePolicy_gridvals);

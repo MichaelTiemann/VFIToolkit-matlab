@@ -26,8 +26,14 @@ l_d=length(n_d);
 l_a=length(n_a);
 l_z=length(n_z);
 
+% noa1 case (n_a is scalar -- experience asset is the only endogenous state): GI refines a1, which
+% doesn't apply when there's no a1. Fall back to non-GI version (which handles noa1 correctly).
+% Matches the upstream VFI convention (noa1 has no GI/DC/DC+GI raw files).
 if isscalar(n_a)
-    error('ValueFnFromPolicy_FHorz_ExpAssetz_GI: case with no a1 (experience asset as only asset) not yet implemented')
+    vfoptions.gridinterplayer=0;
+    V=ValueFnFromPolicy_FHorz_ExpAssetz(Policy,n_d,n_a,n_z,N_j,d_grid,a_grid,z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    varargout={V};
+    return
 end
 n_a1=n_a(1:end-1);
 N_a1=prod(n_a1);
@@ -81,19 +87,21 @@ end
 %% Reshape Policy to canonical Kron form
 Policy_k=reshape(Policy,[size_first, N_a, N_ze, N_j]);
 
-%% Extract a1prime midpoint (lower) and L2 from Policy
-a1_mid=shiftdim(Policy_k(l_d+1,:,:,:),1);
+%% Extract a1prime lower grid index and L2 from Policy
+% ValueFnIter converts the midpoint to the lower grid index before returning Policy (the adjust
+% block at the end of the GI raws), so this row is the lower index and not the midpoint.
+a1_lowerind=shiftdim(Policy_k(l_d+1,:,:,:),1);
 L2=shiftdim(Policy_k(l_d+l_a1+1,:,:,:),1);
 w_a1_upper=(L2-1)/(n2short+1); % weight on upper a1 grid point
 w_a1_lower=1-w_a1_upper;
 cumprods_a1=[1, cumprod(n_a1(1:end-1))];
-a1_lower=a1_mid;
+a1_lower=a1_lowerind;
 for ii=2:l_a1
     comp=shiftdim(Policy_k(l_d+ii,:,:,:),1);
     a1_lower=a1_lower+cumprods_a1(ii)*(comp-1);
 end
 a1_upper=a1_lower+1;
-a1_top_clamp=(a1_mid>=n_a1(1));
+a1_top_clamp=(a1_lowerind>=n_a1(1));
 a1_upper(a1_top_clamp)=a1_lower(a1_top_clamp);
 
 %% Joint z+e gridvals for ReturnFn when both present
@@ -153,7 +161,7 @@ for reverse_j=0:N_j-1
             EVnext=V(:,:,jj+1)*pi_z_J(:,:,jj)';
             EVnext(isnan(EVnext))=0;
         else
-            EVnext=sum(V(:,:,:,jj+1) .* shiftdim(vfoptions.pi_e_J(:,jj), -2), 3);
+            EVnext=sum(V(:,:,:,jj+1) .* shiftdim(vfoptions.pi_e_J(:,jj+1), -2), 3);
             EVnext=reshape(EVnext,[N_a,N_z]) * pi_z_J(:,:,jj)';
             EVnext(isnan(EVnext))=0;
         end
@@ -172,6 +180,7 @@ for reverse_j=0:N_j-1
             EV_UL=reshape(EVnext(lin_UL(:)),[N_a,N_z]);
             EV_UU=reshape(EVnext(lin_UU(:)),[N_a,N_z]);
             EVnext_atpolicy=wa1l.*wa2l.*EV_LL + wa1l.*wa2u.*EV_LU + wa1u.*wa2l.*EV_UL + wa1u.*wa2u.*EV_UU;
+            EVnext_atpolicy(isnan(EVnext_atpolicy))=0; % zero corner weights times -Inf next-states give NaN
             V(:,:,jj)=F_jj+beta*EVnext_atpolicy;
         else
             a1l=reshape(a1_lower(:,:,jj),[N_a,N_z,N_e]);  a1u=reshape(a1_upper(:,:,jj),[N_a,N_z,N_e]);
@@ -186,6 +195,7 @@ for reverse_j=0:N_j-1
             EV_UL=reshape(EVnext(lin_UL(:)),[N_a,N_z,N_e]);
             EV_UU=reshape(EVnext(lin_UU(:)),[N_a,N_z,N_e]);
             EVnext_atpolicy=wa1l.*wa2l.*EV_LL + wa1l.*wa2u.*EV_LU + wa1u.*wa2l.*EV_UL + wa1u.*wa2u.*EV_UU;
+            EVnext_atpolicy(isnan(EVnext_atpolicy))=0; % zero corner weights times -Inf next-states give NaN
             V(:,:,:,jj)=F_jj+beta*EVnext_atpolicy;
         end
     end

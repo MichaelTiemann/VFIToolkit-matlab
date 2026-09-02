@@ -1,4 +1,4 @@
-function [e_grid,pi_e] = discretizeIID_TanakaToda(mew,sigma,enum,tanakatodaoptions)
+function [e_grid,pi_e,otheroutputs] = discretizeIID_TanakaToda(mew,sigma,enum,tanakatodaoptions)
 % Please cite: Tanaka & Toda (2013) - "Discrete approximations of continuous distributions by maximum entropy"
 %
 % Create states vector, e_grid, and probability vector, pi_e, for the discrete approximation
@@ -16,6 +16,10 @@ function [e_grid,pi_e] = discretizeIID_TanakaToda(mew,sigma,enum,tanakatodaoptio
 % Outputs
 %   e_grid         - column vector containing the enum states of the discrete approximation of e
 %   pi_e           - column vector of probabilities of the discrete approximation of e;
+%   otheroutputs   - optional output structure containing info for evaluating the discretization including,
+%        otheroutputs.nMoments  - how many moments the maximum entropy problem actually matched.
+%              This can be fewer than tanakatodaoptions.nMoments, as the solve falls back a moment
+%              at a time when it fails. There is no loop here, so this is a scalar rather than a grid.
 %                    pi_e(i) is the probability of state i (sums to 1)
 %
 % This code is modified from that of Toda & Farmer (v: https://github.com/alexisakira/discretization
@@ -106,8 +110,10 @@ if any(q < kappa)
     q(q < kappa) = kappa; % replace by small number for numerical stability
 end
 
+nMoments_matched=0; % Used to record how many moments the maximum entropy solve actually hit
 if tanakatodaoptions.nMoments == 1 % match only 1 moment
     pi_e = discreteApproximation(e_grid,@(x)(x-mew)/scalingFactor,TBar(1)./scalingFactor,q,0);
+    nMoments_matched=1;
 else % match 2 moments first
     [p,lambda,momentError] = discreteApproximation(e_grid,@(x) [(x-mew)./scalingFactor;...
         ((x-mew)./scalingFactor).^2],...
@@ -117,8 +123,10 @@ else % match 2 moments first
             warning('Failed to match first 2 moments. Just matching 1.')
         end
         pi_e = discreteApproximation(e_grid,@(x)(x-mew)/scalingFactor,0,q,0);
+        nMoments_matched=1;
     elseif tanakatodaoptions.nMoments == 2
         pi_e = p;
+        nMoments_matched=2;
     elseif tanakatodaoptions.nMoments == 3 % 3 moments
         [pnew,~,momentError] = discreteApproximation(e_grid,@(x) [(x-mew)./scalingFactor;...
             ((x-mew)./scalingFactor).^2;((x-mew)./scalingFactor).^3],...
@@ -128,8 +136,10 @@ else % match 2 moments first
                 warning('Failed to match first 3 moments.  Just matching 2.')
             end
             pi_e = p;
+            nMoments_matched=2;
         else
             pi_e = pnew;
+            nMoments_matched=3;
         end
     elseif tanakatodaoptions.nMoments == 4 % 4 moments
         [pnew,~,momentError] = discreteApproximation(e_grid,@(x) [(x-mew)./scalingFactor;...
@@ -144,17 +154,23 @@ else % match 2 moments first
                     warning('Failed to match first 3 moments.  Just matching 2.')
                 end
                 pi_e = p;
+                nMoments_matched=2;
             else
                 pi_e = pnew;
+                nMoments_matched=3;
                 if tanakatodaoptions.verbose==1
                     warning('Failed to match first 4 moments.  Just matching 3.')
                 end
             end
         else
             pi_e = pnew;
+            nMoments_matched=4;
         end
     end
 end
+
+%% Some additional outputs that can be used to evaluate the discretization
+otheroutputs.nMoments=nMoments_matched; % How many moments the maximum entropy problem actually matched
 
 if tanakatodaoptions.parallel==2
     e_grid=gpuArray(e_grid);

@@ -19,11 +19,11 @@ if ~isfield(vfoptions,'V_Jplus1')
 
     TemptationMatrix=CreateReturnFnMatrix_Disc_noz(TemptationFn, 0, n_a, 0, a_grid, TemptationFnParamsVec,0);
     MostTempting=max(TemptationMatrix,[],1);
-    entireRHS=ReturnMatrix+TemptationMatrix-ones(N_a,1).*MostTempting;
+    entireRHS=ReturnMatrix+TemptationMatrix;
 
     %Calc the max and it's index
     [Vtemp,maxindex]=max(entireRHS,[],1);
-    V(:,N_j)=Vtemp;
+    V(:,N_j)=Vtemp-MostTempting;
     Policy(:,N_j)=maxindex;
 else
     % Using V_Jplus1
@@ -36,12 +36,12 @@ else
 
     TemptationMatrix=CreateReturnFnMatrix_Disc_noz(TemptationFn, 0, n_a, 0, a_grid, TemptationFnParamsVec,0);
     MostTempting=max(TemptationMatrix,[],1);
-    entireRHS=ReturnMatrix+TemptationMatrix-ones(N_a,1).*MostTempting+DiscountFactorParamsVec*V_Jplus1; %.*ones(1,N_a);
+    entireRHS=ReturnMatrix+TemptationMatrix+DiscountFactorParamsVec*V_Jplus1; %.*ones(1,N_a);
 
     %Calc the max and it's index
     [Vtemp,maxindex]=max(entireRHS,[],1);
 
-    V(:,N_j)=shiftdim(Vtemp,1);
+    V(:,N_j)=shiftdim(Vtemp-MostTempting,1);
     Policy(:,N_j)=shiftdim(maxindex,1);
 end
 
@@ -68,12 +68,12 @@ for reverse_j=1:N_j-1
 
     TemptationMatrix=CreateReturnFnMatrix_Disc_noz(TemptationFn, 0, n_a, 0, a_grid, TemptationFnParamsVec,0);
     MostTempting=max(TemptationMatrix,[],1);
-    entireRHS=ReturnMatrix+TemptationMatrix-ones(N_a,1).*MostTempting+DiscountFactorParamsVec*EV; %.*ones(1,N_a);
+    entireRHS=ReturnMatrix+TemptationMatrix+DiscountFactorParamsVec*EV; %.*ones(1,N_a);
 
     %Calc the max and it's index
     [Vtemp,maxindex]=max(entireRHS,[],1);
 
-    V(:,jj)=shiftdim(Vtemp,1);
+    V(:,jj)=shiftdim(Vtemp-MostTempting,1);
     Policy(:,jj)=shiftdim(maxindex,1);
 end
 

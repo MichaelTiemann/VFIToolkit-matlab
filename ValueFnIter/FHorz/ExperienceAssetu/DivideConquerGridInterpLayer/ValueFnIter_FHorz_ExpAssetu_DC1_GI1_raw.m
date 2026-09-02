@@ -180,7 +180,7 @@ else
     % Switch EV from being in terms of a2prime to being in terms of d2 and a2
     EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper; % (d2,a1prime,a2,u,zprime)
     % Already applied the probabilities from interpolating onto grid
-    EV=sum((EV.*pi_u),3); % (d2,a1prime,a2,zprime)
+    EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,zprime)
 
     EV=EV.*shiftdim(pi_z_J(:,:,N_j)',-2);
     EV(isnan(EV))=0; % remove nan created where value fn is -Inf but probability is zero

@@ -332,7 +332,7 @@ for ii=1:PTypeStructure.N_i
         if ~isempty(vfoptions)
             PTypeStructure.(iistr).vfoptions=PType_Options(vfoptions,iistr); % some vfoptions will differ by permanent type, will clean these up as we go before they are passed
         else
-            PTypeStructure.(iistr).simoptions.verbose=0;
+            PTypeStructure.(iistr).vfoptions.verbose=0;
         end
     else
         PTypeStructure.(iistr).vfoptions.verbose=0;
@@ -349,6 +349,14 @@ for ii=1:PTypeStructure.N_i
     end
 
     PTypeStructure.(iistr).simoptions.outputasstructure=0; % Used by AggVars (in heteroagent subfn)
+
+    % Note: the grid interpolation layer must be set in both vfoptions and simoptions; if it is only set in
+    % vfoptions then Policy has an extra row that the agent dist would silently ignore (giving a wrong answer)
+    if isfield(PTypeStructure.(iistr).vfoptions,'gridinterplayer') && PTypeStructure.(iistr).vfoptions.gridinterplayer==1
+        if ~isfield(PTypeStructure.(iistr).simoptions,'gridinterplayer')
+            error(['When setting vfoptions.gridinterplayer you must also set simoptions.gridinterplayer, permanent type: ',iistr])
+        end
+    end
 
     if heteroagentoptions.verbose==1
         fprintf('Setting up, Permanent type: %i of %i \n',ii, PTypeStructure.N_i)
@@ -415,9 +423,9 @@ for ii=1:PTypeStructure.N_i
             PTypeStructure.(iistr).simoptions.e_gridvals_J=PTypeStructure.(iistr).vfoptions.e_gridvals_J; % Note, will be [] if no e
             PTypeStructure.(iistr).simoptions.pi_e_J=PTypeStructure.(iistr).vfoptions.pi_e_J; % Note, will be [] if no e
         else
-            % % Create placeholders, as these will need to be created in general eqm since they depend on General eqm parameters
-            % PTypeStructure.(iistr).z_gridvals_J=[];
-            % PTypeStructure.(iistr).pi_z_J=[];
+            % Create placeholders, as these will need to be created in general eqm since they depend on General eqm parameters
+            PTypeStructure.(iistr).z_gridvals_J=[];
+            PTypeStructure.(iistr).pi_z_J=[];
         end
         PTypeStructure.(iistr)=rmfield(PTypeStructure.(iistr),'z_grid'); % Should not be used, as now have z_gridvals_J
         PTypeStructure.(iistr)=rmfield(PTypeStructure.(iistr),'pi_z'); % Should not be used, as now have pi_z_J
@@ -427,9 +435,9 @@ for ii=1:PTypeStructure.N_i
             PTypeStructure.(iistr).simoptions.e_gridvals=PTypeStructure.(iistr).vfoptions.e_gridvals; % Note, will be [] if no e
             PTypeStructure.(iistr).simoptions.pi_e=PTypeStructure.(iistr).vfoptions.pi_e; % Note, will be [] if no e
         else
-            % % Create placeholders, as these will need to be created in general eqm since they depend on General eqm parameters
-            % PTypeStructure.(iistr).z_gridvals=[];
-            % PTypeStructure.(iistr).pi_z=[];
+            % Create placeholders, as these will need to be created in general eqm since they depend on General eqm parameters
+            PTypeStructure.(iistr).z_gridvals=[];
+            PTypeStructure.(iistr).pi_z=[];
         end
     end
     % Regardless of whether they are done here of in _subfn, they will be precomputed by the time we get to the value fn, stationary dist, etc. So
@@ -903,6 +911,30 @@ if heteroagentoptions.pricehistory==1
     end
 end
 
+
+%% Check that the general eqm conditions are actually satisfied
+% None of the fminalgo routines verify the point they stopped at. The tolerances are passed to them
+% as TolX/TolFun, but TolFun is a test on the CHANGE in the objective between iterations, not on its
+% value, so an optimizer that stalls returns a p_eqm that is not a general eqm and says nothing.
+% Only outputGEstruct 1 and 2 hold the conditions evaluated at the returned prices (outputGEstruct=0
+% is the n_p grid, where GeneralEqmConditions covers the whole grid). maxiter=0 is the 'just evaluate
+% the current general eqm eqns' mode, which is not a solve and so is not checked.
+if (heteroagentoptions.outputGEstruct==1 || heteroagentoptions.outputGEstruct==2) && heteroagentoptions.maxiter>0
+    if isstruct(GeneralEqmConditions)
+        % Looped rather than cell2mat(struct2cell()), because a general eqm condition that depends on
+        % permanent type holds one value per ptype, so the fields are not all the same size
+        GEcondnsnames=fieldnames(GeneralEqmConditions);
+        GEcondnsmax=0;
+        for gg=1:length(GEcondnsnames)
+            GEcondnsmax=max(GEcondnsmax,max(abs(GeneralEqmConditions.(GEcondnsnames{gg})(:))));
+        end
+    else
+        GEcondnsmax=max(abs(GeneralEqmConditions(:)));
+    end
+    if GEcondnsmax>heteroagentoptions.toleranceGEcondns
+        warning('HeteroAgentStationaryEqm_MixHorz_PType: the general eqm conditions are not all within heteroagentoptions.toleranceGEcondns (largest is %g, tolerance is %g)',GEcondnsmax,heteroagentoptions.toleranceGEcondns)
+    end
+end
 
 %%
 if heteroagentoptions.pricehistory==0

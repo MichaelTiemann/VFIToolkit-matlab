@@ -77,7 +77,7 @@ else
     aprimeplus1Index=a2primeIndex+1;
     aprimeProbs=repmat(a2primeProbs,1,1,1,N_semiz); % [N_d2,N_a2,N_u,N_semiz]
 
-    EVpre=sum(reshape(vfoptions.V_Jplus1,[N_a,N_semiz,N_e]).*shiftdim(pi_e_J(:,N_j),-2),3);
+    EVpre=sum(reshape(vfoptions.V_Jplus1,[N_a,N_semiz,N_e]).*shiftdim(pi_e_J(:,N_j+1),-2),3);
 
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
@@ -85,9 +85,9 @@ else
     if vfoptions.lowmemory==0
         for d3_c=1:N_d3
             d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
-            pi_semi_d3=pi_semiz_J(:,:,d3_c,N_j);
+            pi_semiz_d3=pi_semiz_J(:,:,d3_c,N_j);
 
-            EV=EVpre.*shiftdim(pi_semi_d3',-1);
+            EV=EVpre.*shiftdim(pi_semiz_d3',-1);
             EV(isnan(EV))=0;
             EV=sum(EV,2);
 
@@ -95,9 +95,10 @@ else
             EV2=reshape(EV(aprimeplus1Index,:),[N_d2,N_a2,N_u,N_semiz]);
 
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0;
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0;
 
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs);
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a2,semiz)
             EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
 
@@ -112,9 +113,9 @@ else
     elseif vfoptions.lowmemory==1
         for d3_c=1:N_d3
             d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
-            pi_semi_d3=pi_semiz_J(:,:,d3_c,N_j);
+            pi_semiz_d3=pi_semiz_J(:,:,d3_c,N_j);
 
-            EV=EVpre.*shiftdim(pi_semi_d3',-1);
+            EV=EVpre.*shiftdim(pi_semiz_d3',-1);
             EV(isnan(EV))=0;
             EV=sum(EV,2);
 
@@ -122,9 +123,10 @@ else
             EV2=reshape(EV(aprimeplus1Index,:),[N_d2,N_a2,N_u,N_semiz]);
 
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0;
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0;
 
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs);
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a2,semiz)
             EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
 
@@ -142,9 +144,9 @@ else
     elseif vfoptions.lowmemory==2
         for d3_c=1:N_d3
             d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
-            pi_semi_d3=pi_semiz_J(:,:,d3_c,N_j);
+            pi_semiz_d3=pi_semiz_J(:,:,d3_c,N_j);
 
-            EV=EVpre.*shiftdim(pi_semi_d3',-1);
+            EV=EVpre.*shiftdim(pi_semiz_d3',-1);
             EV(isnan(EV))=0;
             EV=sum(EV,2);
 
@@ -152,9 +154,10 @@ else
             EV2=reshape(EV(aprimeplus1Index,:),[N_d2,N_a2,N_u,N_semiz]);
 
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0;
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0;
 
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs);
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a2,semiz)
             EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
 
@@ -206,14 +209,14 @@ for reverse_j=1:N_j-1
     aprimeplus1Index=a2primeIndex+1;
     aprimeProbs=repmat(a2primeProbs,1,1,1,N_semiz);
 
-    EVpre=sum(V(:,:,:,jj+1).*shiftdim(pi_e_J(:,jj),-2),3);
+    EVpre=sum(V(:,:,:,jj+1).*shiftdim(pi_e_J(:,jj+1),-2),3);
 
     if vfoptions.lowmemory==0
         for d3_c=1:N_d3
             d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
-            pi_semi_d3=pi_semiz_J(:,:,d3_c,jj);
+            pi_semiz_d3=pi_semiz_J(:,:,d3_c,jj);
 
-            EV=EVpre.*shiftdim(pi_semi_d3',-1);
+            EV=EVpre.*shiftdim(pi_semiz_d3',-1);
             EV(isnan(EV))=0;
             EV=sum(EV,2);
 
@@ -221,9 +224,10 @@ for reverse_j=1:N_j-1
             EV2=reshape(EV(aprimeplus1Index,:),[N_d2,N_a2,N_u,N_semiz]);
 
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0;
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0;
 
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs);
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a2,semiz)
             EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
 
@@ -238,9 +242,9 @@ for reverse_j=1:N_j-1
     elseif vfoptions.lowmemory==1
         for d3_c=1:N_d3
             d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
-            pi_semi_d3=pi_semiz_J(:,:,d3_c,jj);
+            pi_semiz_d3=pi_semiz_J(:,:,d3_c,jj);
 
-            EV=EVpre.*shiftdim(pi_semi_d3',-1);
+            EV=EVpre.*shiftdim(pi_semiz_d3',-1);
             EV(isnan(EV))=0;
             EV=sum(EV,2);
 
@@ -248,9 +252,10 @@ for reverse_j=1:N_j-1
             EV2=reshape(EV(aprimeplus1Index,:),[N_d2,N_a2,N_u,N_semiz]);
 
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0;
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0;
 
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs);
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a2,semiz)
             EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
 
@@ -268,9 +273,9 @@ for reverse_j=1:N_j-1
     elseif vfoptions.lowmemory==2
         for d3_c=1:N_d3
             d123_gridvals_val=[d12_gridvals,repelem(d3_grid(d3_c),N_d12,1)];
-            pi_semi_d3=pi_semiz_J(:,:,d3_c,jj);
+            pi_semiz_d3=pi_semiz_J(:,:,d3_c,jj);
 
-            EV=EVpre.*shiftdim(pi_semi_d3',-1);
+            EV=EVpre.*shiftdim(pi_semiz_d3',-1);
             EV(isnan(EV))=0;
             EV=sum(EV,2);
 
@@ -278,9 +283,10 @@ for reverse_j=1:N_j-1
             EV2=reshape(EV(aprimeplus1Index,:),[N_d2,N_a2,N_u,N_semiz]);
 
             skipinterp=(EV1==EV2);
-            aprimeProbs(skipinterp)=0;
+            aprimeProbs_d3=aprimeProbs; % fresh per d3: skipinterp varies with d3_c, so the zeroing must not accumulate
+            aprimeProbs_d3(skipinterp)=0;
 
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs);
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a2,semiz)
             EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
 

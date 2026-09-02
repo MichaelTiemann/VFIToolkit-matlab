@@ -1,8 +1,8 @@
-function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicS_noz_e_raw(n_d,n_a,n_e,N_j, d_gridvals, a_grid, e_gridvals_J,pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions)
+function [Vhat,Policy,Vunderbar]=ValueFnIter_FHorz_QuasiHyperbolicS_noz_e_raw(n_d,n_a,n_e,N_j, d_gridvals, a_grid, e_gridvals_J,pi_e_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions, beta0)
 % Sophisticated quasi-hyperbolic discounting
 %
 % DiscountFactorParamNames is the standard discount factor beta
-% vfoptions.QHadditionaldiscount gives the name of beta_0, the additional discount factor parameter
+% beta0 (the additional discount factor) is received as an input; the dispatcher reads it once from vfoptions.QHadditionaldiscount
 %
 % The 'Sophisticated' quasi-hyperbolic solution takes into account the time-inconsistent behaviour of their future self.
 % Let Vunderbar_j be the exponential discounting value fn of the time-inconsistent policy function (aka. the policy-greedy exponential discounting value function of the time-inconsistent policy function)
@@ -59,10 +59,9 @@ else
 
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     beta=prod(DiscountFactorParamsVec); % Discount factor between any two future periods
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
     beta0beta=beta0*beta; % Discount factor between today and tomorrow.
 
-    EV=sum(V_Jplus1.*pi_e_J(1,:,N_j),2); % Note: The V_Jplus1 input should be Vunderbar for sophisticated
+    EV=sum(V_Jplus1.*pi_e_J(1,:,N_j+1),2); % Note: The V_Jplus1 input should be Vunderbar for sophisticated
 
     if vfoptions.lowmemory==0
 
@@ -121,12 +120,11 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     beta=prod(DiscountFactorParamsVec); % Discount factor between any two future periods
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
     beta0beta=beta0*beta; % Discount factor between today and tomorrow.
 
     EV=Vunderbar(:,:,jj+1); % Use Vunderbar (goes into the equation to determine Vhat)
 
-    EV=sum(EV.*pi_e_J(1,:,jj),2);
+    EV=sum(EV.*pi_e_J(1,:,jj+1),2);
 
     if vfoptions.lowmemory==0
 

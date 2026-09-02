@@ -13,14 +13,13 @@ e_gridvals_J=shiftdim(e_gridvals_J,-3); % [1,1,1,N_j,N_e,l_e]
 % fastOLG will be N_d*N_aprime by N_a*N_j*N_z (note: N_aprime is just equal to N_a)
 
 beta_J=prod(CreateAgeMatrixFromParams(Parameters, DiscountFactorParamNames,N_j),2);
-beta0_J=CreateAgeMatrixFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
-beta0beta_J=beta0_J.*beta_J; % Discount factor between today and tomorrow.
+beta0beta_J=vfoptions.beta0*beta_J; % Discount factor between today and tomorrow.
 
 % Create a matrix containing all the return function parameters (in order).
 % Each column will be a specific parameter with the values at every age.
 ReturnFnParamsAgeMatrix=CreateAgeMatrixFromParams(Parameters, ReturnFnParamNames,N_j); % this will be a matrix, row indexes ages and column indexes the parameters (parameters which are not dependent on age appear as a constant valued column)
 
-EV=[sum(V(N_a+1:end,:).*pi_e_J(1:end-N_a,:),2); zeros(N_a,1,'gpuArray')]; % I use zeros in j=N_j so that can just use pi_e_J to create expectations
+EV=[sum(V(N_a+1:end,:).*pi_e_J(N_a+1:end,:),2); zeros(N_a,1,'gpuArray')]; % I use zeros in j=N_j so that can just use pi_e_J to create expectations
 
 DiscountedEV_under=repelem(reshape(beta_J,[1,1,N_j]).*reshape(EV,[N_a,1,N_j]),N_d,1,1); % [d & aprime, 1, j]
 DiscountedEV=repelem(reshape(beta0beta_J,[1,1,N_j]).*reshape(EV,[N_a,1,N_j]),N_d,1,1); % [d & aprime, 1, j]

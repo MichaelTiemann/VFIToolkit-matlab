@@ -1,4 +1,4 @@
-function [Vtilde,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetzN_DC2A_nod1_e_raw(n_d2, n_a1, n_a2, n_a3, n_z, n_e, N_j, d2_gridvals, a1_grid, a2_gridvals, a3_grid, z_gridvals_J, e_gridvals_J, pi_z_J, pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions)
+function [Vtilde,Policy,Valt,Policyalt]=ValueFnIter_FHorz_QuasiHyperbolicExpAssetzN_DC2A_nod1_e_raw(n_d2, n_a1, n_a2, n_a3, n_z, n_e, N_j, d2_gridvals, a1_grid, a2_gridvals, a3_grid, z_gridvals_J, e_gridvals_J, pi_z_J, pi_e_J, ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, aprimeFnParamNames, vfoptions, beta0)
 % Naive QH + ExpAssetz, DC2A pattern (nod1, +e).
 % E pre-integration: EVpre = sum_e' pi_e(e') * Valt(:,:,e',jj+1). Long-run Valt projects forward.
 % Policy/Policyalt channels: 1=d2, 2=a1prime, 3=a2prime.
@@ -21,7 +21,7 @@ zind=shiftdim((0:1:N_z-1),-1);
 eind=shiftdim((0:1:N_e-1),-2);
 
 if vfoptions.lowmemory==1
-    special_n_z=ones(1,length(n_z));
+    special_n_e=ones(1,length(n_e));
 elseif vfoptions.lowmemory==2
     special_n_z=ones(1,length(n_z));
     special_n_e=ones(1,length(n_e));
@@ -87,55 +87,55 @@ if ~isfield(vfoptions,'V_Jplus1')
             end
         end
     elseif vfoptions.lowmemory==1
-        for z_c=1:N_z
-            z_val=z_gridvals_J(z_c,:,N_j);
-            ReturnMatrix_ii_z=CreateReturnFnMatrix_ExpAsset_Disc_DC2A_e(ReturnFn, 0, n_d2, n_a2, n_a3, special_n_z, n_e, d2_gridvals, a1_grid, a2_gridvals, a1_grid(level1ii), a2_gridvals, a3_grid, z_val, e_gridvals_J(:,:,N_j), ReturnFnParamsVec, 1);
-            [~,maxindex1_z]=max(ReturnMatrix_ii_z,[],2);
-            [Vtempii,maxindex2]=max(reshape(ReturnMatrix_ii_z,[N_d2*N_a1*N_a2,vfoptions.level1n*N_a2*N_a3,1,N_e]),[],1);
+        for e_c=1:N_e
+            e_val=e_gridvals_J(e_c,:,N_j);
+            ReturnMatrix_ii_e=CreateReturnFnMatrix_ExpAsset_Disc_DC2A_e(ReturnFn, 0, n_d2, n_a2, n_a3, n_z, special_n_e, d2_gridvals, a1_grid, a2_gridvals, a1_grid(level1ii), a2_gridvals, a3_grid, z_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec, 1);
+            [~,maxindex1]=max(ReturnMatrix_ii_e,[],2);
+            [Vtempii,maxindex2]=max(reshape(ReturnMatrix_ii_e,[N_d2*N_a1*N_a2,vfoptions.level1n*N_a2*N_a3,N_z,1]),[],1);
             curraindex=repmat(level1ii',N_a2*N_a3,1) ...
                      + N_a1   *repmat(repelem((0:N_a2-1)',vfoptions.level1n,1),N_a3,1) ...
                      + N_a1*N_a2*repelem((0:N_a3-1)',vfoptions.level1n*N_a2,1);
             d2ind  =rem(maxindex2-1,N_d2)+1;
             a1pind =rem(floor((maxindex2-1)/N_d2),N_a1)+1;
             a2pind =floor((maxindex2-1)/(N_d2*N_a1))+1;
-            Valt(curraindex,z_c,:,N_j)       =shiftdim(Vtempii,1);
-            Policyalt(1,curraindex,z_c,:,N_j)=d2ind;
-            Policyalt(2,curraindex,z_c,:,N_j)=a1pind;
-            Policyalt(3,curraindex,z_c,:,N_j)=a2pind;
-            maxgap=squeeze(max(max(max(max(max( maxindex1_z(:,1,:,2:end,:,:,1,:)-maxindex1_z(:,1,:,1:end-1,:,:,1,:), [],8),[],6),[],5),[],3),[],1));
+            Valt(curraindex,:,e_c,N_j)       =shiftdim(Vtempii,1);
+            Policyalt(1,curraindex,:,e_c,N_j)=d2ind;
+            Policyalt(2,curraindex,:,e_c,N_j)=a1pind;
+            Policyalt(3,curraindex,:,e_c,N_j)=a2pind;
+            maxgap=squeeze(max(max(max(max(max(max( maxindex1(:,1,:,2:end,:,:,:,:)-maxindex1(:,1,:,1:end-1,:,:,:,:), [],8),[],7),[],6),[],5),[],3),[],1));
             for ii=1:(vfoptions.level1n-1)
                 curraindex=repmat((level1ii(ii)+1:1:level1ii(ii+1)-1)',N_a2*N_a3,1) ...
                          + N_a1   *repmat(repelem((0:N_a2-1)',level1iidiff(ii),1),N_a3,1) ...
                          + N_a1*N_a2*repelem((0:N_a3-1)',level1iidiff(ii)*N_a2,1);
                 if maxgap(ii)>0
-                    loweredge=min(maxindex1_z(:,1,:,ii,:,:,1,:),N_a1-maxgap(ii));
+                    loweredge=min(maxindex1(:,1,:,ii,:,:,:,:),N_a1-maxgap(ii));
                     a1primeindexes=loweredge+(0:1:maxgap(ii));
-                    ReturnMatrix_ii_z=CreateReturnFnMatrix_ExpAsset_Disc_DC2A_e(ReturnFn, 0, n_d2, n_a2, n_a3, special_n_z, n_e, d2_gridvals, a1_grid(a1primeindexes), a2_gridvals, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, a3_grid, z_val, e_gridvals_J(:,:,N_j), ReturnFnParamsVec, 2);
-                    [Vtempii,maxindex]=max(ReturnMatrix_ii_z,[],1);
-                    Valt(curraindex,z_c,:,N_j)=shiftdim(Vtempii,1);
+                    ReturnMatrix_ii_e=CreateReturnFnMatrix_ExpAsset_Disc_DC2A_e(ReturnFn, 0, n_d2, n_a2, n_a3, n_z, special_n_e, d2_gridvals, a1_grid(a1primeindexes), a2_gridvals, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, a3_grid, z_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec, 2);
+                    [Vtempii,maxindex]=max(ReturnMatrix_ii_e,[],1);
+                    Valt(curraindex,:,e_c,N_j)=shiftdim(Vtempii,1);
                     d2ind  =rem(maxindex-1,N_d2)+1;
                     a1localind=rem(floor((maxindex-1)/N_d2),maxgap(ii)+1)+1;
                     a2pind =floor((maxindex-1)/(N_d2*(maxgap(ii)+1)))+1;
                     a2ind_flat=repmat(repelem((0:N_a2-1),1,level1iidiff(ii)),1,N_a3);
                     a3ind_flat=repelem((0:N_a3-1),1,level1iidiff(ii)*N_a2);
-                    loweredge_idx=d2ind + N_d2*(a2pind-1) + N_d2*N_a2*a2ind_flat + N_d2*N_a2*N_a2*a3ind_flat + N_d2*N_a2*N_a2*N_a3*eind;
+                    loweredge_idx=d2ind + N_d2*(a2pind-1) + N_d2*N_a2*a2ind_flat + N_d2*N_a2*N_a2*a3ind_flat + N_d2*N_a2*N_a2*N_a3*zind;
                     a1prime_rec=a1localind+loweredge(loweredge_idx)-1;
-                    Policyalt(1,curraindex,z_c,:,N_j)=d2ind;
-                    Policyalt(2,curraindex,z_c,:,N_j)=a1prime_rec;
-                    Policyalt(3,curraindex,z_c,:,N_j)=a2pind;
+                    Policyalt(1,curraindex,:,e_c,N_j)=d2ind;
+                    Policyalt(2,curraindex,:,e_c,N_j)=a1prime_rec;
+                    Policyalt(3,curraindex,:,e_c,N_j)=a2pind;
                 else
-                    loweredge=maxindex1_z(:,1,:,ii,:,:,1,:);
-                    ReturnMatrix_ii_z=CreateReturnFnMatrix_ExpAsset_Disc_DC2A_e(ReturnFn, 0, n_d2, n_a2, n_a3, special_n_z, n_e, d2_gridvals, a1_grid(loweredge), a2_gridvals, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, a3_grid, z_val, e_gridvals_J(:,:,N_j), ReturnFnParamsVec, 2);
-                    [Vtempii,maxindex]=max(ReturnMatrix_ii_z,[],1);
-                    Valt(curraindex,z_c,:,N_j)=shiftdim(Vtempii,1);
+                    loweredge=maxindex1(:,1,:,ii,:,:,:,:);
+                    ReturnMatrix_ii_e=CreateReturnFnMatrix_ExpAsset_Disc_DC2A_e(ReturnFn, 0, n_d2, n_a2, n_a3, n_z, special_n_e, d2_gridvals, a1_grid(loweredge), a2_gridvals, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, a3_grid, z_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec, 2);
+                    [Vtempii,maxindex]=max(ReturnMatrix_ii_e,[],1);
+                    Valt(curraindex,:,e_c,N_j)=shiftdim(Vtempii,1);
                     d2ind  =rem(maxindex-1,N_d2)+1;
                     a2pind =floor((maxindex-1)/N_d2)+1;
                     a2ind_flat=repmat(repelem((0:N_a2-1),1,level1iidiff(ii)),1,N_a3);
                     a3ind_flat=repelem((0:N_a3-1),1,level1iidiff(ii)*N_a2);
-                    loweredge_idx=d2ind + N_d2*(a2pind-1) + N_d2*N_a2*a2ind_flat + N_d2*N_a2*N_a2*a3ind_flat + N_d2*N_a2*N_a2*N_a3*eind;
-                    Policyalt(1,curraindex,z_c,:,N_j)=d2ind;
-                    Policyalt(2,curraindex,z_c,:,N_j)=loweredge(loweredge_idx);
-                    Policyalt(3,curraindex,z_c,:,N_j)=a2pind;
+                    loweredge_idx=d2ind + N_d2*(a2pind-1) + N_d2*N_a2*a2ind_flat + N_d2*N_a2*N_a2*a3ind_flat + N_d2*N_a2*N_a2*N_a3*zind;
+                    Policyalt(1,curraindex,:,e_c,N_j)=d2ind;
+                    Policyalt(2,curraindex,:,e_c,N_j)=loweredge(loweredge_idx);
+                    Policyalt(3,curraindex,:,e_c,N_j)=a2pind;
                 end
             end
         end
@@ -203,10 +203,9 @@ if ~isfield(vfoptions,'V_Jplus1')
 else
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,N_j);
     beta0beta=beta0*beta;
 
-    EVpre=squeeze(sum(reshape(vfoptions.V_Jplus1,[N_a,N_z,N_e]).*shiftdim(pi_e_J(:,N_j),-2),3));
+    EVpre=squeeze(sum(reshape(vfoptions.V_Jplus1,[N_a,N_z,N_e]).*shiftdim(pi_e_J(:,N_j+1),-2),3));
 
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
     [a3primeIndex,a3primeProbs]=CreateExperienceAssetzFnMatrix(aprimeFn, n_d2, n_a3, n_z, d2_gridvals, a3_grid, z_gridvals_J(:,:,N_j), aprimeFnParamsVec,2);
@@ -342,107 +341,105 @@ else
             end
         end
     elseif vfoptions.lowmemory==1
-        for z_c=1:N_z
-            z_val=z_gridvals_J(z_c,:,N_j);
-            DiscountedEV_alt_z=DiscountedEV_alt(:,:,:,:,:,:,z_c);
-            DiscountedEV_z    =DiscountedEV    (:,:,:,:,:,:,z_c);
-            ReturnMatrix_ii_z=CreateReturnFnMatrix_ExpAsset_Disc_DC2A_e(ReturnFn, 0, n_d2, n_a2, n_a3, special_n_z, n_e, d2_gridvals, a1_grid, a2_gridvals, a1_grid(level1ii), a2_gridvals, a3_grid, z_val, e_gridvals_J(:,:,N_j), ReturnFnParamsVec, 1);
-            entireRHS_alt_z=ReturnMatrix_ii_z+DiscountedEV_alt_z;
-            [~,maxindex1_alt_z]=max(entireRHS_alt_z,[],2);
-            [Vtempii_alt,maxindex2_alt]=max(reshape(entireRHS_alt_z,[N_d2*N_a1*N_a2,vfoptions.level1n*N_a2*N_a3,1,N_e]),[],1);
-            entireRHS_z=ReturnMatrix_ii_z+DiscountedEV_z;
-            [~,maxindex1_z]=max(entireRHS_z,[],2);
-            [Vtempii,maxindex2]=max(reshape(entireRHS_z,[N_d2*N_a1*N_a2,vfoptions.level1n*N_a2*N_a3,1,N_e]),[],1);
+        for e_c=1:N_e
+            e_val=e_gridvals_J(e_c,:,N_j);
+            ReturnMatrix_ii_e=CreateReturnFnMatrix_ExpAsset_Disc_DC2A_e(ReturnFn, 0, n_d2, n_a2, n_a3, n_z, special_n_e, d2_gridvals, a1_grid, a2_gridvals, a1_grid(level1ii), a2_gridvals, a3_grid, z_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec, 1);
+            entireRHS_alt_e=ReturnMatrix_ii_e+DiscountedEV_alt;
+            [~,maxindex1_alt]=max(entireRHS_alt_e,[],2);
+            [Vtempii_alt,maxindex2_alt]=max(reshape(entireRHS_alt_e,[N_d2*N_a1*N_a2,vfoptions.level1n*N_a2*N_a3,N_z,1]),[],1);
+            entireRHS_e=ReturnMatrix_ii_e+DiscountedEV;
+            [~,maxindex1]=max(entireRHS_e,[],2);
+            [Vtempii,maxindex2]=max(reshape(entireRHS_e,[N_d2*N_a1*N_a2,vfoptions.level1n*N_a2*N_a3,N_z,1]),[],1);
             curraindex=repmat(level1ii',N_a2*N_a3,1) ...
                      + N_a1   *repmat(repelem((0:N_a2-1)',vfoptions.level1n,1),N_a3,1) ...
                      + N_a1*N_a2*repelem((0:N_a3-1)',vfoptions.level1n*N_a2,1);
             d2ind_alt=rem(maxindex2_alt-1,N_d2)+1;
             a1pind_alt=rem(floor((maxindex2_alt-1)/N_d2),N_a1)+1;
             a2pind_alt=floor((maxindex2_alt-1)/(N_d2*N_a1))+1;
-            Valt(curraindex,z_c,:,N_j)         =shiftdim(Vtempii_alt,1);
-            Policyalt(1,curraindex,z_c,:,N_j)  =d2ind_alt;
-            Policyalt(2,curraindex,z_c,:,N_j)  =a1pind_alt;
-            Policyalt(3,curraindex,z_c,:,N_j)  =a2pind_alt;
+            Valt(curraindex,:,e_c,N_j)         =shiftdim(Vtempii_alt,1);
+            Policyalt(1,curraindex,:,e_c,N_j)  =d2ind_alt;
+            Policyalt(2,curraindex,:,e_c,N_j)  =a1pind_alt;
+            Policyalt(3,curraindex,:,e_c,N_j)  =a2pind_alt;
             d2ind=rem(maxindex2-1,N_d2)+1;
             a1pind=rem(floor((maxindex2-1)/N_d2),N_a1)+1;
             a2pind=floor((maxindex2-1)/(N_d2*N_a1))+1;
-            Vtilde(curraindex,z_c,:,N_j)       =shiftdim(Vtempii,1);
-            Policy(1,curraindex,z_c,:,N_j)     =d2ind;
-            Policy(2,curraindex,z_c,:,N_j)     =a1pind;
-            Policy(3,curraindex,z_c,:,N_j)     =a2pind;
-            maxgap_alt=squeeze(max(max(max(max(max( maxindex1_alt_z(:,1,:,2:end,:,:,1,:)-maxindex1_alt_z(:,1,:,1:end-1,:,:,1,:), [],8),[],6),[],5),[],3),[],1));
-            maxgap    =squeeze(max(max(max(max(max( maxindex1_z    (:,1,:,2:end,:,:,1,:)-maxindex1_z    (:,1,:,1:end-1,:,:,1,:), [],8),[],6),[],5),[],3),[],1));
+            Vtilde(curraindex,:,e_c,N_j)       =shiftdim(Vtempii,1);
+            Policy(1,curraindex,:,e_c,N_j)     =d2ind;
+            Policy(2,curraindex,:,e_c,N_j)     =a1pind;
+            Policy(3,curraindex,:,e_c,N_j)     =a2pind;
+            maxgap_alt=squeeze(max(max(max(max(max(max( maxindex1_alt(:,1,:,2:end,:,:,:,:)-maxindex1_alt(:,1,:,1:end-1,:,:,:,:), [],8),[],7),[],6),[],5),[],3),[],1));
+            maxgap    =squeeze(max(max(max(max(max(max( maxindex1    (:,1,:,2:end,:,:,:,:)-maxindex1    (:,1,:,1:end-1,:,:,:,:), [],8),[],7),[],6),[],5),[],3),[],1));
             for ii=1:(vfoptions.level1n-1)
                 curraindex=repmat((level1ii(ii)+1:1:level1ii(ii+1)-1)',N_a2*N_a3,1) ...
                          + N_a1   *repmat(repelem((0:N_a2-1)',level1iidiff(ii),1),N_a3,1) ...
                          + N_a1*N_a2*repelem((0:N_a3-1)',level1iidiff(ii)*N_a2,1);
                 if maxgap_alt(ii)>0
-                    loweredge=min(maxindex1_alt_z(:,1,:,ii,:,:,1,:),N_a1-maxgap_alt(ii));
+                    loweredge=min(maxindex1_alt(:,1,:,ii,:,:,:,:),N_a1-maxgap_alt(ii));
                     a1primeindexes=loweredge+(0:1:maxgap_alt(ii));
-                    ReturnMatrix_ii_alt_z=CreateReturnFnMatrix_ExpAsset_Disc_DC2A_e(ReturnFn, 0, n_d2, n_a2, n_a3, special_n_z, n_e, d2_gridvals, a1_grid(a1primeindexes), a2_gridvals, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, a3_grid, z_val, e_gridvals_J(:,:,N_j), ReturnFnParamsVec, 3);
-                    d2aprime_z=(1:1:N_d2)' + N_d2*(a1primeindexes-1) + N_d2*N_a1*shiftdim((0:1:N_a2-1),-1) + N_d2*N_a1*N_a2*shiftdim((0:1:N_a3-1),-4);
-                    entireRHS_alt_z=reshape(ReturnMatrix_ii_alt_z+DiscountedEV_alt_z(d2aprime_z),[N_d2*(maxgap_alt(ii)+1)*N_a2,level1iidiff(ii)*N_a2*N_a3,1,N_e]);
-                    [Vtempii_alt,maxindex_alt]=max(entireRHS_alt_z,[],1);
-                    Valt(curraindex,z_c,:,N_j)=shiftdim(Vtempii_alt,1);
+                    ReturnMatrix_ii_alt_e=CreateReturnFnMatrix_ExpAsset_Disc_DC2A_e(ReturnFn, 0, n_d2, n_a2, n_a3, n_z, special_n_e, d2_gridvals, a1_grid(a1primeindexes), a2_gridvals, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, a3_grid, z_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec, 3);
+                    d2aprimez=(1:1:N_d2)' + N_d2*(a1primeindexes-1) + N_d2*N_a1*shiftdim((0:1:N_a2-1),-1) + N_d2*N_a1*N_a2*shiftdim((0:1:N_a3-1),-4) + N_d2*N_a1*N_a2*N_a3*shiftdim((0:1:N_z-1),-5);
+                    entireRHS_alt_e=reshape(ReturnMatrix_ii_alt_e+DiscountedEV_alt(d2aprimez),[N_d2*(maxgap_alt(ii)+1)*N_a2,level1iidiff(ii)*N_a2*N_a3,N_z,1]);
+                    [Vtempii_alt,maxindex_alt]=max(entireRHS_alt_e,[],1);
+                    Valt(curraindex,:,e_c,N_j)=shiftdim(Vtempii_alt,1);
                     d2ind_alt=rem(maxindex_alt-1,N_d2)+1;
                     a1localind_alt=rem(floor((maxindex_alt-1)/N_d2),maxgap_alt(ii)+1)+1;
                     a2pind_alt=floor((maxindex_alt-1)/(N_d2*(maxgap_alt(ii)+1)))+1;
                     a2ind_flat=repmat(repelem((0:N_a2-1),1,level1iidiff(ii)),1,N_a3);
                     a3ind_flat=repelem((0:N_a3-1),1,level1iidiff(ii)*N_a2);
-                    loweredge_idx=d2ind_alt + N_d2*(a2pind_alt-1) + N_d2*N_a2*a2ind_flat + N_d2*N_a2*N_a2*a3ind_flat + N_d2*N_a2*N_a2*N_a3*eind;
+                    loweredge_idx=d2ind_alt + N_d2*(a2pind_alt-1) + N_d2*N_a2*a2ind_flat + N_d2*N_a2*N_a2*a3ind_flat + N_d2*N_a2*N_a2*N_a3*zind;
                     a1prime_rec=a1localind_alt+loweredge(loweredge_idx)-1;
-                    Policyalt(1,curraindex,z_c,:,N_j)=d2ind_alt;
-                    Policyalt(2,curraindex,z_c,:,N_j)=a1prime_rec;
-                    Policyalt(3,curraindex,z_c,:,N_j)=a2pind_alt;
+                    Policyalt(1,curraindex,:,e_c,N_j)=d2ind_alt;
+                    Policyalt(2,curraindex,:,e_c,N_j)=a1prime_rec;
+                    Policyalt(3,curraindex,:,e_c,N_j)=a2pind_alt;
                 else
-                    loweredge=maxindex1_alt_z(:,1,:,ii,:,:,1,:);
-                    ReturnMatrix_ii_alt_z=CreateReturnFnMatrix_ExpAsset_Disc_DC2A_e(ReturnFn, 0, n_d2, n_a2, n_a3, special_n_z, n_e, d2_gridvals, a1_grid(loweredge), a2_gridvals, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, a3_grid, z_val, e_gridvals_J(:,:,N_j), ReturnFnParamsVec, 3);
-                    d2aprime_z=(1:1:N_d2)' + N_d2*(loweredge-1) + N_d2*N_a1*shiftdim((0:1:N_a2-1),-1) + N_d2*N_a1*N_a2*shiftdim((0:1:N_a3-1),-4);
-                    entireRHS_alt_z=reshape(ReturnMatrix_ii_alt_z+DiscountedEV_alt_z(d2aprime_z),[N_d2*1*N_a2,level1iidiff(ii)*N_a2*N_a3,1,N_e]);
-                    [Vtempii_alt,maxindex_alt]=max(entireRHS_alt_z,[],1);
-                    Valt(curraindex,z_c,:,N_j)=shiftdim(Vtempii_alt,1);
+                    loweredge=maxindex1_alt(:,1,:,ii,:,:,:,:);
+                    ReturnMatrix_ii_alt_e=CreateReturnFnMatrix_ExpAsset_Disc_DC2A_e(ReturnFn, 0, n_d2, n_a2, n_a3, n_z, special_n_e, d2_gridvals, a1_grid(loweredge), a2_gridvals, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, a3_grid, z_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec, 3);
+                    d2aprimez=(1:1:N_d2)' + N_d2*(loweredge-1) + N_d2*N_a1*shiftdim((0:1:N_a2-1),-1) + N_d2*N_a1*N_a2*shiftdim((0:1:N_a3-1),-4) + N_d2*N_a1*N_a2*N_a3*shiftdim((0:1:N_z-1),-5);
+                    entireRHS_alt_e=reshape(ReturnMatrix_ii_alt_e+DiscountedEV_alt(d2aprimez),[N_d2*1*N_a2,level1iidiff(ii)*N_a2*N_a3,N_z,1]);
+                    [Vtempii_alt,maxindex_alt]=max(entireRHS_alt_e,[],1);
+                    Valt(curraindex,:,e_c,N_j)=shiftdim(Vtempii_alt,1);
                     d2ind_alt=rem(maxindex_alt-1,N_d2)+1;
                     a2pind_alt=floor((maxindex_alt-1)/N_d2)+1;
                     a2ind_flat=repmat(repelem((0:N_a2-1),1,level1iidiff(ii)),1,N_a3);
                     a3ind_flat=repelem((0:N_a3-1),1,level1iidiff(ii)*N_a2);
-                    loweredge_idx=d2ind_alt + N_d2*(a2pind_alt-1) + N_d2*N_a2*a2ind_flat + N_d2*N_a2*N_a2*a3ind_flat + N_d2*N_a2*N_a2*N_a3*eind;
-                    Policyalt(1,curraindex,z_c,:,N_j)=d2ind_alt;
-                    Policyalt(2,curraindex,z_c,:,N_j)=loweredge(loweredge_idx);
-                    Policyalt(3,curraindex,z_c,:,N_j)=a2pind_alt;
+                    loweredge_idx=d2ind_alt + N_d2*(a2pind_alt-1) + N_d2*N_a2*a2ind_flat + N_d2*N_a2*N_a2*a3ind_flat + N_d2*N_a2*N_a2*N_a3*zind;
+                    Policyalt(1,curraindex,:,e_c,N_j)=d2ind_alt;
+                    Policyalt(2,curraindex,:,e_c,N_j)=loweredge(loweredge_idx);
+                    Policyalt(3,curraindex,:,e_c,N_j)=a2pind_alt;
                 end
                 if maxgap(ii)>0
-                    loweredge=min(maxindex1_z(:,1,:,ii,:,:,1,:),N_a1-maxgap(ii));
+                    loweredge=min(maxindex1(:,1,:,ii,:,:,:,:),N_a1-maxgap(ii));
                     a1primeindexes=loweredge+(0:1:maxgap(ii));
-                    ReturnMatrix_ii_z=CreateReturnFnMatrix_ExpAsset_Disc_DC2A_e(ReturnFn, 0, n_d2, n_a2, n_a3, special_n_z, n_e, d2_gridvals, a1_grid(a1primeindexes), a2_gridvals, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, a3_grid, z_val, e_gridvals_J(:,:,N_j), ReturnFnParamsVec, 3);
-                    d2aprime_z=(1:1:N_d2)' + N_d2*(a1primeindexes-1) + N_d2*N_a1*shiftdim((0:1:N_a2-1),-1) + N_d2*N_a1*N_a2*shiftdim((0:1:N_a3-1),-4);
-                    entireRHS_z=reshape(ReturnMatrix_ii_z+DiscountedEV_z(d2aprime_z),[N_d2*(maxgap(ii)+1)*N_a2,level1iidiff(ii)*N_a2*N_a3,1,N_e]);
-                    [Vtempii,maxindex]=max(entireRHS_z,[],1);
-                    Vtilde(curraindex,z_c,:,N_j)=shiftdim(Vtempii,1);
+                    ReturnMatrix_ii_e=CreateReturnFnMatrix_ExpAsset_Disc_DC2A_e(ReturnFn, 0, n_d2, n_a2, n_a3, n_z, special_n_e, d2_gridvals, a1_grid(a1primeindexes), a2_gridvals, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, a3_grid, z_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec, 3);
+                    d2aprimez=(1:1:N_d2)' + N_d2*(a1primeindexes-1) + N_d2*N_a1*shiftdim((0:1:N_a2-1),-1) + N_d2*N_a1*N_a2*shiftdim((0:1:N_a3-1),-4) + N_d2*N_a1*N_a2*N_a3*shiftdim((0:1:N_z-1),-5);
+                    entireRHS_e=reshape(ReturnMatrix_ii_e+DiscountedEV(d2aprimez),[N_d2*(maxgap(ii)+1)*N_a2,level1iidiff(ii)*N_a2*N_a3,N_z,1]);
+                    [Vtempii,maxindex]=max(entireRHS_e,[],1);
+                    Vtilde(curraindex,:,e_c,N_j)=shiftdim(Vtempii,1);
                     d2ind=rem(maxindex-1,N_d2)+1;
                     a1localind=rem(floor((maxindex-1)/N_d2),maxgap(ii)+1)+1;
                     a2pind=floor((maxindex-1)/(N_d2*(maxgap(ii)+1)))+1;
                     a2ind_flat=repmat(repelem((0:N_a2-1),1,level1iidiff(ii)),1,N_a3);
                     a3ind_flat=repelem((0:N_a3-1),1,level1iidiff(ii)*N_a2);
-                    loweredge_idx=d2ind + N_d2*(a2pind-1) + N_d2*N_a2*a2ind_flat + N_d2*N_a2*N_a2*a3ind_flat + N_d2*N_a2*N_a2*N_a3*eind;
+                    loweredge_idx=d2ind + N_d2*(a2pind-1) + N_d2*N_a2*a2ind_flat + N_d2*N_a2*N_a2*a3ind_flat + N_d2*N_a2*N_a2*N_a3*zind;
                     a1prime_rec=a1localind+loweredge(loweredge_idx)-1;
-                    Policy(1,curraindex,z_c,:,N_j)=d2ind;
-                    Policy(2,curraindex,z_c,:,N_j)=a1prime_rec;
-                    Policy(3,curraindex,z_c,:,N_j)=a2pind;
+                    Policy(1,curraindex,:,e_c,N_j)=d2ind;
+                    Policy(2,curraindex,:,e_c,N_j)=a1prime_rec;
+                    Policy(3,curraindex,:,e_c,N_j)=a2pind;
                 else
-                    loweredge=maxindex1_z(:,1,:,ii,:,:,1,:);
-                    ReturnMatrix_ii_z=CreateReturnFnMatrix_ExpAsset_Disc_DC2A_e(ReturnFn, 0, n_d2, n_a2, n_a3, special_n_z, n_e, d2_gridvals, a1_grid(loweredge), a2_gridvals, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, a3_grid, z_val, e_gridvals_J(:,:,N_j), ReturnFnParamsVec, 3);
-                    d2aprime_z=(1:1:N_d2)' + N_d2*(loweredge-1) + N_d2*N_a1*shiftdim((0:1:N_a2-1),-1) + N_d2*N_a1*N_a2*shiftdim((0:1:N_a3-1),-4);
-                    entireRHS_z=reshape(ReturnMatrix_ii_z+DiscountedEV_z(d2aprime_z),[N_d2*1*N_a2,level1iidiff(ii)*N_a2*N_a3,1,N_e]);
-                    [Vtempii,maxindex]=max(entireRHS_z,[],1);
-                    Vtilde(curraindex,z_c,:,N_j)=shiftdim(Vtempii,1);
+                    loweredge=maxindex1(:,1,:,ii,:,:,:,:);
+                    ReturnMatrix_ii_e=CreateReturnFnMatrix_ExpAsset_Disc_DC2A_e(ReturnFn, 0, n_d2, n_a2, n_a3, n_z, special_n_e, d2_gridvals, a1_grid(loweredge), a2_gridvals, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, a3_grid, z_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec, 3);
+                    d2aprimez=(1:1:N_d2)' + N_d2*(loweredge-1) + N_d2*N_a1*shiftdim((0:1:N_a2-1),-1) + N_d2*N_a1*N_a2*shiftdim((0:1:N_a3-1),-4) + N_d2*N_a1*N_a2*N_a3*shiftdim((0:1:N_z-1),-5);
+                    entireRHS_e=reshape(ReturnMatrix_ii_e+DiscountedEV(d2aprimez),[N_d2*1*N_a2,level1iidiff(ii)*N_a2*N_a3,N_z,1]);
+                    [Vtempii,maxindex]=max(entireRHS_e,[],1);
+                    Vtilde(curraindex,:,e_c,N_j)=shiftdim(Vtempii,1);
                     d2ind=rem(maxindex-1,N_d2)+1;
                     a2pind=floor((maxindex-1)/N_d2)+1;
                     a2ind_flat=repmat(repelem((0:N_a2-1),1,level1iidiff(ii)),1,N_a3);
                     a3ind_flat=repelem((0:N_a3-1),1,level1iidiff(ii)*N_a2);
-                    loweredge_idx=d2ind + N_d2*(a2pind-1) + N_d2*N_a2*a2ind_flat + N_d2*N_a2*N_a2*a3ind_flat + N_d2*N_a2*N_a2*N_a3*eind;
-                    Policy(1,curraindex,z_c,:,N_j)=d2ind;
-                    Policy(2,curraindex,z_c,:,N_j)=loweredge(loweredge_idx);
-                    Policy(3,curraindex,z_c,:,N_j)=a2pind;
+                    loweredge_idx=d2ind + N_d2*(a2pind-1) + N_d2*N_a2*a2ind_flat + N_d2*N_a2*N_a2*a3ind_flat + N_d2*N_a2*N_a2*N_a3*zind;
+                    Policy(1,curraindex,:,e_c,N_j)=d2ind;
+                    Policy(2,curraindex,:,e_c,N_j)=loweredge(loweredge_idx);
+                    Policy(3,curraindex,:,e_c,N_j)=a2pind;
                 end
             end
         end
@@ -569,10 +566,9 @@ for reverse_j=1:N_j-1
     ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
     DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
     beta=prod(DiscountFactorParamsVec);
-    beta0=CreateVectorFromParams(Parameters,vfoptions.QHadditionaldiscount,jj);
     beta0beta=beta0*beta;
 
-    EVpre=squeeze(sum(Valt(:,:,:,jj+1).*shiftdim(pi_e_J(:,jj),-2),3));
+    EVpre=squeeze(sum(Valt(:,:,:,jj+1).*shiftdim(pi_e_J(:,jj+1),-2),3));
 
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);
     [a3primeIndex,a3primeProbs]=CreateExperienceAssetzFnMatrix(aprimeFn, n_d2, n_a3, n_z, d2_gridvals, a3_grid, z_gridvals_J(:,:,jj), aprimeFnParamsVec,2);
@@ -706,107 +702,105 @@ for reverse_j=1:N_j-1
             end
         end
     elseif vfoptions.lowmemory==1
-        for z_c=1:N_z
-            z_val=z_gridvals_J(z_c,:,jj);
-            DiscountedEV_alt_z=DiscountedEV_alt(:,:,:,:,:,:,z_c);
-            DiscountedEV_z    =DiscountedEV    (:,:,:,:,:,:,z_c);
-            ReturnMatrix_ii_z=CreateReturnFnMatrix_ExpAsset_Disc_DC2A_e(ReturnFn, 0, n_d2, n_a2, n_a3, special_n_z, n_e, d2_gridvals, a1_grid, a2_gridvals, a1_grid(level1ii), a2_gridvals, a3_grid, z_val, e_gridvals_J(:,:,jj), ReturnFnParamsVec, 1);
-            entireRHS_alt_z=ReturnMatrix_ii_z+DiscountedEV_alt_z;
-            [~,maxindex1_alt_z]=max(entireRHS_alt_z,[],2);
-            [Vtempii_alt,maxindex2_alt]=max(reshape(entireRHS_alt_z,[N_d2*N_a1*N_a2,vfoptions.level1n*N_a2*N_a3,1,N_e]),[],1);
-            entireRHS_z=ReturnMatrix_ii_z+DiscountedEV_z;
-            [~,maxindex1_z]=max(entireRHS_z,[],2);
-            [Vtempii,maxindex2]=max(reshape(entireRHS_z,[N_d2*N_a1*N_a2,vfoptions.level1n*N_a2*N_a3,1,N_e]),[],1);
+        for e_c=1:N_e
+            e_val=e_gridvals_J(e_c,:,jj);
+            ReturnMatrix_ii_e=CreateReturnFnMatrix_ExpAsset_Disc_DC2A_e(ReturnFn, 0, n_d2, n_a2, n_a3, n_z, special_n_e, d2_gridvals, a1_grid, a2_gridvals, a1_grid(level1ii), a2_gridvals, a3_grid, z_gridvals_J(:,:,jj), e_val, ReturnFnParamsVec, 1);
+            entireRHS_alt_e=ReturnMatrix_ii_e+DiscountedEV_alt;
+            [~,maxindex1_alt]=max(entireRHS_alt_e,[],2);
+            [Vtempii_alt,maxindex2_alt]=max(reshape(entireRHS_alt_e,[N_d2*N_a1*N_a2,vfoptions.level1n*N_a2*N_a3,N_z,1]),[],1);
+            entireRHS_e=ReturnMatrix_ii_e+DiscountedEV;
+            [~,maxindex1]=max(entireRHS_e,[],2);
+            [Vtempii,maxindex2]=max(reshape(entireRHS_e,[N_d2*N_a1*N_a2,vfoptions.level1n*N_a2*N_a3,N_z,1]),[],1);
             curraindex=repmat(level1ii',N_a2*N_a3,1) ...
                      + N_a1   *repmat(repelem((0:N_a2-1)',vfoptions.level1n,1),N_a3,1) ...
                      + N_a1*N_a2*repelem((0:N_a3-1)',vfoptions.level1n*N_a2,1);
             d2ind_alt=rem(maxindex2_alt-1,N_d2)+1;
             a1pind_alt=rem(floor((maxindex2_alt-1)/N_d2),N_a1)+1;
             a2pind_alt=floor((maxindex2_alt-1)/(N_d2*N_a1))+1;
-            Valt(curraindex,z_c,:,jj)         =shiftdim(Vtempii_alt,1);
-            Policyalt(1,curraindex,z_c,:,jj)  =d2ind_alt;
-            Policyalt(2,curraindex,z_c,:,jj)  =a1pind_alt;
-            Policyalt(3,curraindex,z_c,:,jj)  =a2pind_alt;
+            Valt(curraindex,:,e_c,jj)         =shiftdim(Vtempii_alt,1);
+            Policyalt(1,curraindex,:,e_c,jj)  =d2ind_alt;
+            Policyalt(2,curraindex,:,e_c,jj)  =a1pind_alt;
+            Policyalt(3,curraindex,:,e_c,jj)  =a2pind_alt;
             d2ind=rem(maxindex2-1,N_d2)+1;
             a1pind=rem(floor((maxindex2-1)/N_d2),N_a1)+1;
             a2pind=floor((maxindex2-1)/(N_d2*N_a1))+1;
-            Vtilde(curraindex,z_c,:,jj)       =shiftdim(Vtempii,1);
-            Policy(1,curraindex,z_c,:,jj)     =d2ind;
-            Policy(2,curraindex,z_c,:,jj)     =a1pind;
-            Policy(3,curraindex,z_c,:,jj)     =a2pind;
-            maxgap_alt=squeeze(max(max(max(max(max( maxindex1_alt_z(:,1,:,2:end,:,:,1,:)-maxindex1_alt_z(:,1,:,1:end-1,:,:,1,:), [],8),[],6),[],5),[],3),[],1));
-            maxgap    =squeeze(max(max(max(max(max( maxindex1_z    (:,1,:,2:end,:,:,1,:)-maxindex1_z    (:,1,:,1:end-1,:,:,1,:), [],8),[],6),[],5),[],3),[],1));
+            Vtilde(curraindex,:,e_c,jj)       =shiftdim(Vtempii,1);
+            Policy(1,curraindex,:,e_c,jj)     =d2ind;
+            Policy(2,curraindex,:,e_c,jj)     =a1pind;
+            Policy(3,curraindex,:,e_c,jj)     =a2pind;
+            maxgap_alt=squeeze(max(max(max(max(max(max( maxindex1_alt(:,1,:,2:end,:,:,:,:)-maxindex1_alt(:,1,:,1:end-1,:,:,:,:), [],8),[],7),[],6),[],5),[],3),[],1));
+            maxgap    =squeeze(max(max(max(max(max(max( maxindex1    (:,1,:,2:end,:,:,:,:)-maxindex1    (:,1,:,1:end-1,:,:,:,:), [],8),[],7),[],6),[],5),[],3),[],1));
             for ii=1:(vfoptions.level1n-1)
                 curraindex=repmat((level1ii(ii)+1:1:level1ii(ii+1)-1)',N_a2*N_a3,1) ...
                          + N_a1   *repmat(repelem((0:N_a2-1)',level1iidiff(ii),1),N_a3,1) ...
                          + N_a1*N_a2*repelem((0:N_a3-1)',level1iidiff(ii)*N_a2,1);
                 if maxgap_alt(ii)>0
-                    loweredge=min(maxindex1_alt_z(:,1,:,ii,:,:,1,:),N_a1-maxgap_alt(ii));
+                    loweredge=min(maxindex1_alt(:,1,:,ii,:,:,:,:),N_a1-maxgap_alt(ii));
                     a1primeindexes=loweredge+(0:1:maxgap_alt(ii));
-                    ReturnMatrix_ii_alt_z=CreateReturnFnMatrix_ExpAsset_Disc_DC2A_e(ReturnFn, 0, n_d2, n_a2, n_a3, special_n_z, n_e, d2_gridvals, a1_grid(a1primeindexes), a2_gridvals, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, a3_grid, z_val, e_gridvals_J(:,:,jj), ReturnFnParamsVec, 3);
-                    d2aprime_z=(1:1:N_d2)' + N_d2*(a1primeindexes-1) + N_d2*N_a1*shiftdim((0:1:N_a2-1),-1) + N_d2*N_a1*N_a2*shiftdim((0:1:N_a3-1),-4);
-                    entireRHS_alt_z=reshape(ReturnMatrix_ii_alt_z+DiscountedEV_alt_z(d2aprime_z),[N_d2*(maxgap_alt(ii)+1)*N_a2,level1iidiff(ii)*N_a2*N_a3,1,N_e]);
-                    [Vtempii_alt,maxindex_alt]=max(entireRHS_alt_z,[],1);
-                    Valt(curraindex,z_c,:,jj)=shiftdim(Vtempii_alt,1);
+                    ReturnMatrix_ii_alt_e=CreateReturnFnMatrix_ExpAsset_Disc_DC2A_e(ReturnFn, 0, n_d2, n_a2, n_a3, n_z, special_n_e, d2_gridvals, a1_grid(a1primeindexes), a2_gridvals, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, a3_grid, z_gridvals_J(:,:,jj), e_val, ReturnFnParamsVec, 3);
+                    d2aprimez=(1:1:N_d2)' + N_d2*(a1primeindexes-1) + N_d2*N_a1*shiftdim((0:1:N_a2-1),-1) + N_d2*N_a1*N_a2*shiftdim((0:1:N_a3-1),-4) + N_d2*N_a1*N_a2*N_a3*shiftdim((0:1:N_z-1),-5);
+                    entireRHS_alt_e=reshape(ReturnMatrix_ii_alt_e+DiscountedEV_alt(d2aprimez),[N_d2*(maxgap_alt(ii)+1)*N_a2,level1iidiff(ii)*N_a2*N_a3,N_z,1]);
+                    [Vtempii_alt,maxindex_alt]=max(entireRHS_alt_e,[],1);
+                    Valt(curraindex,:,e_c,jj)=shiftdim(Vtempii_alt,1);
                     d2ind_alt=rem(maxindex_alt-1,N_d2)+1;
                     a1localind_alt=rem(floor((maxindex_alt-1)/N_d2),maxgap_alt(ii)+1)+1;
                     a2pind_alt=floor((maxindex_alt-1)/(N_d2*(maxgap_alt(ii)+1)))+1;
                     a2ind_flat=repmat(repelem((0:N_a2-1),1,level1iidiff(ii)),1,N_a3);
                     a3ind_flat=repelem((0:N_a3-1),1,level1iidiff(ii)*N_a2);
-                    loweredge_idx=d2ind_alt + N_d2*(a2pind_alt-1) + N_d2*N_a2*a2ind_flat + N_d2*N_a2*N_a2*a3ind_flat + N_d2*N_a2*N_a2*N_a3*eind;
+                    loweredge_idx=d2ind_alt + N_d2*(a2pind_alt-1) + N_d2*N_a2*a2ind_flat + N_d2*N_a2*N_a2*a3ind_flat + N_d2*N_a2*N_a2*N_a3*zind;
                     a1prime_rec=a1localind_alt+loweredge(loweredge_idx)-1;
-                    Policyalt(1,curraindex,z_c,:,jj)=d2ind_alt;
-                    Policyalt(2,curraindex,z_c,:,jj)=a1prime_rec;
-                    Policyalt(3,curraindex,z_c,:,jj)=a2pind_alt;
+                    Policyalt(1,curraindex,:,e_c,jj)=d2ind_alt;
+                    Policyalt(2,curraindex,:,e_c,jj)=a1prime_rec;
+                    Policyalt(3,curraindex,:,e_c,jj)=a2pind_alt;
                 else
-                    loweredge=maxindex1_alt_z(:,1,:,ii,:,:,1,:);
-                    ReturnMatrix_ii_alt_z=CreateReturnFnMatrix_ExpAsset_Disc_DC2A_e(ReturnFn, 0, n_d2, n_a2, n_a3, special_n_z, n_e, d2_gridvals, a1_grid(loweredge), a2_gridvals, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, a3_grid, z_val, e_gridvals_J(:,:,jj), ReturnFnParamsVec, 3);
-                    d2aprime_z=(1:1:N_d2)' + N_d2*(loweredge-1) + N_d2*N_a1*shiftdim((0:1:N_a2-1),-1) + N_d2*N_a1*N_a2*shiftdim((0:1:N_a3-1),-4);
-                    entireRHS_alt_z=reshape(ReturnMatrix_ii_alt_z+DiscountedEV_alt_z(d2aprime_z),[N_d2*1*N_a2,level1iidiff(ii)*N_a2*N_a3,1,N_e]);
-                    [Vtempii_alt,maxindex_alt]=max(entireRHS_alt_z,[],1);
-                    Valt(curraindex,z_c,:,jj)=shiftdim(Vtempii_alt,1);
+                    loweredge=maxindex1_alt(:,1,:,ii,:,:,:,:);
+                    ReturnMatrix_ii_alt_e=CreateReturnFnMatrix_ExpAsset_Disc_DC2A_e(ReturnFn, 0, n_d2, n_a2, n_a3, n_z, special_n_e, d2_gridvals, a1_grid(loweredge), a2_gridvals, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, a3_grid, z_gridvals_J(:,:,jj), e_val, ReturnFnParamsVec, 3);
+                    d2aprimez=(1:1:N_d2)' + N_d2*(loweredge-1) + N_d2*N_a1*shiftdim((0:1:N_a2-1),-1) + N_d2*N_a1*N_a2*shiftdim((0:1:N_a3-1),-4) + N_d2*N_a1*N_a2*N_a3*shiftdim((0:1:N_z-1),-5);
+                    entireRHS_alt_e=reshape(ReturnMatrix_ii_alt_e+DiscountedEV_alt(d2aprimez),[N_d2*1*N_a2,level1iidiff(ii)*N_a2*N_a3,N_z,1]);
+                    [Vtempii_alt,maxindex_alt]=max(entireRHS_alt_e,[],1);
+                    Valt(curraindex,:,e_c,jj)=shiftdim(Vtempii_alt,1);
                     d2ind_alt=rem(maxindex_alt-1,N_d2)+1;
                     a2pind_alt=floor((maxindex_alt-1)/N_d2)+1;
                     a2ind_flat=repmat(repelem((0:N_a2-1),1,level1iidiff(ii)),1,N_a3);
                     a3ind_flat=repelem((0:N_a3-1),1,level1iidiff(ii)*N_a2);
-                    loweredge_idx=d2ind_alt + N_d2*(a2pind_alt-1) + N_d2*N_a2*a2ind_flat + N_d2*N_a2*N_a2*a3ind_flat + N_d2*N_a2*N_a2*N_a3*eind;
-                    Policyalt(1,curraindex,z_c,:,jj)=d2ind_alt;
-                    Policyalt(2,curraindex,z_c,:,jj)=loweredge(loweredge_idx);
-                    Policyalt(3,curraindex,z_c,:,jj)=a2pind_alt;
+                    loweredge_idx=d2ind_alt + N_d2*(a2pind_alt-1) + N_d2*N_a2*a2ind_flat + N_d2*N_a2*N_a2*a3ind_flat + N_d2*N_a2*N_a2*N_a3*zind;
+                    Policyalt(1,curraindex,:,e_c,jj)=d2ind_alt;
+                    Policyalt(2,curraindex,:,e_c,jj)=loweredge(loweredge_idx);
+                    Policyalt(3,curraindex,:,e_c,jj)=a2pind_alt;
                 end
                 if maxgap(ii)>0
-                    loweredge=min(maxindex1_z(:,1,:,ii,:,:,1,:),N_a1-maxgap(ii));
+                    loweredge=min(maxindex1(:,1,:,ii,:,:,:,:),N_a1-maxgap(ii));
                     a1primeindexes=loweredge+(0:1:maxgap(ii));
-                    ReturnMatrix_ii_z=CreateReturnFnMatrix_ExpAsset_Disc_DC2A_e(ReturnFn, 0, n_d2, n_a2, n_a3, special_n_z, n_e, d2_gridvals, a1_grid(a1primeindexes), a2_gridvals, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, a3_grid, z_val, e_gridvals_J(:,:,jj), ReturnFnParamsVec, 3);
-                    d2aprime_z=(1:1:N_d2)' + N_d2*(a1primeindexes-1) + N_d2*N_a1*shiftdim((0:1:N_a2-1),-1) + N_d2*N_a1*N_a2*shiftdim((0:1:N_a3-1),-4);
-                    entireRHS_z=reshape(ReturnMatrix_ii_z+DiscountedEV_z(d2aprime_z),[N_d2*(maxgap(ii)+1)*N_a2,level1iidiff(ii)*N_a2*N_a3,1,N_e]);
-                    [Vtempii,maxindex]=max(entireRHS_z,[],1);
-                    Vtilde(curraindex,z_c,:,jj)=shiftdim(Vtempii,1);
+                    ReturnMatrix_ii_e=CreateReturnFnMatrix_ExpAsset_Disc_DC2A_e(ReturnFn, 0, n_d2, n_a2, n_a3, n_z, special_n_e, d2_gridvals, a1_grid(a1primeindexes), a2_gridvals, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, a3_grid, z_gridvals_J(:,:,jj), e_val, ReturnFnParamsVec, 3);
+                    d2aprimez=(1:1:N_d2)' + N_d2*(a1primeindexes-1) + N_d2*N_a1*shiftdim((0:1:N_a2-1),-1) + N_d2*N_a1*N_a2*shiftdim((0:1:N_a3-1),-4) + N_d2*N_a1*N_a2*N_a3*shiftdim((0:1:N_z-1),-5);
+                    entireRHS_e=reshape(ReturnMatrix_ii_e+DiscountedEV(d2aprimez),[N_d2*(maxgap(ii)+1)*N_a2,level1iidiff(ii)*N_a2*N_a3,N_z,1]);
+                    [Vtempii,maxindex]=max(entireRHS_e,[],1);
+                    Vtilde(curraindex,:,e_c,jj)=shiftdim(Vtempii,1);
                     d2ind=rem(maxindex-1,N_d2)+1;
                     a1localind=rem(floor((maxindex-1)/N_d2),maxgap(ii)+1)+1;
                     a2pind=floor((maxindex-1)/(N_d2*(maxgap(ii)+1)))+1;
                     a2ind_flat=repmat(repelem((0:N_a2-1),1,level1iidiff(ii)),1,N_a3);
                     a3ind_flat=repelem((0:N_a3-1),1,level1iidiff(ii)*N_a2);
-                    loweredge_idx=d2ind + N_d2*(a2pind-1) + N_d2*N_a2*a2ind_flat + N_d2*N_a2*N_a2*a3ind_flat + N_d2*N_a2*N_a2*N_a3*eind;
+                    loweredge_idx=d2ind + N_d2*(a2pind-1) + N_d2*N_a2*a2ind_flat + N_d2*N_a2*N_a2*a3ind_flat + N_d2*N_a2*N_a2*N_a3*zind;
                     a1prime_rec=a1localind+loweredge(loweredge_idx)-1;
-                    Policy(1,curraindex,z_c,:,jj)=d2ind;
-                    Policy(2,curraindex,z_c,:,jj)=a1prime_rec;
-                    Policy(3,curraindex,z_c,:,jj)=a2pind;
+                    Policy(1,curraindex,:,e_c,jj)=d2ind;
+                    Policy(2,curraindex,:,e_c,jj)=a1prime_rec;
+                    Policy(3,curraindex,:,e_c,jj)=a2pind;
                 else
-                    loweredge=maxindex1_z(:,1,:,ii,:,:,1,:);
-                    ReturnMatrix_ii_z=CreateReturnFnMatrix_ExpAsset_Disc_DC2A_e(ReturnFn, 0, n_d2, n_a2, n_a3, special_n_z, n_e, d2_gridvals, a1_grid(loweredge), a2_gridvals, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, a3_grid, z_val, e_gridvals_J(:,:,jj), ReturnFnParamsVec, 3);
-                    d2aprime_z=(1:1:N_d2)' + N_d2*(loweredge-1) + N_d2*N_a1*shiftdim((0:1:N_a2-1),-1) + N_d2*N_a1*N_a2*shiftdim((0:1:N_a3-1),-4);
-                    entireRHS_z=reshape(ReturnMatrix_ii_z+DiscountedEV_z(d2aprime_z),[N_d2*1*N_a2,level1iidiff(ii)*N_a2*N_a3,1,N_e]);
-                    [Vtempii,maxindex]=max(entireRHS_z,[],1);
-                    Vtilde(curraindex,z_c,:,jj)=shiftdim(Vtempii,1);
+                    loweredge=maxindex1(:,1,:,ii,:,:,:,:);
+                    ReturnMatrix_ii_e=CreateReturnFnMatrix_ExpAsset_Disc_DC2A_e(ReturnFn, 0, n_d2, n_a2, n_a3, n_z, special_n_e, d2_gridvals, a1_grid(loweredge), a2_gridvals, a1_grid(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, a3_grid, z_gridvals_J(:,:,jj), e_val, ReturnFnParamsVec, 3);
+                    d2aprimez=(1:1:N_d2)' + N_d2*(loweredge-1) + N_d2*N_a1*shiftdim((0:1:N_a2-1),-1) + N_d2*N_a1*N_a2*shiftdim((0:1:N_a3-1),-4) + N_d2*N_a1*N_a2*N_a3*shiftdim((0:1:N_z-1),-5);
+                    entireRHS_e=reshape(ReturnMatrix_ii_e+DiscountedEV(d2aprimez),[N_d2*1*N_a2,level1iidiff(ii)*N_a2*N_a3,N_z,1]);
+                    [Vtempii,maxindex]=max(entireRHS_e,[],1);
+                    Vtilde(curraindex,:,e_c,jj)=shiftdim(Vtempii,1);
                     d2ind=rem(maxindex-1,N_d2)+1;
                     a2pind=floor((maxindex-1)/N_d2)+1;
                     a2ind_flat=repmat(repelem((0:N_a2-1),1,level1iidiff(ii)),1,N_a3);
                     a3ind_flat=repelem((0:N_a3-1),1,level1iidiff(ii)*N_a2);
-                    loweredge_idx=d2ind + N_d2*(a2pind-1) + N_d2*N_a2*a2ind_flat + N_d2*N_a2*N_a2*a3ind_flat + N_d2*N_a2*N_a2*N_a3*eind;
-                    Policy(1,curraindex,z_c,:,jj)=d2ind;
-                    Policy(2,curraindex,z_c,:,jj)=loweredge(loweredge_idx);
-                    Policy(3,curraindex,z_c,:,jj)=a2pind;
+                    loweredge_idx=d2ind + N_d2*(a2pind-1) + N_d2*N_a2*a2ind_flat + N_d2*N_a2*N_a2*a3ind_flat + N_d2*N_a2*N_a2*N_a3*zind;
+                    Policy(1,curraindex,:,e_c,jj)=d2ind;
+                    Policy(2,curraindex,:,e_c,jj)=loweredge(loweredge_idx);
+                    Policy(3,curraindex,:,e_c,jj)=a2pind;
                 end
             end
         end

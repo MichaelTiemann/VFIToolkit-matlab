@@ -17,7 +17,10 @@ end
 if exist('transpathoptions','var')==0
     disp('No transpathoptions given, using defaults')
     %If transpathoptions is not given, just use all the defaults
-    transpathoptions.tolerance=10^(-4);
+    transpathoptions.toleranceGEprices=Inf; % convergence criterion for GE prices, set =Inf to turn this off (it is off by default)
+    transpathoptions.toleranceGEcondns=1e-4; % convergence criterion for GE condns
+    transpathoptions.multiGEcriterion=1; % How to combine multiple GE condns (default is sum-of-squares)
+    transpathoptions.multiGEweights=ones(1,length(fieldnames(GeneralEqmEqns))); % One weight per general eqm eqn (the ptype-dependent ones get duplicated later)
     transpathoptions.parallel=1+(gpuDeviceCount>0); % GPU where available, otherwise parallel CPU.
     transpathoptions.GEnewprice=1; % 1 is shooting algorithm, 0 is that the GE should evaluate to zero and the 'new' is the old plus the "non-zero" (for each time period seperately);
                                    % 2 is to do optimization routine with 'distance between old and new path', 3 is just same as 0, but easier to set up
@@ -34,8 +37,20 @@ if exist('transpathoptions','var')==0
     transpathoptions.stockvars={}; % 'stockvars' are prices where you write '_tminus1' and it should cumulate (to there will be a general eqm eqn that relates the _tminus1 to the t for a price in PricePath)
 else
     %Check transpathoptions for missing fields, if there are some fill them with the defaults
-    if ~isfield(transpathoptions,'tolerance')
-        transpathoptions.tolerance=10^(-4);
+    if isfield(transpathoptions,'tolerance')
+        error('Old transpathoptions.tolerance, has now been renamed and you should use transpathoptions.toleranceGEcondns instead')
+    end
+    if ~isfield(transpathoptions,'toleranceGEprices')
+        transpathoptions.toleranceGEprices=Inf; % convergence criterion for GE prices, set =Inf to turn this off (it is off by default)
+    end
+    if ~isfield(transpathoptions,'toleranceGEcondns')
+        transpathoptions.toleranceGEcondns=1e-4; % convergence criterion for GE condns
+    end
+    if ~isfield(transpathoptions,'multiGEcriterion')
+        transpathoptions.multiGEcriterion=1;
+    end
+    if ~isfield(transpathoptions,'multiGEweights')
+        transpathoptions.multiGEweights=ones(1,length(fieldnames(GeneralEqmEqns))); % One weight per general eqm eqn (the ptype-dependent ones get duplicated later)
     end
     if ~isfield(transpathoptions,'parallel')
         transpathoptions.parallel=1+(gpuDeviceCount>0);
@@ -370,7 +385,7 @@ for ii=1:PTypeStructure.N_i
     PTypeStructure.(iistr).simoptions.outputasstructure=1;
     
     %% Set up exogenous shock processes
-    [PTypeStructure.(iistr).z_gridvals, PTypeStructure.(iistr).pi_z, PTypeStructure.(iistr).pi_z_sparse, PTypeStructure.(iistr).e_gridvals, PTypeStructure.(iistr).pi_e, PTypeStructure.(iistr).pi_e_sparse, PTypeStructure.(iistr).ze_gridvals, transpathoptions, PTypeStructure.(iistr).vfoptions]=ExogShockSetup_InfHorz_TPath(PTypeStructure.(iistr).n_z,PTypeStructure.(iistr).z_grid,PTypeStructure.(iistr).pi_z,PTypeStructure.(iistr).Parameters,PricePathNames,ParamPathNames,transpathoptions,PTypeStructure.(iistr).vfoptions,4);
+    [PTypeStructure.(iistr).z_gridvals, PTypeStructure.(iistr).pi_z, PTypeStructure.(iistr).pi_z_sparse, PTypeStructure.(iistr).e_gridvals, PTypeStructure.(iistr).pi_e, PTypeStructure.(iistr).pi_e_sparse, PTypeStructure.(iistr).ze_gridvals, transpathoptions, PTypeStructure.(iistr).vfoptions]=ExogShockSetup_InfHorz_TPath(PTypeStructure.(iistr).n_z,PTypeStructure.(iistr).z_grid,PTypeStructure.(iistr).pi_z,PTypeStructure.(iistr).Parameters,PricePathNames,ParamPathNames,T,transpathoptions,PTypeStructure.(iistr).vfoptions,4);
     % Convert z and e to joint-grids and transtion matrix
     % output: z_gridvals, pi_z, e_gridvals, pi_e, transpathoptions,vfoptions,simoptions
 
@@ -483,6 +498,12 @@ end
 GEeqnNames=fieldnames(GeneralEqmEqns);
 nGeneralEqmEqns=length(GEeqnNames);
 nGeneralEqmEqns_acrossptypes=sum(transpathoptions.GEptype==0)+N_i*sum(transpathoptions.GEptype==1);
+% transpathoptions.multiGEweights is one weight per general eqm eqn. A general eqm condition that
+% depends on ptype is evaluated once per ptype and so occupies N_i consecutive entries of
+% GEcondnPath, in eqn order, so duplicate its weight N_i times to line the two up.
+if ~all(transpathoptions.GEptype==0)
+    transpathoptions.multiGEweights=repelem(transpathoptions.multiGEweights,1+(N_i-1)*(transpathoptions.GEptype==1));
+end
 
 GeneralEqmEqnsCell=cell(1,nGeneralEqmEqns);
 for gg=1:nGeneralEqmEqns

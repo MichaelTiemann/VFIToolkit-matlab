@@ -60,7 +60,7 @@ if ~isfield(vfoptions,'V_Jplus1')
         Policy(3,:,:,N_j)=shiftdim(ceil(dindex/N_d3),-1);
         Policy(4,:,:,N_j)=shiftdim(ceil(maxindex/(N_d3*N_d4)),-1);
 
-    elseif vfoptions.lowmemory==1
+    elseif vfoptions.lowmemory>=1 % lm1 already does the most-looped variant, so it also serves the higher lowmemory values
         for z_c=1:N_semiz
             z_val=semiz_gridvals_J(z_c,:,N_j);
             ReturnMatrix_z=CreateReturnFnMatrix_Case2_Disc(ReturnFn, [n_d3,n_d4,n_a1], [n_a1,n_a2], special_n_semiz, d3d4a1_gridvals, a1a2_gridvals, z_val, ReturnFnParamsVec);
@@ -80,7 +80,7 @@ else
     DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
 
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
-    [a2primeIndex,a2primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, [n_d23,n_a1], n_a2, n_u, d23_grid, a2_grid, u_grid, aprimeFnParamsVec,2);
+    [a2primeIndex,a2primeProbs]=CreateRiskyAssetFnMatrix(aprimeFn, n_d23, n_a2, n_u, d23_grid, a2_grid, u_grid, aprimeFnParamsVec,2);
 
     aprimeIndex=repelem((1:1:N_a1)',N_d23,N_u)+N_a1*repmat(a2primeIndex-1,N_a1,1);
     aprimeplus1Index=repelem((1:1:N_a1)',N_d23,N_u)+N_a1*repmat(a2primeIndex,N_a1,1);
@@ -101,12 +101,13 @@ else
             EV(isnan(EV))=0;
             EV=sum(EV,2);
 
-            skipinterp=logical(EV(aprimeIndex+N_a*((1:1:N_semiz)-1))==EV(aprimeplus1Index+N_a*((1:1:N_semiz)-1)));
-            aprimeProbs=repmat(a2primeProbs,N_a1,1);
+            skipinterp=logical(EV(aprimeIndex(:)+N_a*((1:1:N_semiz)-1))==EV(aprimeplus1Index(:)+N_a*((1:1:N_semiz)-1)));
+            aprimeProbs=repmat(a2primeProbs,N_a1,N_semiz);
             aprimeProbs(skipinterp)=0;
+            aprimeProbs=reshape(aprimeProbs,[N_d23*N_a1,N_u,N_semiz]);
 
-            EV1=EV(aprimeIndex+N_a*((1:1:N_semiz)-1));
-            EV2=EV((aprimeplus1Index)+N_a*((1:1:N_semiz)-1));
+            EV1=EV(aprimeIndex(:)+N_a*((1:1:N_semiz)-1));
+            EV2=EV(aprimeplus1Index(:)+N_a*((1:1:N_semiz)-1));
 
             EV1=reshape(EV1,[N_d23*N_a1,N_u,N_semiz]).*aprimeProbs;
             EV2=reshape(EV2,[N_d23*N_a1,N_u,N_semiz]).*(1-aprimeProbs);
@@ -132,7 +133,7 @@ else
         Policy(2,:,:,N_j)=shiftdim(rem(d3a1prime_ind-1,N_d3)+1,-1);
         Policy(4,:,:,N_j)=shiftdim(ceil(d3a1prime_ind/N_d3),-1);
 
-    elseif vfoptions.lowmemory==1
+    elseif vfoptions.lowmemory>=1 % lm1 already does the most-looped variant, so it also serves the higher lowmemory values
         for d4_c=1:N_d4
             pi_semizd4=pi_semiz(:,:,d4_c);
             d3_special_d4_a1_gridvals=gpuArray(CreateGridvals([n_d3,special_n_d4,n_a1], [d3_grid; d4_gridvals(d4_c,:)'; a1_grid], 1));
@@ -209,7 +210,7 @@ for reverse_j=1:N_j-1
             d3_special_d4_a1_gridvals=gpuArray(CreateGridvals([n_d3,special_n_d4,n_a1], [d3_grid; d4_gridvals(d4_c,:)'; a1_grid], 1));
             ReturnMatrix_d4=CreateReturnFnMatrix_Case2_Disc(ReturnFn, [n_d3,special_n_d4,n_a1], [n_a1,n_a2], n_semiz, d3_special_d4_a1_gridvals, a1a2_gridvals, semiz_gridvals_J(:,:,jj), ReturnFnParamsVec);
 
-            EV=EV.*shiftdim(pi_semizd4',-1);
+            EV=V(:,:,jj+1).*shiftdim(pi_semizd4',-1);
             EV(isnan(EV))=0;
             EV=sum(EV,2);
 
@@ -245,7 +246,7 @@ for reverse_j=1:N_j-1
         Policy(2,:,:,jj)=shiftdim(rem(d3a1prime_ind-1,N_d3)+1,-1);
         Policy(4,:,:,jj)=shiftdim(ceil(d3a1prime_ind/N_d3),-1);
 
-    elseif vfoptions.lowmemory==1
+    elseif vfoptions.lowmemory>=1 % lm1 already does the most-looped variant, so it also serves the higher lowmemory values
         for d4_c=1:N_d4
             pi_semizd4=pi_semiz(:,:,d4_c);
             d3_special_d4_a1_gridvals=gpuArray(CreateGridvals([n_d3,special_n_d4,n_a1], [d3_grid; d4_gridvals(d4_c,:)'; a1_grid], 1));

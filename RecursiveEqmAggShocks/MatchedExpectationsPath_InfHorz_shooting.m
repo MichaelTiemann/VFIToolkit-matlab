@@ -64,7 +64,7 @@ if recursiveeqmoptions.verbose>=1
     fprintf('Solving preliminary stationary eqm problem \n')
     tic;
 end
-[PricePath,VPath,AgentDistPath,AggVarsPath,GEcheck]=MEP_CreateInitialGuess(T,ss_ind_T,n_d,n_a,n_z,n_S,N_a,N_z,N_S,d_grid,a_grid,initialguessobjects,AggShockNames,AggVarNames,ReturnFn,FnsToEvaluate,GeneralEqmEqnsStruct,Parameters,DiscountFactorParamNames, GEPriceParamNames,GEeqnNames,recursiveeqmoptions,vfoptions,simoptions);
+[PricePath,VPath,AgentDistPath,AggVarsPath,GEcheck]=MEP_CreateInitialGuess(T,ss_ind_T,n_d,n_a,n_z,n_S,N_a,N_z,N_S,d_grid,a_grid,initialguessobjects,AggShockNames,AggShocksPath,AggVarNames,ReturnFn,ReturnFnParamNames,FnsToEvaluate,FnsToEvaluateCell,FnsToEvaluateParamNames,GeneralEqmEqnsStruct,Parameters,DiscountFactorParamNames, GEPriceParamNames,GEeqnNames,recursiveeqmoptions,vfoptions,simoptions);
 % And create a version of PricePath as the matrix
 [PricePathOld,~,PricePathNames,~,PricePathSizeVec,~]=PricePathParamPath_StructToMatrix(PricePath,struct(),T);
 if recursiveeqmoptions.verbose>=1
@@ -91,7 +91,7 @@ end
 % AgentDistPath for fastOLG is [N_a*T*N_z,1]
 
 %%
-pathcounter=1;
+itercounter=1;
 TransPathConvergence=Inf; % ratio of 'Current Path Distance -to- recursiveeqmoptions.tolerance'
                           % Require convergence in both prices and general eqm conditions
 
@@ -125,7 +125,7 @@ if recursiveeqmoptions.verbose==1
 end
 
 
-while TransPathConvergence>1 && pathcounter<recursiveeqmoptions.maxiter
+while TransPathConvergence>1 && itercounter<=recursiveeqmoptions.maxiter
     %% Occasionally we might want to update the AgentDist_initial
     % Currently I don't do this, but in principle the AgentDist_initial comes from the stationary eqm of the model without aggregate shocks, and this is not the same as the mean of the model with shocks
 
@@ -199,7 +199,7 @@ while TransPathConvergence>1 && pathcounter<recursiveeqmoptions.maxiter
     elseif length(n_a)==4
         PolicyaprimePath=reshape(PolicyIndexesPath(l_d+1,:,1:T-1,:)+n_a(1)*(PolicyIndexesPath(l_d+2,:,1:T-1,:)-1)+n_a(1)*n_a(2)*(PolicyIndexesPath(l_d+3,:,1:T-1,:)-1)+n_a(1)*n_a(2)*n_a(3)*(PolicyIndexesPath(l_d+4,:,1:T-1,:)-1),[N_a*(T-1)*N_z,1]);
     end
-    if fastOLGtheAgentDist==1 && rem(pathcounter,goSlowAgentDistEveryN)~=0
+    if fastOLGtheAgentDist==1 && rem(itercounter,goSlowAgentDistEveryN)~=0
         PolicyaprimetzPath=PolicyaprimePath+repelem(N_a*gpuArray(0:1:(T-1)*N_z-1)',N_a,1);
         if simoptions.gridinterplayer==1
             PolicyaprimetzPath=reshape(PolicyaprimetzPath,[N_a*(T-1)*N_z,1]); % reinterpret this as lower grid index
@@ -215,7 +215,7 @@ while TransPathConvergence>1 && pathcounter<recursiveeqmoptions.maxiter
             PolicyaprimezPath=reshape(PolicyaprimezPath,[N_a*N_z,1,(T-1)]); % reinterpret this as lower grid index
             PolicyaprimezPath=repelem(PolicyaprimezPath,1,2,1); % create copy that will be the upper grid index
             PolicyaprimezPath(:,2,:)=PolicyaprimezPath(:,2,:)+1; % upper grid index
-            PolicyProbsPath_slowOLG(:,2,:)=reshape(permute(reshape(PolicyIndexesPath(l_aprime+1,:,1:T-1,:),[N_a,(T-1),N_z]),[1,3,2]),[N_a*N_z,1,T-1]); % L2 index
+            PolicyProbsPath_slowOLG(:,2,:)=reshape(permute(reshape(PolicyIndexesPath(l_d+l_aprime+1,:,1:T-1,:),[N_a,(T-1),N_z]),[1,3,2]),[N_a*N_z,1,T-1]); % L2 index
             PolicyProbsPath_slowOLG(:,2,:)=(PolicyProbsPath_slowOLG(:,2,:)-1)/(1+simoptions.ngridinterp); % probability of upper grid point
             PolicyProbsPath_slowOLG(:,1,:)=1-PolicyProbsPath_slowOLG(:,2,:); % probability of lower grid point
         end
@@ -231,7 +231,7 @@ while TransPathConvergence>1 && pathcounter<recursiveeqmoptions.maxiter
     tic;
 
     % % Exception is that the preliminary stationary eqm is probably not quite 'typical', so get rid of it in the second path iteration
-    % if 2<=pathcounter && pathcounter<=5
+    % if 2<=itercounter && itercounter<=5
     %     % Replace the initial t=1 AgentDist with something arbitrary from later in the path.
     %     % Need to use something with the same S as in t=1
     %     temp=1:1:T;
@@ -248,8 +248,8 @@ while TransPathConvergence>1 && pathcounter<recursiveeqmoptions.maxiter
     % end
     % THIS DIDN'T WORK AS THEN GOT A MIX OF THIS AGENT DIST WITH THE EXISTING PERIOD 1 POLICY, ETC. AND THAT JUST TURNED INTO A MESS
 
-    if fastOLGtheAgentDist==1 && rem(pathcounter,goSlowAgentDistEveryN)~=0
-        if pathcounter<=5
+    if fastOLGtheAgentDist==1 && rem(itercounter,goSlowAgentDistEveryN)~=0
+        if itercounter<=5
             distiter=5;
         else
             distiter=10;
@@ -318,7 +318,7 @@ while TransPathConvergence>1 && pathcounter<recursiveeqmoptions.maxiter
             temp=AggVarsPath.(AggVarNames{ff}).Mean;
             Parameters.(AggVarNames{ff})=temp(tt);
         end
-        [PricePathNew_tt,GEcondnPath_tt]=updatePricePathNew_TPath_tt(Parameters,GeneralEqmEqnsCell,GeneralEqmEqnParamNames,PricePathOld(tt,:),recursiveeqmoptions);
+        [PricePathNew_tt,GEcondnPath_tt]=updatePricePathNew_TPath_tt(Parameters,GeneralEqmEqnsCell,GeneralEqmEqnParamNames,PricePathOld(tt,:),itercounter,recursiveeqmoptions);
         PricePathNew(tt,:)=PricePathNew_tt;
         GEcondnPath(tt,:)=GEcondnPath_tt;
     end
@@ -351,7 +351,7 @@ while TransPathConvergence>1 && pathcounter<recursiveeqmoptions.maxiter
     % GEcondnPath(iiK,:)
     % GEcondnPath(iiL,:)
     %
-    % if pathcounter>1
+    % if itercounter>1
     %     [AggVarsPath.K.Mean(iiKlag),AggVarsPath.L.Mean(iiKlag),PricePath.r(iiKlag),PricePath.w(iiKlag)]
     %     [AggVarsPath.K.Mean(iiLlag),AggVarsPath.L.Mean(iiLlag),PricePath.r(iiLlag),PricePath.w(iiLlag)]
     %     GEcondnPath(iiKlag,:)
@@ -407,24 +407,24 @@ while TransPathConvergence>1 && pathcounter<recursiveeqmoptions.maxiter
     PricePathOld=updatePricePath(PricePathOld,PricePathNew,recursiveeqmoptions,T);
 
     TransPathConvergence_prices=max(CurrentPathDist_price)/recursiveeqmoptions.tolerance; % So when this gets to 1 we have convergence, in prices
-    TransPathConvergence_GEcondns=max(GEcondnPath(:).^2)/recursiveeqmoptions.tolerance; % So when this gets to 1 we have convergence, in GE condns
+    TransPathConvergence_GEcondns=max(CurrentPathDist_GEcondn)/recursiveeqmoptions.tolerance; % So when this gets to 1 we have convergence, in GE condns
     TransPathConvergence=max(TransPathConvergence_prices,TransPathConvergence_GEcondns); % we require convergence in both
 
     if recursiveeqmoptions.verbose>=1
         fprintf(' \n')
-        fprintf('Number of iterations on matched-expecations path: %i \n',pathcounter)
+        fprintf('Number of iterations on matched-expecations path: %i \n',itercounter)
         fprintf('Current distance between old and new price path (in L-Infinity norm): %8.6f \n', max(CurrentPathDist_price))
         fprintf(priceverbosestr, CurrentPathDist_price')
         fprintf('Current General Eqm conditions (in L-Infinity norm): %8.6f \n', max(CurrentPathDist_GEcondn))
         fprintf(GEcondnverbosestr, CurrentPathDist_GEcondn')
         fprintf('Ratio of current distance to the convergence tolerance, in prices: %.2f (convergence when reaches 1) \n',TransPathConvergence_prices)
         fprintf('Ratio of current distance to the convergence tolerance, in GE Condns: %.2f (convergence when reaches 1) \n',TransPathConvergence_GEcondns)
-        fprintf('Ratio of current distance to the convergence tolerance: %.2f (convergence when reaches 1; is the minimum of both prices and GEcondns) \n',TransPathConvergence)
+        fprintf('Ratio of current distance to the convergence tolerance: %.2f (convergence when reaches 1; is the maximum of both prices and GEcondns) \n',TransPathConvergence)
         fprintf(' \n')
         if recursiveeqmoptions.verbose>=2
             % How many matches change period?
             DistMatches_lag=DistMatches;
-            if pathcounter>1
+            if itercounter>1
                 temp=(DistMatches_lag(:,:,1,1)~=DistMatches(:,:,1,1));
                 size(temp)
                 fprintf('Number of matches that changed: \n')
@@ -442,14 +442,14 @@ while TransPathConvergence>1 && pathcounter<recursiveeqmoptions.maxiter
     
     if recursiveeqmoptions.historyofpricepath==1
         % Store the whole history of the price path and save it every ten iterations
-        PricePathHistory{pathcounter,1}=CurrentPathDist_price;
-        PricePathHistory{pathcounter,2}=PricePathOld;
-        if rem(pathcounter,10)==1
+        PricePathHistory{itercounter,1}=CurrentPathDist_price;
+        PricePathHistory{itercounter,2}=PricePathOld;
+        if rem(itercounter,10)==1
             save ./SavedOutput/RecursiveGEwAggShocks_Internal.mat PricePathHistory
         end
     end
 
-    pathcounter=pathcounter+1;
+    itercounter=itercounter+1;
 end
 
 %% Sort some stuff for output
@@ -464,7 +464,7 @@ for pp=1:length(PricePathNames)
     PricePath.(PricePathNames{pp})=PricePathOld(:,PricePathSizeVec(1,pp):PricePathSizeVec(2,pp));
 end
 
-if pathcounter>=recursiveeqmoptions.maxiter
+if itercounter>recursiveeqmoptions.maxiter
     warning('Stopped due to reaching maxiter (rather than convergence; while computing Recursive General Eqm using Matched Expectations Path algorithm)')
 end
 

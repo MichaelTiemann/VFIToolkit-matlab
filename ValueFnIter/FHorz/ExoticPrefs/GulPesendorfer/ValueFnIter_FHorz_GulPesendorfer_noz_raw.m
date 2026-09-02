@@ -21,11 +21,11 @@ if ~isfield(vfoptions,'V_Jplus1')
 
     TemptationMatrix=CreateReturnFnMatrix_Disc_noz(TemptationFn, n_d, n_a, d_gridvals, a_grid, TemptationFnParamsVec,0);
     MostTempting=max(TemptationMatrix,[],1);
-    entireRHS=ReturnMatrix+TemptationMatrix-ones(N_d*N_a,1).*MostTempting;
+    entireRHS=ReturnMatrix+TemptationMatrix;
 
     %Calc the max and it's index
     [Vtemp,maxindex]=max(entireRHS,[],1);
-    V(:,N_j)=Vtemp;
+    V(:,N_j)=Vtemp-MostTempting;
     Policy(:,N_j)=maxindex;
 else
     % Using V_Jplus1
@@ -41,11 +41,11 @@ else
 
     TemptationMatrix=CreateReturnFnMatrix_Disc_noz(TemptationFn, n_d, n_a, d_gridvals, a_grid, TemptationFnParamsVec,0);
     MostTempting=max(TemptationMatrix,[],1);
-    entireRHS=ReturnMatrix+TemptationMatrix-ones(N_d*N_a,1).*MostTempting+DiscountFactorParamsVec*entireEV; %*ones(1,N_a,1); % aprime-by-a
+    entireRHS=ReturnMatrix+TemptationMatrix+DiscountFactorParamsVec*entireEV; %*ones(1,N_a,1); % aprime-by-a
 
     %Calc the max and it's index
     [Vtemp,maxindex]=max(entireRHS,[],1);
-    V(:,N_j)=Vtemp;
+    V(:,N_j)=Vtemp-MostTempting;
     Policy(:,N_j)=maxindex;
 end
 
@@ -73,15 +73,16 @@ for reverse_j=1:N_j-1
 
     TemptationMatrix=CreateReturnFnMatrix_Disc_noz(TemptationFn, n_d, n_a, d_gridvals, a_grid, TemptationFnParamsVec,0);
     MostTempting=max(TemptationMatrix,[],1);
-    entireRHS=ReturnMatrix+TemptationMatrix-ones(N_d*N_a,1).*MostTempting+DiscountFactorParamsVec*entireEV; %*ones(1,N_a,1); % aprime-by-a
+    entireRHS=ReturnMatrix+TemptationMatrix+DiscountFactorParamsVec*entireEV; %*ones(1,N_a,1); % aprime-by-a
 
     %Calc the max and it's index
     [Vtemp,maxindex]=max(entireRHS,[],1);
-    V(:,jj)=Vtemp;
+    V(:,jj)=Vtemp-MostTempting;
     Policy(:,jj)=maxindex;
 end
 
 %%
-Policy=shiftdim(Policy,-1);
+% Return the joint (d,aprime) Kron index (d fastest); the dispatcher's UnKron does the split
+Policy2=shiftdim(Policy,-1);
 
 end

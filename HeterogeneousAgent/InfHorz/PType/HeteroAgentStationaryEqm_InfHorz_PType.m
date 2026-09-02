@@ -74,6 +74,7 @@ if exist('heteroagentoptions','var')==0
     heteroagentoptions.verboseaccuracy1=4; % number of decimal places for GEPrices (among others)
     heteroagentoptions.verboseaccuracy2=6; % number of decimal places for GECondns
     heteroagentoptions.pricehistory=0; % =1, saves the history of the GEPrices during the convergence
+    heteroagentoptions.countGEsolves=0; % =1, count GE-condn evaluations (model solves) in the subfn, for benchmarking
     % For internal use only
     % heteroagentoptions.outputGEform=0;
     heteroagentoptions.outputGEstruct=1; % output GE conditions as a structure (=2 will output as a vector)
@@ -138,6 +139,9 @@ else
     if ~isfield(heteroagentoptions,'pricehistory')
         heteroagentoptions.pricehistory=0; % =1, saves the history of the GEPrices during the convergence
     end
+    if ~isfield(heteroagentoptions,'countGEsolves')
+        heteroagentoptions.countGEsolves=0; % =1, count GE-condn evaluations (model solves) in the subfn, for benchmarking
+    end
     % For internal use only
     % heteroagentoptions.outputGEform=0;
     if ~isfield(heteroagentoptions,'outputGEstruct')
@@ -177,6 +181,8 @@ elseif heteroagentoptions.fminalgo==5
     heteroagentoptions.outputgather=0; % leave GE condns vector on GPU
 elseif heteroagentoptions.fminalgo==7
     heteroagentoptions.outputGEform=1; % Need to output GE condns as a vector when using fminalgo=7
+elseif heteroagentoptions.fminalgo==9
+    heteroagentoptions.outputGEform=1; % Anderson Acceleration needs GE condns as a vector
 else
     heteroagentoptions.outputGEform=0;
 end
@@ -193,6 +199,10 @@ heteroagentoptions.verboseaccuracy1=['	%s: %8.',num2str(heteroagentoptions.verbo
 heteroagentoptions.verboseaccuracy2=['	%s: %8.',num2str(heteroagentoptions.verboseaccuracy2),'f \n']; % set up a string
 
 AggVarNames=fieldnames(FnsToEvaluate);
+if heteroagentoptions.countGEsolves==1
+    StationaryGeneralEqm_subcode_GEsolvecounter('reset'); % set up the iteration counter and initialize value
+end
+
 nGEprices=length(GEPriceParamNames);
 
 PTypeStructure.numFnsToEvaluate=length(fieldnames(FnsToEvaluate)); % Total number of functions to evaluate
@@ -292,10 +302,13 @@ for ii=1:PTypeStructure.N_i
         if ~isempty(vfoptions)
             PTypeStructure.(iistr).vfoptions=PType_Options(vfoptions,iistr); % some vfoptions will differ by permanent type, will clean these up as we go before they are passed
         else
-            PTypeStructure.(iistr).simoptions.verbose=0;
+            PTypeStructure.(iistr).vfoptions.verbose=0;
         end
     else
         PTypeStructure.(iistr).vfoptions.verbose=0;
+    end
+    if ~isfield(PTypeStructure.(iistr).vfoptions,'verbose_advice')
+        PTypeStructure.(iistr).vfoptions.verbose_advice=0;
     end
 
     if exist('simoptions','var') % simoptions.verbose (allowed to depend on permanent type)
@@ -309,6 +322,14 @@ for ii=1:PTypeStructure.N_i
     end
 
     PTypeStructure.(iistr).simoptions.outputasstructure=0; % Used by AggVars (in heteroagent subfn)
+
+    % Note: the grid interpolation layer must be set in both vfoptions and simoptions; if it is only set in
+    % vfoptions then Policy has an extra row that the agent dist would silently ignore (giving a wrong answer)
+    if isfield(PTypeStructure.(iistr).vfoptions,'gridinterplayer') && PTypeStructure.(iistr).vfoptions.gridinterplayer==1
+        if ~isfield(PTypeStructure.(iistr).simoptions,'gridinterplayer')
+            error(['When setting vfoptions.gridinterplayer you must also set simoptions.gridinterplayer, permanent type: ',iistr])
+        end
+    end
 
     if heteroagentoptions.verbose==1
         fprintf('Setting up, Permanent type: %i of %i \n',ii, PTypeStructure.N_i)
@@ -676,6 +697,8 @@ if heteroagentoptions.maxiter>0 % Can use heteroagentoptions.maxiter=0 to just e
     elseif heteroagentoptions.fminalgo==8 % Matlab lsqnonlin()
         minoptions = optimoptions('lsqnonlin','FiniteDifferenceStepSize',1e-2,'TolX',heteroagentoptions.toleranceGEprices,'TolFun',heteroagentoptions.toleranceGEcondns,'MaxFunEvals',heteroagentoptions.maxiter,'MaxIter',heteroagentoptions.maxiter);
         [p_eqm_vec,GeneralEqmConditions]=lsqnonlin(GeneralEqmConditionsFnOpt,GEparamsvec0,[],[],[],[],[],[],[],minoptions);
+    elseif heteroagentoptions.fminalgo==9 % Anderson Acceleration of the shooting fixed-point map
+        [p_eqm_vec,GeneralEqmConditions]=StationaryGeneralEqm_subcode_fminalgo9_AndersonAcceleration_PType(GeneralEqmConditionsFnOpt,GEparamsvec0,GeneralEqmEqns,GEPriceParamNames,GEpriceindexesB,heteroagentoptions,N_i,GEpriceindexes);
     end
 
     % p_eqm_vec contains the (transformed) unconstrained parameters, not the original (constrained) parameter values.
@@ -777,6 +800,30 @@ if heteroagentoptions.pricehistory==1
 end
 
 
+
+%% Check that the general eqm conditions are actually satisfied
+% None of the fminalgo routines verify the point they stopped at. The tolerances are passed to them
+% as TolX/TolFun, but TolFun is a test on the CHANGE in the objective between iterations, not on its
+% value, so an optimizer that stalls returns a p_eqm that is not a general eqm and says nothing.
+% Only outputGEstruct 1 and 2 hold the conditions evaluated at the returned prices (outputGEstruct=0
+% is the n_p grid, where GeneralEqmConditions covers the whole grid). maxiter=0 is the 'just evaluate
+% the current general eqm eqns' mode, which is not a solve and so is not checked.
+if (heteroagentoptions.outputGEstruct==1 || heteroagentoptions.outputGEstruct==2) && heteroagentoptions.maxiter>0
+    if isstruct(GeneralEqmConditions)
+        % Looped rather than cell2mat(struct2cell()), because a general eqm condition that depends on
+        % permanent type holds one value per ptype, so the fields are not all the same size
+        GEcondnsnames=fieldnames(GeneralEqmConditions);
+        GEcondnsmax=0;
+        for gg=1:length(GEcondnsnames)
+            GEcondnsmax=max(GEcondnsmax,max(abs(GeneralEqmConditions.(GEcondnsnames{gg})(:))));
+        end
+    else
+        GEcondnsmax=max(abs(GeneralEqmConditions(:)));
+    end
+    if GEcondnsmax>heteroagentoptions.toleranceGEcondns
+        warning('HeteroAgentStationaryEqm_InfHorz_PType: the general eqm conditions are not all within heteroagentoptions.toleranceGEcondns (largest is %g, tolerance is %g)',GEcondnsmax,heteroagentoptions.toleranceGEcondns)
+    end
+end
 
 %%
 if heteroagentoptions.pricehistory==0
