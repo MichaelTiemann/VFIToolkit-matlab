@@ -378,10 +378,10 @@ else
             a1primeindexesfine=(midpoint_hat+(midpoint_hat-1)*n2short)+(-n2short-1:1:1+n2short);
             ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n2long,n_a1,n_a2,n_bothz,n_e, d123_gridvals_val, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,2,0);
             d2a1primea2bothz=d2ind+N_d2*(a1primeindexesfine-1)+N_d2*N_a1prime*a2ind+N_d2*N_a1prime*N_a2*bothzind;
-            entireRHS_ii_d3=ReturnMatrix_ii_d3+reshape(DiscountedEVinterp_hat(d2a1primea2bothz(:)),[N_d12*n2long,N_a1*N_a2,N_bothz,1]); % broadcasts over e
+            entireRHS_ii_d3=ReturnMatrix_ii_d3+reshape(DiscountedEVinterp_hat(d2a1primea2bothz(:)),[N_d12*n2long,N_a1*N_a2,N_bothz,N_e]); % broadcasts over e
             [Vtempii,maxindexL2]=max(entireRHS_ii_d3,[],1);
             % Vunderbar: the beta fine-RHS gathered at the hat argmax (not re-maximised)
-            entireRHS_under=ReturnMatrix_ii_d3+reshape(DiscountedEVinterp_under(d2a1primea2bothz(:)),[N_d12*n2long,N_a1*N_a2,N_bothz,1]);
+            entireRHS_under=ReturnMatrix_ii_d3+reshape(DiscountedEVinterp_under(d2a1primea2bothz(:)),[N_d12*n2long,N_a1*N_a2,N_bothz,N_e]);
             maxindexfull=maxindexL2+(N_d12*n2long)*(0:1:(N_a1*N_a2)-1)+shiftdim((N_d12*n2long)*(N_a1*N_a2)*(0:1:(N_bothz)-1),-1)+shiftdim((N_d12*n2long)*(N_a1*N_a2)*(N_bothz)*(0:1:(1)-1),-2);
             V_ford3_under(:,:,:,d3_c)=shiftdim(entireRHS_under(maxindexfull),1);
             V_ford3_hat(:,:,:,d3_c)=shiftdim(Vtempii,1);
@@ -462,10 +462,10 @@ else
                 a1primeindexesfine=(midpoint_hat+(midpoint_hat-1)*n2short)+(-n2short-1:1:1+n2short);
                 ReturnMatrix_ii_d3e=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n2long,n_a1,n_a2,n_bothz,special_n_e, d123_gridvals_val, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,N_j), e_val, ReturnFnParamsVec,2,0);
                 d2a1primea2bothz=d2ind+N_d2*(a1primeindexesfine-1)+N_d2*N_a1prime*a2ind+N_d2*N_a1prime*N_a2*bothzind;
-                entireRHS_ii_d3e=ReturnMatrix_ii_d3e+reshape(DiscountedEVinterp_hat(d2a1primea2bothz(:)),[N_d12*n2long,N_a1*N_a2,N_bothz,N_e]);
+                entireRHS_ii_d3e=ReturnMatrix_ii_d3e+reshape(DiscountedEVinterp_hat(d2a1primea2bothz(:)),[N_d12*n2long,N_a1*N_a2,N_bothz]);
                 [Vtempii,maxindexL2]=max(entireRHS_ii_d3e,[],1);
             % Vunderbar: the beta fine-RHS gathered at the hat argmax (not re-maximised)
-            entireRHS_under=ReturnMatrix_ii_d3e+reshape(DiscountedEVinterp_under(d2a1primea2bothz(:)),[N_d12*n2long,N_a1*N_a2,N_bothz,N_e]);
+            entireRHS_under=ReturnMatrix_ii_d3e+reshape(DiscountedEVinterp_under(d2a1primea2bothz(:)),[N_d12*n2long,N_a1*N_a2,N_bothz]);
             maxindexfull=maxindexL2+(N_d12*n2long)*(0:1:(N_a1*N_a2)-1)+shiftdim((N_d12*n2long)*(N_a1*N_a2)*(0:1:(N_bothz)-1),-1)+shiftdim((N_d12*n2long)*(N_a1*N_a2)*(N_bothz)*(0:1:(N_e)-1),-2);
             V_ford3_under(:,:,e_c,d3_c)=shiftdim(entireRHS_under(maxindexfull),1);
                 V_ford3_hat(:,:,e_c,d3_c)=shiftdim(Vtempii,1);

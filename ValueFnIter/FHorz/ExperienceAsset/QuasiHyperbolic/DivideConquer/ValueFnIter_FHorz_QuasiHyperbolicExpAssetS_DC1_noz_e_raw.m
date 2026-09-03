@@ -226,7 +226,7 @@ else
             else
                 loweredge=maxindex1(:,1,ii,:,:);
                 % Just use aprime(ii) for everything
-                ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc_noz(ReturnFn, n_d1,n_d2,1,level1iidiff(ii),n_a2,n_e, d_gridvals, a1_gridvals(loweredge), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, e_gridvals_J(:,:,N_j), ReturnFnParamsVec,3,0); % Level=2, Refine=0
+                ReturnMatrix_ii=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2,1,level1iidiff(ii),n_a2,n_e, d_gridvals, a1_gridvals(loweredge), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, e_gridvals_J(:,:,N_j), ReturnFnParamsVec,3,0); % Level=2, Refine=0
                 d2aprime=d2ind+N_d2*(loweredge-1)+N_d2*N_a1*shiftdim((0:1:N_a2-1),-2); % [N_d,1,1,N_a2,N_e]; linear index into DiscountedEV_hat [N_d2,N_a1,1,N_a2]
                 entireRHS_ii=reshape(ReturnMatrix_ii+DiscountedEV_hat(d2aprime),[N_d,level1iidiff(ii)*N_a2,N_e]);
                 entireRHS_ii_under=reshape(ReturnMatrix_ii+DiscountedEV_under(d2aprime),[N_d,level1iidiff(ii)*N_a2,N_e]);
@@ -297,7 +297,7 @@ else
                 else
                     loweredge=maxindex1(:,1,ii,:,:);
                     % Just use aprime(ii) for everything
-                    ReturnMatrix_ii_e=CreateReturnFnMatrix_ExpAsset_Disc_noz(ReturnFn, n_d1,n_d2,1,level1iidiff(ii),n_a2,special_n_e, d_gridvals, a1_gridvals(loweredge), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, e_val, ReturnFnParamsVec,3,0); % Level=2, Refine=0
+                    ReturnMatrix_ii_e=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2,1,level1iidiff(ii),n_a2,special_n_e, d_gridvals, a1_gridvals(loweredge), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, e_val, ReturnFnParamsVec,3,0); % Level=2, Refine=0
                     d2aprime=d2ind+N_d2*(loweredge-1)+N_d2*N_a1*shiftdim((0:1:N_a2-1),-2); % [N_d,1,1,N_a2]; linear index into DiscountedEV_hat [N_d2,N_a1,1,N_a2]
                     entireRHS_ii_e=reshape(ReturnMatrix_ii_e+DiscountedEV_hat(d2aprime),[N_d,level1iidiff(ii)*N_a2]);
                     entireRHS_ii_e_under=reshape(ReturnMatrix_ii_e+DiscountedEV_under(d2aprime),[N_d,level1iidiff(ii)*N_a2]);

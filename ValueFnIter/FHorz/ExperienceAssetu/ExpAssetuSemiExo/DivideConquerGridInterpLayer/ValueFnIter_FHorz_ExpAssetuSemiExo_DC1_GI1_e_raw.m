@@ -670,8 +670,8 @@ else
 
             for z_c=1:N_bothz
                 z_val=bothz_gridvals_J(z_c,:,N_j);
-                DiscountedEV_z=DiscountedEV(:,:,:,:,zind);
-                DiscountedEVinterp_z=DiscountedEVinterp(:,:,:,:,zind);
+                DiscountedEV_z=DiscountedEV(:,:,:,:,z_c);
+                DiscountedEVinterp_z=DiscountedEVinterp(:,:,:,:,z_c);
 
                 for e_c=1:N_e
                     e_val=e_gridvals_J(e_c,:,N_j);

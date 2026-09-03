@@ -236,6 +236,7 @@ else
             % Interpolate EV over aprime_grid
             DiscountedEVinterp=permute(interp1(a1_gridvals,permute(DiscountedEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]); % [N_d2,N_a1prime,1,N_a2,N_bothz]
 
+            DiscountedEVinterp=repelem(DiscountedEVinterp,N_d1,1,1,1,1); % DiscountedEV itself is expanded inline below, but the d12a1primea2semiz index into DiscountedEVinterp runs over N_d12=N_d1*N_d2
 
             ReturnMatrix_d3=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,[n_d2,1],n_a1,n_a1,n_a2,n_bothz, d123_gridvals_val, a1_gridvals, a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,N_j), ReturnFnParamsVec,1,0); % Level=1, Refine=0
             % (d,aprime,a,z)

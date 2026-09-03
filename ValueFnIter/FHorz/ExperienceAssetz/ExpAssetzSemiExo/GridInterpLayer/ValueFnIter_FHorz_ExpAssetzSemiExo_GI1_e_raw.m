@@ -245,7 +245,7 @@ else
             a1primeindexesfine=(midpoint+(midpoint-1)*n2short)+(-n2short-1:1:1+n2short);
             ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n2long,n_a1,n_a2,n_bothz,n_e, d123_gridvals_val, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,2,0);
             d12a1primea2bothz=(1:1:N_d12)'+N_d12*(a1primeindexesfine-1)+N_d12*N_a1prime*a2ind+N_d12*N_a1prime*N_a2*bothzind;
-            entireRHS_ii_d3=ReturnMatrix_ii_d3+reshape(DiscountedEVinterp(d12a1primea2bothz(:)),[N_d12*n2long,N_a1*N_a2,N_bothz,1]); % broadcasts over e
+            entireRHS_ii_d3=ReturnMatrix_ii_d3+reshape(DiscountedEVinterp(d12a1primea2bothz(:)),[N_d12*n2long,N_a1*N_a2,N_bothz,N_e]); % broadcasts over e
             [Vtempii,maxindexL2]=max(entireRHS_ii_d3,[],1);
             V_ford3_jj(:,:,:,d3_c)=shiftdim(Vtempii,1);
             d_ind=rem(maxindexL2-1,N_d12)+1;
