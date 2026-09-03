@@ -29,6 +29,7 @@ if exist('simoptions','var')==0
     simoptions.verbose=0;
     simoptions.gridinterplayer=0;
     simoptions.experienceasset=0;
+    simoptions.precision='double';
 else
     % Check simoptions for missing fields, if there are some fill them with the defaults
     if ~isfield(simoptions,'verbose')
@@ -39,6 +40,9 @@ else
     end
     if ~isfield(simoptions,'experienceasset')
         simoptions.experienceasset=0;
+    end
+    if ~isfield(simoptions,'precision')
+        simoptions.precision='double';
     end
 end
 

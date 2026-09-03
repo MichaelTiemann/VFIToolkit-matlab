@@ -7,6 +7,7 @@ N_d=prod(n_d);
 N_a=prod(n_a);
 
 a_gridvals=CreateGridvals(n_a,a_grid,1);
+precision=underlyingType(a_grid);
 
 if N_d~=0
     d_gridvals=CreateGridvals(n_d,d_grid,1);

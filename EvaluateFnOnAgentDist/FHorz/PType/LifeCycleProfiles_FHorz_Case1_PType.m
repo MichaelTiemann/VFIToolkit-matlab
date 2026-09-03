@@ -73,6 +73,7 @@ if ~exist('simoptions','var')
     % When calling as a subcommand, the following is used internally
     simoptions.alreadygridvals=0;
     simoptions.gridinterplayer=0;
+    simoptions.precision=0;
 else
     if ~isfield(simoptions,'groupptypesforstats')
         simoptions.groupptypesforstats=1;
@@ -152,6 +153,9 @@ else
     end
     if ~isfield(simoptions,'gridinterplayer')
         simoptions.gridinterplayer=0;
+    end
+    if ~isfield(simoptions,'precision')
+        simoptions.precision='double';
     end
 end
 
@@ -367,6 +371,13 @@ if simoptions.lowmemory==0
 
         % Exogenous shocks
         [n_z_temp,z_grid_temp,~,simoptions_temp]=PType_setup_ExogShocks(ii,iistr,N_i,n_z,z_grid,[],simoptions_temp,3);
+
+        if strcmp(simoptions.precision,'single') % isUnderlyingType(a_grid_temp,'single')
+            if simoptions_temp.tolerance < 1e-7
+                warning("simoptions.tolerance less than single precision limit");
+                % simoptions_temp.tolerance=1e-6;
+            end
+        end
 
         % Parameters
         Parameters_temp=PType_setup_Parameters(ii,iistr,N_i,Parameters,3);

@@ -25,6 +25,9 @@ if isfield(simoptions,'d_grid')
 else
     error('To use an experience asset you must define simoptions.d_grid')
 end
+if ~isfield(simoptions,'precision')
+    simoptions.precision='double';
+end
 
 % aprimeFnParamNames in same fashion
 l_d2=length(n_d2);

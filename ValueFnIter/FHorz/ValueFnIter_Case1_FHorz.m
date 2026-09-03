@@ -34,6 +34,7 @@ if exist('vfoptions','var')==0
     vfoptions.outputkron=0; % If 1 then leave output in Kron form
     vfoptions.alreadygridvals=0; % =1 when calling as a subcommand
     vfoptions.alreadygridvals_semiexo=0; % =1 when calling as a subcommand
+    vfoptions.precision='double';
 else
     % Check vfoptions for missing fields, if there are some fill them with the defaults
     if ~isfield(vfoptions,'verbose')
@@ -108,6 +109,9 @@ else
     end
     if ~isfield(vfoptions,'alreadygridvals_semiexo')
         vfoptions.alreadygridvals_semiexo=0; % =1 when calling as a subcommand
+    end
+    if ~isfield(vfoptions,'precision')
+        vfoptions.precision='double';
     end
 end
 

@@ -45,6 +45,8 @@ if nargin(aprimeFn)~=l_d+l_a2+(l_a2>=2)+length(aprimeFnParams)
     error('Number of inputs to aprimeFn does not fit with size of aprimeFnParams')
 end
 
+precision=underlyingType(a2_grid);
+
 if l_d>=1
     d1vals=d_gridvals(:,1);
     if l_d>=2

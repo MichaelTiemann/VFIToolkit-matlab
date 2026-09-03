@@ -1,8 +1,11 @@
-function VectorOfParamValues=CreateVectorFromParams(Parameters,ParamNames,index1,index2)
+function VectorOfParamValues=CreateVectorFromParams(Parameters,ParamNames,index1,index2,precision)
 %
-% VectorOfParamValues=CreateVectorFromParams(Parameters,ParamNames)
-% VectorOfParamValues=CreateVectorFromParams(Parameters,ParamNames,index1)
-% VectorOfParamValues=CreateVectorFromParams(Parameters,ParamNames,index1,index2)
+% VectorOfParamValues=CreateCellFromParams(Parameters,ParamNames)
+% VectorOfParamValues=CreateCellFromParams(Parameters,ParamNames,precision)
+% VectorOfParamValues=CreateCellFromParams(Parameters,ParamNames,index1)
+% VectorOfParamValues=CreateCellFromParams(Parameters,ParamNames,index1,precision)
+% VectorOfParamValues=CreateCellFromParams(Parameters,ParamNames,index1,index2)
+% VectorOfParamValues=CreateCellFromParams(Parameters,ParamNames,index1,index2,precision)
 %
 % CreateVectorFromParams looks in structure called 'Parameters' and
 % then creates a row vector containing the values of it's fields that
@@ -13,13 +16,30 @@ function VectorOfParamValues=CreateVectorFromParams(Parameters,ParamNames,index1
 % matrices (eg., because the parameter values depends on age). In these
 % cases 'index1' (and 'index2') can be used to specify which is the relevant element.
 
+nargin_temp=nargin;
+if exist('index2','var') && ischar(index2) && any(strcmp({'single','double'}, index2))
+    precision=index2;
+    clear index2
+    % Don't confuse `precision` with index 1 or 2
+    nargin_temp=nargin_temp-1;
+elseif exist('index1','var') && ischar(index1) && any(strcmp({'single','double'}, index1))
+    precision=index1;
+    clear index1
+    % Don't confuse `precision` with index 1 or 2
+    nargin_temp=nargin_temp-1;
+elseif ~exist('precision','var')
+    precision='double';
+else
+    % Don't confuse `precision` with index 1 or 2
+    nargin_temp=nargin_temp-1;
+end
 
 nCalibParams=length(ParamNames);
 FullParamNames=fieldnames(Parameters);
 nFields=length(FullParamNames);
 
-VectorOfParamValues=zeros(1,nCalibParams);
-if nargin==2
+VectorOfParamValues=zeros(1,nCalibParams,precision);
+if nargin_temp==2
     for iCalibParam = 1:nCalibParams
         found=0;
         for iField=1:nFields
@@ -33,7 +53,7 @@ if nargin==2
             warning(['FAILED TO FIND PARAMETER ',ParamNames{iCalibParam}])
         end
     end
-elseif nargin==3
+elseif nargin_temp==3
     for iCalibParam = 1:nCalibParams
         found=0;
         for iField=1:nFields
@@ -52,7 +72,7 @@ elseif nargin==3
             warning(['FAILED TO FIND PARAMETER ',ParamNames{iCalibParam}])
         end
     end
-elseif nargin==4
+elseif nargin_temp==4
     for iCalibParam = 1:nCalibParams
         found=0;
         for iField=1:nFields

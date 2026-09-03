@@ -3,6 +3,8 @@ function StationaryDist=StationaryDist_FHorz_Iteration_nProbs_raw(jequaloneDistK
 % Policy_aprime has an additional dimension of length N_probs which is the N_probs points (and contains only the aprime indexes, no d indexes as would usually be the case).
 % PolicyProbs are the corresponding probabilities of each of these N_probs.
 
+precision=underlyingType(jequaloneDistKron);
+
 % Policy_aprime and PolicyProbs are currently [N_a,N_z,N_probs,N_j]
 Policy_aprimez=Policy_aprime+N_a*gpuArray(0:1:N_z-1);  % Note: add z' index following the z dimension [Tan improvement, z stays where it is]
 Policy_aprimez=gather(reshape(Policy_aprimez,[N_a*N_z,N_probs,N_j])); % sparse() requires inputs to be 2-D

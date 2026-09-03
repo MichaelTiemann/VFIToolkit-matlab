@@ -23,6 +23,8 @@ if l_z>2
     error('Using CPU does not allow for more than two z variables (you have length(n_z)>2)')
 end
 
+precision=underlyingType(a_grid);
+
 % Parallel==1
 
 if N_z==0

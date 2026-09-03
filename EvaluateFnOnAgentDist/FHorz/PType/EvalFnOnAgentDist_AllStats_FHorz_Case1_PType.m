@@ -61,6 +61,7 @@ if ~exist('simoptions','var')
     % When calling as a subcommand, the following is used internally
     simoptions.alreadygridvals=0;
     simoptions.alreadygridvals_semiexo=0;
+    simoptions.precision='double';
 else
     if ~isfield(simoptions,'groupptypesforstats')
         simoptions.groupptypesforstats=1;
@@ -101,6 +102,9 @@ else
     end
     if ~isfield(simoptions,'alreadygridvals_semiexo')
         simoptions.alreadygridvals_semiexo=0;
+    end
+    if ~isfield(simoptions,'precision')
+        simoptions.precision='double';
     end
 end
 

@@ -42,6 +42,8 @@ if nargin(aprimeFn)~=l_dexp+l_a2+(l_a2>=2)+length(aprimeFnParams)
     error('Number of inputs to aprimeFn does not fit with size of aprimeFnParams')
 end
 
+precision=underlyingType(a2_grid);
+
 if l_dexp>=1
     if whichisdforexpasset(1)==1
         d1grid=d_grid(1:n_d(1));

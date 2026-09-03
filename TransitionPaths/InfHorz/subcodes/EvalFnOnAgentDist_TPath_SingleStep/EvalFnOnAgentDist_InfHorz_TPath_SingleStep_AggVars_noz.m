@@ -2,6 +2,8 @@ function AggVars=EvalFnOnAgentDist_InfHorz_TPath_SingleStep_AggVars_noz(AgentDis
 % Evaluates the aggregate value (weighted sum/integral) for each element of FnsToEvaluate
 % For internal use only
 
+precision=underlyingType(a_gridvals);
+
 N_a=prod(n_a);
 
 l_daprime=size(PolicyValuesPermute,2); % PolicyValuesPermute is [N_a,l_d+l_aprime]

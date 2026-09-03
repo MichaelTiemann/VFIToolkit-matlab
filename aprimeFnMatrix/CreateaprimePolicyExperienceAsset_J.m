@@ -44,6 +44,7 @@ if nargin(aprimeFn)~=l_dexp+l_a2+(l_a2>=2)+size(aprimeFnParams,2)
     error('Number of inputs to aprimeFn does not fit with size of aprimeFnParams')
 end
 
+precision=underlyingType(a2_grid);
 
 if l_a2==1
     % ===================== legacy l_a2==1 (unchanged) =====================

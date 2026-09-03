@@ -5,6 +5,9 @@ function PolicyValues=PolicyInd2Val_FHorz(Policy,n_d,n_a,n_z,N_j,d_grid,a_grid,v
 % then a_grid input instead contains the fine grid for the first asset, stacked as
 % [fine a1; rest of coarse stacked grid] (only relevant to vfoptions.gridinterplayer=1).
 
+if ~isfield(vfoptions,'precision')
+    vfoptions.precision='double';
+end
 if ~exist('outputkron','var')
     outputkron=0; % outputkron=1 is just for internal use
 end

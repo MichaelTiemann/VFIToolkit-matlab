@@ -45,6 +45,7 @@ if ~exist('simoptions','var')
     % When calling as a subcommand, the following is used internally
     simoptions.alreadygridvals=0;
     simoptions.alreadygridvals_semiexo=0; % =1 when calling as a subcommand
+    simoptions.precision='double';
 else
     %Check options for missing fields, if there are some fill them with the defaults
     if isgpuarray(StationaryDist) % simoptions.parallel is overwritten based on StationaryDist
@@ -97,6 +98,9 @@ else
     end
     if ~isfield(simoptions,'alreadygridvals_semiexo')
         simoptions.alreadygridvals_semiexo=0; % =1 when calling as a subcommand
+    end
+    if ~isfield(simoptions,'precision')
+        simoptions.precision='double';
     end
 end
 

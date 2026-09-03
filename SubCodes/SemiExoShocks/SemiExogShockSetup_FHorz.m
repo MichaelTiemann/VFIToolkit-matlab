@@ -23,6 +23,9 @@ end
 if ~isfield(options,'l_dsemiz')
     options.l_dsemiz=1; % by default, only one decision variable influences the semi-exogenous state
 end
+if ~isfield(options,'precision')
+    options.precision='double';
+end
 
 if isfield(options,'V_Jplus1')
     N_jpisemiz=N_j; % final slice is the transition from period N_j into the V_Jplus1 period

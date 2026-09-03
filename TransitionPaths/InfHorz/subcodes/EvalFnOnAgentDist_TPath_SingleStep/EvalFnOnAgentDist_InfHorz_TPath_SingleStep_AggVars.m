@@ -2,6 +2,8 @@ function AggVars=EvalFnOnAgentDist_InfHorz_TPath_SingleStep_AggVars(AgentDist, P
 % Evaluates the aggregate value (weighted sum/integral) for each element of FnsToEvaluate
 % For internal use only
 
+precision=underlyingType(a_gridvals);
+
 N_a=prod(n_a);
 N_z=prod(n_z);
 

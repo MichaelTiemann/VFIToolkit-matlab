@@ -34,6 +34,7 @@ if ~exist('simoptions','var')
     % For internal use only
     simoptions.keepoutputasmatrix=0;
     simoptions.simpanelindexkron=0;
+    simoptions.precision='double';
 else
     %Check simoptions for missing fields, if there are some fill them with the defaults
     if ~isfield(simoptions,'parallel')
@@ -115,6 +116,9 @@ else
         error('When using experienceassetz you must set simoptions.z_grid')
     elseif simoptions.experienceassetze>=1
         error('When using experienceassetze you must set simoptions.z_grid')
+    end
+    if ~isfield(simoptions,'precision')
+        simoptions.precision='double';
     end
 end
 
