@@ -260,7 +260,7 @@ else
             [Vtempii,maxindexL2]=max(entireRHS_ii_d3,[],1);
             % Vunderbar: the beta fine-RHS gathered at the hat argmax (not re-maximised)
             entireRHS_under=ReturnMatrix_ii_d3+reshape(DiscountedEVinterp_under(d12a1primea2bothz(:)),[N_d12*n2long,N_a1*N_a2,N_bothz,N_e]);
-            maxindexfull=maxindexL2+(N_d12*n2long)*(0:1:(N_a1*N_a2)-1)+shiftdim((N_d12*n2long)*(N_a1*N_a2)*(0:1:(N_bothz)-1),-1)+shiftdim((N_d12*n2long)*(N_a1*N_a2)*(N_bothz)*(0:1:(1)-1),-2);
+            maxindexfull=maxindexL2+(N_d12*n2long)*(0:1:(N_a1*N_a2)-1)+shiftdim((N_d12*n2long)*(N_a1*N_a2)*(0:1:(N_bothz)-1),-1)+shiftdim((N_d12*n2long)*(N_a1*N_a2)*(N_bothz)*(0:1:(N_e)-1),-2);
             V_ford3_under(:,:,:,d3_c)=shiftdim(entireRHS_under(maxindexfull),1);
             V_ford3_hat(:,:,:,d3_c)=shiftdim(Vtempii,1);
             d_ind=rem(maxindexL2-1,N_d12)+1;
