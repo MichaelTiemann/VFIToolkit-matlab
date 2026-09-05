@@ -50,7 +50,7 @@ if nargin_temp==2
         found=0;
         for iField=1:nFields
             if strcmp(ParamNames{iCalibParam},FullParamNames{iField})
-                CellOfParamValues(iCalibParam)={cast2precision(Parameters.(FullParamNames{iField}))};
+                CellOfParamValues(iCalibParam)={cast(Parameters.(FullParamNames{iField}),precision)};
                 found=1;
                 break
             end
@@ -65,7 +65,7 @@ elseif nargin_temp==3
         found=0;
         for iField=1:nFields
             if strcmp(ParamNames{iCalibParam},FullParamNames{iField})
-                temp=cast2precision(gather(Parameters.(FullParamNames{iField})));
+                temp=cast(gather(Parameters.(FullParamNames{iField})),precision);
                 if isscalar(temp) % Some parameters will depend on the index, some will not.
                     CellOfParamValues(iCalibParam)={temp};
                 else
@@ -85,7 +85,7 @@ elseif nargin_temp==4
         found=0;
         for iField=1:nFields
             if strcmp(ParamNames{iCalibParam},FullParamNames{iField})
-                temp=cast2precision(gather(Parameters.(FullParamNames{iField})));
+                temp=cast(gather(Parameters.(FullParamNames{iField})),precision);
                 if isscalar(temp) % parameter is scalar, so just store it
                     CellOfParamValues(iCalibParam)={temp};
                 elseif numel(temp)>length(temp) % Some parameters will depend on both index1 and index2
