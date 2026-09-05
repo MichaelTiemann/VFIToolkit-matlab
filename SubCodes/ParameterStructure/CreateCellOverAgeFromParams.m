@@ -25,7 +25,7 @@ for iCalibParam = 1:nCalibParams
     found=0;
     for iField=1:nFields
         if strcmp(ParamNames{iCalibParam},FullParamNames{iField})
-            CellOverAgeOfParamValues(iCalibParam)={shiftdim(reshape(gpuArray(cast(Parameters.(FullParamNames{iField})),precision),[length(Parameters.(FullParamNames{iField})),1]).*ones(N_j,1,precision,'gpuArray'),1-dimJ)};
+            CellOverAgeOfParamValues(iCalibParam)={shiftdim(reshape(gpuArray(cast(Parameters.(FullParamNames{iField}),precision)),[length(Parameters.(FullParamNames{iField})),1]).*ones(N_j,1,precision,'gpuArray'),1-dimJ)};
             % Note, if parameter depends on age this is just the column vector, if parameter does not depend on age then this turns it into a constant valued column vector
             found=1;
             break
