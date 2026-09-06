@@ -1,6 +1,7 @@
 function StationaryDist=StationaryDist_FHorz_Case1(jequaloneDist,AgeWeightParamNames,Policy,n_d,n_a,n_z,N_j,pi_z,Parameters,simoptions)
 %% Finite Horizon agent distribution. Solves using iteration (implemented with the Tan improvement).
 % jequaloneDist is the distribution of agents in period j=1.
+% (or in period j=simoptions.jequaloneDistAge if that is set; then there is no mass at earlier ages)
 
 if exist('simoptions','var')==0
     simoptions.gridinterplayer=0; % =1 Policy interpolates between grid points (must match vfoptions.interpgridlayer)
@@ -21,6 +22,7 @@ if exist('simoptions','var')==0
     simoptions.outputkron=0; % If 1 then leave output in Kron form
     simoptions.alreadygridvals=0; % =1 when calling as a subcommand
     simoptions.alreadygridvals_semiexo=0; % =1 when calling as a subcommand
+    simoptions.jequaloneDistAge=1; % jequaloneDist is the distribution at this age (=1 is the standard first period)
 else
     %Check simoptions for missing fields, if there are some fill them with the defaults
     if ~isfield(simoptions,'gridinterplayer')
@@ -74,6 +76,9 @@ else
     end
     if ~isfield(simoptions,'alreadygridvals_semiexo')
         simoptions.alreadygridvals_semiexo=0; % =1 when calling as a subcommand
+    end
+    if ~isfield(simoptions,'jequaloneDistAge')
+        simoptions.jequaloneDistAge=1; % jequaloneDist is the distribution at this age (=1 is the standard first period)
     end
     % Some options require certain other inputs, and these have to be on the GPU
     if isfield(simoptions,'d_grid')
@@ -202,6 +207,15 @@ end
 % Check that the age one distribution is of mass one
 if abs(sum(jequaloneDist(:))-1)>10^(-9)
     error('The jequaloneDist must be of mass one')
+end
+
+%% If jequaloneDist is for an age other than j=1
+if simoptions.jequaloneDistAge>1
+    if exist('z_gridvals_J','var')
+        simoptions.z_gridvals_J=z_gridvals_J; % StationaryDist_FHorz_altj0 needs to slice it by age
+    end
+    StationaryDist=StationaryDist_FHorz_altj0(jequaloneDist,AgeWeightParamNames,Policy,n_d,n_a,n_z,N_j,pi_z_J,Parameters,simoptions);
+    return
 end
 
 %%

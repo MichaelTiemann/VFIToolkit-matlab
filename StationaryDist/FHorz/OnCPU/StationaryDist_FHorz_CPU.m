@@ -1,5 +1,11 @@
 function StationaryDist=StationaryDist_FHorz_CPU(jequaloneDist,AgeWeightParamNames,Policy,n_d,n_a,n_z,N_j,pi_z,Parameters,simoptions)
 
+if isfield(simoptions,'jequaloneDistAge')
+    if simoptions.jequaloneDistAge>1
+        error('simoptions.jequaloneDistAge>1 is not implemented for the CPU (simoptions.parallel<2); it needs the GPU')
+    end
+end
+
 if prod(n_d)==0
     l_d=0;
 else
