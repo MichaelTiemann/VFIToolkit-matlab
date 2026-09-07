@@ -231,7 +231,9 @@ for reverse_j=0:N_j-1
             up_idx=aprime_up +base_off;
             EV_lo=reshape(EVnext_byd2(lo_idx(:)),[N_a, N_semiz, N_zloc]);
             EV_up=reshape(EVnext_byd2(up_idx(:)),[N_a, N_semiz, N_zloc]);
-            EVnext_atpolicy=a2pPrb.*EV_lo+(1-a2pPrb).*EV_up;
+            EVnext_atpolicy=a2pPrb.*EV_lo+(1-a2pPrb).*EV_up; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so read the weighted node directly
+            EVnext_atpolicy(a2pPrb==1)=EV_lo(a2pPrb==1);
+            EVnext_atpolicy(a2pPrb==0)=EV_up(a2pPrb==0);
             V(:,:,jj)=F_jj+beta*reshape(EVnext_atpolicy, [N_a, N_shocks]);
         else
             EVnext_atpolicy=zeros(N_a, N_semiz, N_zloc, N_e, 'gpuArray');
@@ -248,7 +250,10 @@ for reverse_j=0:N_j-1
                 up_idx=aprime_up_e +base_off;
                 EV_lo=reshape(EVnext_byd2(lo_idx(:)),[N_a, N_semiz, N_zloc]);
                 EV_up=reshape(EVnext_byd2(up_idx(:)),[N_a, N_semiz, N_zloc]);
-                EVnext_atpolicy(:,:,:,e_c)=a2pPrb_e.*EV_lo+(1-a2pPrb_e).*EV_up;
+                EVnext_atpolicy_e=a2pPrb_e.*EV_lo+(1-a2pPrb_e).*EV_up; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so read the weighted node directly
+                EVnext_atpolicy_e(a2pPrb_e==1)=EV_lo(a2pPrb_e==1);
+                EVnext_atpolicy_e(a2pPrb_e==0)=EV_up(a2pPrb_e==0);
+                EVnext_atpolicy(:,:,:,e_c)=EVnext_atpolicy_e;
             end
             V(:,:,:,jj)=F_jj+beta*reshape(EVnext_atpolicy, [N_a, N_shocks, N_e]);
         end

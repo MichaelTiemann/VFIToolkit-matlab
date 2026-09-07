@@ -212,6 +212,8 @@ else
             aprimeProbs_d3(skipinterp)=0;
 
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
 
             undiscountedEV=reshape(entireEV,[N_d2,N_a1,1,N_a2,N_bothz]); % undiscounted; beta/beta0beta applied at the use sites
             undiscountedEVinterp=permute(interp1(a1_gridvals,permute(undiscountedEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]);
@@ -295,6 +297,8 @@ else
                 aprimeProbs_z=aprimeProbs_d2a1a2semiz;
                 aprimeProbs_z(skipinterp)=0;
                 entireEV=EV1.*aprimeProbs_z+EV2.*(1-aprimeProbs_z);
+                entireEV(aprimeProbs_z==0)=EV2(aprimeProbs_z==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+                entireEV(aprimeProbs_z==1)=EV1(aprimeProbs_z==1);
 
                 undiscountedEV=reshape(entireEV,[N_d2,N_a1,1,N_a2,N_semiz]); % undiscounted; beta/beta0beta applied at the use sites
                 undiscountedEVinterp=permute(interp1(a1_gridvals,permute(undiscountedEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]);
@@ -378,6 +382,8 @@ else
             aprimeProbs_d3(skipinterp)=0;
 
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
 
             undiscountedEV=reshape(entireEV,[N_d2,N_a1,1,N_a2,N_bothz]); % undiscounted; beta/beta0beta applied at the use sites
             undiscountedEVinterp=permute(interp1(a1_gridvals,permute(undiscountedEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]);
@@ -518,6 +524,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3(skipinterp)=0;
 
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
 
             undiscountedEV=reshape(entireEV,[N_d2,N_a1,1,N_a2,N_bothz]); % undiscounted; beta/beta0beta applied at the use sites
             undiscountedEVinterp=permute(interp1(a1_gridvals,permute(undiscountedEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]);
@@ -601,6 +609,8 @@ for reverse_j=1:N_j-1
                 aprimeProbs_z=aprimeProbs_d2a1a2semiz;
                 aprimeProbs_z(skipinterp)=0;
                 entireEV=EV1.*aprimeProbs_z+EV2.*(1-aprimeProbs_z);
+                entireEV(aprimeProbs_z==0)=EV2(aprimeProbs_z==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+                entireEV(aprimeProbs_z==1)=EV1(aprimeProbs_z==1);
 
                 undiscountedEV=reshape(entireEV,[N_d2,N_a1,1,N_a2,N_semiz]); % undiscounted; beta/beta0beta applied at the use sites
                 undiscountedEVinterp=permute(interp1(a1_gridvals,permute(undiscountedEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]);
@@ -684,6 +694,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3(skipinterp)=0;
 
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
 
             undiscountedEV=reshape(entireEV,[N_d2,N_a1,1,N_a2,N_bothz]); % undiscounted; beta/beta0beta applied at the use sites
             undiscountedEVinterp=permute(interp1(a1_gridvals,permute(undiscountedEV,[2,1,3,4,5]),a1prime_grid),[2,1,3,4,5]);
