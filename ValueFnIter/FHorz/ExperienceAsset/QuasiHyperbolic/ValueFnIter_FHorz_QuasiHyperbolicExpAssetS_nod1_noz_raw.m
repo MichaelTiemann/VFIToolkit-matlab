@@ -35,7 +35,7 @@ else
 
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
     [a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix(aprimeFn, n_d2, n_a2, d2_gridvals, a2_grid, aprimeFnParamsVec,2);
-    % l_a2==1: [N_d2,N_a2] legacy; l_a2>1: [Kaprimepts,N_d2,N_a2] Kaprimepts-corner
+    % l_a2==1: [N_d2,N_a2] legacy; l_a2>1: [l_a2,N_d2,N_a2] per-dim factored (NOT a Kron fold)
 
     EVpre=reshape(vfoptions.V_Jplus1,[N_a,1]);
 
@@ -116,7 +116,7 @@ for reverse_j=1:N_j-1
 
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);
     [a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix(aprimeFn, n_d2, n_a2, d2_gridvals, a2_grid, aprimeFnParamsVec,2);
-    % l_a2==1: [N_d2,N_a2] legacy; l_a2>1: [Kaprimepts,N_d2,N_a2] Kaprimepts-corner
+    % l_a2==1: [N_d2,N_a2] legacy; l_a2>1: [l_a2,N_d2,N_a2] per-dim factored (NOT a Kron fold)
 
     if length(n_a2)==1
         aprimeIndex=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat((a2primeIndex-1),N_a1,1);

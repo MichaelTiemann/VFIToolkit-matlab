@@ -35,15 +35,15 @@ jequaloneDistKron=gpuArray(jequaloneDistKron); % make sure it is on gpu
 %%
 % Policy is currently about d and a1prime. Convert to aprime (= a1prime kron a2prime corners).
 Policy=reshape(Policy,[size(Policy,1),N_a,N_j]);
-Kaprimepts=2^l_a2; % 2 points (upper and lower indexes) per dimension of a2
-Policy_aprime=zeros(N_a,Kaprimepts,N_j,'gpuArray');
-PolicyProbs=zeros(N_a,Kaprimepts,N_j,'gpuArray');
+N_probs=2^l_a2; % 2 points (lower and upper index) per dimension of a2
+Policy_aprime=zeros(N_a,N_probs,N_j,'gpuArray');
+PolicyProbs=zeros(N_a,N_probs,N_j,'gpuArray');
 whichisdforexpasset=length(n_d);  % the d variable that influences the experience asset (last d)
 for jj=1:N_j
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);
     [aprimeIndexes, aprimeProbs]=CreateaprimePolicyExperienceAsset(Policy(:,:,jj),simoptions.aprimeFn, whichisdforexpasset, n_d, n_a1, n_a2, 0, d_grid, a2_grid, aprimeFnParamsVec);
     % l_a2==1: aprimeIndexes/aprimeProbs are [N_a, 1] (legacy lower-corner; upper = lower+1)
-    % l_a2>1 : aprimeIndexes/aprimeProbs are [N_a, Kaprimepts] (Kron fold; index in N_a2 product space)
+    % l_a2>1 : aprimeIndexes/aprimeProbs are [N_a, N_probs] (Kron fold; index in N_a2 product space)
 
     % Build a1prime joint Kron index in N_a1 space ([N_a, 1])
     if l_a1==0
@@ -66,14 +66,14 @@ for jj=1:N_j
         PolicyProbs(:,1,jj)=aprimeProbs;
         PolicyProbs(:,2,jj)=1-aprimeProbs;
     else
-        % aprimeIndexes/aprimeProbs shape [N_a, l_a2=2] per-dim. Kron-fold to Kaprimepts=4 corners.
+        % aprimeIndexes/aprimeProbs shape [N_a, l_a2=2] per-dim. Kron-fold to N_probs=4 corners.
         n_a2_1=n_a2(1);
         loIdx_1=aprimeIndexes(:,1);
         loIdx_2=aprimeIndexes(:,2);
         prob_1=aprimeProbs(:,1);
         prob_2=aprimeProbs(:,2);
         bits=[0 0; 1 0; 0 1; 1 1];
-        for c=1:Kaprimepts
+        for c=1:N_probs
             b1=bits(c,1); b2=bits(c,2);
             a2_kron=(loIdx_1+b1)+n_a2_1*((loIdx_2+b2)-1);
             if l_a1==0
@@ -91,23 +91,22 @@ end
 
 if simoptions.gridinterplayer==0
 
-    StationaryDist=StationaryDist_FHorz_Iteration_nProbs_noz_raw(jequaloneDistKron,AgeWeightParamNames,Policy_aprime,PolicyProbs,Kaprimepts,N_a,N_j,Parameters);
+    StationaryDist=StationaryDist_FHorz_Iteration_nProbs_noz_raw(jequaloneDistKron,AgeWeightParamNames,Policy_aprime,PolicyProbs,N_probs,N_a,N_j,Parameters);
 
 elseif simoptions.gridinterplayer==1
-    if l_a2>1
-        error('gridinterplayer=1 not yet supported with multi-dim experience asset (l_a2>1)')
-    end
-    % (a,u,2,j)
+    % The interpolation layer adds the two a1prime grid points: duplicate the a2 corners, the
+    % first N_probs keeping the lower a1 point and the next N_probs taking the upper one.
     Policy_aprime=repmat(Policy_aprime,1,2,1);
     PolicyProbs=repmat(PolicyProbs,1,2,1);
-    % Policy_aprime(:,1:2,:) lower grid point for a1 is unchanged
-    Policy_aprime(:,3:4,:)=Policy_aprime(:,3:4,:)+1; % add one to a1, to get upper grid point
+    % Policy_aprime(:,1:N_probs,:) lower grid point for a1 is unchanged
+    Policy_aprime(:,N_probs+1:2*N_probs,:)=Policy_aprime(:,N_probs+1:2*N_probs,:)+1; % add one to a1, to get upper grid point (a1 is the fastest-varying dim of the aprime index)
 
     aprimeProbs_upper=reshape(shiftdim((Policy(end-1,:,:)-1)/(simoptions.ngridinterp+1),1),[N_a,1,N_j]); % probability of upper grid point (end-1 because end is now L2flag)
-    PolicyProbs(:,1:2,:)=PolicyProbs(:,1:2,:).*(1-aprimeProbs_upper); % lower a1
-    PolicyProbs(:,3:4,:)=PolicyProbs(:,3:4,:).*aprimeProbs_upper; % upper a1
+    PolicyProbs(:,1:N_probs,:)=PolicyProbs(:,1:N_probs,:).*(1-aprimeProbs_upper); % lower a1
+    PolicyProbs(:,N_probs+1:2*N_probs,:)=PolicyProbs(:,N_probs+1:2*N_probs,:).*aprimeProbs_upper; % upper a1
+    N_probs=2*N_probs;
 
-    StationaryDist=StationaryDist_FHorz_Iteration_nProbs_noz_raw(jequaloneDistKron,AgeWeightParamNames,Policy_aprime,PolicyProbs,4,N_a,N_j,Parameters);
+    StationaryDist=StationaryDist_FHorz_Iteration_nProbs_noz_raw(jequaloneDistKron,AgeWeightParamNames,Policy_aprime,PolicyProbs,N_probs,N_a,N_j,Parameters);
 end
 
 

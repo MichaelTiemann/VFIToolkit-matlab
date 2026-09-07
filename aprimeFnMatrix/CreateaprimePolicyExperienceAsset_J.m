@@ -242,7 +242,7 @@ if l_a2==1
     end
 
 elseif l_a2==2
-    % ===================== multi-dim a2 (l_a2==2): Kaprimepts=4 corners =====================
+    % ============ multi-dim a2 (l_a2==2): per-dim factored, caller folds the 4 corners ============
     n_a2_1=n_a2(1); n_a2_2=n_a2(2);
     a2_grid_1=a2_grid(1:n_a2_1);
     a2_grid_2=a2_grid(n_a2_1+1:n_a2_1+n_a2_2);
@@ -330,7 +330,7 @@ elseif l_a2==2
     a2primeProbs_flat(:,1)=prob_1(:);
     a2primeProbs_flat(:,2)=prob_2(:);
 
-    % Reshape: l_a2 dim inserted after N_a, before remaining dims (mirrors prior Kaprimepts layout)
+    % Reshape: l_a2 dim inserted after N_a, before remaining dims
     if fastOLG==0
         if N_semizze==0
             a2primeIndexes=reshape(a2primeIndexes_flat,[N_a,N_j,l_a2]); a2primeIndexes=permute(a2primeIndexes,[1,3,2]); % [N_a,l_a2,N_j]

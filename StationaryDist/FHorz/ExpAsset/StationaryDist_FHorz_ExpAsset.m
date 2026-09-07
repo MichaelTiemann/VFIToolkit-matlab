@@ -48,6 +48,12 @@ end
 %%
 l_d=length(n_d);
 l_a=length(n_a);
+l_a2=simoptions.experienceasset; % number of a2 (experience-asset) dims
+if isscalar(n_a1) && n_a1==0
+    l_a1=0; N_a1=0;
+else
+    l_a1=length(n_a1); N_a1=prod(n_a1);
+end
 
 N_a=prod(n_a);
 
@@ -73,8 +79,9 @@ Policy=reshape(Policy,[size(Policy,1),N_a,N_ze,N_j]);
 %% expasset transitions
 % Policy is currently about d and a1prime. Convert it to being about aprime
 % as that is what we need for simulation, and we can then just send it to standard Case1 commands.
-Policy_aprime=zeros(N_a,N_ze,2,N_j,'gpuArray'); % the lower grid point
-PolicyProbs=zeros(N_a,N_ze,2,N_j,'gpuArray'); % The fourth dimension is lower/upper grid point
+N_probs=2^l_a2; % 2 points (lower and upper index) per dimension of a2
+Policy_aprime=zeros(N_a,N_ze,N_probs,N_j,'gpuArray');
+PolicyProbs=zeros(N_a,N_ze,N_probs,N_j,'gpuArray'); % third dimension indexes the interpolation corners
 whichisdforexpasset=length(n_d)-simoptions.l_dexperienceasset+1:length(n_d);  % is just saying which is the decision variable that influences the experience asset (it is the 'last' decision variable)
 for jj=1:N_j
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);
@@ -82,27 +89,63 @@ for jj=1:N_j
     % Note: aprimeIndexes and aprimeProbs are both [N_a,N_z]
     % Note: aprimeIndexes is always the 'lower' point (the upper points are just aprimeIndexes+1), and the aprimeProbs are the probability of this lower point (prob of upper point is just 1 minus this).
 
-    if l_a==1 % just experience asset
-        Policy_aprime(:,:,1,jj)=aprimeIndexes;
-        Policy_aprime(:,:,2,jj)=aprimeIndexes+1;
-    elseif l_a==2 % one other asset, then experience asset
-        Policy_aprime(:,:,1,jj)=shiftdim(Policy(l_d+1,:,:,jj),1)+n_a(1)*(aprimeIndexes-1);
-        Policy_aprime(:,:,2,jj)=Policy_aprime(:,:,1,jj)+n_a(1);
-    elseif l_a==3 % two other assets, then experience asset
-        Policy_aprime(:,:,1,jj)=shiftdim(Policy(l_d+1,:,:,jj),1)+n_a(1)*(shiftdim(Policy(l_d+2,:,:,jj),1)-1)+prod(n_a(1:2))*(aprimeIndexes-1);
-        Policy_aprime(:,:,2,jj)=Policy_aprime(:,:,1,jj)+prod(n_a(1:2));
-    elseif l_a==4 % three other assets, then experience asset
-        Policy_aprime(:,:,1,jj)=shiftdim(Policy(l_d+1,:,:,jj),1)+n_a(1)*(shiftdim(Policy(l_d+2,:,:,jj),1)-1)+prod(n_a(1:2))*(shiftdim(Policy(l_d+3,:,:,jj),1)-1)+prod(n_a(1:3))*(aprimeIndexes-1);
-        Policy_aprime(:,:,2,jj)=Policy_aprime(:,:,1,jj)+prod(n_a(1:3));
-    elseif l_a==5 % four other assets, then experience asset
-        Policy_aprime(:,:,1,jj)=shiftdim(Policy(l_d+1,:,:,jj),1)+n_a(1)*(shiftdim(Policy(l_d+2,:,:,jj),1)-1)+prod(n_a(1:2))*(shiftdim(Policy(l_d+3,:,:,jj),1)-1)+prod(n_a(1:3))*(shiftdim(Policy(l_d+4,:,:,jj),1)-1)+prod(n_a(1:4))*(aprimeIndexes-1);
-        Policy_aprime(:,:,2,jj)=Policy_aprime(:,:,1,jj)+prod(n_a(1:4));
-    else
-        error('Not yet implemented experience asset with length(n_a)>5')
-    end
+    if l_a2==1
+        if l_a1==0 % just experience asset
+            Policy_aprime(:,:,1,jj)=aprimeIndexes;
+            Policy_aprime(:,:,2,jj)=aprimeIndexes+1;
+        elseif l_a1==1 % one other asset, then experience asset
+            Policy_aprime(:,:,1,jj)=shiftdim(Policy(l_d+1,:,:,jj),1)+n_a(1)*(aprimeIndexes-1);
+            Policy_aprime(:,:,2,jj)=Policy_aprime(:,:,1,jj)+n_a(1);
+        elseif l_a1==2 % two other assets, then experience asset
+            Policy_aprime(:,:,1,jj)=shiftdim(Policy(l_d+1,:,:,jj),1)+n_a(1)*(shiftdim(Policy(l_d+2,:,:,jj),1)-1)+prod(n_a(1:2))*(aprimeIndexes-1);
+            Policy_aprime(:,:,2,jj)=Policy_aprime(:,:,1,jj)+prod(n_a(1:2));
+        elseif l_a1==3 % three other assets, then experience asset
+            Policy_aprime(:,:,1,jj)=shiftdim(Policy(l_d+1,:,:,jj),1)+n_a(1)*(shiftdim(Policy(l_d+2,:,:,jj),1)-1)+prod(n_a(1:2))*(shiftdim(Policy(l_d+3,:,:,jj),1)-1)+prod(n_a(1:3))*(aprimeIndexes-1);
+            Policy_aprime(:,:,2,jj)=Policy_aprime(:,:,1,jj)+prod(n_a(1:3));
+        elseif l_a1==4 % four other assets, then experience asset
+            Policy_aprime(:,:,1,jj)=shiftdim(Policy(l_d+1,:,:,jj),1)+n_a(1)*(shiftdim(Policy(l_d+2,:,:,jj),1)-1)+prod(n_a(1:2))*(shiftdim(Policy(l_d+3,:,:,jj),1)-1)+prod(n_a(1:3))*(shiftdim(Policy(l_d+4,:,:,jj),1)-1)+prod(n_a(1:4))*(aprimeIndexes-1);
+            Policy_aprime(:,:,2,jj)=Policy_aprime(:,:,1,jj)+prod(n_a(1:4));
+        else
+            error('Not yet implemented experience asset with more than four standard assets')
+        end
 
-    PolicyProbs(:,:,1,jj)=aprimeProbs;
-    PolicyProbs(:,:,2,jj)=1-aprimeProbs;
+        PolicyProbs(:,:,1,jj)=aprimeProbs;
+        PolicyProbs(:,:,2,jj)=1-aprimeProbs;
+    else
+        % l_a2==2: aprimeIndexes/aprimeProbs are [N_a,l_a2,N_ze] per-dim factored.
+        % Kron-fold to N_probs=4 corners (mirrors the _noz sibling and SimPanelIndexes).
+        n_a2_1=n_a2(1);
+        loIdx_1=reshape(aprimeIndexes(:,1,:),[N_a,N_ze]);
+        loIdx_2=reshape(aprimeIndexes(:,2,:),[N_a,N_ze]);
+        prob_1=reshape(aprimeProbs(:,1,:),[N_a,N_ze]);
+        prob_2=reshape(aprimeProbs(:,2,:),[N_a,N_ze]);
+        if l_a1==0
+            a1primeIndexes=[];
+        elseif l_a1==1
+            a1primeIndexes=shiftdim(Policy(l_d+1,:,:,jj),1);
+        elseif l_a1==2
+            a1primeIndexes=shiftdim(Policy(l_d+1,:,:,jj),1)+n_a(1)*(shiftdim(Policy(l_d+2,:,:,jj),1)-1);
+        elseif l_a1==3
+            a1primeIndexes=shiftdim(Policy(l_d+1,:,:,jj),1)+n_a(1)*(shiftdim(Policy(l_d+2,:,:,jj),1)-1)+prod(n_a(1:2))*(shiftdim(Policy(l_d+3,:,:,jj),1)-1);
+        elseif l_a1==4
+            a1primeIndexes=shiftdim(Policy(l_d+1,:,:,jj),1)+n_a(1)*(shiftdim(Policy(l_d+2,:,:,jj),1)-1)+prod(n_a(1:2))*(shiftdim(Policy(l_d+3,:,:,jj),1)-1)+prod(n_a(1:3))*(shiftdim(Policy(l_d+4,:,:,jj),1)-1);
+        else
+            error('Not yet implemented experience asset with more than four standard assets')
+        end
+        bits=[0 0; 1 0; 0 1; 1 1];
+        for c=1:N_probs
+            b1=bits(c,1); b2=bits(c,2);
+            a2_kron=(loIdx_1+b1)+n_a2_1*((loIdx_2+b2)-1);
+            if l_a1==0
+                Policy_aprime(:,:,c,jj)=a2_kron;
+            else
+                Policy_aprime(:,:,c,jj)=a1primeIndexes+N_a1*(a2_kron-1);
+            end
+            p1=prob_1; if b1==1, p1=1-p1; end
+            p2=prob_2; if b2==1, p2=1-p2; end
+            PolicyProbs(:,:,c,jj)=p1.*p2;
+        end
+    end
 end
 
 
@@ -111,30 +154,32 @@ end
 if simoptions.gridinterplayer==0
     % Note: N_z=0 && N_e=0 is a different code
     if N_e==0 % just z
-        StationaryDist=StationaryDist_FHorz_Iteration_nProbs_raw(jequaloneDist,AgeWeightParamNames,Policy_aprime,PolicyProbs,2,N_a,N_z,N_j,pi_z_J,Parameters);
+        StationaryDist=StationaryDist_FHorz_Iteration_nProbs_raw(jequaloneDist,AgeWeightParamNames,Policy_aprime,PolicyProbs,N_probs,N_a,N_z,N_j,pi_z_J,Parameters);
     elseif N_z==0 % just e
-        StationaryDist=StationaryDist_FHorz_Iteration_nProbs_noz_e_raw(jequaloneDist,AgeWeightParamNames,Policy_aprime,PolicyProbs,2,N_a,N_e,N_j,simoptions.pi_e_J,Parameters);
+        StationaryDist=StationaryDist_FHorz_Iteration_nProbs_noz_e_raw(jequaloneDist,AgeWeightParamNames,Policy_aprime,PolicyProbs,N_probs,N_a,N_e,N_j,simoptions.pi_e_J,Parameters);
     else % both z and e
-        StationaryDist=StationaryDist_FHorz_Iteration_nProbs_e_raw(jequaloneDist,AgeWeightParamNames,Policy_aprime,PolicyProbs,2,N_a,N_z,N_e,N_j,pi_z_J,simoptions.pi_e_J,Parameters);
+        StationaryDist=StationaryDist_FHorz_Iteration_nProbs_e_raw(jequaloneDist,AgeWeightParamNames,Policy_aprime,PolicyProbs,N_probs,N_a,N_z,N_e,N_j,pi_z_J,simoptions.pi_e_J,Parameters);
     end
 elseif simoptions.gridinterplayer==1
-    % (a,z,2,j)
+    % The interpolation layer adds the two a1prime grid points: duplicate the a2 corners, the
+    % first N_probs keeping the lower a1 point and the next N_probs taking the upper one.
     Policy_aprime=repmat(Policy_aprime,1,1,2,1);
     PolicyProbs=repmat(PolicyProbs,1,1,2,1);
-    % Policy_aprime(:,:,1:2,:) lower grid point for a1 is unchanged
-    Policy_aprime(:,:,3:4,:)=Policy_aprime(:,:,3:4,:)+1; % add one to a1, to get upper grid point
+    % Policy_aprime(:,:,1:N_probs,:) lower grid point for a1 is unchanged
+    Policy_aprime(:,:,N_probs+1:2*N_probs,:)=Policy_aprime(:,:,N_probs+1:2*N_probs,:)+1; % add one to a1, to get upper grid point (a1 is the fastest-varying dim of the aprime index)
 
     aprimeProbs_upper=reshape(shiftdim((Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),1),[N_a,N_ze,1,N_j]); % probability of upper grid point (from L2 index; end-1 because end is now L2flag)
-    PolicyProbs(:,:,1:2,:)=PolicyProbs(:,:,1:2,:).*(1-aprimeProbs_upper); % lower a1
-    PolicyProbs(:,:,3:4,:)=PolicyProbs(:,:,3:4,:).*aprimeProbs_upper; % upper a1
+    PolicyProbs(:,:,1:N_probs,:)=PolicyProbs(:,:,1:N_probs,:).*(1-aprimeProbs_upper); % lower a1
+    PolicyProbs(:,:,N_probs+1:2*N_probs,:)=PolicyProbs(:,:,N_probs+1:2*N_probs,:).*aprimeProbs_upper; % upper a1
+    N_probs=2*N_probs;
 
     % Note: N_z=0 && N_e=0 is a different code
     if N_e==0 % just z
-        StationaryDist=StationaryDist_FHorz_Iteration_nProbs_raw(jequaloneDist,AgeWeightParamNames,Policy_aprime,PolicyProbs,4,N_a,N_z,N_j,pi_z_J,Parameters);
+        StationaryDist=StationaryDist_FHorz_Iteration_nProbs_raw(jequaloneDist,AgeWeightParamNames,Policy_aprime,PolicyProbs,N_probs,N_a,N_z,N_j,pi_z_J,Parameters);
     elseif N_z==0 % just e
-        StationaryDist=StationaryDist_FHorz_Iteration_nProbs_noz_e_raw(jequaloneDist,AgeWeightParamNames,Policy_aprime,PolicyProbs,4,N_a,N_e,N_j,simoptions.pi_e_J,Parameters);
+        StationaryDist=StationaryDist_FHorz_Iteration_nProbs_noz_e_raw(jequaloneDist,AgeWeightParamNames,Policy_aprime,PolicyProbs,N_probs,N_a,N_e,N_j,simoptions.pi_e_J,Parameters);
     else % both z and e
-        StationaryDist=StationaryDist_FHorz_Iteration_nProbs_e_raw(jequaloneDist,AgeWeightParamNames,Policy_aprime,PolicyProbs,4,N_a,N_z,N_e,N_j,pi_z_J,simoptions.pi_e_J,Parameters);
+        StationaryDist=StationaryDist_FHorz_Iteration_nProbs_e_raw(jequaloneDist,AgeWeightParamNames,Policy_aprime,PolicyProbs,N_probs,N_a,N_z,N_e,N_j,pi_z_J,simoptions.pi_e_J,Parameters);
     end
 end
 

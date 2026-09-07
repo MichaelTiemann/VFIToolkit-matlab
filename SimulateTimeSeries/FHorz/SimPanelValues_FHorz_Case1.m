@@ -181,7 +181,7 @@ N_semizze=prod(n_semizze);
 %% Exogenous shock grids
 if simoptions.alreadygridvals==0
     % Internally, only ever use age-dependent joint-grids (makes all the code much easier to write)
-    [z_gridvals_J, pi_z_J, simoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,simoptions,3);
+    [z_gridvals_J, pi_z_J, simoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,simoptions,3,0);
     % note: output z_gridvals_J, pi_z_J, and simoptions.e_gridvals_J, simoptions.pi_e_J
     %
     % size(z_gridvals_J)=[prod(n_z),length(n_z),N_j]
@@ -265,7 +265,22 @@ end
 %% Implement new way of handling FnsToEvaluate
 % Figure out l_aprime and l_daprime
 l_aprime=l_a;
-if simoptions.experienceasset>=1 || simoptions.experienceassetu>=1 || simoptions.experienceassetz>=1 || simoptions.experienceassete>=1 || simoptions.experienceassetze>=1 || simoptions.experienceassetsemiz>=1 || simoptions.riskyasset>=1
+% Subtract the NUMBER of experience-asset dimensions, not 1: with two experience assets and no
+% standard asset l_aprime must be 0, as nothing in Policy is a chosen aprime. Mirrors
+% PolicyInd2Val_FHorz and CreateGridvals_Policy. riskyasset is always a single dimension.
+if simoptions.experienceasset>=1
+    l_aprime=l_aprime-simoptions.experienceasset;
+elseif simoptions.experienceassetu>=1
+    l_aprime=l_aprime-simoptions.experienceassetu;
+elseif simoptions.experienceassetz>=1
+    l_aprime=l_aprime-simoptions.experienceassetz;
+elseif simoptions.experienceassete>=1
+    l_aprime=l_aprime-simoptions.experienceassete;
+elseif simoptions.experienceassetze>=1
+    l_aprime=l_aprime-simoptions.experienceassetze;
+elseif simoptions.experienceassetsemiz>=1
+    l_aprime=l_aprime-simoptions.experienceassetsemiz;
+elseif simoptions.riskyasset>=1
     l_aprime=l_aprime-1;
 end
 l_daprime=l_d+l_aprime;

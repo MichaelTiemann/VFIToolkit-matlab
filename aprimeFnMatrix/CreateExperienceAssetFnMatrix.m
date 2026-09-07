@@ -11,11 +11,15 @@ function [a2primeIndexes,a2primeProbs]=CreateExperienceAssetFnMatrix(aprimeFn, n
 %   l_a2==1 (legacy):
 %     a2primeIndexes - col=1 => [N_d*N_a2, 1]; col=2 => [N_d, N_a2]
 %     a2primeProbs   - [N_d, N_a2]; upper idx = lower+1, prob upper = 1-prob lower
-%   l_a2==2 (multi-dim, Kaprimepts=4 corners):
-%     a2primeIndexes - col=1 => [Kaprimepts, N_d*N_a2]; col=2 => [Kaprimepts, N_d, N_a2]
-%     a2primeProbs   - same shape as a2primeIndexes
-%     Each row c=1..Kaprimepts is one corner of the bilinear interpolation lattice;
-%     the index is the Kron'd linear index in N_a2=prod(n_a2) space.
+%   l_a2==2 (multi-dim, per-dim factored -- NOT Kron-folded corners):
+%     a2primeIndexes - col=1 => [l_a2, N_d*N_a2]; col=2 => [l_a2, N_d, N_a2]
+%     a2primeProbs   - [l_a2, N_d, N_a2] ALWAYS (unlike a2primeIndexes, its shape does not
+%                      depend on aprimeIndexAsColumn)
+%     Row k is the a2_k dimension on its own: a2primeIndexes(k,...) is the lower-grid index
+%     within that dimension (1..n_a2(k)) and a2primeProbs(k,...) the probability of that lower
+%     point. These are per-dimension indices, NOT linear indices in N_a2=prod(n_a2) space.
+%     The caller combines them into the four corners itself and does a nested 2-corner interp
+%     with skipinterp at each level (bit-exact when V is flat in a dimension).
 
 ParamCell=cell(length(aprimeFnParams),1);
 for ii=1:length(aprimeFnParams)
@@ -112,7 +116,7 @@ if l_a2==1
     a2primeProbs=reshape(a2primeProbs,[N_d,N_a2]);
 
 elseif l_a2==2
-    %% Multi-dim a2 (l_a2=2): bilinear interp, Kaprimepts=4 corners
+    %% Multi-dim a2 (l_a2=2): bilinear interp, returned PER-DIM FACTORED (the caller folds the 4 corners)
     n_a2_1=n_a2(1); n_a2_2=n_a2(2);
     a2_grid_1=a2_grid(1:n_a2_1);
     a2_grid_2=a2_grid(n_a2_1+1:n_a2_1+n_a2_2);

@@ -19,7 +19,7 @@ if vfoptions.gridinterplayer==1
 end
 
 %% Setup
-[z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3);
+[z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3,0);
 
 if ~isfield(vfoptions,'aprimeFn')
     error('To use an experience asset you must define vfoptions.aprimeFn')
@@ -234,7 +234,9 @@ for reverse_j=0:N_j-1
                 prob_2=a2primeProbs(:,2);
 
                 if N_a1==0
-                    a1p=zeros(N_a,1,'gpuArray'); N_a1_eff=1;
+                    a1p=ones(N_a,1,'gpuArray'); N_a1_eff=1; % the degenerate a1 dimension has the single index 1,
+                    % not 0: with a1p=0 the aprime formula below returns a2kron-1, which is 0 at the
+                    % first grid point and so is not a valid subscript
                 else
                     a1p=a1prime_idx(:,jj); N_a1_eff=N_a1;
                 end
@@ -263,54 +265,167 @@ for reverse_j=0:N_j-1
             V(:,jj)=F_jj+beta*EVnext_atpolicy;
         elseif N_z==0 && N_e>0
             % a1prime_idx, a2primeIndex shape: [N_a, N_e]; EVnext shape: [N_a, 1]
-            if N_a1==0
-                aprime_low=a2primeIndex;
-                aprime_up =a2primeIndex+1;
+            if l_a2==1
+                if N_a1==0
+                    aprime_low=a2primeIndex;
+                    aprime_up =a2primeIndex+1;
+                else
+                    a1p=a1prime_idx(:,:,jj); % [N_a, N_e]
+                    aprime_low=a1p+N_a1*(a2primeIndex-1);
+                    aprime_up =a1p+N_a1*(a2primeIndex);
+                end
+                EV_low=reshape(EVnext(aprime_low(:)),[N_a,N_e]);
+                EV_up =reshape(EVnext(aprime_up(:)), [N_a,N_e]);
+                EVnext_atpolicy=a2primeProbs.*EV_low+(1-a2primeProbs).*EV_up;
             else
-                a1p=a1prime_idx(:,:,jj); % [N_a, N_e]
-                aprime_low=a1p+N_a1*(a2primeIndex-1);
-                aprime_up =a1p+N_a1*(a2primeIndex);
+                % l_a2==2: a2primeIndex/a2primeProbs are [N_a,l_a2,N_e] per-dim factored.
+                % Nested 2-corner with skipinterp at each level, as in the no-shock branch above.
+                n_a2_1=n_a2(1);
+                loIdx_1=reshape(a2primeIndex(:,1,:),[N_a,N_e]);
+                loIdx_2=reshape(a2primeIndex(:,2,:),[N_a,N_e]);
+                prob_1=reshape(a2primeProbs(:,1,:),[N_a,N_e]);
+                prob_2=reshape(a2primeProbs(:,2,:),[N_a,N_e]);
+                if N_a1==0
+                    a1p=ones(N_a,N_e,'gpuArray'); N_a1_eff=1;
+                else
+                    a1p=a1prime_idx(:,:,jj); N_a1_eff=N_a1;
+                end
+                aprime_ll=a1p+N_a1_eff*(loIdx_1+n_a2_1*(loIdx_2-1)-1);
+                aprime_hl=a1p+N_a1_eff*((loIdx_1+1)+n_a2_1*(loIdx_2-1)-1);
+                aprime_lh=a1p+N_a1_eff*(loIdx_1+n_a2_1*loIdx_2-1);
+                aprime_hh=a1p+N_a1_eff*((loIdx_1+1)+n_a2_1*loIdx_2-1);
+                V_ll=reshape(EVnext(aprime_ll(:)),[N_a,N_e]);
+                V_hl=reshape(EVnext(aprime_hl(:)),[N_a,N_e]);
+                V_lh=reshape(EVnext(aprime_lh(:)),[N_a,N_e]);
+                V_hh=reshape(EVnext(aprime_hh(:)),[N_a,N_e]);
+                p1_loy=prob_1; p1_loy(V_ll==V_hl)=0;
+                c_ll=p1_loy.*V_ll; c_ll(isnan(c_ll))=0;
+                c_hl=(1-p1_loy).*V_hl; c_hl(isnan(c_hl))=0;
+                EV_loy=c_ll+c_hl;
+                p1_hiy=prob_1; p1_hiy(V_lh==V_hh)=0;
+                c_lh=p1_hiy.*V_lh; c_lh(isnan(c_lh))=0;
+                c_hh=(1-p1_hiy).*V_hh; c_hh(isnan(c_hh))=0;
+                EV_hiy=c_lh+c_hh;
+                p2=prob_2; p2(EV_loy==EV_hiy)=0;
+                c_loy=p2.*EV_loy; c_loy(isnan(c_loy))=0;
+                c_hiy=(1-p2).*EV_hiy; c_hiy(isnan(c_hiy))=0;
+                EVnext_atpolicy=c_loy+c_hiy;
             end
-            EV_low=reshape(EVnext(aprime_low(:)),[N_a,N_e]);
-            EV_up =reshape(EVnext(aprime_up(:)), [N_a,N_e]);
-            EVnext_atpolicy=a2primeProbs.*EV_low+(1-a2primeProbs).*EV_up;
             V(:,:,jj)=F_jj+beta*EVnext_atpolicy;
         elseif N_z>0 && N_e==0
             % a1prime_idx, a2primeIndex shape: [N_a, N_z]; EVnext shape: [N_a, N_z]
-            if N_a1==0
-                aprime_low=a2primeIndex;
-                aprime_up =a2primeIndex+1;
+            if l_a2==1
+                if N_a1==0
+                    aprime_low=a2primeIndex;
+                    aprime_up =a2primeIndex+1;
+                else
+                    a1p=a1prime_idx(:,:,jj);
+                    aprime_low=a1p+N_a1*(a2primeIndex-1);
+                    aprime_up =a1p+N_a1*(a2primeIndex);
+                end
+                zidxoffset=N_a*gpuArray(0:N_z-1); % [1, N_z]
+                lin_low=aprime_low+zidxoffset; % broadcast: [N_a, N_z]
+                lin_up =aprime_up +zidxoffset;
+                EV_low=reshape(EVnext(lin_low(:)),[N_a,N_z]);
+                EV_up =reshape(EVnext(lin_up(:)), [N_a,N_z]);
+                EVnext_atpolicy=a2primeProbs.*EV_low+(1-a2primeProbs).*EV_up;
             else
-                a1p=a1prime_idx(:,:,jj);
-                aprime_low=a1p+N_a1*(a2primeIndex-1);
-                aprime_up =a1p+N_a1*(a2primeIndex);
+                % l_a2==2: a2primeIndex/a2primeProbs are [N_a,l_a2,N_z] per-dim factored.
+                % Nested 2-corner with skipinterp at each level, as in the no-shock branch above.
+                n_a2_1=n_a2(1);
+                loIdx_1=reshape(a2primeIndex(:,1,:),[N_a,N_z]);
+                loIdx_2=reshape(a2primeIndex(:,2,:),[N_a,N_z]);
+                prob_1=reshape(a2primeProbs(:,1,:),[N_a,N_z]);
+                prob_2=reshape(a2primeProbs(:,2,:),[N_a,N_z]);
+                if N_a1==0
+                    a1p=ones(N_a,N_z,'gpuArray'); N_a1_eff=1;
+                else
+                    a1p=a1prime_idx(:,:,jj); N_a1_eff=N_a1;
+                end
+                aprime_ll=a1p+N_a1_eff*(loIdx_1+n_a2_1*(loIdx_2-1)-1);
+                aprime_hl=a1p+N_a1_eff*((loIdx_1+1)+n_a2_1*(loIdx_2-1)-1);
+                aprime_lh=a1p+N_a1_eff*(loIdx_1+n_a2_1*loIdx_2-1);
+                aprime_hh=a1p+N_a1_eff*((loIdx_1+1)+n_a2_1*loIdx_2-1);
+                zidxoffset=N_a*gpuArray(0:N_z-1); % [1, N_z], broadcasts over [N_a, N_z]
+                lin_ll=aprime_ll+zidxoffset; lin_hl=aprime_hl+zidxoffset;
+                lin_lh=aprime_lh+zidxoffset; lin_hh=aprime_hh+zidxoffset;
+                V_ll=reshape(EVnext(lin_ll(:)),[N_a,N_z]);
+                V_hl=reshape(EVnext(lin_hl(:)),[N_a,N_z]);
+                V_lh=reshape(EVnext(lin_lh(:)),[N_a,N_z]);
+                V_hh=reshape(EVnext(lin_hh(:)),[N_a,N_z]);
+                p1_loy=prob_1; p1_loy(V_ll==V_hl)=0;
+                c_ll=p1_loy.*V_ll; c_ll(isnan(c_ll))=0;
+                c_hl=(1-p1_loy).*V_hl; c_hl(isnan(c_hl))=0;
+                EV_loy=c_ll+c_hl;
+                p1_hiy=prob_1; p1_hiy(V_lh==V_hh)=0;
+                c_lh=p1_hiy.*V_lh; c_lh(isnan(c_lh))=0;
+                c_hh=(1-p1_hiy).*V_hh; c_hh(isnan(c_hh))=0;
+                EV_hiy=c_lh+c_hh;
+                p2=prob_2; p2(EV_loy==EV_hiy)=0;
+                c_loy=p2.*EV_loy; c_loy(isnan(c_loy))=0;
+                c_hiy=(1-p2).*EV_hiy; c_hiy(isnan(c_hiy))=0;
+                EVnext_atpolicy=c_loy+c_hiy;
             end
-            zidxoffset=N_a*gpuArray(0:N_z-1); % [1, N_z]
-            lin_low=aprime_low+zidxoffset; % broadcast: [N_a, N_z]
-            lin_up =aprime_up +zidxoffset;
-            EV_low=reshape(EVnext(lin_low(:)),[N_a,N_z]);
-            EV_up =reshape(EVnext(lin_up(:)), [N_a,N_z]);
-            EVnext_atpolicy=a2primeProbs.*EV_low+(1-a2primeProbs).*EV_up;
             V(:,:,jj)=F_jj+beta*EVnext_atpolicy;
         else
             % a1prime_idx, a2primeIndex shape: [N_a, N_z*N_e]; EVnext shape: [N_a, N_z]
             % For each (a, z, e), look up at aprime in dim 1 of EVnext, and z (=current state's z) in dim 2.
-            a2pIdx=reshape(a2primeIndex,[N_a, N_z, N_e]);
-            a2pPrb=reshape(a2primeProbs,[N_a, N_z, N_e]);
-            if N_a1==0
-                aprime_low=a2pIdx;
-                aprime_up =a2pIdx+1;
+            if l_a2==1
+                a2pIdx=reshape(a2primeIndex,[N_a, N_z, N_e]);
+                a2pPrb=reshape(a2primeProbs,[N_a, N_z, N_e]);
+                if N_a1==0
+                    aprime_low=a2pIdx;
+                    aprime_up =a2pIdx+1;
+                else
+                    a1p=reshape(a1prime_idx(:,:,jj),[N_a, N_z, N_e]);
+                    aprime_low=a1p+N_a1*(a2pIdx-1);
+                    aprime_up =a1p+N_a1*(a2pIdx);
+                end
+                zidxoffset=reshape(N_a*gpuArray(0:N_z-1),[1,N_z,1]); % [1, N_z, 1]
+                lin_low=aprime_low+zidxoffset;
+                lin_up =aprime_up +zidxoffset;
+                EV_low=reshape(EVnext(lin_low(:)),[N_a,N_z,N_e]);
+                EV_up =reshape(EVnext(lin_up(:)), [N_a,N_z,N_e]);
+                EVnext_atpolicy=a2pPrb.*EV_low+(1-a2pPrb).*EV_up;
             else
-                a1p=reshape(a1prime_idx(:,:,jj),[N_a, N_z, N_e]);
-                aprime_low=a1p+N_a1*(a2pIdx-1);
-                aprime_up =a1p+N_a1*(a2pIdx);
+                % l_a2==2: a2primeIndex/a2primeProbs are [N_a,l_a2,N_z*N_e] per-dim factored.
+                % Nested 2-corner with skipinterp at each level, as in the no-shock branch above.
+                n_a2_1=n_a2(1);
+                a2pIdx=reshape(a2primeIndex,[N_a,l_a2,N_z,N_e]);
+                a2pPrb=reshape(a2primeProbs,[N_a,l_a2,N_z,N_e]);
+                loIdx_1=reshape(a2pIdx(:,1,:,:),[N_a,N_z,N_e]);
+                loIdx_2=reshape(a2pIdx(:,2,:,:),[N_a,N_z,N_e]);
+                prob_1=reshape(a2pPrb(:,1,:,:),[N_a,N_z,N_e]);
+                prob_2=reshape(a2pPrb(:,2,:,:),[N_a,N_z,N_e]);
+                if N_a1==0
+                    a1p=ones(N_a,N_z,N_e,'gpuArray'); N_a1_eff=1;
+                else
+                    a1p=reshape(a1prime_idx(:,:,jj),[N_a,N_z,N_e]); N_a1_eff=N_a1;
+                end
+                aprime_ll=a1p+N_a1_eff*(loIdx_1+n_a2_1*(loIdx_2-1)-1);
+                aprime_hl=a1p+N_a1_eff*((loIdx_1+1)+n_a2_1*(loIdx_2-1)-1);
+                aprime_lh=a1p+N_a1_eff*(loIdx_1+n_a2_1*loIdx_2-1);
+                aprime_hh=a1p+N_a1_eff*((loIdx_1+1)+n_a2_1*loIdx_2-1);
+                zidxoffset=reshape(N_a*gpuArray(0:N_z-1),[1,N_z,1]); % [1, N_z, 1]
+                lin_ll=aprime_ll+zidxoffset; lin_hl=aprime_hl+zidxoffset;
+                lin_lh=aprime_lh+zidxoffset; lin_hh=aprime_hh+zidxoffset;
+                V_ll=reshape(EVnext(lin_ll(:)),[N_a,N_z,N_e]);
+                V_hl=reshape(EVnext(lin_hl(:)),[N_a,N_z,N_e]);
+                V_lh=reshape(EVnext(lin_lh(:)),[N_a,N_z,N_e]);
+                V_hh=reshape(EVnext(lin_hh(:)),[N_a,N_z,N_e]);
+                p1_loy=prob_1; p1_loy(V_ll==V_hl)=0;
+                c_ll=p1_loy.*V_ll; c_ll(isnan(c_ll))=0;
+                c_hl=(1-p1_loy).*V_hl; c_hl(isnan(c_hl))=0;
+                EV_loy=c_ll+c_hl;
+                p1_hiy=prob_1; p1_hiy(V_lh==V_hh)=0;
+                c_lh=p1_hiy.*V_lh; c_lh(isnan(c_lh))=0;
+                c_hh=(1-p1_hiy).*V_hh; c_hh(isnan(c_hh))=0;
+                EV_hiy=c_lh+c_hh;
+                p2=prob_2; p2(EV_loy==EV_hiy)=0;
+                c_loy=p2.*EV_loy; c_loy(isnan(c_loy))=0;
+                c_hiy=(1-p2).*EV_hiy; c_hiy(isnan(c_hiy))=0;
+                EVnext_atpolicy=c_loy+c_hiy;
             end
-            zidxoffset=reshape(N_a*gpuArray(0:N_z-1),[1,N_z,1]); % [1, N_z, 1]
-            lin_low=aprime_low+zidxoffset;
-            lin_up =aprime_up +zidxoffset;
-            EV_low=reshape(EVnext(lin_low(:)),[N_a,N_z,N_e]);
-            EV_up =reshape(EVnext(lin_up(:)), [N_a,N_z,N_e]);
-            EVnext_atpolicy=a2pPrb.*EV_low+(1-a2pPrb).*EV_up;
             V(:,:,:,jj)=F_jj+beta*EVnext_atpolicy;
         end
     end
