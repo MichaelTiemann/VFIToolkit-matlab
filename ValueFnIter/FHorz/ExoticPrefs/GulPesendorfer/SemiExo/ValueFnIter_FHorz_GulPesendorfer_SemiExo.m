@@ -9,10 +9,6 @@ N_d1=prod(n_d1);
 N_z=prod(n_z);
 N_e=prod(vfoptions.n_e);
 
-if ~isscalar(n_a)
-    error('GulPesendorfer with semi-exogenous states and two endogenous states is not yet implemented')
-end
-
 if vfoptions.divideandconquer==1 && vfoptions.gridinterplayer==1
     % Solve by doing Divide-and-Conquer, and then a grid interpolation layer
     [V,Policy]=ValueFnIter_FHorz_GulPesendorfer_SemiExo_DC_GI(n_d1,n_d2,n_a,n_semiz,n_z,N_j,d1_gridvals,d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);

@@ -14,6 +14,11 @@ function varargout=ValueFnFromPolicy_FHorz_GulPesendorfer_SemiExo(Policy,n_d,n_a
 % coarse argmax (otherwise the chosen fine point could be more tempting than the coarse max
 % of v, making the self-control cost negative).
 %
+% Two endogenous states are supported: under gridinterplayer the interpolation applies to
+% a1prime only (a2prime stays on the coarse grid; its block offset is folded into the linear
+% aprime index for the continuation lookup), and the per-d2 fine max of v is over the fine
+% a1prime window jointly with the FULL a2prime grid (GI2A, as in the GP SemiExo GI2A raws).
+%
 % This is dispatched from ValueFnFromPolicy_FHorz_GulPesendorfer AFTER the parent
 % ValueFnFromPolicy_FHorz has run ExogShockSetup_FHorz, so z_gridvals_J/pi_z_J and
 % vfoptions.e_gridvals_J/pi_e_J arrive pre-processed (vfoptions.n_e exists, 0-equivalent when
@@ -47,10 +52,6 @@ end
 l_d=length(n_d);
 l_a=length(n_a);
 l_aprime=l_a;
-
-if ~isscalar(n_a)
-    error('GulPesendorfer with semi-exogenous states and two endogenous states is not yet implemented')
-end
 
 TemptationFn=vfoptions.temptationFn;
 
@@ -98,7 +99,14 @@ if vfoptions.gridinterplayer==1
 
     % Grid interpolation parameters
     n2short=vfoptions.ngridinterp; % evenly spaced points between each pair of a_grid points
-    aprime_grid=interp1(1:1:N_a,a_grid,linspace(1,N_a,N_a+(N_a-1)*n2short));
+    if isscalar(n_a)
+        aprime_grid=interp1(1:1:N_a,a_grid,linspace(1,N_a,N_a+(N_a-1)*n2short));
+    else % GI2A: the interpolation layer applies to a1prime only, so the fine grid is a1-only (a2prime stays on the coarse grid)
+        n_a1=n_a(1);
+        a1_grid=a_grid(1:n_a1);
+        a2_grid=a_grid(n_a1+1:end);
+        a1prime_grid=interp1(1:1:n_a1,a1_grid,linspace(1,n_a1,n_a1+(n_a1-1)*n2short))';
+    end
 
     %% PolicyValues (PolicyInd2Val handles GI internally; returns interpolated aprime values)
     if N_e==0
@@ -158,9 +166,16 @@ if vfoptions.gridinterplayer==1
     a1_upper(a1_lower>=n_a(1))=n_a(1);
     a1_lower(a1_lower<1)=1;
 
-    % Only l_a==1 here (scalar n_a was enforced above, so no GI2A a2prime offset is needed)
-    aprime_lower_idx=a1_lower;
-    aprime_upper_idx=a1_upper;
+    if isscalar(n_a)
+        aprime_lower_idx=a1_lower;
+        aprime_upper_idx=a1_upper;
+    else % GI2A: fold the a2prime block offset (Policy channel l_d+2) into the linear aprime index; the a1
+        % interpolation happens WITHIN the chosen a2prime block, and a1_upper is clamped to n_a(1) above so
+        % upper=lower+1 never steps outside the block
+        a2prime_idx=shiftdim(Policy_k(l_d+2,:,:,:,:),1);
+        aprime_lower_idx=a1_lower+n_a(1)*(a2prime_idx-1);
+        aprime_upper_idx=a1_upper+n_a(1)*(a2prime_idx-1);
+    end
 
     %% Backward iteration
     if N_e==0
@@ -193,22 +208,38 @@ if vfoptions.gridinterplayer==1
         if N_e==0
             for d2_c=1:N_dsemiz
                 d12c_gridvals=d12_gridvals(:,:,d2_c);
-                TemptationMatrix_d2=CreateReturnFnMatrix_Disc(TemptationFn, special_n_d, n_a, n_shocks, d12c_gridvals, a_grid, joint_gridvals_J(:,:,jj), TemptationFnParamsVec,1);
-                [~,maxindexT]=max(TemptationMatrix_d2,[],2);
-                midpointT=max(min(maxindexT,n_a-1),2);
-                aprimeindexesT=(midpointT+(midpointT-1)*n2short)+(-n2short-1:1:1+n2short);
-                TemptationMatrix_Tii=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d, n_shocks, d12c_gridvals, aprime_grid(aprimeindexesT), a_grid, joint_gridvals_J(:,:,jj), TemptationFnParamsVec,2);
+                if isscalar(n_a)
+                    TemptationMatrix_d2=CreateReturnFnMatrix_Disc(TemptationFn, special_n_d, n_a, n_shocks, d12c_gridvals, a_grid, joint_gridvals_J(:,:,jj), TemptationFnParamsVec,1);
+                    [~,maxindexT]=max(TemptationMatrix_d2,[],2);
+                    midpointT=max(min(maxindexT,n_a-1),2);
+                    aprimeindexesT=(midpointT+(midpointT-1)*n2short)+(-n2short-1:1:1+n2short);
+                    TemptationMatrix_Tii=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d, n_shocks, d12c_gridvals, aprime_grid(aprimeindexesT), a_grid, joint_gridvals_J(:,:,jj), TemptationFnParamsVec,2);
+                else % GI2A: fine a1prime window jointly with the full a2prime grid (as in the GP SemiExo GI2A solver raws)
+                    TemptationMatrix_d2=CreateReturnFnMatrix_Disc_DC2A(TemptationFn, special_n_d, n_shocks, d12c_gridvals, a1_grid, a2_grid, a1_grid, a2_grid, joint_gridvals_J(:,:,jj), TemptationFnParamsVec,1,0);
+                    [~,maxindexT]=max(TemptationMatrix_d2,[],2); % dim 2 is a1prime, so this is directly the a1prime component of the argmax (per d1,a2prime)
+                    midpointT=max(min(maxindexT,n_a1-1),2);
+                    a1primeindexesT=(midpointT+(midpointT-1)*n2short)+(-n2short-1:1:1+n2short);
+                    TemptationMatrix_Tii=CreateReturnFnMatrix_Disc_DC2A(TemptationFn, special_n_d, n_shocks, d12c_gridvals, a1prime_grid(a1primeindexesT), a2_grid, a1_grid, a2_grid, joint_gridvals_J(:,:,jj), TemptationFnParamsVec,2,0);
+                end
                 MostTempting_ford2(:,:,d2_c)=shiftdim(max(TemptationMatrix_Tii,[],1),1); % fine (d1,aprime) max for this d2
             end
             MostTempting=max(MostTempting_ford2,[],3); % [N_a, N_shocks]
         else
             for d2_c=1:N_dsemiz
                 d12c_gridvals=d12_gridvals(:,:,d2_c);
-                TemptationMatrix_d2=CreateReturnFnMatrix_Disc_e(TemptationFn, special_n_d, n_a, n_shocks, vfoptions.n_e, d12c_gridvals, a_grid, joint_gridvals_J(:,:,jj), vfoptions.e_gridvals_J(:,:,jj), TemptationFnParamsVec,1);
-                [~,maxindexT]=max(TemptationMatrix_d2,[],2);
-                midpointT=max(min(maxindexT,n_a-1),2);
-                aprimeindexesT=(midpointT+(midpointT-1)*n2short)+(-n2short-1:1:1+n2short);
-                TemptationMatrix_Tii=CreateReturnFnMatrix_Disc_DC1_e(TemptationFn, special_n_d, n_shocks, vfoptions.n_e, d12c_gridvals, aprime_grid(aprimeindexesT), a_grid, joint_gridvals_J(:,:,jj), vfoptions.e_gridvals_J(:,:,jj), TemptationFnParamsVec,2);
+                if isscalar(n_a)
+                    TemptationMatrix_d2=CreateReturnFnMatrix_Disc_e(TemptationFn, special_n_d, n_a, n_shocks, vfoptions.n_e, d12c_gridvals, a_grid, joint_gridvals_J(:,:,jj), vfoptions.e_gridvals_J(:,:,jj), TemptationFnParamsVec,1);
+                    [~,maxindexT]=max(TemptationMatrix_d2,[],2);
+                    midpointT=max(min(maxindexT,n_a-1),2);
+                    aprimeindexesT=(midpointT+(midpointT-1)*n2short)+(-n2short-1:1:1+n2short);
+                    TemptationMatrix_Tii=CreateReturnFnMatrix_Disc_DC1_e(TemptationFn, special_n_d, n_shocks, vfoptions.n_e, d12c_gridvals, aprime_grid(aprimeindexesT), a_grid, joint_gridvals_J(:,:,jj), vfoptions.e_gridvals_J(:,:,jj), TemptationFnParamsVec,2);
+                else % GI2A: fine a1prime window jointly with the full a2prime grid (as in the GP SemiExo GI2A solver raws)
+                    TemptationMatrix_d2=CreateReturnFnMatrix_Disc_DC2A_e(TemptationFn, special_n_d, n_shocks, vfoptions.n_e, d12c_gridvals, a1_grid, a2_grid, a1_grid, a2_grid, joint_gridvals_J(:,:,jj), vfoptions.e_gridvals_J(:,:,jj), TemptationFnParamsVec,1,0);
+                    [~,maxindexT]=max(TemptationMatrix_d2,[],2); % dim 2 is a1prime, so this is directly the a1prime component of the argmax (per d1,a2prime)
+                    midpointT=max(min(maxindexT,n_a1-1),2);
+                    a1primeindexesT=(midpointT+(midpointT-1)*n2short)+(-n2short-1:1:1+n2short);
+                    TemptationMatrix_Tii=CreateReturnFnMatrix_Disc_DC2A_e(TemptationFn, special_n_d, n_shocks, vfoptions.n_e, d12c_gridvals, a1prime_grid(a1primeindexesT), a2_grid, a1_grid, a2_grid, joint_gridvals_J(:,:,jj), vfoptions.e_gridvals_J(:,:,jj), TemptationFnParamsVec,2,0);
+                end
                 MostTempting_ford2(:,:,:,d2_c)=reshape(max(TemptationMatrix_Tii,[],1),[N_a,N_shocks,N_e]); % fine (d1,aprime) max for this d2
             end
             MostTempting=max(MostTempting_ford2,[],4); % [N_a, N_shocks, N_e]

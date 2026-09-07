@@ -16,38 +16,76 @@ if ~isfield(vfoptions,'level1n')
     end
 end
 
-if ~isscalar(n_a)
-    error('GulPesendorfer with semi-exogenous states and two endogenous states is not yet implemented')
+if length(n_a)>2
+    error('Cannot use vfoptions.divideandconquer/gridinterplayer with more than two endogenous states (you have length(n_a)>2)')
 end
 
-
-%%
-if N_d1==0
-    if N_e==0
-        if N_z==0
-            [VKron, PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_SemiExo_DC1_nod1_noz_raw(n_d2,n_a,n_semiz, N_j, d2_gridvals, a_grid, semiz_gridvals_J, pi_semiz_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+%% Dispatch: 1 vs 2 endogenous states
+if ~isscalar(n_a)
+    if length(vfoptions.level1n)>1
+        if vfoptions.level1n(2)>=n_a(2) % Don't bother with divide-and-conquer on the second endogenous state
+            vfoptions.level1n=vfoptions.level1n(1); % Only first one is relevant for DC2A
         else
-            [VKron, PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_SemiExo_DC1_nod1_raw(n_d2,n_a,n_z,n_semiz, N_j, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+            error('With two endogenous states, can only do divide-and-conquer in the first endogenous state (not in both)')
+        end
+    end
+    if N_d1==0
+        if N_e==0
+            if N_z==0
+                [VKron, PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_SemiExo_DC2A_nod1_noz_raw(n_d2,n_a,n_semiz, N_j, d2_gridvals, a_grid, semiz_gridvals_J, pi_semiz_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+            else
+                [VKron, PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_SemiExo_DC2A_nod1_raw(n_d2,n_a,n_z,n_semiz, N_j, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+            end
+        else
+            if N_z==0
+                [VKron, PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_SemiExo_DC2A_nod1_noz_e_raw(n_d2,n_a,n_semiz, vfoptions.n_e, N_j, d2_gridvals, a_grid, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+            else
+                [VKron, PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_SemiExo_DC2A_nod1_e_raw(n_d2,n_a,n_z,n_semiz,  vfoptions.n_e, N_j, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_z_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+            end
         end
     else
-        if N_z==0
-            [VKron, PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_SemiExo_DC1_nod1_noz_e_raw(n_d2,n_a,n_semiz, vfoptions.n_e, N_j, d2_gridvals, a_grid, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+        if N_e==0
+            if N_z==0
+                [VKron, PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_SemiExo_DC2A_noz_raw(n_d1,n_d2,n_a,n_semiz, N_j, d1_gridvals, d2_gridvals, a_grid, semiz_gridvals_J, pi_semiz_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+            else
+                [VKron, PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_SemiExo_DC2A_raw(n_d1,n_d2,n_a,n_z,n_semiz, N_j, d1_gridvals, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+            end
         else
-            [VKron, PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_SemiExo_DC1_nod1_e_raw(n_d2,n_a,n_z,n_semiz,  vfoptions.n_e, N_j, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_z_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+            if N_z==0
+                [VKron, PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_SemiExo_DC2A_noz_e_raw(n_d1,n_d2,n_a,vfoptions.n_semiz, vfoptions.n_e, N_j, d1_gridvals, d2_gridvals, a_grid, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+            else
+                [VKron, PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_SemiExo_DC2A_e_raw(n_d1,n_d2,n_a,n_z,vfoptions.n_semiz,  vfoptions.n_e, N_j, d1_gridvals, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_z_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+            end
         end
     end
 else
-    if N_e==0
-        if N_z==0
-            [VKron, PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_SemiExo_DC1_noz_raw(n_d1,n_d2,n_a,n_semiz, N_j, d1_gridvals, d2_gridvals, a_grid, semiz_gridvals_J, pi_semiz_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+    if N_d1==0
+        if N_e==0
+            if N_z==0
+                [VKron, PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_SemiExo_DC1_nod1_noz_raw(n_d2,n_a,n_semiz, N_j, d2_gridvals, a_grid, semiz_gridvals_J, pi_semiz_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+            else
+                [VKron, PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_SemiExo_DC1_nod1_raw(n_d2,n_a,n_z,n_semiz, N_j, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+            end
         else
-            [VKron, PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_SemiExo_DC1_raw(n_d1,n_d2,n_a,n_z,n_semiz, N_j, d1_gridvals, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+            if N_z==0
+                [VKron, PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_SemiExo_DC1_nod1_noz_e_raw(n_d2,n_a,n_semiz, vfoptions.n_e, N_j, d2_gridvals, a_grid, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+            else
+                [VKron, PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_SemiExo_DC1_nod1_e_raw(n_d2,n_a,n_z,n_semiz,  vfoptions.n_e, N_j, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_z_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+            end
         end
     else
-        if N_z==0
-            [VKron, PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_SemiExo_DC1_noz_e_raw(n_d1,n_d2,n_a,vfoptions.n_semiz, vfoptions.n_e, N_j, d1_gridvals, d2_gridvals, a_grid, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+        if N_e==0
+            if N_z==0
+                [VKron, PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_SemiExo_DC1_noz_raw(n_d1,n_d2,n_a,n_semiz, N_j, d1_gridvals, d2_gridvals, a_grid, semiz_gridvals_J, pi_semiz_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+            else
+                [VKron, PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_SemiExo_DC1_raw(n_d1,n_d2,n_a,n_z,n_semiz, N_j, d1_gridvals, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+            end
         else
-            [VKron, PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_SemiExo_DC1_e_raw(n_d1,n_d2,n_a,n_z,vfoptions.n_semiz,  vfoptions.n_e, N_j, d1_gridvals, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_z_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+            if N_z==0
+                [VKron, PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_SemiExo_DC1_noz_e_raw(n_d1,n_d2,n_a,vfoptions.n_semiz, vfoptions.n_e, N_j, d1_gridvals, d2_gridvals, a_grid, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+            else
+                [VKron, PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_SemiExo_DC1_e_raw(n_d1,n_d2,n_a,n_z,vfoptions.n_semiz,  vfoptions.n_e, N_j, d1_gridvals, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, vfoptions.e_gridvals_J, pi_z_J, pi_semiz_J, vfoptions.pi_e_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+            end
         end
     end
 end
@@ -68,6 +106,9 @@ else
 end
 
 % First dimension of PolicyKron is (d1,d2,aprime), or if no d1, then (d2,aprime)
+% The DC raws (2A included) return aprime as the JOINT kron index in a single row, so the
+% same UnKron commands cover one and two endogenous states (the vector n_a supplies the
+% divisors) — unlike GI/DC_GI, whose raws return separate a1prime/a2prime channels.
 if N_d1==0
     if N_e==0
         V=reshape(VKron,[n_a,n_bothz,N_j]);
