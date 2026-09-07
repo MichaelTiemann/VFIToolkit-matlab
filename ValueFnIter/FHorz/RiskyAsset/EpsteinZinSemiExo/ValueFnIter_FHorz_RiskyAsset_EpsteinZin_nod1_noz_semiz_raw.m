@@ -268,6 +268,8 @@ else
             % Apply the aprimeProbs
             EV1=reshape(EV1,[N_d23*N_a1,N_u,N_semiz]).*aprimeProbs; % probability of lower grid point
             EV2=reshape(EV2,[N_d23*N_a1,N_u,N_semiz]).*(1-aprimeProbs); % probability of upper grid point
+            EV1(isnan(EV1))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so the term contributes nothing
+            EV2(isnan(EV2))=0;
 
             % Expectation over u (using pi_u), and then add the lower and upper
             EV=sum((EV1.*pi_u'),2)+sum((EV2.*pi_u'),2); % (d,1,semiz), sum over u
@@ -341,6 +343,8 @@ else
                 % Switch EV from being in terms of aprime to being in terms of d (in expectation because of the u shocks)
                 EV1_z=aprimeProbs.*reshape(EV_z(aprimeIndex),[N_d23*N_a1,N_u]); % (d,u), the lower aprime
                 EV2_z=(1-aprimeProbs).*reshape(EV_z(aprimeplus1Index),[N_d23*N_a1,N_u]); % (d,u), the upper aprime
+                EV1_z(isnan(EV1_z))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so the term contributes nothing
+                EV2_z(isnan(EV2_z))=0;
                 % Already applied the probabilities from interpolating onto grid
 
                 % Expectation over u (using pi_u), and then add the lower and upper
@@ -495,6 +499,8 @@ for reverse_j=1:N_j-1
             % Apply the aprimeProbs
             EV1=reshape(EV1,[N_d23*N_a1,N_u,N_semiz]).*aprimeProbs; % probability of lower grid point
             EV2=reshape(EV2,[N_d23*N_a1,N_u,N_semiz]).*(1-aprimeProbs); % probability of upper grid point
+            EV1(isnan(EV1))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so the term contributes nothing
+            EV2(isnan(EV2))=0;
 
             % Expectation over u (using pi_u), and then add the lower and upper
             EV=sum((EV1.*pi_u'),2)+sum((EV2.*pi_u'),2); % (d,1,semiz), sum over u
@@ -568,6 +574,8 @@ for reverse_j=1:N_j-1
                 % Switch EV from being in terms of aprime to being in terms of d (in expectation because of the u shocks)
                 EV1_z=aprimeProbs.*reshape(EV_z(aprimeIndex),[N_d23*N_a1,N_u]); % (d,u), the lower aprime
                 EV2_z=(1-aprimeProbs).*reshape(EV_z(aprimeplus1Index),[N_d23*N_a1,N_u]); % (d,u), the upper aprime
+                EV1_z(isnan(EV1_z))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so the term contributes nothing
+                EV2_z(isnan(EV2_z))=0;
                 % Already applied the probabilities from interpolating onto grid
 
                 % Expectation over u (using pi_u), and then add the lower and upper

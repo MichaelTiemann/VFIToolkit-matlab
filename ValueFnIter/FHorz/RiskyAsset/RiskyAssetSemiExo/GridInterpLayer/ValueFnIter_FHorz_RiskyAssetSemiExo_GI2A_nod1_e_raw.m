@@ -276,6 +276,8 @@ else
 
             EV1=reshape(EV(aprimeIndex(:)+N_a*((1:1:N_bothz)-1)),[N_d23*N_a12,N_u,N_bothz]).*aprimeProbs;
             EV2=reshape(EV(aprimeplus1Index(:)+N_a*((1:1:N_bothz)-1)),[N_d23*N_a12,N_u,N_bothz]).*(1-aprimeProbs);
+            EV1(isnan(EV1))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so the term contributes nothing
+            EV2(isnan(EV2))=0;
             EV=sum(EV1.*pi_u_col',2)+sum(EV2.*pi_u_col',2);
             EV=reshape(EV,[N_d23*N_a12,N_bothz]);
 
@@ -339,6 +341,8 @@ else
 
             EV1=reshape(EV(aprimeIndex(:)+N_a*((1:1:N_bothz)-1)),[N_d23*N_a12,N_u,N_bothz]).*aprimeProbs;
             EV2=reshape(EV(aprimeplus1Index(:)+N_a*((1:1:N_bothz)-1)),[N_d23*N_a12,N_u,N_bothz]).*(1-aprimeProbs);
+            EV1(isnan(EV1))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so the term contributes nothing
+            EV2(isnan(EV2))=0;
             EV=sum(EV1.*pi_u_col',2)+sum(EV2.*pi_u_col',2);
             EV=reshape(EV,[N_d23*N_a12,N_bothz]);
 
@@ -402,6 +406,8 @@ else
 
             EV1=reshape(EV(aprimeIndex(:)+N_a*((1:1:N_bothz)-1)),[N_d23*N_a12,N_u,N_bothz]).*aprimeProbs;
             EV2=reshape(EV(aprimeplus1Index(:)+N_a*((1:1:N_bothz)-1)),[N_d23*N_a12,N_u,N_bothz]).*(1-aprimeProbs);
+            EV1(isnan(EV1))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so the term contributes nothing
+            EV2(isnan(EV2))=0;
             EV=sum(EV1.*pi_u_col',2)+sum(EV2.*pi_u_col',2);
             EV=reshape(EV,[N_d23*N_a12,N_bothz]);
 
@@ -474,6 +480,8 @@ else
 
             EV1=reshape(EV(aprimeIndex(:)+N_a*((1:1:N_bothz)-1)),[N_d23*N_a12,N_u,N_bothz]).*aprimeProbs;
             EV2=reshape(EV(aprimeplus1Index(:)+N_a*((1:1:N_bothz)-1)),[N_d23*N_a12,N_u,N_bothz]).*(1-aprimeProbs);
+            EV1(isnan(EV1))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so the term contributes nothing
+            EV2(isnan(EV2))=0;
             EV=sum(EV1.*pi_u_col',2)+sum(EV2.*pi_u_col',2);
             EV=reshape(EV,[N_d23*N_a12,N_bothz]);
 
@@ -597,6 +605,8 @@ for reverse_j=1:N_j-1
 
             EV1=reshape(EV(aprimeIndex(:)+N_a*((1:1:N_bothz)-1)),[N_d23*N_a12,N_u,N_bothz]).*aprimeProbs;
             EV2=reshape(EV(aprimeplus1Index(:)+N_a*((1:1:N_bothz)-1)),[N_d23*N_a12,N_u,N_bothz]).*(1-aprimeProbs);
+            EV1(isnan(EV1))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so the term contributes nothing
+            EV2(isnan(EV2))=0;
             EV=sum(EV1.*pi_u_col',2)+sum(EV2.*pi_u_col',2);
             EV=reshape(EV,[N_d23*N_a12,N_bothz]);
 
@@ -660,6 +670,8 @@ for reverse_j=1:N_j-1
 
             EV1=reshape(EV(aprimeIndex(:)+N_a*((1:1:N_bothz)-1)),[N_d23*N_a12,N_u,N_bothz]).*aprimeProbs;
             EV2=reshape(EV(aprimeplus1Index(:)+N_a*((1:1:N_bothz)-1)),[N_d23*N_a12,N_u,N_bothz]).*(1-aprimeProbs);
+            EV1(isnan(EV1))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so the term contributes nothing
+            EV2(isnan(EV2))=0;
             EV=sum(EV1.*pi_u_col',2)+sum(EV2.*pi_u_col',2);
             EV=reshape(EV,[N_d23*N_a12,N_bothz]);
 
@@ -723,6 +735,8 @@ for reverse_j=1:N_j-1
 
             EV1=reshape(EV(aprimeIndex(:)+N_a*((1:1:N_bothz)-1)),[N_d23*N_a12,N_u,N_bothz]).*aprimeProbs;
             EV2=reshape(EV(aprimeplus1Index(:)+N_a*((1:1:N_bothz)-1)),[N_d23*N_a12,N_u,N_bothz]).*(1-aprimeProbs);
+            EV1(isnan(EV1))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so the term contributes nothing
+            EV2(isnan(EV2))=0;
             EV=sum(EV1.*pi_u_col',2)+sum(EV2.*pi_u_col',2);
             EV=reshape(EV,[N_d23*N_a12,N_bothz]);
 
@@ -795,6 +809,8 @@ for reverse_j=1:N_j-1
 
             EV1=reshape(EV(aprimeIndex(:)+N_a*((1:1:N_bothz)-1)),[N_d23*N_a12,N_u,N_bothz]).*aprimeProbs;
             EV2=reshape(EV(aprimeplus1Index(:)+N_a*((1:1:N_bothz)-1)),[N_d23*N_a12,N_u,N_bothz]).*(1-aprimeProbs);
+            EV1(isnan(EV1))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so the term contributes nothing
+            EV2(isnan(EV2))=0;
             EV=sum(EV1.*pi_u_col',2)+sum(EV2.*pi_u_col',2);
             EV=reshape(EV,[N_d23*N_a12,N_bothz]);
 

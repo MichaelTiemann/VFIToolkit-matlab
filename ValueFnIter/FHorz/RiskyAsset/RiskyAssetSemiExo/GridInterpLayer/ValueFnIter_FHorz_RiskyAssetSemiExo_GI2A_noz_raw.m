@@ -197,6 +197,8 @@ else
 
             EV1=reshape(EV(aprimeIndex(:)+N_a*((1:1:N_semiz)-1)),[N_d23*N_a12,N_u,N_semiz]).*aprimeProbs;
             EV2=reshape(EV(aprimeplus1Index(:)+N_a*((1:1:N_semiz)-1)),[N_d23*N_a12,N_u,N_semiz]).*(1-aprimeProbs);
+            EV1(isnan(EV1))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so the term contributes nothing
+            EV2(isnan(EV2))=0;
             EV=sum(EV1.*pi_u_col',2)+sum(EV2.*pi_u_col',2);
             EV=reshape(EV,[N_d23*N_a12,N_semiz]);
 
@@ -265,6 +267,8 @@ else
 
                 EV1=reshape(EV_z(aprimeIndex(:)),[N_d23*N_a12,N_u]).*aprimeProbs;
                 EV2=reshape(EV_z(aprimeplus1Index(:)),[N_d23*N_a12,N_u]).*(1-aprimeProbs);
+                EV1(isnan(EV1))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so the term contributes nothing
+                EV2(isnan(EV2))=0;
                 EV_z=sum(EV1.*pi_u_col',2)+sum(EV2.*pi_u_col',2);
 
                 EVres=reshape(EV_z,[N_d2,N_d3*N_a12]);
@@ -388,6 +392,8 @@ for reverse_j=1:N_j-1
 
             EV1=reshape(EV(aprimeIndex(:)+N_a*((1:1:N_semiz)-1)),[N_d23*N_a12,N_u,N_semiz]).*aprimeProbs;
             EV2=reshape(EV(aprimeplus1Index(:)+N_a*((1:1:N_semiz)-1)),[N_d23*N_a12,N_u,N_semiz]).*(1-aprimeProbs);
+            EV1(isnan(EV1))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so the term contributes nothing
+            EV2(isnan(EV2))=0;
             EV=sum(EV1.*pi_u_col',2)+sum(EV2.*pi_u_col',2);
             EV=reshape(EV,[N_d23*N_a12,N_semiz]);
 
@@ -456,6 +462,8 @@ for reverse_j=1:N_j-1
 
                 EV1=reshape(EV_z(aprimeIndex(:)),[N_d23*N_a12,N_u]).*aprimeProbs;
                 EV2=reshape(EV_z(aprimeplus1Index(:)),[N_d23*N_a12,N_u]).*(1-aprimeProbs);
+                EV1(isnan(EV1))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so the term contributes nothing
+                EV2(isnan(EV2))=0;
                 EV_z=sum(EV1.*pi_u_col',2)+sum(EV2.*pi_u_col',2);
 
                 EVres=reshape(EV_z,[N_d2,N_d3*N_a12]);
