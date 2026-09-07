@@ -172,7 +172,7 @@ end
 
 %% Exogenous shock grids
 if vfoptions.alreadygridvals==0
-    [z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3);
+    [z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3,0);
 elseif vfoptions.alreadygridvals==1
     z_gridvals_J=z_grid;
     pi_z_J=pi_z;

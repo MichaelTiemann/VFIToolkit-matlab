@@ -60,6 +60,24 @@ else
     end
 end
 
+%% Combinations that are not implemented on a transition path
+% These must error rather than fall through: the dispatches below key off
+% simoptions.experienceasset/experienceassetz and simoptions.n_semiz only, so anything
+% else silently reaches the standard-endogenous-state code and returns the wrong dist.
+if ~isfield(simoptions,'riskyasset')
+    simoptions.riskyasset=0;
+elseif simoptions.riskyasset>=1
+    error('simoptions.riskyasset is not yet implemented on a transition path (email me if you want this)')
+end
+if ~isfield(simoptions,'residualasset')
+    simoptions.residualasset=0;
+elseif simoptions.residualasset>=1
+    error('simoptions.residualasset is not yet implemented on a transition path (email me if you want this)')
+end
+if prod(simoptions.n_semiz)>0 && (simoptions.experienceasset>=1 || simoptions.experienceassetz>=1)
+    error('experienceasset (or experienceassetz) together with a semi-exogenous state is not yet implemented on a transition path (email me if you want this)')
+end
+
 N_d=prod(n_d);
 N_a=prod(n_a);
 N_z=prod(n_z);
@@ -267,7 +285,7 @@ if simoptions.experienceasset>=1 || simoptions.experienceassetz>=1
         if isfield(simoptions,'ExogShockFn')
             tempoptions.ExogShockFn=simoptions.ExogShockFn;
         end
-        [z_gridvals_J_expassetz,~,~]=ExogShockSetup_FHorz(n_z,simoptions.z_grid,pi_z,N_j,Parameters,tempoptions,1); % [N_z,l_z,N_j]
+        [z_gridvals_J_expassetz,~,~]=ExogShockSetup_FHorz(n_z,simoptions.z_grid,pi_z,N_j,Parameters,tempoptions,1,0); % [N_z,l_z,N_j]
     else
         if length(temp)>(l_d2+l_a2)
             aprimeFnParamNames={temp{l_d2+l_a2+1:end}}; % the first inputs will always be (d2,a2)

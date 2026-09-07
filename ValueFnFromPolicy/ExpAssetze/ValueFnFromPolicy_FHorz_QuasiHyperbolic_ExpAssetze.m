@@ -18,7 +18,7 @@ if vfoptions.gridinterplayer==1
 end
 
 %% Setup (mirrors ValueFnFromPolicy_FHorz_ExpAssetze)
-[z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3);
+[z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3,0);
 
 if ~isfield(vfoptions,'aprimeFn')
     error('To use experienceassetze you must define vfoptions.aprimeFn')

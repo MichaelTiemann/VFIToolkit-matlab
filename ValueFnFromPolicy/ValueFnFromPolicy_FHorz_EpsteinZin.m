@@ -162,7 +162,7 @@ end
 %% Setup (mirrors ValueFnFromPolicy_FHorz)
 % Caller already moved grids and Policy to GPU and ran ExogShockSetup_FHorz.
 % Re-run shock setup here to get z_gridvals_J / pi_z_J locally.
-[z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3);
+[z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3,0);
 
 N_d=prod(n_d);
 N_a=prod(n_a);

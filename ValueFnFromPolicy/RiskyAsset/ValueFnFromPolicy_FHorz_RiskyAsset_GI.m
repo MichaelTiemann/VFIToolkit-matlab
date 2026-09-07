@@ -9,7 +9,7 @@ function varargout=ValueFnFromPolicy_FHorz_RiskyAsset_GI(Policy,n_d,n_a,n_z,N_j,
 % l_dexperienceassetu; (iii) the riskyasset ReturnFn drops d2, so PolicyValues keeps only d1,d3,a1prime.
 
 %% Setup
-[z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3);
+[z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3,0);
 
 if ~isfield(vfoptions,'aprimeFn')
     error('To use riskyasset you must define vfoptions.aprimeFn')

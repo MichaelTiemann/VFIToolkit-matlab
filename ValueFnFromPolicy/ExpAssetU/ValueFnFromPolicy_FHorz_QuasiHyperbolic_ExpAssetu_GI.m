@@ -20,7 +20,7 @@ function [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetu_GI(Policy,Po
 % since the interpolation is identical for the two policies -- only the indices/weights differ.
 
 %% Setup
-[z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3);
+[z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3,0);
 
 if ~isfield(vfoptions,'aprimeFn')
     error('To use experienceassetu you must define vfoptions.aprimeFn')

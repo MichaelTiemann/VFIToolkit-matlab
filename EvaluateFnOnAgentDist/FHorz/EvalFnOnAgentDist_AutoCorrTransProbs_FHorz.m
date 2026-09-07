@@ -114,7 +114,7 @@ N_e=prod(simoptions.n_e);
 N_semiz=prod(simoptions.n_semiz);
 
 % For z and e
-[z_gridvals_J, pi_z_J, simoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,simoptions,3);
+[z_gridvals_J, pi_z_J, simoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,simoptions,3,0);
 % For semiz
 simoptions=SemiExogShockSetup_FHorz(n_d,N_j,d_grid,Parameters,simoptions,3);
 

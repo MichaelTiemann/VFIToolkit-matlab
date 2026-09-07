@@ -10,7 +10,7 @@ function [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssete_GI(Policy,Po
 % Requires N_e>0; may have z too. This file IS the GI variant (only reached via dispatch).
 
 %% Setup (mirrors ValueFnFromPolicy_FHorz_ExpAssete_GI)
-[z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3);
+[z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3,0);
 
 if ~isfield(vfoptions,'aprimeFn')
     error('To use experienceassete you must define vfoptions.aprimeFn')

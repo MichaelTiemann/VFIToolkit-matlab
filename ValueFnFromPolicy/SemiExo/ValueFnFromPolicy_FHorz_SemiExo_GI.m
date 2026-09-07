@@ -12,7 +12,7 @@ if ~isfield(vfoptions,'pi_semiz_J')
 end
 
 % z gridvals
-[z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3);
+[z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3,0);
 
 n_semiz=vfoptions.n_semiz;
 N_semiz=prod(n_semiz);
