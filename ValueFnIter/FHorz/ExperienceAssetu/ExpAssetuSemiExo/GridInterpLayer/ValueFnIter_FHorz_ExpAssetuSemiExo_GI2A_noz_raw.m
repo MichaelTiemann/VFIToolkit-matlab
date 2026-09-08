@@ -154,8 +154,10 @@ else
     skipinterp=(Vlower==Vupper);
     aprimeProbs(skipinterp)=0;
     EV_aprime=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper; % [N_d2*N_a1*N_a2,N_a3,N_semiz], indexed by semizprime (d3-independent)
-    EV_aprime=squeeze(sum((EV_aprime.*pi_u),3)); % integrate out u -> [N_d2*N_a1*N_a2,N_a3,zprime]
-    EV_aprime(isnan(EV_aprime))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+    EV_aprime(aprimeProbs==0)=Vupper(aprimeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+    EV_aprime(aprimeProbs==1)=Vlower(aprimeProbs==1);
+    EV_aprime=EV_aprime.*pi_u; EV_aprime(isnan(EV_aprime))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+    EV_aprime=squeeze(sum(EV_aprime,3)); % integrate out u -> [N_d2*N_a1*N_a2,N_a3,zprime]
 
     if vfoptions.lowmemory==0
         for d3_c=1:N_d3
@@ -289,8 +291,10 @@ for reverse_j=1:N_j-1
     skipinterp=(Vlower==Vupper);
     aprimeProbs(skipinterp)=0;
     EV_aprime=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper; % [N_d2*N_a1*N_a2,N_a3,N_semiz], indexed by semizprime (d3-independent)
-    EV_aprime=squeeze(sum((EV_aprime.*pi_u),3)); % integrate out u -> [N_d2*N_a1*N_a2,N_a3,zprime]
-    EV_aprime(isnan(EV_aprime))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+    EV_aprime(aprimeProbs==0)=Vupper(aprimeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+    EV_aprime(aprimeProbs==1)=Vlower(aprimeProbs==1);
+    EV_aprime=EV_aprime.*pi_u; EV_aprime(isnan(EV_aprime))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+    EV_aprime=squeeze(sum(EV_aprime,3)); % integrate out u -> [N_d2*N_a1*N_a2,N_a3,zprime]
 
     if vfoptions.lowmemory==0
         for d3_c=1:N_d3

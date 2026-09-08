@@ -160,9 +160,11 @@ else
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % Already applied the probabilities from interpolating onto grid
-            EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,both)
-            EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+            EV=EV.*pi_u; EV(isnan(EV))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+            EV=squeeze(sum(EV,3)); % (d2,a1prime,a2,both)
 
             entireRHS_alt=ReturnMatrix_d3+beta*repelem(EV,1,N_a1,1);
             [Vtemp_alt,maxindex_alt]=max(entireRHS_alt,[],1);
@@ -195,9 +197,11 @@ else
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % Already applied the probabilities from interpolating onto grid
-            EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,both)
-            EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+            EV=EV.*pi_u; EV(isnan(EV))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+            EV=squeeze(sum(EV,3)); % (d2,a1prime,a2,both)
 
             EVbase_qh=repelem(EV,1,N_a1,1);
             DiscountedEV_alt=beta*EVbase_qh;
@@ -240,9 +244,11 @@ else
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % Already applied the probabilities from interpolating onto grid
-            EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,both)
-            EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+            EV=EV.*pi_u; EV(isnan(EV))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+            EV=squeeze(sum(EV,3)); % (d2,a1prime,a2,both)
 
             EVbase_qh=repelem(EV,1,N_a1,1);
             DiscountedEV_alt=beta*EVbase_qh;
@@ -292,9 +298,11 @@ else
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % Already applied the probabilities from interpolating onto grid
-            EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,both)
-            EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+            EV=EV.*pi_u; EV(isnan(EV))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+            EV=squeeze(sum(EV,3)); % (d2,a1prime,a2,both)
 
             EVbase_qh=repelem(EV,1,N_a1,1);
             DiscountedEV_alt=beta*EVbase_qh;
@@ -394,9 +402,11 @@ for reverse_j=1:N_j-1
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % Already applied the probabilities from interpolating onto grid
-            EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,both)
-            EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+            EV=EV.*pi_u; EV(isnan(EV))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+            EV=squeeze(sum(EV,3)); % (d2,a1prime,a2,both)
 
             entireRHS_alt=ReturnMatrix_d3+beta*repelem(EV,1,N_a1,1);
             [Vtemp_alt,maxindex_alt]=max(entireRHS_alt,[],1);
@@ -429,9 +439,11 @@ for reverse_j=1:N_j-1
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % Already applied the probabilities from interpolating onto grid
-            EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,both)
-            EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+            EV=EV.*pi_u; EV(isnan(EV))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+            EV=squeeze(sum(EV,3)); % (d2,a1prime,a2,both)
 
             EVbase_qh=repelem(EV,1,N_a1,1);
             DiscountedEV_alt=beta*EVbase_qh;
@@ -474,9 +486,11 @@ for reverse_j=1:N_j-1
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % Already applied the probabilities from interpolating onto grid
-            EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,both)
-            EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+            EV=EV.*pi_u; EV(isnan(EV))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+            EV=squeeze(sum(EV,3)); % (d2,a1prime,a2,both)
 
             EVbase_qh=repelem(EV,1,N_a1,1);
             DiscountedEV_alt=beta*EVbase_qh;
@@ -526,9 +540,11 @@ for reverse_j=1:N_j-1
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % Already applied the probabilities from interpolating onto grid
-            EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,both)
-            EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+            EV=EV.*pi_u; EV(isnan(EV))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+            EV=squeeze(sum(EV,3)); % (d2,a1prime,a2,both)
 
             EVbase_qh=repelem(EV,1,N_a1,1);
             DiscountedEV_alt=beta*EVbase_qh;

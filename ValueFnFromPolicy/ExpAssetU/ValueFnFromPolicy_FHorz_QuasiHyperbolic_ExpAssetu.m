@@ -274,8 +274,10 @@ for reverse_j=0:N_j-1
                 a2pPrb=a2pp;
                 a2pPrb(Vlower==Vupper)=0; % skipinterp
                 EV=a2pPrb.*Vlower+(1-a2pPrb).*Vupper;
-                EVnext_pass=sum(EV .* shiftdim(pi_u,-1), 2); % sum over u -> [N_a, 1]
-                EVnext_pass(isnan(EVnext_pass))=0;
+                EV(a2pPrb==0)=Vupper(a2pPrb==0); % a zero weight against an infinite node gives 0*(-Inf)=NaN
+                EV(a2pPrb==1)=Vlower(a2pPrb==1);
+                EVw=EV .* shiftdim(pi_u,-1); EVw(isnan(EVw))=0; % zero the zero-weight terms BEFORE summing (after the sum would destroy it)
+                EVnext_pass=sum(EVw,2); % sum over u -> [N_a, 1]
             elseif N_z==0 && N_e>0
                 if N_a1==0
                     aprime_low=a2pi;
@@ -291,8 +293,10 @@ for reverse_j=0:N_j-1
                 a2pPrb=a2pp;
                 a2pPrb(Vlower==Vupper)=0; % skipinterp on pi_e-collapsed EVnext
                 EV=a2pPrb.*Vlower+(1-a2pPrb).*Vupper;
-                EVnext_pass=sum(EV .* shiftdim(pi_u,-2), 3); % sum over u -> [N_a, N_e]
-                EVnext_pass(isnan(EVnext_pass))=0;
+                EV(a2pPrb==0)=Vupper(a2pPrb==0); % a zero weight against an infinite node gives 0*(-Inf)=NaN
+                EV(a2pPrb==1)=Vlower(a2pPrb==1);
+                EVw=EV .* shiftdim(pi_u,-2); EVw(isnan(EVw))=0; % zero the zero-weight terms BEFORE summing (after the sum would destroy it)
+                EVnext_pass=sum(EVw,3); % sum over u -> [N_a, N_e]
             elseif N_z>0 && N_e==0
                 if N_a1==0
                     aprime_low=a2pi;
@@ -310,6 +314,8 @@ for reverse_j=0:N_j-1
                 a2pPrb4=repmat(a2pp,[1,1,1,N_z]);
                 a2pPrb4(Vlower==Vupper)=0; % skipinterp
                 EV4=a2pPrb4.*Vlower+(1-a2pPrb4).*Vupper; % [N_a, N_z, N_u, N_z']
+                EV4(a2pPrb4==0)=Vupper(a2pPrb4==0); % a zero weight against an infinite node gives 0*(-Inf)=NaN
+                EV4(a2pPrb4==1)=Vlower(a2pPrb4==1);
                 EV4=sum(EV4 .* shiftdim(pi_u,-2), 3); % sum over u -> [N_a, N_z, 1, N_z']
                 EV4=EV4 .* reshape(pi_z_J(:,:,jj),[1,N_z,1,N_z]); % weight by pi_z(z, z')
                 EV4(isnan(EV4))=0;
@@ -333,6 +339,8 @@ for reverse_j=0:N_j-1
                 a2pPrb5=repmat(a2pPrb,[1,1,1,1,N_z]);
                 a2pPrb5(Vlower==Vupper)=0; % skipinterp
                 EV5=a2pPrb5.*Vlower+(1-a2pPrb5).*Vupper; % [N_a, N_z, N_e, N_u, N_z']
+                EV5(a2pPrb5==0)=Vupper(a2pPrb5==0); % a zero weight against an infinite node gives 0*(-Inf)=NaN
+                EV5(a2pPrb5==1)=Vlower(a2pPrb5==1);
                 EV5=sum(EV5 .* shiftdim(pi_u,-3), 4); % sum over u -> [N_a, N_z, N_e, 1, N_z']
                 EV5=EV5 .* reshape(pi_z_J(:,:,jj),[1,N_z,1,1,N_z]); % weight by pi_z(z, z')
                 EV5(isnan(EV5))=0;

@@ -115,8 +115,10 @@ else
             aprimeProbs_d3(skipinterp)=0;
 
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
-            EV=squeeze(sum((EV.*pi_u),3)); % (d2,a2,bothz)
-            EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
+            EV=EV.*pi_u; EV(isnan(EV))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+            EV=squeeze(sum(EV,3)); % (d2,a2,bothz)
 
             entireRHS_alt=ReturnMatrix_d3+beta*repelem(EV,N_d1,1,1);
             [Vtemp_alt,maxindex_alt]=max(entireRHS_alt,[],1);
@@ -142,8 +144,10 @@ else
             skipinterp=(EV1==EV2);
             aprimeProbs_full(skipinterp)=0;
             entireEV=EV1.*aprimeProbs_full+EV2.*(1-aprimeProbs_full);
-            entireEV=squeeze(sum((entireEV.*pi_u),3)); % integrate out u -> (d2,a2,bothz)
-            entireEV(isnan(entireEV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+            entireEV(aprimeProbs_full==0)=EV2(aprimeProbs_full==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_full==1)=EV1(aprimeProbs_full==1);
+            entireEV=entireEV.*pi_u; entireEV(isnan(entireEV))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+            entireEV=squeeze(sum(entireEV,3)); % integrate out u -> (d2,a2,bothz)
 
             for z_c=1:N_z
                 zind=(1:1:N_semiz)+N_semiz*(z_c-1);
@@ -181,8 +185,10 @@ else
                 aprimeProbs_d3(skipinterp)=0;
 
                 EV_z=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
-                EV_z=sum((EV_z.*pi_u),3); % (d2,a2)
-                EV_z(isnan(EV_z))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+                EV_z(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+                EV_z(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
+                EV_z=EV_z.*pi_u; EV_z(isnan(EV_z))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+                EV_z=sum(EV_z,3); % (d2,a2)
 
                 entireRHS_alt=ReturnMatrix_d3z+beta*repelem(EV_z,N_d1,1);
                 [Vtemp_alt,maxindex_alt]=max(entireRHS_alt,[],1);
@@ -261,8 +267,10 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3(skipinterp)=0;
 
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
-            EV=squeeze(sum((EV.*pi_u),3)); % (d2,a2,bothz)
-            EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
+            EV=EV.*pi_u; EV(isnan(EV))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+            EV=squeeze(sum(EV,3)); % (d2,a2,bothz)
 
             entireRHS_alt=ReturnMatrix_d3+beta*repelem(EV,N_d1,1,1);
             [Vtemp_alt,maxindex_alt]=max(entireRHS_alt,[],1);
@@ -288,8 +296,10 @@ for reverse_j=1:N_j-1
             skipinterp=(EV1==EV2);
             aprimeProbs_full(skipinterp)=0;
             entireEV=EV1.*aprimeProbs_full+EV2.*(1-aprimeProbs_full);
-            entireEV=squeeze(sum((entireEV.*pi_u),3)); % integrate out u -> (d2,a2,bothz)
-            entireEV(isnan(entireEV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+            entireEV(aprimeProbs_full==0)=EV2(aprimeProbs_full==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_full==1)=EV1(aprimeProbs_full==1);
+            entireEV=entireEV.*pi_u; entireEV(isnan(entireEV))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+            entireEV=squeeze(sum(entireEV,3)); % integrate out u -> (d2,a2,bothz)
 
             for z_c=1:N_z
                 zind=(1:1:N_semiz)+N_semiz*(z_c-1);
@@ -327,8 +337,10 @@ for reverse_j=1:N_j-1
                 aprimeProbs_d3(skipinterp)=0;
 
                 EV_z=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
-                EV_z=sum((EV_z.*pi_u),3); % (d2,a2)
-                EV_z(isnan(EV_z))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+                EV_z(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+                EV_z(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
+                EV_z=EV_z.*pi_u; EV_z(isnan(EV_z))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+                EV_z=sum(EV_z,3); % (d2,a2)
 
                 entireRHS_alt=ReturnMatrix_d3z+beta*repelem(EV_z,N_d1,1);
                 [Vtemp_alt,maxindex_alt]=max(entireRHS_alt,[],1);

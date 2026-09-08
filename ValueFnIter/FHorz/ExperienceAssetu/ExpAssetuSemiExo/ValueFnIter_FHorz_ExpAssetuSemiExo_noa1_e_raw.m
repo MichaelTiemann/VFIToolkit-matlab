@@ -123,8 +123,10 @@ else
             aprimeProbs_d3(skipinterp)=0;
 
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
-            EV=squeeze(sum((EV.*pi_u),3)); % (d2,a2,bothz)
-            EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
+            EV=EV.*pi_u; EV(isnan(EV))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+            EV=squeeze(sum(EV,3)); % (d2,a2,bothz)
 
             entireRHS_d3=ReturnMatrix_d3+DiscountFactorParamsVec*repelem(EV,N_d1,1,1);
 
@@ -149,8 +151,10 @@ else
             aprimeProbs_d3(skipinterp)=0;
 
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
-            EV=squeeze(sum((EV.*pi_u),3)); % (d2,a2,bothz)
-            EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
+            EV=EV.*pi_u; EV(isnan(EV))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+            EV=squeeze(sum(EV,3)); % (d2,a2,bothz)
 
             DiscountedEV=DiscountFactorParamsVec*repelem(EV,N_d1,1,1);
 
@@ -182,8 +186,10 @@ else
             aprimeProbs_d3(skipinterp)=0;
 
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
-            EV=squeeze(sum((EV.*pi_u),3)); % (d2,a2,bothz)
-            EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
+            EV=EV.*pi_u; EV(isnan(EV))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+            EV=squeeze(sum(EV,3)); % (d2,a2,bothz)
 
             DiscountedEV=DiscountFactorParamsVec*repelem(EV,N_d1,1,1);
 
@@ -220,8 +226,10 @@ else
             aprimeProbs_d3(skipinterp)=0;
 
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
-            EV=squeeze(sum((EV.*pi_u),3)); % (d2,a2,bothz)
-            EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
+            EV=EV.*pi_u; EV(isnan(EV))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+            EV=squeeze(sum(EV,3)); % (d2,a2,bothz)
 
             DiscountedEV=DiscountFactorParamsVec*repelem(EV,N_d1,1,1);
 
@@ -293,8 +301,10 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3(skipinterp)=0;
 
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
-            EV=squeeze(sum((EV.*pi_u),3)); % (d2,a2,bothz)
-            EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
+            EV=EV.*pi_u; EV(isnan(EV))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+            EV=squeeze(sum(EV,3)); % (d2,a2,bothz)
 
             entireRHS=ReturnMatrix_d3+DiscountFactorParamsVec*repelem(EV,N_d1,1,1);
 
@@ -319,8 +329,10 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3(skipinterp)=0;
 
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
-            EV=squeeze(sum((EV.*pi_u),3)); % (d2,a2,bothz)
-            EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
+            EV=EV.*pi_u; EV(isnan(EV))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+            EV=squeeze(sum(EV,3)); % (d2,a2,bothz)
 
             DiscountedEV=DiscountFactorParamsVec*repelem(EV,N_d1,1,1);
 
@@ -352,8 +364,10 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3(skipinterp)=0;
 
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
-            EV=squeeze(sum((EV.*pi_u),3)); % (d2,a2,bothz)
-            EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
+            EV=EV.*pi_u; EV(isnan(EV))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+            EV=squeeze(sum(EV,3)); % (d2,a2,bothz)
 
             DiscountedEV=DiscountFactorParamsVec*repelem(EV,N_d1,1,1);
 
@@ -390,8 +404,10 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3(skipinterp)=0;
 
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
-            EV=squeeze(sum((EV.*pi_u),3)); % (d2,a2,bothz)
-            EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
+            EV=EV.*pi_u; EV(isnan(EV))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+            EV=squeeze(sum(EV,3)); % (d2,a2,bothz)
 
             DiscountedEV=DiscountFactorParamsVec*repelem(EV,N_d1,1,1);
 
