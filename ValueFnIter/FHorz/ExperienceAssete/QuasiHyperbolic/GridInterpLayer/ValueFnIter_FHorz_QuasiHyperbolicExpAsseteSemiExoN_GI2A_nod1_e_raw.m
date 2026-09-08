@@ -257,6 +257,8 @@ else
     skipinterp=(Vlower==Vupper);
     aprimeProbs(skipinterp)=0;
     EV_aprime=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper;
+    EV_aprime(aprimeProbs==0)=Vupper(aprimeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+    EV_aprime(aprimeProbs==1)=Vlower(aprimeProbs==1);
     % EV_aprime is [N_d2*N_a1*N_a2,N_a3,1,N_e,N_bothz] (current-bothz slot is singleton: aprime is z-independent), trailing dim is bothzprime (d3-independent)
 
     if vfoptions.lowmemory==0
@@ -650,6 +652,8 @@ for reverse_j=1:N_j-1
     skipinterp=(Vlower==Vupper);
     aprimeProbs(skipinterp)=0;
     EV_aprime=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper;
+    EV_aprime(aprimeProbs==0)=Vupper(aprimeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+    EV_aprime(aprimeProbs==1)=Vlower(aprimeProbs==1);
     % EV_aprime is [N_d2*N_a1*N_a2,N_a3,1,N_e,N_bothz] (current-bothz slot is singleton: aprime is z-independent), trailing dim is bothzprime (d3-independent)
 
     if vfoptions.lowmemory==0

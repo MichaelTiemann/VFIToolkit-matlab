@@ -78,6 +78,8 @@ else
 
     % Switch EV from being in terms of a2prime to being in terms of d2 and a2
     EV=a2primeProbs.*Vlower+(1-a2primeProbs).*Vupper; % (d2,a2,e_cur,zprime)
+    EV(a2primeProbs==0)=Vupper(a2primeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+    EV(a2primeProbs==1)=Vlower(a2primeProbs==1);
 
     EV=EV.*shiftdim(pi_z_J(:,:,N_j)',-3); % pi'(zprime,zcur) shaped [1,1,1,zprime,zcur]
     EV(isnan(EV))=0; % remove nan created where value fn is -Inf but probability is zero
@@ -167,6 +169,8 @@ for reverse_j=1:N_j-1
 
     % Switch EV from being in terms of a2prime to being in terms of d2 and a2
     EV=a2primeProbs.*Vlower+(1-a2primeProbs).*Vupper; % (d2,a2,e_cur,zprime)
+    EV(a2primeProbs==0)=Vupper(a2primeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+    EV(a2primeProbs==1)=Vlower(a2primeProbs==1);
 
     EV=EV.*shiftdim(pi_z_J(:,:,jj)',-3); % pi'(zprime,zcur) shaped [1,1,1,zprime,zcur]
     EV(isnan(EV))=0; % remove nan created where value fn is -Inf but probability is zero
