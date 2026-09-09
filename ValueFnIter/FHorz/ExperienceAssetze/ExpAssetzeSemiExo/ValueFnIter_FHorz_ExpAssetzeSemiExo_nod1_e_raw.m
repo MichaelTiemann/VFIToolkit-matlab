@@ -134,6 +134,8 @@ else
             aprimeProbs_d3(skipinterp)=0;
 
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
 
             entireRHS_d3=ReturnMatrix_d3+DiscountFactorParamsVec*repelem(entireEV,1,N_a1,1,1);
 
@@ -161,6 +163,8 @@ else
             aprimeProbs_d3(skipinterp)=0;
 
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             DiscountedEV=DiscountFactorParamsVec*repelem(entireEV,1,N_a1,1,1);
 
             for e_c=1:N_e
@@ -189,6 +193,8 @@ else
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0;
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             DiscountedEV=DiscountFactorParamsVec*repelem(entireEV,1,N_a1,1,1);
 
             for z_c=1:N_z
@@ -220,6 +226,8 @@ else
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0;
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             DiscountedEV=DiscountFactorParamsVec*repelem(entireEV,1,N_a1,1,1);
 
             for z_c=1:N_bothz
@@ -292,6 +300,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3(skipinterp)=0;
 
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
 
             entireRHS_d3=ReturnMatrix_d3+DiscountFactorParamsVec*repelem(entireEV,1,N_a1,1,1);
 
@@ -319,6 +329,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3(skipinterp)=0;
 
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             DiscountedEV=DiscountFactorParamsVec*repelem(entireEV,1,N_a1,1,1);
 
             for e_c=1:N_e
@@ -347,6 +359,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0;
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             DiscountedEV=DiscountFactorParamsVec*repelem(entireEV,1,N_a1,1,1);
 
             for z_c=1:N_z
@@ -378,6 +392,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0;
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             DiscountedEV=DiscountFactorParamsVec*repelem(entireEV,1,N_a1,1,1);
 
             for z_c=1:N_bothz

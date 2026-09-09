@@ -167,6 +167,8 @@ else
             aprimeProbs_d3(skipinterp)=0;
 
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % [N_d2*N_a1,N_a2,N_bothz,N_e]
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             entireEVpart=repelem(entireEV,N_d1,N_a1,1,1);
 
             % alt (exponential): F + beta*EV
@@ -201,6 +203,8 @@ else
             aprimeProbs_d3(skipinterp)=0;
 
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             entireEVpart=repelem(entireEV,N_d1,N_a1,1,1);
 
             for e_c=1:N_e
@@ -235,6 +239,8 @@ else
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0;
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             entireEVpart=repelem(entireEV,N_d1,N_a1,1,1);
 
             for z_c=1:N_z
@@ -274,6 +280,8 @@ else
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0;
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             entireEVpart=repelem(entireEV,N_d1,N_a1,1,1);
 
             for z_c=1:N_bothz
@@ -370,6 +378,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3(skipinterp)=0;
 
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             entireEVpart=repelem(entireEV,N_d1,N_a1,1,1);
 
             % alt (exponential): F + beta*EV
@@ -404,6 +414,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3(skipinterp)=0;
 
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             entireEVpart=repelem(entireEV,N_d1,N_a1,1,1);
 
             for e_c=1:N_e
@@ -438,6 +450,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0;
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             entireEVpart=repelem(entireEV,N_d1,N_a1,1,1);
 
             for z_c=1:N_z
@@ -477,6 +491,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0;
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             entireEVpart=repelem(entireEV,N_d1,N_a1,1,1);
 
             for z_c=1:N_bothz
