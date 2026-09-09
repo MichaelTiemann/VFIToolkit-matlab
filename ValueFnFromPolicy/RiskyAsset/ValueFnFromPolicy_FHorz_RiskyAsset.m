@@ -233,8 +233,8 @@ for reverse_j=0:N_j-1
             a2pPrb=a2primeProbs;
             a2pPrb(Vlower==Vupper)=0; % skipinterp
             EV=a2pPrb.*Vlower+(1-a2pPrb).*Vupper;
-            EVnext_atpolicy=sum(EV .* shiftdim(pi_u,-1), 2); % sum over u -> [N_a, 1]
-            EVnext_atpolicy(isnan(EVnext_atpolicy))=0;
+            EVw=EV .* shiftdim(pi_u,-1); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+            EVnext_atpolicy=sum(EVw,2); % sum over u -> [N_a, 1]
             V(:,jj)=F_jj+beta*EVnext_atpolicy;
         elseif N_z==0 && N_e>0
             if N_a1==0
@@ -250,8 +250,8 @@ for reverse_j=0:N_j-1
             a2pPrb=a2primeProbs;
             a2pPrb(Vlower==Vupper)=0; % skipinterp on pi_e-collapsed EVnext
             EV=a2pPrb.*Vlower+(1-a2pPrb).*Vupper;
-            EVnext_atpolicy=sum(EV .* shiftdim(pi_u,-2), 3); % sum over u -> [N_a, N_e]
-            EVnext_atpolicy(isnan(EVnext_atpolicy))=0;
+            EVw=EV .* shiftdim(pi_u,-2); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+            EVnext_atpolicy=sum(EVw,3); % sum over u -> [N_a, N_e]
             V(:,:,jj)=F_jj+beta*EVnext_atpolicy;
         elseif N_z>0 && N_e==0
             if N_a1==0

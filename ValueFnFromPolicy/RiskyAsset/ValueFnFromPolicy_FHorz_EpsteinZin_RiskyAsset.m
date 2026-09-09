@@ -272,16 +272,16 @@ for reverse_j=0:N_j-1
             a2pPrb=a2primeProbs;
             a2pPrb(Vlower==Vupper)=0; % skipinterp (on the transformed EV, as the EZ VFI raws)
             EVlott=a2pPrb.*Vlower+(1-a2pPrb).*Vupper;
-            EVnextOfPolicy=sum(EVlott .* shiftdim(pi_u,-1), 2); % sum over u -> [N_a, 1]
-            EVnextOfPolicy(isnan(EVnextOfPolicy))=0;
+            EVw=EVlott .* shiftdim(pi_u,-1); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+            EVnextOfPolicy=sum(EVw,2); % sum over u -> [N_a, 1]
         elseif N_z==0 && N_e>0
             V_nextpre=V(:,:,jj+1); % [N_a, N_e]
             temp=V_nextpre;
             temp(isfinite(V_nextpre))=(ezc4*V_nextpre(isfinite(V_nextpre))).^ezc5(jj);
             temp(V_nextpre==0)=0;
             % Integrate over the iid e'
-            EVnext=sum(temp .* shiftdim(vfoptions.pi_e_J(:,jj+1), -1), 2); % [N_a, 1]
-            EVnext(isnan(EVnext))=0;
+            EVw=temp .* shiftdim(vfoptions.pi_e_J(:,jj+1), -1); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+            EVnext=sum(EVw,2); % [N_a, 1]
             if N_a1==0
                 aprime_low=a2primeIndex;     % [N_a, N_e, N_u]
                 aprime_up =a2primeIndex+1;
@@ -295,8 +295,8 @@ for reverse_j=0:N_j-1
             a2pPrb=a2primeProbs;
             a2pPrb(Vlower==Vupper)=0; % skipinterp on pi_e-collapsed transformed EV
             EVlott=a2pPrb.*Vlower+(1-a2pPrb).*Vupper;
-            EVnextOfPolicy=sum(EVlott .* shiftdim(pi_u,-2), 3); % sum over u -> [N_a, N_e]
-            EVnextOfPolicy(isnan(EVnextOfPolicy))=0;
+            EVw=EVlott .* shiftdim(pi_u,-2); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+            EVnextOfPolicy=sum(EVw,3); % sum over u -> [N_a, N_e]
         elseif N_z>0 && N_e==0
             V_nextpre=V(:,:,jj+1); % [N_a, N_z']
             temp=V_nextpre;
@@ -320,8 +320,8 @@ for reverse_j=0:N_j-1
             a2pPrb=a2primeProbs;
             a2pPrb(Vlower==Vupper)=0; % skipinterp (on the z-collapsed transformed EV, as the EZ VFI raws)
             EVlott=a2pPrb.*Vlower+(1-a2pPrb).*Vupper;
-            EVnextOfPolicy=sum(EVlott .* shiftdim(pi_u,-2), 3); % sum over u -> [N_a, N_z]
-            EVnextOfPolicy(isnan(EVnextOfPolicy))=0;
+            EVw=EVlott .* shiftdim(pi_u,-2); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+            EVnextOfPolicy=sum(EVw,3); % sum over u -> [N_a, N_z]
         else
             V_nextpre=V(:,:,:,jj+1); % [N_a, N_z', N_e']
             temp=V_nextpre;
@@ -348,8 +348,8 @@ for reverse_j=0:N_j-1
             Vupper=reshape(EVnext(aprime_up +zidxoffset),[N_a,N_z,N_e,N_u]);
             a2pPrb(Vlower==Vupper)=0; % skipinterp (on the z-collapsed transformed EV, as the EZ VFI raws)
             EVlott=a2pPrb.*Vlower+(1-a2pPrb).*Vupper;
-            EVnextOfPolicy=sum(EVlott .* shiftdim(pi_u,-3), 4); % sum over u -> [N_a, N_z, N_e]
-            EVnextOfPolicy(isnan(EVnextOfPolicy))=0;
+            EVw=EVlott .* shiftdim(pi_u,-3); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+            EVnextOfPolicy=sum(EVw,4); % sum over u -> [N_a, N_z, N_e]
         end
 
         % Certainty-equivalent (and mortality-risk/warm-glow) transform, pointwise at the policy

@@ -212,8 +212,8 @@ if vfoptions.gridinterplayer==1
                 V(:,:,jj)=FofPolicy_jj+TofPolicy_jj-MostTempting;
             else
                 beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-                EVnext=sum(V(:,:,jj+1).*shiftdim(vfoptions.pi_e_J(:,jj+1),-1),2); % (N_a,1) integrate over iid e
-                EVnext(isnan(EVnext))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+                EVw=V(:,:,jj+1).*shiftdim(vfoptions.pi_e_J(:,jj+1),-1); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+                EVnext=sum(EVw,2); % (N_a,1) integrate over iid e
                 % Look up at lower & upper aprime: result shape (N_a, N_e)
                 EVlower=reshape(EVnext(alower(:,:,jj)),[N_a,N_e]);
                 EVupper=reshape(EVnext(alower(:,:,jj)+1),[N_a,N_e]);
@@ -376,8 +376,8 @@ if vfoptions.gridinterplayer==1
             else
                 beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
                 % Integrate over iid e, then over zprime|z
-                EVnext=sum(V(:,:,:,jj+1).*shiftdim(vfoptions.pi_e_J(:,jj+1),-2),3); % (N_a, N_z)
-                EVnext(isnan(EVnext))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+                EVw=V(:,:,:,jj+1).*shiftdim(vfoptions.pi_e_J(:,jj+1),-2); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+                EVnext=sum(EVw,3); % (N_a, N_z)
                 EVnext=EVnext*pi_z_J(:,:,jj)'; % (N_a, N_z)
                 EVnext(isnan(EVnext))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
                 % For each (a, z, e), look up the EV at (alower(a,z,e), z) and (alower+1, z)
@@ -481,8 +481,8 @@ else % no grid interpolation layer
                 V(:,:,jj)=FofPolicy_jj+TofPolicy_jj-MostTempting;
             else
                 beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-                EVnext=sum(V(:,:,jj+1).*shiftdim(vfoptions.pi_e_J(:,jj+1),-1),2); % expectation over iid
-                EVnext(isnan(EVnext))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+                EVw=V(:,:,jj+1).*shiftdim(vfoptions.pi_e_J(:,jj+1),-1); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+                EVnext=sum(EVw,2); % expectation over iid
 
                 if N_d==0
                     optaprime=PolicyIndexesKron(1,:,:,jj);

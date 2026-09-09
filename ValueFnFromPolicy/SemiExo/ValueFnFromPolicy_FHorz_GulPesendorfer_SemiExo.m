@@ -259,8 +259,8 @@ if vfoptions.gridinterplayer==1
                 V_next=V(:,:,jj+1);
             else
                 V_next=V(:,:,:,jj+1);
-                V_next=sum(V_next .* shiftdim(vfoptions.pi_e_J(:,jj+1), -2), 3);
-                V_next(isnan(V_next))=0; % 0*(-Inf)=NaN when pi_e puts zero weight on an infeasible e'
+                EVw=V_next .* shiftdim(vfoptions.pi_e_J(:,jj+1), -2); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+                V_next=sum(EVw,3);
                 V_next=reshape(V_next, [N_a, N_shocks]);
             end
 
@@ -271,21 +271,21 @@ if vfoptions.gridinterplayer==1
                 EVnext_byd2=zeros(N_a, N_semiz, N_dsemiz, 'gpuArray');
                 for d2_c=1:N_dsemiz
                     pi_d2c=pi_semiz_J(:,:,d2_c,jj)'; % transpose: pi_semiz_J is [N_semiz_from, N_semiz_to]; we want [N_semiz_to, N_semiz_from]
-                    EVd2c=sum(EV_after_z .* shiftdim(pi_d2c, -1), 2);
-                    EVd2c(isnan(EVd2c))=0;
+                    EVw=EV_after_z .* shiftdim(pi_d2c, -1); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+                    EVd2c=sum(EVw,2);
                     EVnext_byd2(:,:,d2_c)=reshape(EVd2c, [N_a, N_semiz]);
                 end
             else
                 V_next_r=reshape(V_next, [N_a, N_semiz, N_z]);
-                EV_after_z=sum(V_next_r .* shiftdim(pi_z_J(:,:,jj)', -2), 3);
-                EV_after_z(isnan(EV_after_z))=0;
+                EVw=V_next_r .* shiftdim(pi_z_J(:,:,jj)', -2); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+                EV_after_z=sum(EVw,3);
                 EV_after_z=reshape(EV_after_z, [N_a, N_semiz, N_z]);
                 EVnext_byd2=zeros(N_a, N_semiz, N_z, N_dsemiz, 'gpuArray');
                 for d2_c=1:N_dsemiz
                     pi_d2c=pi_semiz_J(:,:,d2_c,jj)'; % transpose: pi_semiz_J is [N_semiz_from, N_semiz_to]; we want [N_semiz_to, N_semiz_from]
                     pi_reshape=reshape(pi_d2c, [1, N_semiz, 1, N_semiz]); % [1, N_semiz_to, 1, N_semiz_from]
-                    EVd2c=sum(EV_after_z .* pi_reshape, 2);
-                    EVd2c(isnan(EVd2c))=0;
+                    EVw=EV_after_z .* pi_reshape; EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+                    EVd2c=sum(EVw,2);
                     EVnext_byd2(:,:,:,d2_c)=reshape(permute(EVd2c, [1,4,3,2]), [N_a, N_semiz, N_z]);
                 end
             end
@@ -459,8 +459,8 @@ else % no grid interpolation layer
             else
                 V_next=V(:,:,:,jj+1); % [N_a, N_shocks, N_e]
                 % Integrate over e' using iid pi_e_J(:,jj+1) (the distribution of the e realized in period jj+1)
-                V_next=sum(V_next .* shiftdim(vfoptions.pi_e_J(:,jj+1), -2), 3); % [N_a, N_shocks, 1]
-                V_next(isnan(V_next))=0; % 0*(-Inf)=NaN when pi_e puts zero weight on an infeasible e'
+                EVw=V_next .* shiftdim(vfoptions.pi_e_J(:,jj+1), -2); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+                V_next=sum(EVw,3); % [N_a, N_shocks, 1]
                 V_next=reshape(V_next, [N_a, N_shocks]);
             end
 
@@ -473,24 +473,24 @@ else % no grid interpolation layer
                 EVnext_byd2=zeros(N_a, N_semiz, N_dsemiz, 'gpuArray');
                 for d2_c=1:N_dsemiz
                     pi_d2c=pi_semiz_J(:,:,d2_c,jj)'; % transpose: pi_semiz_J is [N_semiz_from, N_semiz_to]; we want [N_semiz_to, N_semiz_from] so the broadcast contracts semiz_to with V's semiz_to
-                    EVd2c=sum(EV_after_z .* shiftdim(pi_d2c, -1), 2); % [N_a, 1, N_semiz_from]
-                    EVd2c(isnan(EVd2c))=0;
+                    EVw=EV_after_z .* shiftdim(pi_d2c, -1); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+                    EVd2c=sum(EVw,2); % [N_a, 1, N_semiz_from]
                     EVnext_byd2(:,:,d2_c)=reshape(EVd2c, [N_a, N_semiz]);
                 end
             else
                 V_next_r=reshape(V_next, [N_a, N_semiz, N_z]);
                 % Step 1: integrate over z' (does not depend on d_semiz)
                 % EV_after_z[anext, semiz_to, z_from] = sum_{z_to} pi_z_J(z_from, z_to, jj) * V_next[anext, semiz_to, z_to]
-                EV_after_z=sum(V_next_r .* shiftdim(pi_z_J(:,:,jj)', -2), 3); % [N_a, N_semiz_to, 1, N_z_from]
-                EV_after_z(isnan(EV_after_z))=0;
+                EVw=V_next_r .* shiftdim(pi_z_J(:,:,jj)', -2); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+                EV_after_z=sum(EVw,3); % [N_a, N_semiz_to, 1, N_z_from]
                 EV_after_z=reshape(EV_after_z, [N_a, N_semiz, N_z]); % [anext, semiz_to, z_from]
                 % Step 2: for each d_semiz, integrate over semiz'
                 EVnext_byd2=zeros(N_a, N_semiz, N_z, N_dsemiz, 'gpuArray');
                 for d2_c=1:N_dsemiz
                     pi_d2c=pi_semiz_J(:,:,d2_c,jj)'; % transpose: pi_semiz_J is [N_semiz_from, N_semiz_to]; we want [N_semiz_to, N_semiz_from]
                     pi_reshape=reshape(pi_d2c, [1, N_semiz, 1, N_semiz]); % [1, N_semiz_to, 1, N_semiz_from]
-                    EVd2c=sum(EV_after_z .* pi_reshape, 2); % [N_a, 1, N_z, N_semiz_from]
-                    EVd2c(isnan(EVd2c))=0;
+                    EVw=EV_after_z .* pi_reshape; EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+                    EVd2c=sum(EVw,2); % [N_a, 1, N_z, N_semiz_from]
                     EVnext_byd2(:,:,:,d2_c)=reshape(permute(EVd2c, [1,4,3,2]), [N_a, N_semiz, N_z]);
                 end
             end

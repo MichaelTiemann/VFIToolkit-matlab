@@ -229,8 +229,8 @@ for reverse_j=0:N_j-1
 
         % Step b: integrate over z' (markov, does not depend on d_semiz)
         V_next_r=reshape(V_next, [N_a, N_semiz, N_z]);
-        EV_after_z=sum(V_next_r .* shiftdim(pi_z_J(:,:,jj)', -2), 3);
-        EV_after_z(isnan(EV_after_z))=0;
+        EVw=V_next_r .* shiftdim(pi_z_J(:,:,jj)', -2); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+        EV_after_z=sum(EVw,3);
         EV_after_z=reshape(EV_after_z, [N_a, N_semiz, N_z]);
 
         % Step c: for each d_semiz, integrate over semiz' -> EVnext_byd2(a, semiz_from, z_from, d_semiz)
@@ -238,8 +238,8 @@ for reverse_j=0:N_j-1
         for d2_c=1:N_dsemiz
             pi_d2c=pi_semiz_J(:,:,d2_c,jj)';
             pi_reshape=reshape(pi_d2c, [1, N_semiz, 1, N_semiz]);
-            EVd2c=sum(EV_after_z .* pi_reshape, 2);
-            EVd2c(isnan(EVd2c))=0;
+            EVw=EV_after_z .* pi_reshape; EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+            EVd2c=sum(EVw,2);
             EVnext_byd2(:,:,:,d2_c)=reshape(permute(EVd2c, [1,4,3,2]), [N_a, N_semiz, N_z]);
         end
 

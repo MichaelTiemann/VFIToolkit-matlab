@@ -56,7 +56,7 @@ elseif isfield(vfoptions,'WarmGlowBequestsFn')
     % If you have warm-glow but do not specify survival probabilities it is assumed you only get it at end of final period
     sj=ones(N_j,1); % conditional survival probabilities
     sj(end)=0;
-    warning('You have used vfoptons.WarmGlowBequestsFn, but have not set vfoptions.survivalprobability, it is assumed you only want to have the warm-glow at the end of the final period')
+    warning('You have used vfoptions.WarmGlowBequestsFn, but have not set vfoptions.survivalprobability, it is assumed you only want to have the warm-glow at the end of the final period')
 else
     sj=ones(N_j,1); % conditional survival probabilities
 end

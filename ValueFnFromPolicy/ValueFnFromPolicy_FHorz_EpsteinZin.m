@@ -350,8 +350,8 @@ if vfoptions.gridinterplayer==1
                 temp(EVnextpre==0)=0;
 
                 % Expectation over the iid e
-                EVnext=sum(temp.*shiftdim(vfoptions.pi_e_J(:,jj+1),-1),2); % [N_a,1]
-                EVnext(isnan(EVnext))=0;
+                EVw=temp.*shiftdim(vfoptions.pi_e_J(:,jj+1),-1); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+                EVnext=sum(EVw,2); % [N_a,1]
 
                 EVlower=reshape(EVnext(alower(:,:,jj)),[N_a,N_e]);
                 EVupper=reshape(EVnext(alower(:,:,jj)+1),[N_a,N_e]);
@@ -763,8 +763,8 @@ elseif N_z==0 && N_e>0
             temp(EVnextpre==0)=0;
 
             % Expectation over the iid e
-            EVnext=sum(temp.*shiftdim(vfoptions.pi_e_J(:,jj+1),-1),2); % [N_a,1]
-            EVnext(isnan(EVnext))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+            EVw=temp.*shiftdim(vfoptions.pi_e_J(:,jj+1),-1); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+            EVnext=sum(EVw,2); % [N_a,1]
 
             % e is iid -> EVnext depends only on aprime
             EVnextOfPolicy=reshape(EVnext(optaprime),[N_a,N_e]);

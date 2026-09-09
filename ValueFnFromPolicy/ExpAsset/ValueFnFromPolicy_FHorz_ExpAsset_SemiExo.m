@@ -216,8 +216,8 @@ for reverse_j=0:N_j-1
             EV_after_z=V_next_r;
         else
             V_next_r=reshape(V_next, [N_a, N_semiz, N_z]); % [N_a, N_semiz_to, N_z_to]
-            EV_after_z=sum(V_next_r .* shiftdim(pi_z_J(:,:,jj)', -2), 3); % [N_a, N_semiz_to, 1, N_z_from]
-            EV_after_z(isnan(EV_after_z))=0;
+            EVw=V_next_r .* shiftdim(pi_z_J(:,:,jj)', -2); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+            EV_after_z=sum(EVw,3); % [N_a, N_semiz_to, 1, N_z_from]
             EV_after_z=reshape(EV_after_z, [N_a, N_semiz, N_z]);
         end
 
@@ -227,8 +227,8 @@ for reverse_j=0:N_j-1
             EVnext_byd2=zeros(N_a, N_semiz, N_dsemiz, 'gpuArray');
             for d2_c=1:N_dsemiz
                 pi_d2c=pi_semiz_J(:,:,d2_c,jj)'; % [N_semiz_to, N_semiz_from]
-                EVd2c=sum(EV_after_z .* shiftdim(pi_d2c, -1), 2); % [N_a, 1, N_semiz_from]
-                EVd2c(isnan(EVd2c))=0;
+                EVw=EV_after_z .* shiftdim(pi_d2c, -1); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+                EVd2c=sum(EVw,2); % [N_a, 1, N_semiz_from]
                 EVnext_byd2(:,:,d2_c)=reshape(EVd2c, [N_a, N_semiz]);
             end
         else
@@ -236,8 +236,8 @@ for reverse_j=0:N_j-1
             for d2_c=1:N_dsemiz
                 pi_d2c=pi_semiz_J(:,:,d2_c,jj)';
                 pi_reshape=reshape(pi_d2c, [1, N_semiz, 1, N_semiz]); % [1, N_semiz_to, 1, N_semiz_from]
-                EVd2c=sum(EV_after_z .* pi_reshape, 2); % [N_a, 1, N_z, N_semiz_from]
-                EVd2c(isnan(EVd2c))=0;
+                EVw=EV_after_z .* pi_reshape; EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+                EVd2c=sum(EVw,2); % [N_a, 1, N_z, N_semiz_from]
                 EVnext_byd2(:,:,:,d2_c)=reshape(permute(EVd2c, [1,4,3,2]), [N_a, N_semiz, N_z]);
             end
         end

@@ -240,8 +240,8 @@ for reverse_j=0:N_j-1
         wgPrb=a2primeProbs;
         wgPrb(WGlower==WGupper)=0; % skipinterp
         WGlott=wgPrb.*WGlower+(1-wgPrb).*WGupper;
-        WGofPolicy=sum(WGlott .* shiftdim(pi_u,-2), 3); % sum over u -> [N_a, N_shocks] or [N_a, N_shocks*N_e]
-        WGofPolicy(isnan(WGofPolicy))=0;
+        EVw=WGlott .* shiftdim(pi_u,-2); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+        WGofPolicy=sum(EVw,3); % sum over u -> [N_a, N_shocks] or [N_a, N_shocks*N_e]
         if N_e>0
             WGofPolicy=reshape(WGofPolicy,[N_a,N_shocks,N_e]);
         end
@@ -288,8 +288,8 @@ for reverse_j=0:N_j-1
         if N_e==0
             V_next=temp;
         else
-            V_next=sum(temp .* shiftdim(vfoptions.pi_e_J(:,jj+1), -2), 3);
-            V_next(isnan(V_next))=0; % -Inf times zero e'-probability
+            EVw=temp .* shiftdim(vfoptions.pi_e_J(:,jj+1), -2); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+            V_next=sum(EVw,3);
             V_next=reshape(V_next, [N_a, N_shocks]);
         end
 
@@ -298,8 +298,8 @@ for reverse_j=0:N_j-1
             EV_after_z=V_next;
         else
             V_next_r=reshape(V_next, [N_a, N_semiz, N_z]);
-            EV_after_z=sum(V_next_r .* shiftdim(pi_z_J(:,:,jj)', -2), 3); % [N_a, N_semiz_to, 1, N_z_from]
-            EV_after_z(isnan(EV_after_z))=0;
+            EVw=V_next_r .* shiftdim(pi_z_J(:,:,jj)', -2); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+            EV_after_z=sum(EVw,3); % [N_a, N_semiz_to, 1, N_z_from]
             EV_after_z=reshape(EV_after_z, [N_a, N_semiz, N_z]);
         end
 
@@ -308,8 +308,8 @@ for reverse_j=0:N_j-1
             EVnext_byd2=zeros(N_a, N_semiz, N_dsemiz, 'gpuArray');
             for d2_c=1:N_dsemiz
                 pi_d2c=pi_semiz_J(:,:,d2_c,jj)';
-                EVd2c=sum(EV_after_z .* shiftdim(pi_d2c, -1), 2);
-                EVd2c(isnan(EVd2c))=0;
+                EVw=EV_after_z .* shiftdim(pi_d2c, -1); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+                EVd2c=sum(EVw,2);
                 EVnext_byd2(:,:,d2_c)=reshape(EVd2c, [N_a, N_semiz]);
             end
         else
@@ -317,8 +317,8 @@ for reverse_j=0:N_j-1
             for d2_c=1:N_dsemiz
                 pi_d2c=pi_semiz_J(:,:,d2_c,jj)';
                 pi_reshape=reshape(pi_d2c, [1, N_semiz, 1, N_semiz]);
-                EVd2c=sum(EV_after_z .* pi_reshape, 2);
-                EVd2c(isnan(EVd2c))=0;
+                EVw=EV_after_z .* pi_reshape; EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+                EVd2c=sum(EVw,2);
                 EVnext_byd2(:,:,:,d2_c)=reshape(permute(EVd2c, [1,4,3,2]), [N_a, N_semiz, N_z]);
             end
         end
@@ -350,8 +350,8 @@ for reverse_j=0:N_j-1
                 EV_UL=reshape(EVnext_byd2(lin_UL(:)),[N_a, N_semiz, N_u]);
                 EV_UU=reshape(EVnext_byd2(lin_UU(:)),[N_a, N_semiz, N_u]);
                 per_u=wa1l.*wa2l.*EV_LL + wa1l.*wa2u.*EV_LU + wa1u.*wa2l.*EV_UL + wa1u.*wa2u.*EV_UU;
-                EVnextOfPolicy=sum(per_u .* shiftdim(pi_u,-2), 3); % [N_a, N_semiz]
-                EVnextOfPolicy(isnan(EVnextOfPolicy))=0;
+                EVw=per_u .* shiftdim(pi_u,-2); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+                EVnextOfPolicy=sum(EVw,3); % [N_a, N_semiz]
             else
                 d2_r =reshape(d2_jj,[N_a, N_semiz, N_z]);
                 a1l =reshape(a1_lower(:,:,jj),[N_a, N_semiz, N_z]);
@@ -370,8 +370,8 @@ for reverse_j=0:N_j-1
                 EV_UL=reshape(EVnext_byd2(lin_UL(:)),[N_a, N_semiz, N_z, N_u]);
                 EV_UU=reshape(EVnext_byd2(lin_UU(:)),[N_a, N_semiz, N_z, N_u]);
                 per_u=wa1l.*wa2l.*EV_LL + wa1l.*wa2u.*EV_LU + wa1u.*wa2l.*EV_UL + wa1u.*wa2u.*EV_UU;
-                EVnextOfPolicy=sum(per_u .* shiftdim(pi_u,-3), 4); % [N_a, N_semiz, N_z]
-                EVnextOfPolicy(isnan(EVnextOfPolicy))=0;
+                EVw=per_u .* shiftdim(pi_u,-3); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+                EVnextOfPolicy=sum(EVw,4); % [N_a, N_semiz, N_z]
             end
             EVnextOfPolicy=reshape(EVnextOfPolicy, [N_a, N_shocks]);
         else
@@ -396,8 +396,8 @@ for reverse_j=0:N_j-1
                     EV_UL=reshape(EVnext_byd2(lin_UL(:)),[N_a, N_semiz, N_u]);
                     EV_UU=reshape(EVnext_byd2(lin_UU(:)),[N_a, N_semiz, N_u]);
                     per_u=wa1l_e.*wa2l_e.*EV_LL + wa1l_e.*wa2u_e.*EV_LU + wa1u_e.*wa2l_e.*EV_UL + wa1u_e.*wa2u_e.*EV_UU;
-                    EV_summed=sum(per_u .* shiftdim(pi_u,-2), 3);
-                    EV_summed(isnan(EV_summed))=0;
+                    EVw=per_u .* shiftdim(pi_u,-2); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+                    EV_summed=sum(EVw,3);
                     EVnextOfPolicy(:,:,e_c)=EV_summed;
                 end
             else
@@ -421,8 +421,8 @@ for reverse_j=0:N_j-1
                     EV_UL=reshape(EVnext_byd2(lin_UL(:)),[N_a, N_semiz, N_z, N_u]);
                     EV_UU=reshape(EVnext_byd2(lin_UU(:)),[N_a, N_semiz, N_z, N_u]);
                     per_u=wa1l_e.*wa2l_e.*EV_LL + wa1l_e.*wa2u_e.*EV_LU + wa1u_e.*wa2l_e.*EV_UL + wa1u_e.*wa2u_e.*EV_UU;
-                    EV_summed=sum(per_u .* shiftdim(pi_u,-3), 4);
-                    EV_summed(isnan(EV_summed))=0;
+                    EVw=per_u .* shiftdim(pi_u,-3); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+                    EV_summed=sum(EVw,4);
                     EVnextOfPolicy(:,:,:,e_c)=EV_summed;
                 end
             end
