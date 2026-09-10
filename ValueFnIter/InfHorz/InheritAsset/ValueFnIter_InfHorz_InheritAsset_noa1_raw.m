@@ -66,6 +66,8 @@ while currdist>vfoptions.tolerance && tempcounter<=vfoptions.maxiter
 
     % Switch EV from being in terms of a2prime to being in terms of d2 and a2
     EV=a2primeProbs.*Vlower+(1-a2primeProbs).*Vupper; % (d2,a1prime,a2,u,zprime)
+    EV(a2primeProbs==0)=Vupper(a2primeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+    EV(a2primeProbs==1)=Vlower(a2primeProbs==1);
 
     EV=EV.*shiftdim(pi_z',-1);
     EV(isnan(EV))=0; % remove nan created where value fn is -Inf but probability is zero

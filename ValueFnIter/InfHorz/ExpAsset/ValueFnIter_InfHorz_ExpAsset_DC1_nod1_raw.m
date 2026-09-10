@@ -61,6 +61,8 @@ while currdist>vfoptions.tolerance && tempcounter<=vfoptions.maxiter
 
     % Switch EV from being in terms of a2prime to being in terms of d2 and a2
     EV=aprimeProbs2.*Vlower+(1-aprimeProbs2).*Vupper; % (d2,a1prime,a2,zprime)
+    EV(aprimeProbs2==0)=Vupper(aprimeProbs2==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+    EV(aprimeProbs2==1)=Vlower(aprimeProbs2==1);
     % Already applied the probabilities from interpolating onto grid
 
     %Calc the condl expectation term (except beta), which depends on z but not on control variables
@@ -169,6 +171,8 @@ while currdist>vfoptions.tolerance && tempcounter<=vfoptions.maxiter
 
             % Switch EV from being in terms of a2prime to being in terms of d2 and a2
             EV=aprimeProbs_Howards2.*Vlower+(1-aprimeProbs_Howards2).*Vupper; % (a1prime-by-a2prime,zprime)
+            EV(aprimeProbs_Howards2==0)=Vupper(aprimeProbs_Howards2==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_Howards2==1)=Vlower(aprimeProbs_Howards2==1);
             % Already applied the probabilities from interpolating onto grid
 
             % Calc the condl expectation term (except beta), which depends on z but not on control variables
