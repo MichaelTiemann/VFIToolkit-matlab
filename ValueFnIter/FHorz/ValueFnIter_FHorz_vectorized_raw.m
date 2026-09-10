@@ -1,19 +1,23 @@
-function [V_current, Policy_Indices] = ValueFnIter_FHorz_vectorized_raw(eval_func, V_next, A_flat, Aprime_flat, AprimeIdx_flat, n_a, n_choices, beta_j)
+function [V_current, Policy_Indices] = ValueFnIter_FHorz_vectorized_raw(eval_func, V_next, A_flat, Aprime_flat, AprimeIdx_flat, n_states, n_choices, n_a, n_z, pi_z_j, beta_j)
 
-% Evaluate the return function across the entire flattened grid in one shot.
 F_flat = eval_func(Aprime_flat, A_flat);
 
-% Expand V_next to map to the correct next-period asset choice.
-% AprimeIdx_flat explicitly maps every point in the flattened grid to its V_next index.
-V_next_expanded = V_next(AprimeIdx_flat);
+% Expected continuation value over tomorrow's shocks (z'):
+% V_next is (n_a x n_z), pi_z_j is (n_z x n_z) -> EV_next is (n_a x n_z)
+EV_next = V_next * (pi_z_j');
 
-% Calculate the right-hand side of the Bellman equation
-RHS_flat = F_flat + beta_j * V_next_expanded;
+% Map the flattened choice grid (AprimeIdx_flat) and state shocks (z_idx_vec)
+% Canonical grid ordering: ndgrid(a, z, d, aprime)
+% States (a, z) vary fastest, choices (d, aprime) vary slowest.
+z_idx_state = repelem((1:n_z)', n_a, 1);
+z_idx_flat = repmat(z_idx_state, n_choices, 1);
 
-% Reshape back to the 2D grid (States x Choices) to find the max
-RHS_matrix = reshape(RHS_flat, n_a, n_choices);
+linear_indices = sub2ind([n_a, n_z], AprimeIdx_flat, z_idx_flat);
+V_cont_flat = EV_next(linear_indices);
 
-% Maximize over the choices (dimension 2)
+RHS_flat = F_flat + beta_j .* V_cont_flat;
+RHS_matrix = reshape(RHS_flat, n_states, n_choices);
+
 [V_current, Policy_Indices] = max(RHS_matrix, [], 2);
 
 

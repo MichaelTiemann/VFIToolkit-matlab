@@ -106,87 +106,120 @@ else
     end
 end
 
-% Implement VFIToolkit way of handling ReturnFn inputs
 if isempty(ReturnFnParamNames)
-    ReturnFnParamNames=ReturnFnParamNamesFn(ReturnFn,n_d,n_a,n_z,N_j,vfoptions,Parameters);
+    ReturnFnParamNames = ReturnFnParamNamesFn(ReturnFn, n_d, n_a, n_z, N_j, vfoptions, Parameters);
 end
 
-% Create index array for safe V_next lookups
-a_idx = 1:n_a;
+if vfoptions.parallel == 2
+    if ~isempty(d_grid), d_grid = gpuArray(d_grid); end
+    if ~isempty(a_grid), a_grid = gpuArray(a_grid); end
+    if ~isempty(z_grid), z_grid = gpuArray(z_grid); end
+    if ~isempty(pi_z),   pi_z   = gpuArray(pi_z);   end
+end
+
 N_d = prod(n_d);
+N_a = prod(n_a);
+N_z = prod(n_z);
 
-% Build the N-dimensional grid combinations and flatten them
-if N_d > 0
-    % VFIToolkit choice order is [d, aprime], so d must vary faster than aprime!
-    [A_mat, D_mat, Aprime_mat] = ndgrid(a_grid, d_grid, a_grid);
-    [~, ~, AprimeIdx_mat] = ndgrid(a_idx, 1:N_d, a_idx);
-    
-    A_flat = A_mat(:);
-    D_flat = D_mat(:);
-    Aprime_flat = Aprime_mat(:);
-    AprimeIdx_flat = AprimeIdx_mat(:);
-    
-    n_choices = N_d * n_a;
+if N_z > 0
+    if vfoptions.alreadygridvals == 0
+        [z_gridvals_J, pi_z_J, vfoptions] = ExogShockSetup_FHorz(n_z, z_grid, pi_z, N_j, Parameters, vfoptions, 3, 0);
+    else
+        z_gridvals_J = z_grid;
+        pi_z_J = pi_z;
+    end
 else
-    [A_mat, Aprime_mat] = ndgrid(a_grid, a_grid);
-    [~, AprimeIdx_mat] = ndgrid(a_idx, a_idx);
-    
-    A_flat = A_mat(:);
-    Aprime_flat = Aprime_mat(:);
-    AprimeIdx_flat = AprimeIdx_mat(:);
-    
-    n_choices = n_a;
+    z_gridvals_J = [];
+    pi_z_J = [];
 end
 
-% Preallocate Value and Policy arrays
-% Our Policy array will hold the raw linear indices (PolicyKron) until the end
-V = zeros(n_a, N_j);
-PolicyKron = zeros(n_a, N_j);
+% Standardize missing dimensions to length-1 singletons
+if isempty(d_grid) || N_d == 0
+    d_work = zeros(1, 1, 'like', a_grid);
+    n_d_work = 1;
+else
+    d_work = d_grid;
+    n_d_work = N_d;
+end
 
-% Terminal period continuation value (V_next) is 0
-V_next = zeros(n_a, 1);
+a_work = a_grid;
+n_a_work = N_a;
 
-% Backward Induction Loop
+if isempty(z_gridvals_J) || N_z == 0
+    z_work_1 = zeros(1, 1, 'like', a_grid);
+    n_z_work = 1;
+else
+    z_work_1 = squeeze(z_gridvals_J(:, :, 1));
+    n_z_work = N_z;
+end
+
+% Canonical grid: States (a, z), Choices (d, aprime)
+[A_mat, Z_mat, D_mat, Aprime_mat] = ndgrid(a_work, z_work_1, d_work, a_work);
+[~, ~, ~, AprimeIdx_mat] = ndgrid(1:n_a_work, 1:n_z_work, 1:n_d_work, 1:n_a_work);
+
+A_flat = A_mat(:);
+Z_flat = Z_mat(:);
+D_flat = D_mat(:);
+Aprime_flat = Aprime_mat(:);
+AprimeIdx_flat = AprimeIdx_mat(:);
+
+n_states = n_a_work * n_z_work;
+n_choices = n_d_work * n_a_work;
+
+V = zeros(n_a_work, n_z_work, N_j, 'like', a_grid);
+PolicyKron = zeros(n_a_work, n_z_work, N_j, 'like', a_grid);
+V_next = zeros(n_a_work, n_z_work, 'like', a_grid);
+
 for j = N_j:-1:1
-    
-    % 1. Extract period-specific discount factor
     DiscountFactorParamsVec = CreateVectorFromParams(Parameters, DiscountFactorParamNames, j);
     beta_j = prod(DiscountFactorParamsVec);
     
-    % 2. Extract period-specific return function parameters
     ReturnFnParamsVec = CreateVectorFromParams(Parameters, ReturnFnParamNames, j);
     if ~iscell(ReturnFnParamsVec)
         ReturnFnParamsVec = num2cell(ReturnFnParamsVec);
     end
     
-    % 3. Create the period-specific closure mapped to the flattened arrays
-    if N_d > 0
-        eval_func = @(choices_aprime, states_a) ReturnFn(D_flat, choices_aprime, states_a, ReturnFnParamsVec{:});
+    if N_z > 0
+        if size(z_gridvals_J, 3) > 1
+            z_work_j = squeeze(z_gridvals_J(:, :, j));
+            [~, Z_mat, ~, ~] = ndgrid(a_work, z_work_j, d_work, a_work);
+            Z_flat = Z_mat(:);
+        end
+        if j < N_j
+            pi_z_j = pi_z_J(:, :, j);
+        else
+            pi_z_j = eye(n_z_work, 'like', a_grid);
+        end
     else
-        eval_func = @(choices_aprime, states_a) ReturnFn(choices_aprime, states_a, ReturnFnParamsVec{:});
+        pi_z_j = ones(1, 1, 'like', a_grid);
     end
     
-    % 4. Dispatch to the Vectorized Raw Solver
-    if isfield(vfoptions, 'divideandconquer') && vfoptions.divideandconquer == 1
-        error('Divide and Conquer VCore not yet implemented.');
+    if N_z > 0
+        eval_func = @(aprime_in, a_in) ReturnFn(D_flat, aprime_in, a_in, Z_flat, ReturnFnParamsVec{:});
+    elseif N_d > 0
+        eval_func = @(aprime_in, a_in) ReturnFn(D_flat, aprime_in, a_in, ReturnFnParamsVec{:});
     else
-        [V_current, Policy_Indices] = ValueFnIter_FHorz_vectorized_raw(eval_func, V_next, A_flat, Aprime_flat, AprimeIdx_flat, n_a, n_choices, beta_j);
+        eval_func = @(aprime_in, a_in) ReturnFn(aprime_in, a_in, ReturnFnParamsVec{:});
     end
     
-    % 5. Store the results
-    V(:, j) = V_current;
-    PolicyKron(:, j) = Policy_Indices;
+    [V_current, Policy_Indices] = ValueFnIter_FHorz_vectorized_raw(eval_func, V_next, A_flat, Aprime_flat, AprimeIdx_flat, n_states, n_choices, n_a_work, n_z_work, pi_z_j, beta_j);
     
-    % 6. Update V_next for the next iteration
-    V_next = V_current;
+    V(:, :, j) = reshape(V_current, [n_a_work, n_z_work]);
+    PolicyKron(:, :, j) = reshape(Policy_Indices, [n_a_work, n_z_work]);
+    V_next = reshape(V_current, [n_a_work, n_z_work]);
 end
 
-%% Format output strictly to VFIToolkit expectations
+if N_z == 0
+    V = squeeze(V);
+end
+
 if N_d == 0
     n_daprime = n_a;
 else
     n_daprime = [n_d, n_a];
 end
+
+PolicyKron = shiftdim(PolicyKron, -1);
 
 if isfield(vfoptions, 'outputkron') && vfoptions.outputkron == 1
     varargout{1} = V;
@@ -194,14 +227,14 @@ if isfield(vfoptions, 'outputkron') && vfoptions.outputkron == 1
     return
 end
 
-% VFIToolkit expects PolicyKron (in this simple case) to have a singleton first dimension (1, n_a, N_j)
-% Later we will handle more exotic things, like L2 interpolation index, L2 flag, etc.
-PolicyKron = shiftdim(PolicyKron, -1);
-
-% Let the toolkit wrap our optimal indices into the expected cell array structure
-Policy = UnKronPolicyIndexes1_FHorz_noz(PolicyKron, n_daprime, n_a, N_j, vfoptions);
+if N_z > 0
+    Policy = UnKronPolicyIndexes1_FHorz_z(PolicyKron, n_daprime, n_a, N_z, N_j, vfoptions);
+else
+    Policy = UnKronPolicyIndexes1_FHorz_noz(PolicyKron, n_daprime, n_a, N_j, vfoptions);
+end
 
 varargout{1} = V;
 varargout{2} = Policy;
+
 
 end
