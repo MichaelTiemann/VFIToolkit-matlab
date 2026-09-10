@@ -118,7 +118,7 @@ end
 % The recursive call must not re-enter the ambiguity branch, hence exoticpreferences is blanked
 optionstemp=options;
 optionstemp.exoticpreferences='None';
-[z_gridvals_J,pi_z_J,optionstemp]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,optionstemp,3);
+[z_gridvals_J,pi_z_J,optionstemp]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,optionstemp,3,0);
 options.e_gridvals_J=optionstemp.e_gridvals_J;
 options.pi_e_J=optionstemp.pi_e_J;
 
@@ -148,7 +148,7 @@ for amb_c=1:maxnamb
             optionstemp.pi_e=options.ambiguity_pi_e_J(:,:,amb_c);
         end
     end
-    [~,pi_z_J_amb_c,optionstemp]=ExogShockSetup_FHorz(n_z,z_grid,pi_z_amb_c,N_j,Parameters,optionstemp,2);
+    [~,pi_z_J_amb_c,optionstemp]=ExogShockSetup_FHorz(n_z,z_grid,pi_z_amb_c,N_j,Parameters,optionstemp,2,0);
     if N_z>0
         if amb_c==1
             ambiguity_pi_z_J=zeros(N_z,N_z,size(pi_z_J_amb_c,3),maxnamb,'gpuArray');

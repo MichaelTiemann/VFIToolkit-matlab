@@ -420,7 +420,7 @@ for ii=1:PTypeStructure.N_i
     % Switch over to joint-grids
     % If z (and e) are not determined in GE, then compute z_gridvals_J and pi_z_J now (and e_gridvals_J and pi_e_J)
     if heteroagentoptions.gridsinGE(ii)==0
-        [PTypeStructure.(iistr).z_gridvals_J, PTypeStructure.(iistr).pi_z_J, PTypeStructure.(iistr).vfoptions]=ExogShockSetup_FHorz(PTypeStructure.(iistr).n_z,PTypeStructure.(iistr).z_grid,PTypeStructure.(iistr).pi_z,PTypeStructure.(iistr).N_j,PTypeStructure.(iistr).Parameters,PTypeStructure.(iistr).vfoptions,3);
+        [PTypeStructure.(iistr).z_gridvals_J, PTypeStructure.(iistr).pi_z_J, PTypeStructure.(iistr).vfoptions]=ExogShockSetup_FHorz(PTypeStructure.(iistr).n_z,PTypeStructure.(iistr).z_grid,PTypeStructure.(iistr).pi_z,PTypeStructure.(iistr).N_j,PTypeStructure.(iistr).Parameters,PTypeStructure.(iistr).vfoptions,3,0);
         % Note: these are actually z_gridvals_J and pi_z_J
         if isfield(PTypeStructure.(iistr).simoptions,'z_grid')
             % alreadygridvals=1 is set further below, so any downstream code that
@@ -438,7 +438,7 @@ for ii=1:PTypeStructure.N_i
     end
     PTypeStructure.(iistr)=rmfield(PTypeStructure.(iistr),'z_grid'); % Should not be used, as now have z_gridvals_J
     PTypeStructure.(iistr)=rmfield(PTypeStructure.(iistr),'pi_z'); % Should not be used, as now have pi_z_J
-    if isfield(PTypeStructure.(iistr).simoptions,'ExogShockFn') % Note: ExogShockSetup_FHorz() removed ExogShockFn from vfoptions but not from simoptions
+    if isfield(PTypeStructure.(iistr).simoptions,'ExogShockFn') % Note: ExogShockSetup_FHorz(,0) removed ExogShockFn from vfoptions but not from simoptions
         if heteroagentoptions.useCustomModelStats==1 && heteroagentoptions.CustomModelStats_origgrids==1
             heteroagentoptions.CustomModelStatsInputs.z_grid=PTypeStructure.(iistr).z_gridvals_J;
             heteroagentoptions.CustomModelStatsInputs.pi_z=PTypeStructure.(iistr).pi_z_J;

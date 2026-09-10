@@ -95,7 +95,7 @@ for jj=1:N_j
 end
 
 % gridpiboth=1: we only need z_gridvals_J here (no pi_z_J)
-[z_gridvals_J,~,simoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,simoptions,1);
+[z_gridvals_J,~,simoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,simoptions,1,0);
 
 for jj=1:N_j
     fullgridvals(jj).z_gridvals=z_gridvals_J(:,:,jj);

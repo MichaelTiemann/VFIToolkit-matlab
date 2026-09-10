@@ -47,7 +47,7 @@ for ii=1:PTypeStructure.N_i
     % If z (or e) is determined in GE
     if heteroagentoptions.gridsinGE(ii)==1
         % Some of the shock grids depend on parameters that are determined in general eqm
-        [PTypeStructure.(iistr).z_gridvals_J, PTypeStructure.(iistr).pi_z_J, PTypeStructure.(iistr).vfoptions]=ExogShockSetup_FHorz(PTypeStructure.(iistr).n_z,PTypeStructure.(iistr).z_gridvals_J,PTypeStructure.(iistr).pi_z_J,PTypeStructure.(iistr).N_j,PTypeStructure.(iistr).Parameters,PTypeStructure.(iistr).vfoptions,3);
+        [PTypeStructure.(iistr).z_gridvals_J, PTypeStructure.(iistr).pi_z_J, PTypeStructure.(iistr).vfoptions]=ExogShockSetup_FHorz(PTypeStructure.(iistr).n_z,PTypeStructure.(iistr).z_gridvals_J,PTypeStructure.(iistr).pi_z_J,PTypeStructure.(iistr).N_j,PTypeStructure.(iistr).Parameters,PTypeStructure.(iistr).vfoptions,3,0);
         % Convert z and e to age-dependent joint-grids and transtion matrix
         % Note: Ignores which, just redoes both z and e
         if isfield(PTypeStructure.(iistr).simoptions,'z_grid')

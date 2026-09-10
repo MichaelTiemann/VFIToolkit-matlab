@@ -1,6 +1,7 @@
 function StationaryDist=StationaryDist_FHorz_Case1(jequaloneDist,AgeWeightParamNames,Policy,n_d,n_a,n_z,N_j,pi_z,Parameters,simoptions)
 %% Finite Horizon agent distribution. Solves using iteration (implemented with the Tan improvement).
 % jequaloneDist is the distribution of agents in period j=1.
+% (or in period j=simoptions.jequaloneDistAge if that is set; then there is no mass at earlier ages)
 
 if exist('simoptions','var')==0
     simoptions.gridinterplayer=0; % =1 Policy interpolates between grid points (must match vfoptions.interpgridlayer)
@@ -21,6 +22,7 @@ if exist('simoptions','var')==0
     simoptions.outputkron=0; % If 1 then leave output in Kron form
     simoptions.alreadygridvals=0; % =1 when calling as a subcommand
     simoptions.alreadygridvals_semiexo=0; % =1 when calling as a subcommand
+    simoptions.jequaloneDistAge=1; % jequaloneDist is the distribution at this age (=1 is the standard first period)
     simoptions.precision='double';
 else
     %Check simoptions for missing fields, if there are some fill them with the defaults
@@ -75,6 +77,9 @@ else
     end
     if ~isfield(simoptions,'alreadygridvals_semiexo')
         simoptions.alreadygridvals_semiexo=0; % =1 when calling as a subcommand
+    end
+    if ~isfield(simoptions,'jequaloneDistAge')
+        simoptions.jequaloneDistAge=1; % jequaloneDist is the distribution at this age (=1 is the standard first period)
     end
     % Some options require certain other inputs, and these have to be on the GPU
     if isfield(simoptions,'d_grid')
@@ -137,16 +142,16 @@ if simoptions.alreadygridvals==0
     if isfield(simoptions,'z_grid')
         % things like experienceassetz and experienceassetze require z_gridvals_J
         % simoptions.experienceassete does not require z_gridvals_J, but we do need to build simoptions.e_gridvals_J
-        [z_gridvals_J, pi_z_J, simoptions]=ExogShockSetup_FHorz(n_z,simoptions.z_grid,pi_z,N_j,Parameters,simoptions,3);
+        [z_gridvals_J, pi_z_J, simoptions]=ExogShockSetup_FHorz(n_z,simoptions.z_grid,pi_z,N_j,Parameters,simoptions,3,0);
     elseif simoptions.experienceassete>=1
         % Only pi_z_J for any z in the model [and we don't have simoptions.z_grid, so cannot just create even though we don't need)
-        [~, pi_z_J, simoptions]=ExogShockSetup_FHorz(n_z,[],pi_z,N_j,Parameters,simoptions,2);
+        [~, pi_z_J, simoptions]=ExogShockSetup_FHorz(n_z,[],pi_z,N_j,Parameters,simoptions,2,0);
         % But need both for e
-        [~, ~, simoptions]=ExogShockSetup_FHorz(0,[],pi_z,N_j,Parameters,simoptions,3);
+        [~, ~, simoptions]=ExogShockSetup_FHorz(0,[],pi_z,N_j,Parameters,simoptions,3,0);
     else
         % This is the default
         % Internally, only ever use age-dependent joint-grids (makes all the code much easier to write)
-        [~, pi_z_J, simoptions]=ExogShockSetup_FHorz(n_z,[],pi_z,N_j,Parameters,simoptions,2);
+        [~, pi_z_J, simoptions]=ExogShockSetup_FHorz(n_z,[],pi_z,N_j,Parameters,simoptions,2,0);
         % note: output z_gridvals_J, pi_z_J, and simoptions.e_gridvals_J, simoptions.pi_e_J
         %
         % size(z_gridvals_J)=[prod(n_z),length(n_z),N_j]
@@ -218,6 +223,15 @@ else
     if abs(sum(jequaloneDist(:))-1)>10^(-9)
         error('The jequaloneDist must be of mass one')
     end
+end
+
+%% If jequaloneDist is for an age other than j=1
+if simoptions.jequaloneDistAge>1
+    if exist('z_gridvals_J','var')
+        simoptions.z_gridvals_J=z_gridvals_J; % StationaryDist_FHorz_altj0 needs to slice it by age
+    end
+    StationaryDist=StationaryDist_FHorz_altj0(jequaloneDist,AgeWeightParamNames,Policy,n_d,n_a,n_z,N_j,pi_z_J,Parameters,simoptions);
+    return
 end
 
 %%

@@ -341,6 +341,8 @@ else
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % [N_d2*N_a1*N_a2,N_a3,N_bothz,N_e]
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             DiscountedEV=DiscountFactorParamsVec*reshape(entireEV,[N_d2,N_a1,N_a2,1,1,N_a3,N_bothz,N_e]);
 
             ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc_DC2A_e(ReturnFn, n_d1, [n_d2,1], n_a2, n_a3, n_bothz, n_e, d123_gridvals, a1_grid, a2_gridvals, a1_grid(level1ii), a2_gridvals, a3_gridvals, bothz_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec, 1);
@@ -403,6 +405,8 @@ else
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % [N_d2*N_a1*N_a2,N_a3,N_bothz,N_e]
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             DiscountedEV=DiscountFactorParamsVec*reshape(entireEV,[N_d2,N_a1,N_a2,1,1,N_a3,N_bothz,N_e]);
 
             for e_c=1:N_e
@@ -469,6 +473,8 @@ else
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % [N_d2*N_a1*N_a2,N_a3,N_bothz,N_e]
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             DiscountedEV=DiscountFactorParamsVec*reshape(entireEV,[N_d2,N_a1,N_a2,1,1,N_a3,N_bothz,N_e]);
 
             for z_c=1:N_z
@@ -540,6 +546,8 @@ else
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % [N_d2*N_a1*N_a2,N_a3,N_bothz,N_e]
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             DiscountedEV=DiscountFactorParamsVec*reshape(entireEV,[N_d2,N_a1,N_a2,1,1,N_a3,N_bothz,N_e]);
 
             for z_c=1:N_bothz
@@ -650,6 +658,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % [N_d2*N_a1*N_a2,N_a3,N_bothz,N_e]
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             DiscountedEV=DiscountFactorParamsVec*reshape(entireEV,[N_d2,N_a1,N_a2,1,1,N_a3,N_bothz,N_e]);
 
             ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc_DC2A_e(ReturnFn, n_d1, [n_d2,1], n_a2, n_a3, n_bothz, n_e, d123_gridvals, a1_grid, a2_gridvals, a1_grid(level1ii), a2_gridvals, a3_gridvals, bothz_gridvals_J(:,:,jj), e_gridvals_J(:,:,jj), ReturnFnParamsVec, 1);
@@ -712,6 +722,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % [N_d2*N_a1*N_a2,N_a3,N_bothz,N_e]
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             DiscountedEV=DiscountFactorParamsVec*reshape(entireEV,[N_d2,N_a1,N_a2,1,1,N_a3,N_bothz,N_e]);
 
             for e_c=1:N_e
@@ -778,6 +790,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % [N_d2*N_a1*N_a2,N_a3,N_bothz,N_e]
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             DiscountedEV=DiscountFactorParamsVec*reshape(entireEV,[N_d2,N_a1,N_a2,1,1,N_a3,N_bothz,N_e]);
 
             for z_c=1:N_z
@@ -849,6 +863,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % [N_d2*N_a1*N_a2,N_a3,N_bothz,N_e]
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             DiscountedEV=DiscountFactorParamsVec*reshape(entireEV,[N_d2,N_a1,N_a2,1,1,N_a3,N_bothz,N_e]);
 
             for z_c=1:N_bothz

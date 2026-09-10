@@ -173,6 +173,8 @@ else
 
     % Switch EV from being in terms of a2prime to being in terms of d2 and a2
     EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper; % (d2,a1prime,a2,u,zprime)
+    EV(aprimeProbs==0)=Vupper(aprimeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+    EV(aprimeProbs==1)=Vlower(aprimeProbs==1);
     % Already applied the probabilities from interpolating onto grid
 
     DiscountedEV_alt=beta*reshape(EV,[N_d2,N_a1,1,N_a2]); % (d2,a1prime,1,a2); d1-dim is implicit singleton, broadcasts at use sites   % exponential
@@ -221,7 +223,7 @@ else
             else
                 loweredge=maxindex1(:,1,ii,:,:);
                 % Just use aprime(ii) for everything
-                ReturnMatrix_ii_dc=CreateReturnFnMatrix_ExpAsset_Disc_noz(ReturnFn, n_d1,n_d2,1,level1iidiff(ii),n_a2,n_e, d_gridvals, a1_gridvals(loweredge), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, e_gridvals_J(:,:,N_j), ReturnFnParamsVec,3,0); % Level=2, Refine=0
+                ReturnMatrix_ii_dc=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2,1,level1iidiff(ii),n_a2,n_e, d_gridvals, a1_gridvals(loweredge), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, e_gridvals_J(:,:,N_j), ReturnFnParamsVec,3,0); % Level=2, Refine=0
                 d2aprime=d2ind+N_d2*(loweredge-1)+N_d2*N_a1*shiftdim((0:1:N_a2-1),-2); % [N_d,1,1,N_a2,N_e]; linear index into DiscountedEV_alt [N_d2,N_a1,1,N_a2]
                 entireRHS_ii=reshape(ReturnMatrix_ii_dc+DiscountedEV_alt(d2aprime),[N_d,level1iidiff(ii)*N_a2,N_e]);
                 [Vtempii,maxindexalt]=max(entireRHS_ii,[],1);
@@ -273,7 +275,7 @@ else
             else
                 loweredge=maxindex1(:,1,ii,:,:);
                 % Just use aprime(ii) for everything
-                ReturnMatrix_ii_dc=CreateReturnFnMatrix_ExpAsset_Disc_noz(ReturnFn, n_d1,n_d2,1,level1iidiff(ii),n_a2,n_e, d_gridvals, a1_gridvals(loweredge), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, e_gridvals_J(:,:,N_j), ReturnFnParamsVec,3,0); % Level=2, Refine=0
+                ReturnMatrix_ii_dc=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2,1,level1iidiff(ii),n_a2,n_e, d_gridvals, a1_gridvals(loweredge), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, e_gridvals_J(:,:,N_j), ReturnFnParamsVec,3,0); % Level=2, Refine=0
                 d2aprime=d2ind+N_d2*(loweredge-1)+N_d2*N_a1*shiftdim((0:1:N_a2-1),-2); % [N_d,1,1,N_a2,N_e]; linear index into DiscountedEV_tilde [N_d2,N_a1,1,N_a2]
                 entireRHS_ii=reshape(ReturnMatrix_ii_dc+DiscountedEV_tilde(d2aprime),[N_d,level1iidiff(ii)*N_a2,N_e]);
                 [Vtempii,maxindex]=max(entireRHS_ii,[],1);
@@ -333,7 +335,7 @@ else
                 else
                     loweredge=maxindex1(:,1,ii,:,:);
                     % Just use aprime(ii) for everything
-                    ReturnMatrix_ii_dc_e=CreateReturnFnMatrix_ExpAsset_Disc_noz(ReturnFn, n_d1,n_d2,1,level1iidiff(ii),n_a2,special_n_e, d_gridvals, a1_gridvals(loweredge), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, e_val, ReturnFnParamsVec,3,0); % Level=2, Refine=0
+                    ReturnMatrix_ii_dc_e=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2,1,level1iidiff(ii),n_a2,special_n_e, d_gridvals, a1_gridvals(loweredge), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, e_val, ReturnFnParamsVec,3,0); % Level=2, Refine=0
                     d2aprime=d2ind+N_d2*(loweredge-1)+N_d2*N_a1*shiftdim((0:1:N_a2-1),-2); % [N_d,1,1,N_a2]; linear index into DiscountedEV_alt [N_d2,N_a1,1,N_a2]
                     entireRHS_ii_e=reshape(ReturnMatrix_ii_dc_e+DiscountedEV_alt(d2aprime),[N_d,level1iidiff(ii)*N_a2]);
                     [Vtempii,maxindexalt]=max(entireRHS_ii_e,[],1);
@@ -385,7 +387,7 @@ else
                 else
                     loweredge=maxindex1(:,1,ii,:,:);
                     % Just use aprime(ii) for everything
-                    ReturnMatrix_ii_dc_e=CreateReturnFnMatrix_ExpAsset_Disc_noz(ReturnFn, n_d1,n_d2,1,level1iidiff(ii),n_a2,special_n_e, d_gridvals, a1_gridvals(loweredge), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, e_val, ReturnFnParamsVec,3,0); % Level=2, Refine=0
+                    ReturnMatrix_ii_dc_e=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2,1,level1iidiff(ii),n_a2,special_n_e, d_gridvals, a1_gridvals(loweredge), a1_gridvals(level1ii(ii)+1:level1ii(ii+1)-1), a2_gridvals, e_val, ReturnFnParamsVec,3,0); % Level=2, Refine=0
                     d2aprime=d2ind+N_d2*(loweredge-1)+N_d2*N_a1*shiftdim((0:1:N_a2-1),-2); % [N_d,1,1,N_a2]; linear index into DiscountedEV_tilde [N_d2,N_a1,1,N_a2]
                     entireRHS_ii_e=reshape(ReturnMatrix_ii_dc_e+DiscountedEV_tilde(d2aprime),[N_d,level1iidiff(ii)*N_a2]);
                     [Vtempii,maxindex]=max(entireRHS_ii_e,[],1);
@@ -436,6 +438,8 @@ for reverse_j=1:N_j-1
 
     % Switch EV from being in terms of a2prime to being in terms of d2 and a2
     EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper; % (d2,a1prime,a2,u,zprime)
+    EV(aprimeProbs==0)=Vupper(aprimeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+    EV(aprimeProbs==1)=Vlower(aprimeProbs==1);
     % Already applied the probabilities from interpolating onto grid
 
     DiscountedEV_alt=beta*reshape(EV,[N_d2,N_a1,1,N_a2]); % (d2,a1prime,1,a2); d1-dim is implicit singleton, broadcasts at use sites   % exponential

@@ -241,11 +241,11 @@ end
 % If z (and e) are not determined in GE, then compute z_gridvals_J and pi_z_J now (and e_gridvals_J and pi_e_J)
 if heteroagentoptions.gridsinGE==0
     % Some of the shock grids depend on parameters that are determined in general eqm
-    [z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3);
+    [z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3,0);
     % Note: these are actually z_gridvals_J and pi_z_J
     simoptions.e_gridvals_J=vfoptions.e_gridvals_J; % Note, will be [] if no e
     simoptions.pi_e_J=vfoptions.pi_e_J; % Note, will be [] if no e
-    if isfield(simoptions,'ExogShockFn') % Note: ExogShockSetup_FHorz() removed ExogShockFn from vfoptions but not from simoptions
+    if isfield(simoptions,'ExogShockFn') % Note: ExogShockSetup_FHorz(,0) removed ExogShockFn from vfoptions but not from simoptions
         if heteroagentoptions.useCustomModelStats==1 && heteroagentoptions.CustomModelStats_origgrids==1
             heteroagentoptions.CustomModelStatsInputs.z_grid=z_gridvals_J;
             heteroagentoptions.CustomModelStatsInputs.pi_z=pi_z_J;

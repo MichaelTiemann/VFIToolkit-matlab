@@ -55,9 +55,11 @@ else
 
     % Switch EV from being in terms of a2prime to being in terms of d2 and a2
     EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper; % (d2,a1prime,a2,u)
+    EV(aprimeProbs==0)=Vupper(aprimeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+    EV(aprimeProbs==1)=Vlower(aprimeProbs==1);
     % Already applied the probabilities from interpolating onto grid
-    EV=sum((EV.*pi_u),3); % (d2,a1prime,a2)
-    EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+    EV=EV.*pi_u; EV(isnan(EV))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+    EV=sum(EV,3); % (d2,a1prime,a2)
 
     ReturnMatrix=CreateReturnFnMatrix_ExpAsset_Disc_noz(ReturnFn, n_d1,n_d2, n_a1, n_a1,n_a2, d_gridvals, a1_gridvals, a1_gridvals, a2_gridvals, ReturnFnParamsVec,0,0); % Level=0, Refine=0
 
@@ -103,9 +105,11 @@ for reverse_j=1:N_j-1
 
     % Switch EV from being in terms of a2prime to being in terms of d2 and a2
     EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper; % (d2,a1prime,a2,u)
+    EV(aprimeProbs==0)=Vupper(aprimeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+    EV(aprimeProbs==1)=Vlower(aprimeProbs==1);
     % Already applied the probabilities from interpolating onto grid
-    EV=sum((EV.*pi_u),3); % (d2,a1prime,a2)
-    EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+    EV=EV.*pi_u; EV(isnan(EV))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+    EV=sum(EV,3); % (d2,a1prime,a2)
 
     ReturnMatrix=CreateReturnFnMatrix_ExpAsset_Disc_noz(ReturnFn, n_d1,n_d2, n_a1, n_a1,n_a2, d_gridvals, a1_gridvals, a1_gridvals, a2_gridvals, ReturnFnParamsVec,0,0); % Level=0, Refine=0
 

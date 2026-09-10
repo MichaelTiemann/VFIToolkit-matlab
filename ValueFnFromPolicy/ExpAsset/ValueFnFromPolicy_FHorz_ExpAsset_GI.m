@@ -8,7 +8,7 @@ function varargout=ValueFnFromPolicy_FHorz_ExpAsset_GI(Policy,n_d,n_a,n_z,N_j,d_
 % 2x2 interpolation: lower/upper a1 × lower/upper a2 (4 corner V values, weighted product of marginals).
 
 %% Setup
-[z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3);
+[z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3,0);
 
 if ~isfield(vfoptions,'aprimeFn')
     error('To use an experience asset you must define vfoptions.aprimeFn')

@@ -132,6 +132,8 @@ else
     skipinterp=(Vlower==Vupper);
     aprimeProbs(skipinterp)=0;
     EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper;
+    EV(aprimeProbs==0)=Vupper(aprimeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+    EV(aprimeProbs==1)=Vlower(aprimeProbs==1);
     EV=squeeze(sum((EV.*pi_u),3)); % integrate out u
     EV=EV.*shiftdim(pi_z_J(:,:,N_j)',-2);
     EV(isnan(EV))=0;
@@ -251,6 +253,8 @@ for reverse_j=1:N_j-1
     skipinterp=(Vlower==Vupper);
     aprimeProbs(skipinterp)=0;
     EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper;
+    EV(aprimeProbs==0)=Vupper(aprimeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+    EV(aprimeProbs==1)=Vlower(aprimeProbs==1);
     EV=squeeze(sum((EV.*pi_u),3)); % integrate out u
     EV=EV.*shiftdim(pi_z_J(:,:,jj)',-2);
     EV(isnan(EV))=0;

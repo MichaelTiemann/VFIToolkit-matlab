@@ -60,7 +60,7 @@ Policy=gpuArray(Policy);
 
 %% Exogenous shock grids
 % Switch to z_gridvals
-[z_gridvals_J, pi_z_J,vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3);
+[z_gridvals_J, pi_z_J,vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3,0);
 % Convert z and e to age-dependent joint-grids and transtion matrix
 % output: z_gridvals_J, pi_z_J, options.e_gridvals_J, options.pi_e_J
 

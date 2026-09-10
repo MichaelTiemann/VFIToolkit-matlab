@@ -113,6 +113,8 @@ else
             aprimeProbs_d3(skipinterp)=0;
 
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
 
             entireRHS_d3=ReturnMatrix_d3+DiscountFactorParamsVec*repelem(entireEV,N_d1,1,1);
 
@@ -142,6 +144,8 @@ else
                 aprimeProbs_z=aprimeProbs_full(:,:,semizblock);
                 aprimeProbs_z(skipinterp)=0;
                 entireEV_z=EV1.*aprimeProbs_z+EV2.*(1-aprimeProbs_z);
+                entireEV_z(aprimeProbs_z==0)=EV2(aprimeProbs_z==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+                entireEV_z(aprimeProbs_z==1)=EV1(aprimeProbs_z==1);
 
                 entireRHS_d3z=ReturnMatrix_d3z+DiscountFactorParamsVec*repelem(entireEV_z,N_d1,1,1);
                 [Vtemp,maxindex]=max(entireRHS_d3z,[],1);
@@ -170,6 +174,8 @@ else
                 aprimeProbs_z(skipinterp)=0;
 
                 entireEV_z=EV1.*aprimeProbs_z+EV2.*(1-aprimeProbs_z);
+                entireEV_z(aprimeProbs_z==0)=EV2(aprimeProbs_z==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+                entireEV_z(aprimeProbs_z==1)=EV1(aprimeProbs_z==1);
 
                 entireRHS_d3z=ReturnMatrix_d3z+DiscountFactorParamsVec*repelem(entireEV_z,N_d1,1);
 
@@ -233,6 +239,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3(skipinterp)=0;
 
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
 
             entireRHS_d3=ReturnMatrix_d3+DiscountFactorParamsVec*repelem(entireEV,N_d1,1,1);
 
@@ -262,6 +270,8 @@ for reverse_j=1:N_j-1
                 aprimeProbs_z=aprimeProbs_full(:,:,semizblock);
                 aprimeProbs_z(skipinterp)=0;
                 entireEV_z=EV1.*aprimeProbs_z+EV2.*(1-aprimeProbs_z);
+                entireEV_z(aprimeProbs_z==0)=EV2(aprimeProbs_z==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+                entireEV_z(aprimeProbs_z==1)=EV1(aprimeProbs_z==1);
 
                 entireRHS_d3z=ReturnMatrix_d3z+DiscountFactorParamsVec*repelem(entireEV_z,N_d1,1,1);
                 [Vtemp,maxindex]=max(entireRHS_d3z,[],1);
@@ -290,6 +300,8 @@ for reverse_j=1:N_j-1
                 aprimeProbs_z(skipinterp)=0;
 
                 entireEV_z=EV1.*aprimeProbs_z+EV2.*(1-aprimeProbs_z);
+                entireEV_z(aprimeProbs_z==0)=EV2(aprimeProbs_z==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+                entireEV_z(aprimeProbs_z==1)=EV1(aprimeProbs_z==1);
 
                 entireRHS_d3z=ReturnMatrix_d3z+DiscountFactorParamsVec*repelem(entireEV_z,N_d1,1);
 

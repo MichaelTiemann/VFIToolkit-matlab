@@ -20,7 +20,7 @@ function [V,Valt]=ValueFnFromPolicy_FHorz_QuasiHyperbolic_ExpAssetu_GI(Policy,Po
 % since the interpolation is identical for the two policies -- only the indices/weights differ.
 
 %% Setup
-[z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3);
+[z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3,0);
 
 if ~isfield(vfoptions,'aprimeFn')
     error('To use experienceassetu you must define vfoptions.aprimeFn')
@@ -296,9 +296,13 @@ for reverse_j=0:N_j-1
                 EV_LU=reshape(EVnext(a1l+N_a1*(a2u-1)),[N_a,N_u]);
                 EV_UL=reshape(EVnext(a1u+N_a1*(a2l-1)),[N_a,N_u]);
                 EV_UU=reshape(EVnext(a1u+N_a1*(a2u-1)),[N_a,N_u]);
-                per_u=wa1l.*wa2l.*EV_LL + wa1l.*wa2u.*EV_LU + wa1u.*wa2l.*EV_UL + wa1u.*wa2u.*EV_UU;
-                EVnext_pass=sum(per_u .* shiftdim(pi_u,-1), 2);
-                EVnext_pass(isnan(EVnext_pass))=0; % zero corner weights times -Inf next-states give NaN
+                % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero each term BEFORE summing
+                per_u=wa1l.*wa2l.*EV_LL; per_u(isnan(per_u))=0;
+                EVterm=wa1l.*wa2u.*EV_LU; EVterm(isnan(EVterm))=0; per_u=per_u+EVterm;
+                EVterm=wa1u.*wa2l.*EV_UL; EVterm(isnan(EVterm))=0; per_u=per_u+EVterm;
+                EVterm=wa1u.*wa2u.*EV_UU; EVterm(isnan(EVterm))=0; per_u=per_u+EVterm;
+                EVw=per_u .* shiftdim(pi_u,-1); EVw(isnan(EVw))=0; % zero the zero-weight terms BEFORE summing (after the sum would destroy it)
+                EVnext_pass=sum(EVw,2);
             elseif N_z==0 && N_e>0
                 a1l=a1Lo(:,:,jj); a1u=a1Up(:,:,jj);
                 wa1l=wLo(:,:,jj); wa1u=wUp(:,:,jj);
@@ -310,9 +314,13 @@ for reverse_j=0:N_j-1
                 EV_LU=reshape(EVnext(lin_LU(:)),[N_a,N_e,N_u]);
                 EV_UL=reshape(EVnext(lin_UL(:)),[N_a,N_e,N_u]);
                 EV_UU=reshape(EVnext(lin_UU(:)),[N_a,N_e,N_u]);
-                per_u=wa1l.*wa2l.*EV_LL + wa1l.*wa2u.*EV_LU + wa1u.*wa2l.*EV_UL + wa1u.*wa2u.*EV_UU;
-                EVnext_pass=sum(per_u .* shiftdim(pi_u,-2), 3);
-                EVnext_pass(isnan(EVnext_pass))=0; % zero corner weights times -Inf next-states give NaN
+                % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero each term BEFORE summing
+                per_u=wa1l.*wa2l.*EV_LL; per_u(isnan(per_u))=0;
+                EVterm=wa1l.*wa2u.*EV_LU; EVterm(isnan(EVterm))=0; per_u=per_u+EVterm;
+                EVterm=wa1u.*wa2l.*EV_UL; EVterm(isnan(EVterm))=0; per_u=per_u+EVterm;
+                EVterm=wa1u.*wa2u.*EV_UU; EVterm(isnan(EVterm))=0; per_u=per_u+EVterm;
+                EVw=per_u .* shiftdim(pi_u,-2); EVw(isnan(EVw))=0; % zero the zero-weight terms BEFORE summing (after the sum would destroy it)
+                EVnext_pass=sum(EVw,3);
             elseif N_z>0 && N_e==0
                 a1l=a1Lo(:,:,jj); a1u=a1Up(:,:,jj);
                 wa1l=wLo(:,:,jj); wa1u=wUp(:,:,jj);
@@ -325,9 +333,13 @@ for reverse_j=0:N_j-1
                 EV_LU=reshape(EVnext(lin_LU(:)),[N_a,N_z,N_u]);
                 EV_UL=reshape(EVnext(lin_UL(:)),[N_a,N_z,N_u]);
                 EV_UU=reshape(EVnext(lin_UU(:)),[N_a,N_z,N_u]);
-                per_u=wa1l.*wa2l.*EV_LL + wa1l.*wa2u.*EV_LU + wa1u.*wa2l.*EV_UL + wa1u.*wa2u.*EV_UU;
-                EVnext_pass=sum(per_u .* shiftdim(pi_u,-2), 3);
-                EVnext_pass(isnan(EVnext_pass))=0; % zero corner weights times -Inf next-states give NaN
+                % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero each term BEFORE summing
+                per_u=wa1l.*wa2l.*EV_LL; per_u(isnan(per_u))=0;
+                EVterm=wa1l.*wa2u.*EV_LU; EVterm(isnan(EVterm))=0; per_u=per_u+EVterm;
+                EVterm=wa1u.*wa2l.*EV_UL; EVterm(isnan(EVterm))=0; per_u=per_u+EVterm;
+                EVterm=wa1u.*wa2u.*EV_UU; EVterm(isnan(EVterm))=0; per_u=per_u+EVterm;
+                EVw=per_u .* shiftdim(pi_u,-2); EVw(isnan(EVw))=0; % zero the zero-weight terms BEFORE summing (after the sum would destroy it)
+                EVnext_pass=sum(EVw,3);
             else
                 a1l=reshape(a1Lo(:,:,jj),[N_a,N_z,N_e]);  a1u=reshape(a1Up(:,:,jj),[N_a,N_z,N_e]);
                 wa1l=reshape(wLo(:,:,jj),[N_a,N_z,N_e]); wa1u=reshape(wUp(:,:,jj),[N_a,N_z,N_e]);
@@ -340,9 +352,13 @@ for reverse_j=0:N_j-1
                 EV_LU=reshape(EVnext(lin_LU(:)),[N_a,N_z,N_e,N_u]);
                 EV_UL=reshape(EVnext(lin_UL(:)),[N_a,N_z,N_e,N_u]);
                 EV_UU=reshape(EVnext(lin_UU(:)),[N_a,N_z,N_e,N_u]);
-                per_u=wa1l.*wa2l.*EV_LL + wa1l.*wa2u.*EV_LU + wa1u.*wa2l.*EV_UL + wa1u.*wa2u.*EV_UU;
-                EVnext_pass=sum(per_u .* shiftdim(pi_u,-3), 4);
-                EVnext_pass(isnan(EVnext_pass))=0; % zero corner weights times -Inf next-states give NaN
+                % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero each term BEFORE summing
+                per_u=wa1l.*wa2l.*EV_LL; per_u(isnan(per_u))=0;
+                EVterm=wa1l.*wa2u.*EV_LU; EVterm(isnan(EVterm))=0; per_u=per_u+EVterm;
+                EVterm=wa1u.*wa2l.*EV_UL; EVterm(isnan(EVterm))=0; per_u=per_u+EVterm;
+                EVterm=wa1u.*wa2u.*EV_UU; EVterm(isnan(EVterm))=0; per_u=per_u+EVterm;
+                EVw=per_u .* shiftdim(pi_u,-3); EVw(isnan(EVw))=0; % zero the zero-weight terms BEFORE summing (after the sum would destroy it)
+                EVnext_pass=sum(EVw,4);
             end
 
             if pass==1

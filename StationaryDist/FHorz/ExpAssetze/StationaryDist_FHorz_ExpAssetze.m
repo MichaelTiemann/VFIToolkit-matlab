@@ -61,9 +61,9 @@ Policy=reshape(Policy,[size(Policy,1),N_a,N_ze,N_j]);
 % Policy is currently about d and a1prime. Convert it to being about aprime
 % (Kron'd linear index in N_a=N_a1*N_a2 space), per corner, with probs.
 % For l_a2==1: 2 corners (lower/upper). For l_a2==2: 4 corners (bilinear lattice).
-Kaprimepts=2^l_a2;
-Policy_aprime=zeros(N_a,N_ze,Kaprimepts,N_j,'gpuArray'); % Kron'd a-index per corner
-PolicyProbs  =zeros(N_a,N_ze,Kaprimepts,N_j,'gpuArray'); % corner probabilities
+N_probs=2^l_a2;
+Policy_aprime=zeros(N_a,N_ze,N_probs,N_j,'gpuArray'); % Kron'd a-index per corner
+PolicyProbs  =zeros(N_a,N_ze,N_probs,N_j,'gpuArray'); % corner probabilities
 whichisdforexpassetze=length(n_d)-simoptions.l_dexperienceassetze+1:length(n_d);
 
 l_a1=length(n_a)-l_a2;
@@ -100,7 +100,7 @@ for jj=1:N_j
     end
 
     if l_a2==1
-        for c=1:Kaprimepts
+        for c=1:N_probs
             if c==1
                 a2Kron=aprimeIndexes;
                 pcorner=aprimeProbs;
@@ -122,7 +122,7 @@ for jj=1:N_j
         prob_1=reshape(aprimeProbs(:,1,:),[N_a,N_ze]);
         prob_2=reshape(aprimeProbs(:,2,:),[N_a,N_ze]);
         bits=[0 0; 1 0; 0 1; 1 1];
-        for c=1:Kaprimepts
+        for c=1:N_probs
             b1=bits(c,1); b2=bits(c,2);
             a2Kron=(loIdx_1+b1)+n_a2_1*((loIdx_2+b2)-1);
             if l_a1==0
@@ -144,21 +144,21 @@ clear aprimeIndexes aprimeProbs
 %%
 if simoptions.gridinterplayer==0
     % Both z and e required for experienceassetze
-    StationaryDist=StationaryDist_FHorz_Iteration_nProbs_e_raw(jequaloneDist,AgeWeightParamNames,gather(Policy_aprime),gather(PolicyProbs),Kaprimepts,N_a,N_z,N_e,N_j,pi_z_J,simoptions.pi_e_J,Parameters);
+    StationaryDist=StationaryDist_FHorz_Iteration_nProbs_e_raw(jequaloneDist,AgeWeightParamNames,gather(Policy_aprime),gather(PolicyProbs),N_probs,N_a,N_z,N_e,N_j,pi_z_J,simoptions.pi_e_J,Parameters);
 elseif simoptions.gridinterplayer==1
     % GI doubles the corner count: each EAZE corner -> (lower a1, upper a1) pair.
-    % l_a2==1: Kaprimepts=2 -> Kaprimepts_GI=4 (legacy)
-    % l_a2==2: Kaprimepts=4 -> Kaprimepts_GI=8
-    Kaprimepts_GI = 2*Kaprimepts;
+    % l_a2==1: N_probs=2 -> Kaprimepts_GI=4 (legacy)
+    % l_a2==2: N_probs=4 -> Kaprimepts_GI=8
+    Kaprimepts_GI = 2*N_probs;
     Policy_aprime = repmat(Policy_aprime,1,1,2,1);                                       % (N_a,N_ze,Kaprimepts_GI,N_j)
-    % Corners 1..Kaprimepts are EAZE corners at lower a1; Kaprimepts+1..Kaprimepts_GI at upper a1.
-    Policy_aprime(:,:,Kaprimepts+1:Kaprimepts_GI,:) = Policy_aprime(:,:,Kaprimepts+1:Kaprimepts_GI,:) + 1;
+    % Corners 1..N_probs are EAZE corners at lower a1; N_probs+1..Kaprimepts_GI at upper a1.
+    Policy_aprime(:,:,N_probs+1:Kaprimepts_GI,:) = Policy_aprime(:,:,N_probs+1:Kaprimepts_GI,:) + 1;
     Policy_aprime = gather(Policy_aprime);
 
     PolicyProbs = repmat(PolicyProbs,1,1,2,1);
     aprimeProbs_upper = reshape(shiftdim((Policy(end-1,:,:,:)-1)/(simoptions.ngridinterp+1),1),[N_a,N_ze,1,N_j]); % probability of upper a1 grid point (from L2 index; end-1 because end is now L2flag)
-    PolicyProbs(:,:,1:Kaprimepts,:)                = PolicyProbs(:,:,1:Kaprimepts,:)                .*(1-aprimeProbs_upper); % lower a1
-    PolicyProbs(:,:,Kaprimepts+1:Kaprimepts_GI,:)  = PolicyProbs(:,:,Kaprimepts+1:Kaprimepts_GI,:)  .*   aprimeProbs_upper;  % upper a1
+    PolicyProbs(:,:,1:N_probs,:)                = PolicyProbs(:,:,1:N_probs,:)                .*(1-aprimeProbs_upper); % lower a1
+    PolicyProbs(:,:,N_probs+1:Kaprimepts_GI,:)  = PolicyProbs(:,:,N_probs+1:Kaprimepts_GI,:)  .*   aprimeProbs_upper;  % upper a1
 
     StationaryDist = StationaryDist_FHorz_Iteration_nProbs_e_raw(jequaloneDist,AgeWeightParamNames,Policy_aprime,gather(PolicyProbs),Kaprimepts_GI,N_a,N_z,N_e,N_j,pi_z_J,simoptions.pi_e_J,Parameters);
 end

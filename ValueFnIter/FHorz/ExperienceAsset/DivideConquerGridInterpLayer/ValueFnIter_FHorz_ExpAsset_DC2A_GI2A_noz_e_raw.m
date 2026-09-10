@@ -151,6 +151,8 @@ else
     skipinterp=(Vlower==Vupper);
     aprimeProbs(skipinterp)=0;
     EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper;
+    EV(aprimeProbs==0)=Vupper(aprimeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+    EV(aprimeProbs==1)=Vlower(aprimeProbs==1);
 
     DiscountedEV=DiscountFactorParamsVec*reshape(EV,[N_d2,N_a1,N_a2,1,1,N_a3]);
     DiscountedEVinterp=permute(interp1(a1_grid,permute(DiscountedEV,[2,1,3,4,5,6]),a1prime_grid),[2,1,3,4,5,6]);
@@ -291,6 +293,8 @@ for reverse_j=1:N_j-1
     skipinterp=(Vlower==Vupper);
     aprimeProbs(skipinterp)=0;
     EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper;
+    EV(aprimeProbs==0)=Vupper(aprimeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+    EV(aprimeProbs==1)=Vlower(aprimeProbs==1);
 
     DiscountedEV=DiscountFactorParamsVec*reshape(EV,[N_d2,N_a1,N_a2,1,1,N_a3]);
     DiscountedEVinterp=permute(interp1(a1_grid,permute(DiscountedEV,[2,1,3,4,5,6]),a1prime_grid),[2,1,3,4,5,6]);

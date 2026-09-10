@@ -122,6 +122,8 @@ else
 
             % Apply the aprimeProbs
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % entireEV is (d2,a1prime, a2,z)
 
             entireRHS_d3=ReturnMatrix_d3+DiscountFactorParamsVec*repelem(entireEV,1,N_a1,1);
@@ -149,6 +151,8 @@ else
             skipinterp=(EV1==EV2);
             aprimeProbs_full(skipinterp)=0;
             entireEV=EV1.*aprimeProbs_full+EV2.*(1-aprimeProbs_full);
+            entireEV(aprimeProbs_full==0)=EV2(aprimeProbs_full==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_full==1)=EV1(aprimeProbs_full==1);
 
             for z_c=1:N_z
                 zind=(1:1:N_semiz)+N_semiz*(z_c-1);
@@ -189,6 +193,8 @@ else
 
                 % Apply the aprimeProbs
                 entireEV_z=EV1.*aprimeProbs_d3z+EV2.*(1-aprimeProbs_d3z); % probability of lower grid point+ probability of upper grid point
+                entireEV_z(aprimeProbs_d3z==0)=EV2(aprimeProbs_d3z==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+                entireEV_z(aprimeProbs_d3z==1)=EV1(aprimeProbs_d3z==1);
                 % entireEV_z is (d,a1prime, a2)
 
                 entireRHS_d3z=ReturnMatrix_d3z+DiscountFactorParamsVec*kron(entireEV_z,ones(1,N_a1));
@@ -261,6 +267,8 @@ for reverse_j=1:N_j-1
 
             % Apply the aprimeProbs
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % entireEV is (d,a1prime, a2,z)
 
             entireRHS=ReturnMatrix_d3+DiscountFactorParamsVec*repelem(entireEV,1,N_a1,1);
@@ -287,6 +295,8 @@ for reverse_j=1:N_j-1
             skipinterp=(EV1==EV2);
             aprimeProbs_full(skipinterp)=0;
             entireEV=EV1.*aprimeProbs_full+EV2.*(1-aprimeProbs_full);
+            entireEV(aprimeProbs_full==0)=EV2(aprimeProbs_full==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_full==1)=EV1(aprimeProbs_full==1);
 
             for z_c=1:N_z
                 zind=(1:1:N_semiz)+N_semiz*(z_c-1);
@@ -327,6 +337,8 @@ for reverse_j=1:N_j-1
 
                 % Apply the aprimeProbs
                 entireEV_z=EV1.*aprimeProbs_d3z+EV2.*(1-aprimeProbs_d3z); % probability of lower grid point+ probability of upper grid point
+                entireEV_z(aprimeProbs_d3z==0)=EV2(aprimeProbs_d3z==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+                entireEV_z(aprimeProbs_d3z==1)=EV1(aprimeProbs_d3z==1);
                 % entireEV_z is (d,a1prime, a2)
 
                 entireRHS_z=ReturnMatrix_d3z+DiscountFactorParamsVec*repelem(entireEV_z,1,N_a1);

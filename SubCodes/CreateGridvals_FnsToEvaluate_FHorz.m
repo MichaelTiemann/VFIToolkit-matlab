@@ -11,7 +11,7 @@ N_e=prod(simoptions.n_e);
 %%
 if simoptions.alreadygridvals==0
     % Internally, only ever use age-dependent joint-grids (makes all the code much easier to write)
-    [z_gridvals_J, ~, simoptions]=ExogShockSetup_FHorz(n_z,z_grid,[],N_j,Parameters,simoptions,1);
+    [z_gridvals_J, ~, simoptions]=ExogShockSetup_FHorz(n_z,z_grid,[],N_j,Parameters,simoptions,1,0);
     % note: output z_gridvals_J, pi_z_J, and simoptions.e_gridvals_J, simoptions.pi_e_J
     %
     % size(z_gridvals_J)=[prod(n_z),length(n_z),N_j]

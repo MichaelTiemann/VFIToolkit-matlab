@@ -176,6 +176,8 @@ else
         aprimeProbs(skipinterp)=0;
 
         EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper;
+        EV(aprimeProbs==0)=Vupper(aprimeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+        EV(aprimeProbs==1)=Vlower(aprimeProbs==1);
     else
         % l_a2==2: bilinear nested 2-corner interp with per-contribution NaN cleanup
         n_a2_1=n_a2(1);
@@ -457,6 +459,8 @@ for reverse_j=1:N_j-1
         aprimeProbs(skipinterp)=0;
 
         EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper;
+        EV(aprimeProbs==0)=Vupper(aprimeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+        EV(aprimeProbs==1)=Vlower(aprimeProbs==1);
     else
         % l_a2==2: bilinear nested 2-corner interp with per-contribution NaN cleanup
         n_a2_1=n_a2(1);

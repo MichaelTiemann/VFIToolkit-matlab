@@ -62,10 +62,13 @@ while currdist>vfoptions.tolerance && tempcounter<=vfoptions.maxiter
     Vupper=reshape(VKronold(a2primeIndex+1+addindexforzprime),[N_d2,N_z,N_z]);
     % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
     skipinterp=(Vlower==Vupper);
-    a2primeProbs(skipinterp)=0; % effectively skips interpolation
+    a2primeProbs2=a2primeProbs; % version that I can modify with skipinterp
+    a2primeProbs2(skipinterp)=0; % effectively skips interpolation
 
     % Switch EV from being in terms of a2prime to being in terms of d2 and a2
-    EV=a2primeProbs.*Vlower+(1-a2primeProbs).*Vupper; % (d2,a1prime,a2,u,zprime)
+    EV=a2primeProbs2.*Vlower+(1-a2primeProbs2).*Vupper; % (d2,a1prime,a2,u,zprime)
+    EV(a2primeProbs2==0)=Vupper(a2primeProbs2==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+    EV(a2primeProbs2==1)=Vlower(a2primeProbs2==1);
 
     EV=EV.*shiftdim(pi_z',-1);
     EV(isnan(EV))=0; % remove nan created where value fn is -Inf but probability is zero

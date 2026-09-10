@@ -26,7 +26,7 @@ if vfoptions.gridinterplayer==1
 end
 
 %% Setup (mirrors ValueFnFromPolicy_FHorz_ExpAsset)
-[z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3);
+[z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3,0);
 
 if ~isfield(vfoptions,'aprimeFn')
     error('To use an experience asset you must define vfoptions.aprimeFn')
@@ -263,7 +263,9 @@ for reverse_j=0:N_j-1
                     prob_2=a2pp(:,2);
 
                     if N_a1==0
-                        a1p=zeros(N_a,1,'gpuArray'); N_a1_eff=1;
+                        a1p=ones(N_a,1,'gpuArray'); N_a1_eff=1; % the degenerate a1 dimension has the single index 1,
+                        % not 0: with a1p=0 the aprime formula below returns a2kron-1, which is 0 at the
+                        % first grid point and so is not a valid subscript
                     else
                         a1p=a1pi(:,jj); N_a1_eff=N_a1;
                     end

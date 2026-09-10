@@ -132,6 +132,8 @@ else
             aprimeProbs_d3(skipinterp)=0;
 
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
 
             % hat: argmax at beta0*beta; under: the beta-RHS gathered at that argmax
             entireRHS_hat=ReturnMatrix_d3+beta0beta*repelem(entireEV,1,N_a1,1); % broadcasts over e
@@ -162,6 +164,8 @@ else
             aprimeProbs_d3(skipinterp)=0;
 
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             EVbase_qh=repelem(entireEV,1,N_a1,1);
             DiscountedEV_under=beta*EVbase_qh;
             DiscountedEV_hat=beta0beta*EVbase_qh;
@@ -205,6 +209,8 @@ else
                 aprimeProbs_z(skipinterp)=0;
 
                 entireEV_z=EV1.*aprimeProbs_z+EV2.*(1-aprimeProbs_z);
+                entireEV_z(aprimeProbs_z==0)=EV2(aprimeProbs_z==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+                entireEV_z(aprimeProbs_z==1)=EV1(aprimeProbs_z==1);
                 EVbase_qh_z=repelem(entireEV_z,1,N_a1);
                 DiscountedEV_z_under=beta*EVbase_qh_z;
                 DiscountedEV_z_hat=beta0beta*EVbase_qh_z;
@@ -288,6 +294,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3(skipinterp)=0;
 
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
 
             % hat: argmax at beta0*beta; under: the beta-RHS gathered at that argmax
             entireRHS_hat=ReturnMatrix_d3+beta0beta*repelem(entireEV,1,N_a1,1);
@@ -318,6 +326,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3(skipinterp)=0;
 
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             EVbase_qh=repelem(entireEV,1,N_a1,1);
             DiscountedEV_under=beta*EVbase_qh;
             DiscountedEV_hat=beta0beta*EVbase_qh;
@@ -361,6 +371,8 @@ for reverse_j=1:N_j-1
                 aprimeProbs_z(skipinterp)=0;
 
                 entireEV_z=EV1.*aprimeProbs_z+EV2.*(1-aprimeProbs_z);
+                entireEV_z(aprimeProbs_z==0)=EV2(aprimeProbs_z==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+                entireEV_z(aprimeProbs_z==1)=EV1(aprimeProbs_z==1);
                 EVbase_qh_z=repelem(entireEV_z,1,N_a1);
                 DiscountedEV_z_under=beta*EVbase_qh_z;
                 DiscountedEV_z_hat=beta0beta*EVbase_qh_z;

@@ -62,6 +62,8 @@ if vfoptions.EVpre==0
 
     % Switch EV from being in terms of a2prime to being in terms of d2 and a2
     EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper; % (d2,a1prime,a2,N_j,zprime)
+    EV(aprimeProbs==0)=Vupper(aprimeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+    EV(aprimeProbs==1)=Vlower(aprimeProbs==1);
     % Already applied the probabilities from interpolating onto grid
 
     EV=EV.*shiftdim(pi_z_J,-2);
@@ -89,6 +91,8 @@ elseif vfoptions.EVpre==1
 
     % Switch EV from being in terms of a2prime to being in terms of d2 and a2
     EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper; % (d2,a1prime,a2,N_j,zprime)
+    EV(aprimeProbs==0)=Vupper(aprimeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+    EV(aprimeProbs==1)=Vlower(aprimeProbs==1);
     % Already applied the probabilities from interpolating onto grid
 
     EV=EV.*shiftdim(pi_z_J,-2);

@@ -170,6 +170,8 @@ else
 
     % Switch EV from being in terms of a2prime to being in terms of d2 and a2
     EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper; % (d2*a1prime,a2,e_cur)
+    EV(aprimeProbs==0)=Vupper(aprimeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+    EV(aprimeProbs==1)=Vlower(aprimeProbs==1);
     % Already applied the probabilities from interpolating onto grid
 
     DiscountedEV_hat=beta0beta*reshape(EV,[N_d2,N_a1,1,N_a2,N_e]); % (d2,a1prime,1,a2,e_cur); d1-dim is implicit singleton, broadcasts at use sites   % QH-perceived
@@ -353,6 +355,8 @@ for reverse_j=1:N_j-1
 
     % Switch EV from being in terms of a2prime to being in terms of d2 and a2
     EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper; % (d2*a1prime,a2,e_cur)
+    EV(aprimeProbs==0)=Vupper(aprimeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+    EV(aprimeProbs==1)=Vlower(aprimeProbs==1);
     % Already applied the probabilities from interpolating onto grid
 
     DiscountedEV_hat=beta0beta*reshape(EV,[N_d2,N_a1,1,N_a2,N_e]); % (d2,a1prime,1,a2,e_cur); d1-dim is implicit singleton, broadcasts at use sites   % QH-perceived

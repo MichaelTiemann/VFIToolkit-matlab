@@ -404,6 +404,8 @@ else
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % entireEV is (d2,a1prime, a2,z)
 
             DiscountedEV_alt=beta*reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % (d2,a1prime,1,a2,zprime); exponential
@@ -553,6 +555,8 @@ else
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % entireEV is (d2,a1prime, a2,z)
 
             DiscountedEV_alt=beta*reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % (d2,a1prime,1,a2,zprime); exponential
@@ -706,6 +710,8 @@ else
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % entireEV is (d2,a1prime, a2,z)
 
             DiscountedEV_alt=beta*reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % (d2,a1prime,1,a2,zprime); exponential
@@ -868,6 +874,8 @@ else
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % entireEV is (d2,a1prime, a2,z)
 
             DiscountedEV_alt=beta*reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % (d2,a1prime,1,a2,zprime); exponential
@@ -1081,6 +1089,8 @@ for reverse_j=1:N_j-1
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % entireEV is (d2,a1prime, a2,z)
 
             DiscountedEV_alt=beta*reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % (d2,a1prime,1,a2,zprime); exponential
@@ -1230,6 +1240,8 @@ for reverse_j=1:N_j-1
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % entireEV is (d2,a1prime, a2,z)
 
             DiscountedEV_alt=beta*reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % (d2,a1prime,1,a2,zprime); exponential
@@ -1383,6 +1395,8 @@ for reverse_j=1:N_j-1
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % entireEV is (d2,a1prime, a2,z)
 
             DiscountedEV_alt=beta*reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % (d2,a1prime,1,a2,zprime); exponential
@@ -1545,6 +1559,8 @@ for reverse_j=1:N_j-1
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % entireEV is (d2,a1prime, a2,z)
 
             DiscountedEV_alt=beta*reshape(EV,[N_d2,N_a1,1,N_a2,N_bothz]); % (d2,a1prime,1,a2,zprime); exponential

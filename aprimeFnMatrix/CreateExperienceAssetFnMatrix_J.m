@@ -103,7 +103,7 @@ if l_a2==1
     a2primeProbs=reshape(a2primeProbs,[N_d,N_a2,N_j]);
 
 elseif l_a2==2
-    %% Multi-dim a2 (l_a2=2): bilinear interp, Kaprimepts=4 corners
+    %% Multi-dim a2 (l_a2=2): bilinear interp, returned PER-DIM FACTORED (the caller folds the 4 corners)
     n_a2_1=n_a2(1); n_a2_2=n_a2(2);
     a2_grid_1=a2_grid(1:n_a2_1);
     a2_grid_2=a2_grid(n_a2_1+1:n_a2_1+n_a2_2);

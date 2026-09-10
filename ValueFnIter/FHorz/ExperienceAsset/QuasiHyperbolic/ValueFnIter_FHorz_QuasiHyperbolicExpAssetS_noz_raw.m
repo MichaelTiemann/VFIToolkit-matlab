@@ -39,7 +39,7 @@ else
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,N_j);
     [a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix(aprimeFn, n_d2, n_a2, d2_gridvals, a2_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
     % l_a2==1: a2primeIndex/a2primeProbs are [N_d2,N_a2] (legacy lower-corner + prob)
-    % l_a2>1 : a2primeIndex/a2primeProbs are [Kaprimepts,N_d2,N_a2] (Kaprimepts-corner Kron fold)
+    % l_a2>1 : a2primeIndex/a2primeProbs are [l_a2,N_d2,N_a2] per-dim factored (lower index and prob within each a2 dim; NOT a Kron fold)
 
     EVpre=reshape(vfoptions.V_Jplus1,[N_a,1]);
 
@@ -54,6 +54,8 @@ else
         skipinterp=(Vlower==Vupper);
         aprimeProbs(skipinterp)=0; % effectively skips interpolation
         EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper; % (d2,a1prime,a2)
+        EV(aprimeProbs==0)=Vupper(aprimeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+        EV(aprimeProbs==1)=Vlower(aprimeProbs==1);
     else
         % a2primeIndex/a2primeProbs shape [l_a2=2, N_d2, N_a2] per-dim. Nested 2-corner with skipinterp.
         n_a2_1=n_a2(1);
@@ -117,7 +119,7 @@ for reverse_j=1:N_j-1
 
     aprimeFnParamsVec=CreateVectorFromParams(Parameters, aprimeFnParamNames,jj);
     [a2primeIndex,a2primeProbs]=CreateExperienceAssetFnMatrix(aprimeFn, n_d2, n_a2, d2_gridvals, a2_grid, aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
-    % l_a2==1: [N_d2,N_a2] legacy; l_a2>1: [Kaprimepts,N_d2,N_a2] Kaprimepts-corner
+    % l_a2==1: [N_d2,N_a2] legacy; l_a2>1: [l_a2,N_d2,N_a2] per-dim factored (NOT a Kron fold)
 
     if length(n_a2)==1
         aprimeIndex=repelem((1:1:N_a1)',N_d2,N_a2)+N_a1*repmat((a2primeIndex-1),N_a1,1);
@@ -129,6 +131,8 @@ for reverse_j=1:N_j-1
         skipinterp=(Vlower==Vupper);
         aprimeProbs(skipinterp)=0;
         EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper;
+        EV(aprimeProbs==0)=Vupper(aprimeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+        EV(aprimeProbs==1)=Vlower(aprimeProbs==1);
     else
         % a2primeIndex/a2primeProbs shape [l_a2=2, N_d2, N_a2] per-dim. Nested 2-corner with skipinterp.
         n_a2_1=n_a2(1);

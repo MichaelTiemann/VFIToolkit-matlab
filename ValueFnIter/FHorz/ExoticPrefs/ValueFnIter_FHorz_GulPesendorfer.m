@@ -42,12 +42,6 @@ end
 if vfoptions.dynasty==1
     error('GulPesendorfer preferences are not implemented for dynasty')
 end
-if isfield(vfoptions,'n_semiz')
-    if prod(vfoptions.n_semiz)>0
-        error('GulPesendorfer is not implemented for semi-exogenous states (vfoptions.n_semiz)')
-    end
-end
-
 %% Some Gul-Pesendorfer specific options need to be set if they are not already declared
 if ~isfield(vfoptions,'temptationFn')
     error('When using Gul-Pesendorfer preferences you must declare vfoptions.temptationFn (the temptation function)')
@@ -66,6 +60,11 @@ l_z=length(n_z);
 if N_z==0
     l_z=0;
 end
+if isfield(vfoptions,'n_semiz')
+    if prod(vfoptions.n_semiz)>0
+        l_z=l_z+length(vfoptions.n_semiz); % semiz sits alongside z in the return/temptation fn inputs (semiz first)
+    end
+end
 if N_e==0
     l_e=0;
 else
@@ -77,6 +76,26 @@ if length(temp)>(l_d+l_a+l_a+l_z+l_e) % This is largely pointless, the temptatio
     TemptationFnParamNames={temp{l_d+l_a+l_a+l_z+l_e+1:end}}; % the first inputs will always be (d,aprime,a,z,e)
 else
     TemptationFnParamNames={};
+end
+
+%% Semi-exogenous state: dispatch to the GulPesendorfer SemiExo family (it handles its own DC/GI)
+if isfield(vfoptions,'n_semiz')
+    if prod(vfoptions.n_semiz)>0
+        % Split d into d1 (standard decisions) and d2 (the decisions driving the semiz transitions);
+        % d_gridvals is the full joint (d1 fastest), mirroring the split ValueFnIter_Case1_FHorz does from d_grid
+        if length(n_d)>vfoptions.l_dsemiz
+            n_d1=n_d(1:end-vfoptions.l_dsemiz);
+            d1_gridvals=d_gridvals(1:prod(n_d1),1:length(n_d1));
+            d2_gridvals=d_gridvals(1:prod(n_d1):prod(n_d),length(n_d1)+1:end);
+        else
+            n_d1=0;
+            d1_gridvals=[];
+            d2_gridvals=d_gridvals;
+        end
+        n_d2=n_d(end-vfoptions.l_dsemiz+1:end);
+        [V,Policy]=ValueFnIter_FHorz_GulPesendorfer_SemiExo(n_d1,n_d2,n_a,vfoptions.n_semiz,n_z,N_j,d1_gridvals,d2_gridvals, a_grid, z_gridvals_J, vfoptions.semiz_gridvals_J, pi_z_J, vfoptions.pi_semiz_J, ReturnFn, vfoptions.temptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+        return
+    end
 end
 
 %% Dispatch on divide-and-conquer/grid-interpolation-layer (level 2)

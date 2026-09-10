@@ -211,6 +211,8 @@ else
     skipinterp=(Vlower==Vupper);
     aprimeProbs(skipinterp)=0;
     EV_aprime=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper; % [N_d2*N_a1*N_a2,N_a3,N_bothz], indexed by bothzprime (d3-independent)
+    EV_aprime(aprimeProbs==0)=Vupper(aprimeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+    EV_aprime(aprimeProbs==1)=Vlower(aprimeProbs==1);
 
     if vfoptions.lowmemory==0
         for d3_c=1:N_d3
@@ -493,6 +495,8 @@ for reverse_j=1:N_j-1
     skipinterp=(Vlower==Vupper);
     aprimeProbs(skipinterp)=0;
     EV_aprime=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper; % [N_d2*N_a1*N_a2,N_a3,N_bothz], indexed by bothzprime (d3-independent)
+    EV_aprime(aprimeProbs==0)=Vupper(aprimeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+    EV_aprime(aprimeProbs==1)=Vlower(aprimeProbs==1);
 
     if vfoptions.lowmemory==0
         for d3_c=1:N_d3

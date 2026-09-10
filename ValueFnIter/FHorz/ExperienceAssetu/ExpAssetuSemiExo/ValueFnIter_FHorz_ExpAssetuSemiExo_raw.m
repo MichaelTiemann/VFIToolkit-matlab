@@ -139,9 +139,11 @@ else
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % Already applied the probabilities from interpolating onto grid
-            EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,both)
-            EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+            EV=EV.*pi_u; EV(isnan(EV))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+            EV=squeeze(sum(EV,3)); % (d2,a1prime,a2,both)
 
             entireRHS_d3=ReturnMatrix_d3+DiscountFactorParamsVec*repelem(EV,N_d1,N_a1,1);
 
@@ -167,8 +169,10 @@ else
             skipinterp=(EV1==EV2);
             aprimeProbs_full(skipinterp)=0;
             entireEV=EV1.*aprimeProbs_full+EV2.*(1-aprimeProbs_full);
-            entireEV=squeeze(sum((entireEV.*pi_u),3)); % integrate out u -> (d2*a1prime,a2,bothz)
-            entireEV(isnan(entireEV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+            entireEV(aprimeProbs_full==0)=EV2(aprimeProbs_full==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_full==1)=EV1(aprimeProbs_full==1);
+            entireEV=entireEV.*pi_u; entireEV(isnan(entireEV))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+            entireEV=squeeze(sum(entireEV,3)); % integrate out u -> (d2*a1prime,a2,bothz)
 
             for z_c=1:N_z
                 zind=(1:1:N_semiz)+N_semiz*(z_c-1);
@@ -209,9 +213,11 @@ else
 
                 % Apply the aprimeProbs
                 EV_z=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+                EV_z(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+                EV_z(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
                 % Already applied the probabilities from interpolating onto grid
-                EV_z=sum((EV_z.*pi_u),3); % (d2,a1prime,a2)
-                EV_z(isnan(EV_z))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+                EV_z=EV_z.*pi_u; EV_z(isnan(EV_z))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+                EV_z=sum(EV_z,3); % (d2,a1prime,a2)
 
                 entireRHS_d3z=ReturnMatrix_d3z+DiscountFactorParamsVec*repelem(EV_z,N_d1,N_a1);
 
@@ -287,10 +293,12 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
 
             % Apply the aprimeProbs
-            EV=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
+            EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % Already applied the probabilities from interpolating onto grid
-            EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,both)
-            EV(isnan(EV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+            EV=EV.*pi_u; EV(isnan(EV))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+            EV=squeeze(sum(EV,3)); % (d2,a1prime,a2,both)
 
             entireRHS=ReturnMatrix_d3+DiscountFactorParamsVec*repelem(EV,N_d1,N_a1,1);
 
@@ -316,8 +324,10 @@ for reverse_j=1:N_j-1
             skipinterp=(EV1==EV2);
             aprimeProbs_full(skipinterp)=0;
             entireEV=EV1.*aprimeProbs_full+EV2.*(1-aprimeProbs_full);
-            entireEV=squeeze(sum((entireEV.*pi_u),3)); % integrate out u -> (d2*a1prime,a2,bothz)
-            entireEV(isnan(entireEV))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+            entireEV(aprimeProbs_full==0)=EV2(aprimeProbs_full==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_full==1)=EV1(aprimeProbs_full==1);
+            entireEV=entireEV.*pi_u; entireEV(isnan(entireEV))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+            entireEV=squeeze(sum(entireEV,3)); % integrate out u -> (d2*a1prime,a2,bothz)
 
             for z_c=1:N_z
                 zind=(1:1:N_semiz)+N_semiz*(z_c-1);
@@ -357,10 +367,12 @@ for reverse_j=1:N_j-1
                 aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
 
                 % Apply the aprimeProbs
-                EV_z=EV1.*aprimeProbs+EV2.*(1-aprimeProbs); % probability of lower grid point+ probability of upper grid point
+                EV_z=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+                EV_z(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+                EV_z(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
                 % Already applied the probabilities from interpolating onto grid
-                EV_z=sum((EV_z.*pi_u),3); % (d2,a1prime,a2)
-                EV_z(isnan(EV_z))=0; % NaN from 0*(-Inf) at skipinterp positions; treat as zero contribution
+                EV_z=EV_z.*pi_u; EV_z(isnan(EV_z))=0; % a zero pi_u against an infinite node gives 0*(-Inf)=NaN, so zero the term BEFORE summing
+                EV_z=sum(EV_z,3); % (d2,a1prime,a2)
 
                 entireRHS_z=ReturnMatrix_d3z+DiscountFactorParamsVec*repelem(EV_z,N_d1,N_a1);
 

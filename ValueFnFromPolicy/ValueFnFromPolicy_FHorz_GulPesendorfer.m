@@ -23,10 +23,14 @@ if ~isfield(vfoptions,'temptationFn')
     error('When using Gul-Pesendorfer preferences you must declare vfoptions.temptationFn (the temptation function)')
 end
 if prod(vfoptions.n_semiz)>0
-    error('GulPesendorfer is not implemented for semi-exogenous states (vfoptions.n_semiz)')
+    % Dispatch to the SemiExo subfn (handles gridinterplayer itself). z/e arrive pre-processed
+    % (the parent ValueFnFromPolicy_FHorz ran ExogShockSetup_FHorz); the subfn runs only the
+    % semiz setup (SemiExogShockSetup_FHorz) internally.
+    V=ValueFnFromPolicy_FHorz_GulPesendorfer_SemiExo(Policy,n_d,n_a,n_z,N_j,d_grid,a_grid,z_gridvals_J,pi_z_J,ReturnFn,Parameters,DiscountFactorParamNames,vfoptions);
+    return
 end
-if vfoptions.gridinterplayer==1 && ~isscalar(n_a)
-    error('GulPesendorfer with gridinterplayer is not implemented for two standard endogenous states')
+if vfoptions.gridinterplayer==1 && length(n_a)>2
+    error('GulPesendorfer with gridinterplayer is not implemented for more than two standard endogenous states')
 end
 
 TemptationFn=vfoptions.temptationFn;
@@ -45,12 +49,23 @@ end
 if vfoptions.gridinterplayer==1
     % Slot index for the aprime lower index in the gridinterplayer==1 Kron'd Policy
     index_a1=1+(N_d>0); % 1 if no d, 2 if d
-    % (scalar n_a was enforced above, so no GI2A a2prime fold is needed)
+    l_a=length(n_a);
+    n_a1=n_a(1);
+    % GI2A (l_a>=2): interpolation is applied to the first endogenous state only, so
+    % PolicyIndexesKron carries a separate a2prime row (index_a1+1). We fold the a2prime offset
+    % straight into alower, turning it into a linear index into (N_a1*N_a2); alower+1 then still
+    % steps a1 by one, so every lookup below is identical to the l_a==1 case.
 
     % Grid interpolation
     n2short=vfoptions.ngridinterp; % number of (evenly spaced) points to put between each grid point (not counting the two points themselves)
     n2long=2*n2short+3; % total number of aprime points we end up looking at in second layer
-    aprime_grid=interp1(1:1:N_a,a_grid,linspace(1,N_a,N_a+(N_a-1)*n2short));
+    if l_a==1
+        aprime_grid=interp1(1:1:N_a,a_grid,linspace(1,N_a,N_a+(N_a-1)*n2short));
+    else % GI2A: the interpolation layer applies to a1prime only (the MostTempting two-stage uses the fine a1prime grid jointly with a2prime, as in the GP GI2A solver raws)
+        a1_grid=a_grid(1:n_a1);
+        a2_grid=a_grid(n_a1+1:end);
+        a1prime_grid=interp1(1:1:n_a1,a1_grid,linspace(1,n_a1,n_a1+(n_a1-1)*n2short))';
+    end
 
     if N_z==0 && N_e==0
 
@@ -61,6 +76,10 @@ if vfoptions.gridinterplayer==1
 
         alower=reshape(PolicyIndexesKron(index_a1,:,:),[N_a,N_j]);
         L2=reshape(PolicyIndexesKron(end,:,:),[N_a,N_j]);
+        if l_a>=2 % GI2A: fold a2prime into the linear index
+            a2prime=reshape(PolicyIndexesKron(index_a1+1,:,:),[N_a,N_j]);
+            alower=alower+n_a1*(a2prime-1);
+        end
         PolicyProbs=zeros(N_a,N_j,2,'gpuArray');
         PolicyProbs(:,:,2)=(L2-1)/(vfoptions.ngridinterp+1); % prob of upper grid point
         PolicyProbs(:,:,1)=1-PolicyProbs(:,:,2);
@@ -77,7 +96,7 @@ if vfoptions.gridinterplayer==1
             TofPolicy_jj=EvalFnOnAgentDist_Grid(TemptationFn, TemptationFnParamsCell,PolicyValuesPermute(:,:,jj),l_daprime,n_a,0,a_gridvals,[]);
 
             TemptationFnParamsVec=CreateVectorFromParams(Parameters,TemptationFnParamNames,jj);
-            if N_d==0
+            if N_d==0 && l_a==1
                 TemptationMatrix=CreateReturnFnMatrix_Disc_noz(TemptationFn, 0, n_a, 0, a_grid, TemptationFnParamsVec,0);
                 % Most-tempting term: two-stage max of v over the FINE grid, around v's own coarse argmax
                 [~,maxindexT]=max(TemptationMatrix,[],1);
@@ -85,7 +104,7 @@ if vfoptions.gridinterplayer==1
                 aprimeindexesT=(midpointT+(midpointT-1)*n2short)+(-n2short-1:1:1+n2short)';
                 TemptationMatrix_Tii=CreateReturnFnMatrix_Disc_DC1_nod_noz(TemptationFn,aprime_grid(aprimeindexesT),a_grid,TemptationFnParamsVec);
                 MostTempting=max(TemptationMatrix_Tii,[],1);
-            else
+            elseif N_d>0 && l_a==1
                 TemptationMatrix=CreateReturnFnMatrix_Disc_noz(TemptationFn, n_d, n_a, d_gridvals, a_grid, TemptationFnParamsVec,1);
                 % Most-tempting term: two-stage max of v over the FINE grid, around v's own coarse argmax
                 [~,maxindexT]=max(TemptationMatrix,[],2);
@@ -93,6 +112,22 @@ if vfoptions.gridinterplayer==1
                 aprimeindexesT=(midpointT+(midpointT-1)*n2short)+(-n2short-1:1:1+n2short);
                 TemptationMatrix_Tii=CreateReturnFnMatrix_Disc_DC1_noz(TemptationFn,n_d,d_gridvals,aprime_grid(aprimeindexesT),a_grid,TemptationFnParamsVec,2);
                 MostTempting=max(TemptationMatrix_Tii,[],1);
+            elseif N_d==0 % l_a==2: GI2A, fine a1prime jointly with a2prime (as in the GP GI2A solver raws)
+                TemptationMatrix=CreateReturnFnMatrix_Disc_DC2A_nod_noz(TemptationFn, a1_grid, a2_grid, a1_grid, a2_grid, TemptationFnParamsVec,1);
+                % Most-tempting term: two-stage max of v over the FINE grid, around v's own coarse argmax
+                [~,maxindexT]=max(TemptationMatrix,[],1);
+                midpointT=max(min(maxindexT,n_a1-1),2);
+                a1primeindexesT=(midpointT+(midpointT-1)*n2short)+(-n2short-1:1:1+n2short)';
+                TemptationMatrix_Tii=CreateReturnFnMatrix_Disc_DC2A_nod_noz(TemptationFn,a1prime_grid(a1primeindexesT),a2_grid,a1_grid,a2_grid,TemptationFnParamsVec,2);
+                MostTempting=max(TemptationMatrix_Tii,[],1); % max over the joint (fine a1prime window, a2prime) first dim
+            else % N_d>0, l_a==2: GI2A, fine a1prime jointly with d and a2prime (as in the GP GI2A solver raws)
+                TemptationMatrix=CreateReturnFnMatrix_Disc_DC2A_noz(TemptationFn,n_d,d_gridvals,a1_grid, a2_grid, a1_grid, a2_grid, TemptationFnParamsVec,1,0);
+                % Most-tempting term: two-stage max of v over the FINE grid, around v's own coarse argmax
+                [~,maxindexT]=max(TemptationMatrix,[],2);
+                midpointT=max(min(maxindexT,n_a1-1),2);
+                a1primeindexesT=(midpointT+(midpointT-1)*n2short)+(-n2short-1:1:1+n2short);
+                TemptationMatrix_Tii=CreateReturnFnMatrix_Disc_DC2A_noz(TemptationFn,n_d,d_gridvals,a1prime_grid(a1primeindexesT),a2_grid,a1_grid,a2_grid,TemptationFnParamsVec,2,0);
+                MostTempting=max(TemptationMatrix_Tii,[],1); % max over the joint (d, fine a1prime window, a2prime) first dim
             end
             MostTempting=reshape(MostTempting,[N_a,1]);
 
@@ -118,6 +153,10 @@ if vfoptions.gridinterplayer==1
 
         alower=reshape(PolicyIndexesKron(index_a1,:,:,:),[N_a,N_e,N_j]);
         L2=reshape(PolicyIndexesKron(end,:,:,:),[N_a,N_e,N_j]);
+        if l_a>=2 % GI2A: fold a2prime into the linear index
+            a2prime=reshape(PolicyIndexesKron(index_a1+1,:,:,:),[N_a,N_e,N_j]);
+            alower=alower+n_a1*(a2prime-1);
+        end
         PolicyProbs=zeros(N_a,N_e,N_j,2,'gpuArray');
         PolicyProbs(:,:,:,2)=(L2-1)/(vfoptions.ngridinterp+1);
         PolicyProbs(:,:,:,1)=1-PolicyProbs(:,:,:,2);
@@ -134,7 +173,7 @@ if vfoptions.gridinterplayer==1
             TofPolicy_jj=EvalFnOnAgentDist_Grid(TemptationFn, TemptationFnParamsCell,PolicyValuesPermute(:,:,:,jj),l_daprime,n_a,vfoptions.n_e,a_gridvals,vfoptions.e_gridvals_J(:,:,jj));
 
             TemptationFnParamsVec=CreateVectorFromParams(Parameters,TemptationFnParamNames,jj);
-            if N_d==0
+            if N_d==0 && l_a==1
                 TemptationMatrix=CreateReturnFnMatrix_Disc(TemptationFn, 0, n_a, vfoptions.n_e, 0, a_grid, vfoptions.e_gridvals_J(:,:,jj), TemptationFnParamsVec,0); % Because no z, can treat e like z and call Par2 rather than Par2e
                 % Most-tempting term: two-stage max of v over the FINE grid, around v's own coarse argmax
                 [~,maxindexT]=max(TemptationMatrix,[],1);
@@ -142,7 +181,7 @@ if vfoptions.gridinterplayer==1
                 aprimeindexesT=(midpointT+(midpointT-1)*n2short)+(-n2short-1:1:1+n2short)';
                 TemptationMatrix_Tii=CreateReturnFnMatrix_Disc_DC1_nod(TemptationFn,vfoptions.n_e,aprime_grid(aprimeindexesT),a_grid,vfoptions.e_gridvals_J(:,:,jj),TemptationFnParamsVec,2);
                 MostTempting=max(TemptationMatrix_Tii,[],1);
-            else
+            elseif N_d>0 && l_a==1
                 TemptationMatrix=CreateReturnFnMatrix_Disc(TemptationFn, n_d, n_a, vfoptions.n_e, d_gridvals, a_grid, vfoptions.e_gridvals_J(:,:,jj), TemptationFnParamsVec,1); % Because no z, can treat e like z and call Par2 rather than Par2e
                 % Most-tempting term: two-stage max of v over the FINE grid, around v's own coarse argmax
                 [~,maxindexT]=max(TemptationMatrix,[],2);
@@ -150,6 +189,22 @@ if vfoptions.gridinterplayer==1
                 aprimeindexesT=(midpointT+(midpointT-1)*n2short)+(-n2short-1:1:1+n2short);
                 TemptationMatrix_Tii=CreateReturnFnMatrix_Disc_DC1(TemptationFn,n_d,vfoptions.n_e,d_gridvals,aprime_grid(aprimeindexesT),a_grid,vfoptions.e_gridvals_J(:,:,jj),TemptationFnParamsVec,2);
                 MostTempting=max(TemptationMatrix_Tii,[],1);
+            elseif N_d==0 % l_a==2: GI2A, fine a1prime jointly with a2prime (as in the GP GI2A solver raws)
+                TemptationMatrix=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn,vfoptions.n_e, a1_grid, a2_grid, a1_grid, a2_grid, vfoptions.e_gridvals_J(:,:,jj), TemptationFnParamsVec,1); % Because no z, can treat e like z
+                % Most-tempting term: two-stage max of v over the FINE grid, around v's own coarse argmax
+                [~,maxindexT]=max(TemptationMatrix,[],1);
+                midpointT=max(min(maxindexT,n_a1-1),2);
+                a1primeindexesT=(midpointT+(midpointT-1)*n2short)+(-n2short-1:1:1+n2short)';
+                TemptationMatrix_Tii=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn,vfoptions.n_e,a1prime_grid(a1primeindexesT),a2_grid,a1_grid,a2_grid,vfoptions.e_gridvals_J(:,:,jj),TemptationFnParamsVec,2);
+                MostTempting=max(TemptationMatrix_Tii,[],1); % max over the joint (fine a1prime window, a2prime) first dim
+            else % N_d>0, l_a==2: GI2A, fine a1prime jointly with d and a2prime (as in the GP GI2A solver raws)
+                TemptationMatrix=CreateReturnFnMatrix_Disc_DC2A(TemptationFn,n_d,vfoptions.n_e,d_gridvals,a1_grid, a2_grid, a1_grid, a2_grid, vfoptions.e_gridvals_J(:,:,jj), TemptationFnParamsVec,1,0); % Because no z, can treat e like z
+                % Most-tempting term: two-stage max of v over the FINE grid, around v's own coarse argmax
+                [~,maxindexT]=max(TemptationMatrix,[],2);
+                midpointT=max(min(maxindexT,n_a1-1),2);
+                a1primeindexesT=(midpointT+(midpointT-1)*n2short)+(-n2short-1:1:1+n2short);
+                TemptationMatrix_Tii=CreateReturnFnMatrix_Disc_DC2A(TemptationFn,n_d,vfoptions.n_e,d_gridvals,a1prime_grid(a1primeindexesT),a2_grid,a1_grid,a2_grid,vfoptions.e_gridvals_J(:,:,jj),TemptationFnParamsVec,2,0);
+                MostTempting=max(TemptationMatrix_Tii,[],1); % max over the joint (d, fine a1prime window, a2prime) first dim
             end
             MostTempting=reshape(MostTempting,[N_a,N_e]);
 
@@ -157,8 +212,8 @@ if vfoptions.gridinterplayer==1
                 V(:,:,jj)=FofPolicy_jj+TofPolicy_jj-MostTempting;
             else
                 beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-                EVnext=sum(V(:,:,jj+1).*shiftdim(vfoptions.pi_e_J(:,jj+1),-1),2); % (N_a,1) integrate over iid e
-                EVnext(isnan(EVnext))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+                EVw=V(:,:,jj+1).*shiftdim(vfoptions.pi_e_J(:,jj+1),-1); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+                EVnext=sum(EVw,2); % (N_a,1) integrate over iid e
                 % Look up at lower & upper aprime: result shape (N_a, N_e)
                 EVlower=reshape(EVnext(alower(:,:,jj)),[N_a,N_e]);
                 EVupper=reshape(EVnext(alower(:,:,jj)+1),[N_a,N_e]);
@@ -179,6 +234,10 @@ if vfoptions.gridinterplayer==1
 
         alower=reshape(PolicyIndexesKron(index_a1,:,:,:),[N_a,N_z,N_j]);
         L2=reshape(PolicyIndexesKron(end,:,:,:),[N_a,N_z,N_j]);
+        if l_a>=2 % GI2A: fold a2prime into the linear index
+            a2prime=reshape(PolicyIndexesKron(index_a1+1,:,:,:),[N_a,N_z,N_j]);
+            alower=alower+n_a1*(a2prime-1);
+        end
         PolicyProbs=zeros(N_a,N_z,N_j,2,'gpuArray');
         PolicyProbs(:,:,:,2)=(L2-1)/(vfoptions.ngridinterp+1);
         PolicyProbs(:,:,:,1)=1-PolicyProbs(:,:,:,2);
@@ -195,7 +254,7 @@ if vfoptions.gridinterplayer==1
             TofPolicy_jj=EvalFnOnAgentDist_Grid(TemptationFn, TemptationFnParamsCell,PolicyValuesPermute(:,:,:,jj),l_daprime,n_a,n_z,a_gridvals,z_gridvals_J(:,:,jj));
 
             TemptationFnParamsVec=CreateVectorFromParams(Parameters,TemptationFnParamNames,jj);
-            if N_d==0
+            if N_d==0 && l_a==1
                 TemptationMatrix=CreateReturnFnMatrix_Disc(TemptationFn, 0, n_a, n_z, 0, a_grid, z_gridvals_J(:,:,jj), TemptationFnParamsVec,0);
                 % Most-tempting term: two-stage max of v over the FINE grid, around v's own coarse argmax
                 [~,maxindexT]=max(TemptationMatrix,[],1);
@@ -203,7 +262,7 @@ if vfoptions.gridinterplayer==1
                 aprimeindexesT=(midpointT+(midpointT-1)*n2short)+(-n2short-1:1:1+n2short)';
                 TemptationMatrix_Tii=CreateReturnFnMatrix_Disc_DC1_nod(TemptationFn,n_z,aprime_grid(aprimeindexesT),a_grid,z_gridvals_J(:,:,jj),TemptationFnParamsVec,2);
                 MostTempting=max(TemptationMatrix_Tii,[],1);
-            else
+            elseif N_d>0 && l_a==1
                 TemptationMatrix=CreateReturnFnMatrix_Disc(TemptationFn, n_d, n_a, n_z, d_gridvals, a_grid, z_gridvals_J(:,:,jj), TemptationFnParamsVec,1);
                 % Most-tempting term: two-stage max of v over the FINE grid, around v's own coarse argmax
                 [~,maxindexT]=max(TemptationMatrix,[],2);
@@ -211,6 +270,22 @@ if vfoptions.gridinterplayer==1
                 aprimeindexesT=(midpointT+(midpointT-1)*n2short)+(-n2short-1:1:1+n2short);
                 TemptationMatrix_Tii=CreateReturnFnMatrix_Disc_DC1(TemptationFn,n_d,n_z,d_gridvals,aprime_grid(aprimeindexesT),a_grid,z_gridvals_J(:,:,jj),TemptationFnParamsVec,2);
                 MostTempting=max(TemptationMatrix_Tii,[],1);
+            elseif N_d==0 % l_a==2: GI2A, fine a1prime jointly with a2prime (as in the GP GI2A solver raws)
+                TemptationMatrix=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn,n_z, a1_grid, a2_grid, a1_grid, a2_grid, z_gridvals_J(:,:,jj), TemptationFnParamsVec,1);
+                % Most-tempting term: two-stage max of v over the FINE grid, around v's own coarse argmax
+                [~,maxindexT]=max(TemptationMatrix,[],1);
+                midpointT=max(min(maxindexT,n_a1-1),2);
+                a1primeindexesT=(midpointT+(midpointT-1)*n2short)+(-n2short-1:1:1+n2short)';
+                TemptationMatrix_Tii=CreateReturnFnMatrix_Disc_DC2A_nod(TemptationFn,n_z,a1prime_grid(a1primeindexesT),a2_grid,a1_grid,a2_grid,z_gridvals_J(:,:,jj),TemptationFnParamsVec,2);
+                MostTempting=max(TemptationMatrix_Tii,[],1); % max over the joint (fine a1prime window, a2prime) first dim
+            else % N_d>0, l_a==2: GI2A, fine a1prime jointly with d and a2prime (as in the GP GI2A solver raws)
+                TemptationMatrix=CreateReturnFnMatrix_Disc_DC2A(TemptationFn,n_d,n_z,d_gridvals,a1_grid, a2_grid, a1_grid, a2_grid, z_gridvals_J(:,:,jj), TemptationFnParamsVec,1,0);
+                % Most-tempting term: two-stage max of v over the FINE grid, around v's own coarse argmax
+                [~,maxindexT]=max(TemptationMatrix,[],2);
+                midpointT=max(min(maxindexT,n_a1-1),2);
+                a1primeindexesT=(midpointT+(midpointT-1)*n2short)+(-n2short-1:1:1+n2short);
+                TemptationMatrix_Tii=CreateReturnFnMatrix_Disc_DC2A(TemptationFn,n_d,n_z,d_gridvals,a1prime_grid(a1primeindexesT),a2_grid,a1_grid,a2_grid,z_gridvals_J(:,:,jj),TemptationFnParamsVec,2,0);
+                MostTempting=max(TemptationMatrix_Tii,[],1); % max over the joint (d, fine a1prime window, a2prime) first dim
             end
             MostTempting=reshape(MostTempting,[N_a,N_z]);
 
@@ -241,6 +316,10 @@ if vfoptions.gridinterplayer==1
 
         alower=reshape(PolicyIndexesKron(index_a1,:,:,:),[N_a,N_z,N_e,N_j]);
         L2=reshape(PolicyIndexesKron(end,:,:,:),[N_a,N_z,N_e,N_j]);
+        if l_a>=2 % GI2A: fold a2prime into the linear index
+            a2prime=reshape(PolicyIndexesKron(index_a1+1,:,:,:),[N_a,N_z,N_e,N_j]);
+            alower=alower+n_a1*(a2prime-1);
+        end
         PolicyProbs=zeros(N_a,N_z,N_e,N_j,2,'gpuArray');
         PolicyProbs(:,:,:,:,2)=(L2-1)/(vfoptions.ngridinterp+1);
         PolicyProbs(:,:,:,:,1)=1-PolicyProbs(:,:,:,:,2);
@@ -257,7 +336,7 @@ if vfoptions.gridinterplayer==1
             TofPolicy_jj=reshape(EvalFnOnAgentDist_Grid(TemptationFn, TemptationFnParamsCell,PolicyValuesPermute(:,:,:,jj),l_daprime,n_a,[n_z,vfoptions.n_e],a_gridvals,[repmat(z_gridvals_J(:,:,jj),N_e,1), repelem(vfoptions.e_gridvals_J(:,:,jj),N_z,1)]),[N_a,N_z,N_e]);
 
             TemptationFnParamsVec=CreateVectorFromParams(Parameters,TemptationFnParamNames,jj);
-            if N_d==0
+            if N_d==0 && l_a==1
                 TemptationMatrix=CreateReturnFnMatrix_Disc_e(TemptationFn, 0, n_a, n_z, vfoptions.n_e, 0, a_grid, z_gridvals_J(:,:,jj), vfoptions.e_gridvals_J(:,:,jj), TemptationFnParamsVec,0);
                 % Most-tempting term: two-stage max of v over the FINE grid, around v's own coarse argmax
                 [~,maxindexT]=max(TemptationMatrix,[],1);
@@ -265,7 +344,7 @@ if vfoptions.gridinterplayer==1
                 aprimeindexesT=(midpointT+(midpointT-1)*n2short)+(-n2short-1:1:1+n2short)';
                 TemptationMatrix_Tii=CreateReturnFnMatrix_Disc_DC1_nod_e(TemptationFn,n_z,vfoptions.n_e,aprime_grid(aprimeindexesT),a_grid,z_gridvals_J(:,:,jj),vfoptions.e_gridvals_J(:,:,jj),TemptationFnParamsVec,2);
                 MostTempting=max(TemptationMatrix_Tii,[],1);
-            else
+            elseif N_d>0 && l_a==1
                 TemptationMatrix=CreateReturnFnMatrix_Disc_e(TemptationFn, n_d, n_a, n_z, vfoptions.n_e, d_gridvals, a_grid, z_gridvals_J(:,:,jj), vfoptions.e_gridvals_J(:,:,jj), TemptationFnParamsVec,1);
                 % Most-tempting term: two-stage max of v over the FINE grid, around v's own coarse argmax
                 [~,maxindexT]=max(TemptationMatrix,[],2);
@@ -273,6 +352,22 @@ if vfoptions.gridinterplayer==1
                 aprimeindexesT=(midpointT+(midpointT-1)*n2short)+(-n2short-1:1:1+n2short);
                 TemptationMatrix_Tii=CreateReturnFnMatrix_Disc_DC1_e(TemptationFn,n_d,n_z,vfoptions.n_e,d_gridvals,aprime_grid(aprimeindexesT),a_grid,z_gridvals_J(:,:,jj),vfoptions.e_gridvals_J(:,:,jj),TemptationFnParamsVec,2);
                 MostTempting=max(TemptationMatrix_Tii,[],1);
+            elseif N_d==0 % l_a==2: GI2A, fine a1prime jointly with a2prime (as in the GP GI2A solver raws)
+                TemptationMatrix=CreateReturnFnMatrix_Disc_DC2A_nod_e(TemptationFn,n_z,vfoptions.n_e, a1_grid, a2_grid, a1_grid, a2_grid, z_gridvals_J(:,:,jj), vfoptions.e_gridvals_J(:,:,jj), TemptationFnParamsVec,1);
+                % Most-tempting term: two-stage max of v over the FINE grid, around v's own coarse argmax
+                [~,maxindexT]=max(TemptationMatrix,[],1);
+                midpointT=max(min(maxindexT,n_a1-1),2);
+                a1primeindexesT=(midpointT+(midpointT-1)*n2short)+(-n2short-1:1:1+n2short)';
+                TemptationMatrix_Tii=CreateReturnFnMatrix_Disc_DC2A_nod_e(TemptationFn,n_z,vfoptions.n_e,a1prime_grid(a1primeindexesT),a2_grid,a1_grid,a2_grid,z_gridvals_J(:,:,jj),vfoptions.e_gridvals_J(:,:,jj),TemptationFnParamsVec,2);
+                MostTempting=max(TemptationMatrix_Tii,[],1); % max over the joint (fine a1prime window, a2prime) first dim
+            else % N_d>0, l_a==2: GI2A, fine a1prime jointly with d and a2prime (as in the GP GI2A solver raws)
+                TemptationMatrix=CreateReturnFnMatrix_Disc_DC2A_e(TemptationFn,n_d,n_z,vfoptions.n_e,d_gridvals,a1_grid, a2_grid, a1_grid, a2_grid, z_gridvals_J(:,:,jj), vfoptions.e_gridvals_J(:,:,jj), TemptationFnParamsVec,1,0);
+                % Most-tempting term: two-stage max of v over the FINE grid, around v's own coarse argmax
+                [~,maxindexT]=max(TemptationMatrix,[],2);
+                midpointT=max(min(maxindexT,n_a1-1),2);
+                a1primeindexesT=(midpointT+(midpointT-1)*n2short)+(-n2short-1:1:1+n2short);
+                TemptationMatrix_Tii=CreateReturnFnMatrix_Disc_DC2A_e(TemptationFn,n_d,n_z,vfoptions.n_e,d_gridvals,a1prime_grid(a1primeindexesT),a2_grid,a1_grid,a2_grid,z_gridvals_J(:,:,jj),vfoptions.e_gridvals_J(:,:,jj),TemptationFnParamsVec,2,0);
+                MostTempting=max(TemptationMatrix_Tii,[],1); % max over the joint (d, fine a1prime window, a2prime) first dim
             end
             MostTempting=reshape(MostTempting,[N_a,N_z,N_e]);
 
@@ -281,8 +376,8 @@ if vfoptions.gridinterplayer==1
             else
                 beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
                 % Integrate over iid e, then over zprime|z
-                EVnext=sum(V(:,:,:,jj+1).*shiftdim(vfoptions.pi_e_J(:,jj+1),-2),3); % (N_a, N_z)
-                EVnext(isnan(EVnext))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+                EVw=V(:,:,:,jj+1).*shiftdim(vfoptions.pi_e_J(:,jj+1),-2); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+                EVnext=sum(EVw,3); % (N_a, N_z)
                 EVnext=EVnext*pi_z_J(:,:,jj)'; % (N_a, N_z)
                 EVnext(isnan(EVnext))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
                 % For each (a, z, e), look up the EV at (alower(a,z,e), z) and (alower+1, z)
@@ -386,8 +481,8 @@ else % no grid interpolation layer
                 V(:,:,jj)=FofPolicy_jj+TofPolicy_jj-MostTempting;
             else
                 beta=prod(gpuArray(CreateVectorFromParams(Parameters,DiscountFactorParamNames,jj)));
-                EVnext=sum(V(:,:,jj+1).*shiftdim(vfoptions.pi_e_J(:,jj+1),-1),2); % expectation over iid
-                EVnext(isnan(EVnext))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+                EVw=V(:,:,jj+1).*shiftdim(vfoptions.pi_e_J(:,jj+1),-1); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+                EVnext=sum(EVw,2); % expectation over iid
 
                 if N_d==0
                     optaprime=PolicyIndexesKron(1,:,:,jj);

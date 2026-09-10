@@ -107,6 +107,8 @@ else
     aprimeProbs(skipinterp)=0;
 
     EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper; % (d2*a1prime*a2prime, a3)
+    EV(aprimeProbs==0)=Vupper(aprimeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+    EV(aprimeProbs==1)=Vlower(aprimeProbs==1);
 
     DiscountedEV_hat=beta0beta*reshape(EV,[N_d2,N_a1,N_a2,1,1,N_a3]);   % QH-perceived (the single max uses this)
     DiscountedEV_under=beta*reshape(EV,[N_d2,N_a1,N_a2,1,1,N_a3]);   % exponential (gathered at that same argmax)
@@ -213,6 +215,8 @@ for reverse_j=1:N_j-1
     aprimeProbs(skipinterp)=0;
 
     EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper;
+    EV(aprimeProbs==0)=Vupper(aprimeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+    EV(aprimeProbs==1)=Vlower(aprimeProbs==1);
 
     DiscountedEV_hat=beta0beta*reshape(EV,[N_d2,N_a1,N_a2,1,1,N_a3]);   % QH-perceived (the single max uses this)
     DiscountedEV_under=beta*reshape(EV,[N_d2,N_a1,N_a2,1,1,N_a3]);   % exponential (gathered at that same argmax)

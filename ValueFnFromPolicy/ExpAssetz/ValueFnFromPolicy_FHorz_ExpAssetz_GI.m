@@ -5,7 +5,7 @@ function varargout=ValueFnFromPolicy_FHorz_ExpAssetz_GI(Policy,n_d,n_a,n_z,N_j,d
 % Requires N_z>0; may have e too.
 
 %% Setup
-[z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3);
+[z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3,0);
 
 if ~isfield(vfoptions,'aprimeFn')
     error('To use experienceassetz you must define vfoptions.aprimeFn')

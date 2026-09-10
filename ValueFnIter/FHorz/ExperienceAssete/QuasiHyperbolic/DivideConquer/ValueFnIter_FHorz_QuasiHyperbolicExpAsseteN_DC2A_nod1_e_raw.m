@@ -234,6 +234,8 @@ else
     skipinterp=(Vlower==Vupper);
     aprimeProbs(skipinterp)=0;
     EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper;
+    EV(aprimeProbs==0)=Vupper(aprimeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+    EV(aprimeProbs==1)=Vlower(aprimeProbs==1);
     EV=EV.*shiftdim(pi_z_J(:,:,N_j)',-3); % pi'(zprime,zcur) shaped [1,1,1,zprime,zcur]
     EV(isnan(EV))=0;
     EV=reshape(sum(EV,4),[N_d2*N_a1*N_a2,N_a3,N_e,N_z]); % sum zprime -> (d2*a1prime*a2prime,a3,e_cur,zcur)
@@ -632,6 +634,8 @@ for reverse_j=1:N_j-1
     skipinterp=(Vlower==Vupper);
     aprimeProbs(skipinterp)=0;
     EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper;
+    EV(aprimeProbs==0)=Vupper(aprimeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+    EV(aprimeProbs==1)=Vlower(aprimeProbs==1);
     EV=EV.*shiftdim(pi_z_J(:,:,jj)',-3); % pi'(zprime,zcur) shaped [1,1,1,zprime,zcur]
     EV(isnan(EV))=0;
     EV=reshape(sum(EV,4),[N_d2*N_a1*N_a2,N_a3,N_e,N_z]); % sum zprime -> (d2*a1prime*a2prime,a3,e_cur,zcur)

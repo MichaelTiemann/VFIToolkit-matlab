@@ -87,7 +87,7 @@ l_daprime=l_d+l_a; % Does not yet handle anything but basics
 % Internally, only ever use age-dependent joint-grids (makes all the code much easier to write)
 % Gradually rolling these out so that all the commands build off of these
 % gridpiboth=3: build both z_gridvals_J and pi_z_J (and e analogues if N_e>0)
-[z_gridvals_J,pi_z_J,simoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,simoptions,3);
+[z_gridvals_J,pi_z_J,simoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,simoptions,3,0);
 
 if N_e>0 % Note: N_z==0 is dealt with elsewhere
     if N_e==0

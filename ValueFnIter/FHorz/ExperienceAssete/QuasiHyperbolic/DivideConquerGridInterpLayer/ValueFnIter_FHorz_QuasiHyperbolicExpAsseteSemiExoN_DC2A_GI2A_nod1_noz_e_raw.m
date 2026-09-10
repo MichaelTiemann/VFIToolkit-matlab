@@ -267,6 +267,8 @@ else
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0;
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
 
             % Undiscounted EV; beta vs beta0beta applied at use (Naive QH dual pass)
             EVreshape=reshape(entireEV,[N_d2,N_a1,N_a2,1,1,N_a3,N_semiz,N_e]);
@@ -379,6 +381,8 @@ else
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0;
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
 
             EVreshape=reshape(entireEV,[N_d2,N_a1,N_a2,1,1,N_a3,N_semiz,N_e]);
             EVinterp=permute(interp1(a1_grid,permute(EVreshape,[2,1,3,4,5,6,7,8]),a1prime_grid),[2,1,3,4,5,6,7,8]);
@@ -496,6 +500,8 @@ else
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0;
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
 
             EVreshape=reshape(entireEV,[N_d2,N_a1,N_a2,1,1,N_a3,N_semiz,N_e]);
             EVinterp=permute(interp1(a1_grid,permute(EVreshape,[2,1,3,4,5,6,7,8]),a1prime_grid),[2,1,3,4,5,6,7,8]);
@@ -675,6 +681,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0;
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
 
             % Undiscounted EV; beta vs beta0beta applied at use (Naive QH dual pass)
             EVreshape=reshape(entireEV,[N_d2,N_a1,N_a2,1,1,N_a3,N_semiz,N_e]);
@@ -787,6 +795,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0;
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
 
             EVreshape=reshape(entireEV,[N_d2,N_a1,N_a2,1,1,N_a3,N_semiz,N_e]);
             EVinterp=permute(interp1(a1_grid,permute(EVreshape,[2,1,3,4,5,6,7,8]),a1prime_grid),[2,1,3,4,5,6,7,8]);
@@ -904,6 +914,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0;
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
 
             EVreshape=reshape(entireEV,[N_d2,N_a1,N_a2,1,1,N_a3,N_semiz,N_e]);
             EVinterp=permute(interp1(a1_grid,permute(EVreshape,[2,1,3,4,5,6,7,8]),a1prime_grid),[2,1,3,4,5,6,7,8]);

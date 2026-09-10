@@ -8,11 +8,14 @@ function [a2primeIndexes, a2primeProbs]=CreateaprimePolicyExperienceAsset(Policy
 %     N_semizze==0 : a2primeIndexes [N_a, 1]; a2primeProbs [N_a, 1]
 %     N_semizze>0  : a2primeIndexes [N_a, N_semizze]; a2primeProbs [N_a, N_semizze]
 %     (upper idx = lower+1; prob upper = 1-prob lower)
-%   l_a2==2 (multi-dim, Kaprimepts=4 corners):
-%     N_semizze==0 : a2primeIndexes [N_a, Kaprimepts]; a2primeProbs [N_a, Kaprimepts]
-%     N_semizze>0  : a2primeIndexes [N_a, Kaprimepts, N_semizze]; a2primeProbs [N_a, Kaprimepts, N_semizze]
-%     Each row c=1..Kaprimepts is one corner of the bilinear lattice; index is Kron'd
-%     linear index in N_a2=prod(n_a2) space.
+%   l_a2==2 (multi-dim, per-dim factored -- NOT Kron-folded corners):
+%     N_semizze==0 : a2primeIndexes [N_a, l_a2]; a2primeProbs [N_a, l_a2]
+%     N_semizze>0  : a2primeIndexes [N_a, l_a2, N_semizze]; a2primeProbs [N_a, l_a2, N_semizze]
+%     Column k is the a2_k dimension on its own: a2primeIndexes(:,k) is the lower-grid index
+%     within that dimension (1..n_a2(k)) and a2primeProbs(:,k) the probability of that lower
+%     point. These are per-dimension indices, NOT linear indices in N_a2=prod(n_a2) space.
+%     The caller folds them into the 2^l_a2 corners itself (see
+%     StationaryDist_FHorz_ExpAsset_noz or SimPanelIndexes_FHorz_ExpAsset).
 
 ParamCell=cell(length(aprimeFnParams),1);
 for ii=1:length(aprimeFnParams)
@@ -137,7 +140,7 @@ if l_a2==1
     end
 
 elseif l_a2==2
-    %% Multi-dim a2 (l_a2=2): bilinear interp, Kaprimepts=4 corners
+    %% Multi-dim a2 (l_a2=2): bilinear interp, returned PER-DIM FACTORED (the caller folds the 4 corners)
     n_a2_1=n_a2(1); n_a2_2=n_a2(2);
     a2_grid_1=a2_grid(1:n_a2_1);
     a2_grid_2=a2_grid(n_a2_1+1:n_a2_1+n_a2_2);

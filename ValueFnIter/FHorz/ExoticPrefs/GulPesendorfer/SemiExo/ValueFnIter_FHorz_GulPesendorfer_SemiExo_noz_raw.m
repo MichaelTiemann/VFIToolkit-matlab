@@ -1,0 +1,237 @@
+function [V,Policy3]=ValueFnIter_FHorz_GulPesendorfer_SemiExo_noz_raw(n_d1,n_d2,n_a,n_semiz,N_j, d1_gridvals, d2_gridvals, a_grid, semiz_gridvals_J, pi_semiz_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions)
+% Gul-Pesendorfer with a semi-exogenous state. The tempted objective u+v+beta*EV goes through
+% the standard per-d2 machinery (an inner solve per d2 value, then a max over d2, so the
+% windows/argmax are those of the TEMPTED objective); the most-tempting term is a max over the
+% FULL (d1,d2,aprime) choice set: a per-d2 full max is collected alongside each inner solve
+% and the max over d2 is subtracted from V after the outer max (the '-max v' term is constant
+% w.r.t. the choice given the state, so the subtraction after the d2-max is exact).
+
+n_d=[n_d1,n_d2];
+
+N_d1=prod(n_d1);
+N_d2=prod(n_d2);
+N_d=prod([n_d1,n_d2]); % Needed for N_j when converting to form of Policy3
+N_a=prod(n_a);
+N_semiz=prod(n_semiz);
+
+V=zeros(N_a,N_semiz,N_j,'gpuArray');
+% For semiz it turns out to be easier to go straight to constructing policy that stores d,d2,aprime seperately
+Policy3=zeros(3,N_a,N_semiz,N_j,'gpuArray');
+
+%%
+special_n_d=[n_d1,ones(1,length(n_d2))];
+d_gridvals=[repmat(d1_gridvals,N_d2,1),repelem(d2_gridvals,N_d1,1)];
+
+d12_gridvals=permute(reshape(d_gridvals,[N_d1,N_d2,length(n_d1)+length(n_d2)]),[1,3,2]); % version to use when looping over d2
+
+if vfoptions.lowmemory>0
+    special_n_semiz=ones(1,length(n_semiz));
+end
+
+% Preallocate
+V_ford2_jj=zeros(N_a,N_semiz,N_d2,'gpuArray');
+Policy_ford2_jj=zeros(N_a,N_semiz,N_d2,'gpuArray');
+MostTempting_ford2_jj=zeros(N_a,N_semiz,N_d2,'gpuArray'); % per-d2 full (d1,aprime) max of the temptation
+
+
+%% j=N_j
+
+% Create a vector containing all the return function parameters (in order)
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+TemptationFnParamsVec=CreateVectorFromParams(Parameters, TemptationFnParamNames,N_j);
+
+if ~isfield(vfoptions,'V_Jplus1')
+    if vfoptions.lowmemory==0
+
+        ReturnMatrix=CreateReturnFnMatrix_Disc(ReturnFn, n_d, n_a, n_semiz, d_gridvals, a_grid, semiz_gridvals_J(:,:,N_j), ReturnFnParamsVec,0);
+        TemptationMatrix=CreateReturnFnMatrix_Disc(TemptationFn, n_d, n_a, n_semiz, d_gridvals, a_grid, semiz_gridvals_J(:,:,N_j), TemptationFnParamsVec,0);
+        MostTempting=max(TemptationMatrix,[],1); % full (d1,d2,aprime) choice set
+        %Calc the max and it's index
+        [Vtemp,maxindex]=max(ReturnMatrix+TemptationMatrix,[],1);
+        V(:,:,N_j)=Vtemp-MostTempting;
+        d_ind=shiftdim(rem(maxindex-1,N_d)+1,-1);
+        Policy3(1,:,:,N_j)=shiftdim(rem(d_ind-1,N_d1)+1,-1);
+        Policy3(2,:,:,N_j)=shiftdim(ceil(d_ind/N_d1),-1);
+        Policy3(3,:,:,N_j)=shiftdim(ceil(maxindex/N_d),-1);
+
+    elseif vfoptions.lowmemory==1
+
+        for z_c=1:N_semiz
+            z_val=semiz_gridvals_J(z_c,:,N_j);
+            ReturnMatrix_z=CreateReturnFnMatrix_Disc(ReturnFn, n_d, n_a, special_n_semiz, d_gridvals, a_grid, z_val, ReturnFnParamsVec,0);
+            TemptationMatrix_z=CreateReturnFnMatrix_Disc(TemptationFn, n_d, n_a, special_n_semiz, d_gridvals, a_grid, z_val, TemptationFnParamsVec,0);
+            MostTempting_z=max(TemptationMatrix_z,[],1); % full (d1,d2,aprime) choice set
+            %Calc the max and it's index
+            [Vtemp,maxindex]=max(ReturnMatrix_z+TemptationMatrix_z,[],1);
+            V(:,z_c,N_j)=Vtemp-MostTempting_z;
+            d_ind=shiftdim(rem(maxindex-1,N_d)+1,-1);
+            Policy3(1,:,z_c,N_j)=shiftdim(rem(d_ind-1,N_d1)+1,-1);
+            Policy3(2,:,z_c,N_j)=shiftdim(ceil(d_ind/N_d1),-1);
+            Policy3(3,:,z_c,N_j)=shiftdim(ceil(maxindex/N_d),-1);
+        end
+
+    end
+else
+    % Using V_Jplus1
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+    DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
+
+    EV=reshape(vfoptions.V_Jplus1,[N_a,N_semiz]);    % First, switch V_Jplus1 into Kron form
+
+    if vfoptions.lowmemory==0
+        for d2_c=1:N_d2
+            d12c_gridvals=d12_gridvals(:,:,d2_c);
+            pi_semiz=pi_semiz_J(:,:,d2_c,N_j);
+
+            ReturnMatrix_d2=CreateReturnFnMatrix_Disc(ReturnFn, special_n_d, n_a, n_semiz, d12c_gridvals, a_grid, semiz_gridvals_J(:,:,N_j), ReturnFnParamsVec,0);
+            % (d,aprime,a,z)
+            TemptationMatrix_d2=CreateReturnFnMatrix_Disc(TemptationFn, special_n_d, n_a, n_semiz, d12c_gridvals, a_grid, semiz_gridvals_J(:,:,N_j), TemptationFnParamsVec,0);
+            MostTempting_ford2_jj(:,:,d2_c)=shiftdim(max(TemptationMatrix_d2,[],1),1); % full (d1,aprime) for this d2
+
+            EV_d2=EV.*shiftdim(pi_semiz',-1);
+            EV_d2(isnan(EV_d2))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+            EV_d2=sum(EV_d2,2); % sum over z', leaving a singular second dimension
+
+            entireEV=repelem(EV_d2,N_d1,1,1);
+            entireRHS=ReturnMatrix_d2+TemptationMatrix_d2+DiscountFactorParamsVec*entireEV; %repmat(entireEV,1,N_a,1);
+
+            %Calc the max and it's index
+            [Vtemp,maxindex]=max(entireRHS,[],1);
+
+            V_ford2_jj(:,:,d2_c)=shiftdim(Vtemp,1);
+            Policy_ford2_jj(:,:,d2_c)=shiftdim(maxindex,1);
+        end
+        % Now we just max over d2, and keep the policy that corresponded to that (including modify the policy to include the d2 decision)
+        [V_jj,maxindex]=max(V_ford2_jj,[],3); % max over d2
+        V(:,:,N_j)=V_jj-max(MostTempting_ford2_jj,[],3); % subtract the full (d1,d2,aprime) most-tempting term
+        Policy3(2,:,:,N_j)=shiftdim(maxindex,-1); % d2 is just maxindex
+        maxindex=reshape(maxindex,[N_a*N_semiz,1]); % This is the value of d that corresponds, make it this shape for addition just below
+        d1aprime_ind=reshape(Policy_ford2_jj((1:1:N_a*N_semiz)'+(N_a*N_semiz)*(maxindex-1)),[1,N_a,N_semiz]);
+        Policy3(1,:,:,N_j)=shiftdim(rem(d1aprime_ind-1,N_d1)+1,-1);
+        Policy3(3,:,:,N_j)=shiftdim(ceil(d1aprime_ind/N_d1),-1);
+
+    elseif vfoptions.lowmemory==1
+        for d2_c=1:N_d2
+            d12c_gridvals=d12_gridvals(:,:,d2_c);
+            pi_semiz=pi_semiz_J(:,:,d2_c,N_j);
+
+            for z_c=1:N_semiz
+                z_val=semiz_gridvals_J(z_c,:,N_j);
+                ReturnMatrix_d2z=CreateReturnFnMatrix_Disc(ReturnFn, special_n_d, n_a, special_n_semiz, d12c_gridvals, a_grid, z_val, ReturnFnParamsVec,0);
+                TemptationMatrix_d2z=CreateReturnFnMatrix_Disc(TemptationFn, special_n_d, n_a, special_n_semiz, d12c_gridvals, a_grid, z_val, TemptationFnParamsVec,0);
+                MostTempting_ford2_jj(:,z_c,d2_c)=max(TemptationMatrix_d2z,[],1); % full (d1,aprime) for this d2
+
+                % Calc the condl expectation term (except beta), which depends on z but not on control variables
+                EV_d2z=EV.*pi_semiz(z_c,:);
+                EV_d2z(isnan(EV_d2z))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+                EV_d2z=sum(EV_d2z,2);
+
+                entireEV_z=repelem(EV_d2z,N_d1,1,1);
+                entireRHS_z=ReturnMatrix_d2z+TemptationMatrix_d2z+DiscountFactorParamsVec*entireEV_z; %entireEV_z*ones(1,N_a,1);
+
+                %Calc the max and it's index
+                [Vtemp,maxindex]=max(entireRHS_z,[],1);
+                V_ford2_jj(:,z_c,d2_c)=Vtemp;
+                Policy_ford2_jj(:,z_c,d2_c)=maxindex;
+            end
+        end
+        % Now we just max over d2, and keep the policy that corresponded to that (including modify the policy to include the d2 decision)
+        [V_jj,maxindex]=max(V_ford2_jj,[],3); % max over d2
+        V(:,:,N_j)=V_jj-max(MostTempting_ford2_jj,[],3); % subtract the full (d1,d2,aprime) most-tempting term
+        Policy3(2,:,:,N_j)=shiftdim(maxindex,-1); % d2 is just maxindex
+        maxindex=reshape(maxindex,[N_a*N_semiz,1]); % This is the value of d that corresponds, make it this shape for addition just below
+        d1aprime_ind=reshape(Policy_ford2_jj((1:1:N_a*N_semiz)'+(N_a*N_semiz)*(maxindex-1)),[1,N_a,N_semiz]);
+        Policy3(1,:,:,N_j)=shiftdim(rem(d1aprime_ind-1,N_d1)+1,-1);
+        Policy3(3,:,:,N_j)=shiftdim(ceil(d1aprime_ind/N_d1),-1);
+
+    end
+end
+
+%% Iterate backwards through j.
+for reverse_j=1:N_j-1
+    jj=N_j-reverse_j;
+
+    if vfoptions.verbose==1
+        fprintf('Finite horizon: %i of %i \n',jj, N_j)
+    end
+
+    % Create a vector containing all the return function parameters (in order)
+    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
+    TemptationFnParamsVec=CreateVectorFromParams(Parameters, TemptationFnParamNames,jj);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
+    DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
+
+    EV=V(:,:,jj+1);
+
+    if vfoptions.lowmemory==0
+        for d2_c=1:N_d2
+            d12c_gridvals=d12_gridvals(:,:,d2_c);
+            pi_semiz=pi_semiz_J(:,:,d2_c,jj);
+
+            ReturnMatrix_d2=CreateReturnFnMatrix_Disc(ReturnFn, special_n_d, n_a, n_semiz, d12c_gridvals, a_grid, semiz_gridvals_J(:,:,jj), ReturnFnParamsVec,0);
+            % (d,aprime,a,z)
+            TemptationMatrix_d2=CreateReturnFnMatrix_Disc(TemptationFn, special_n_d, n_a, n_semiz, d12c_gridvals, a_grid, semiz_gridvals_J(:,:,jj), TemptationFnParamsVec,0);
+            MostTempting_ford2_jj(:,:,d2_c)=shiftdim(max(TemptationMatrix_d2,[],1),1); % full (d1,aprime) for this d2
+
+            EV_d2=EV.*shiftdim(pi_semiz',-1);
+            EV_d2(isnan(EV_d2))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+            EV_d2=sum(EV_d2,2); % sum over z', leaving a singular second dimension
+
+            entireEV=repelem(EV_d2,N_d1,1,1);
+            entireRHS=ReturnMatrix_d2+TemptationMatrix_d2+DiscountFactorParamsVec*entireEV;
+
+            %Calc the max and it's index
+            [Vtemp,maxindex]=max(entireRHS,[],1);
+
+            V_ford2_jj(:,:,d2_c)=shiftdim(Vtemp,1);
+            Policy_ford2_jj(:,:,d2_c)=shiftdim(maxindex,1);
+
+        end
+        % Now we just max over d2, and keep the policy that corresponded to that (including modify the policy to include the d2 decision)
+        [V_jj,maxindex]=max(V_ford2_jj,[],3); % max over d2
+        V(:,:,jj)=V_jj-max(MostTempting_ford2_jj,[],3); % subtract the full (d1,d2,aprime) most-tempting term
+        Policy3(2,:,:,jj)=shiftdim(maxindex,-1); % d2 is just maxindex
+        maxindex=reshape(maxindex,[N_a*N_semiz,1]); % This is the value of d that corresponds, make it this shape for addition just below
+        d1aprime_ind=reshape(Policy_ford2_jj((1:1:N_a*N_semiz)'+(N_a*N_semiz)*(maxindex-1)),[1,N_a,N_semiz]);
+        Policy3(1,:,:,jj)=shiftdim(rem(d1aprime_ind-1,N_d1)+1,-1);
+        Policy3(3,:,:,jj)=shiftdim(ceil(d1aprime_ind/N_d1),-1);
+
+    elseif vfoptions.lowmemory==1
+        for d2_c=1:N_d2
+            d12c_gridvals=d12_gridvals(:,:,d2_c);
+            pi_semiz=pi_semiz_J(:,:,d2_c,jj);
+
+            for z_c=1:N_semiz
+                z_val=semiz_gridvals_J(z_c,:,jj);
+                ReturnMatrix_d2z=CreateReturnFnMatrix_Disc(ReturnFn, special_n_d, n_a, special_n_semiz, d12c_gridvals, a_grid, z_val, ReturnFnParamsVec,0);
+                TemptationMatrix_d2z=CreateReturnFnMatrix_Disc(TemptationFn, special_n_d, n_a, special_n_semiz, d12c_gridvals, a_grid, z_val, TemptationFnParamsVec,0);
+                MostTempting_ford2_jj(:,z_c,d2_c)=max(TemptationMatrix_d2z,[],1); % full (d1,aprime) for this d2
+
+                % Calc the condl expectation term (except beta), which depends on z but not on control variables
+                EV_d2z=EV.*pi_semiz(z_c,:);
+                EV_d2z(isnan(EV_d2z))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+                EV_d2z=sum(EV_d2z,2);
+
+                entireEV_z=repelem(EV_d2z,N_d1,1,1);
+                entireRHS_z=ReturnMatrix_d2z+TemptationMatrix_d2z+DiscountFactorParamsVec*entireEV_z;
+
+                %Calc the max and it's index
+                [Vtemp,maxindex]=max(entireRHS_z,[],1);
+                V_ford2_jj(:,z_c,d2_c)=Vtemp;
+                Policy_ford2_jj(:,z_c,d2_c)=maxindex;
+            end
+        end
+        % Now we just max over d2, and keep the policy that corresponded to that (including modify the policy to include the d2 decision)
+        [V_jj,maxindex]=max(V_ford2_jj,[],3); % max over d2
+        V(:,:,jj)=V_jj-max(MostTempting_ford2_jj,[],3); % subtract the full (d1,d2,aprime) most-tempting term
+        Policy3(2,:,:,jj)=shiftdim(maxindex,-1); % d2 is just maxindex
+        maxindex=reshape(maxindex,[N_a*N_semiz,1]); % This is the value of d that corresponds, make it this shape for addition just below
+        d1aprime_ind=reshape(Policy_ford2_jj((1:1:N_a*N_semiz)'+(N_a*N_semiz)*(maxindex-1)),[1,N_a,N_semiz]);
+        Policy3(1,:,:,jj)=shiftdim(rem(d1aprime_ind-1,N_d1)+1,-1);
+        Policy3(3,:,:,jj)=shiftdim(ceil(d1aprime_ind/N_d1),-1);
+
+    end
+end
+
+
+end

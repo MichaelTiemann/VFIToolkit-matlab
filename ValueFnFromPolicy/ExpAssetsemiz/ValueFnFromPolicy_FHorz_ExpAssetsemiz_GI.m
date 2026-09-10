@@ -47,7 +47,7 @@ if N_z==0
     z_gridvals_J=[];
     pi_z_J=ones(1,1,N_j,'gpuArray'); % single 'z' that transitions to itself (integration over z' is a no-op)
 else
-    [z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3);
+    [z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3,0);
 end
 
 if isscalar(n_a)
@@ -201,8 +201,8 @@ for reverse_j=0:N_j-1
 
         % Step 3b: integrate over z' (markov). Trivial when no z.
         V_next_r=reshape(V_next, [N_a, N_semiz, N_zloc]);
-        EV_after_z=sum(V_next_r .* shiftdim(pi_z_J(:,:,jj)', -2), 3);
-        EV_after_z(isnan(EV_after_z))=0;
+        EVw=V_next_r .* shiftdim(pi_z_J(:,:,jj)', -2); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+        EV_after_z=sum(EVw,3);
         EV_after_z=reshape(EV_after_z, [N_a, N_semiz, N_zloc]);
 
         % Step 3c: for each d_semiz, integrate over semiz' -> EVnext_byd2(a, semiz_from, z_from, d_semiz)
@@ -210,8 +210,8 @@ for reverse_j=0:N_j-1
         for d2_c=1:N_dsemiz
             pi_d2c=pi_semiz_J(:,:,d2_c,jj)';
             pi_reshape=reshape(pi_d2c, [1, N_semiz, 1, N_semiz]);
-            EVd2c=sum(EV_after_z .* pi_reshape, 2);
-            EVd2c(isnan(EVd2c))=0;
+            EVw=EV_after_z .* pi_reshape; EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+            EVd2c=sum(EVw,2);
             EVnext_byd2(:,:,:,d2_c)=reshape(permute(EVd2c, [1,4,3,2]), [N_a, N_semiz, N_zloc]);
         end
 
@@ -235,8 +235,11 @@ for reverse_j=0:N_j-1
             EV_LU=reshape(EVnext_byd2(lin_LU(:)),[N_a, N_semiz, N_zloc]);
             EV_UL=reshape(EVnext_byd2(lin_UL(:)),[N_a, N_semiz, N_zloc]);
             EV_UU=reshape(EVnext_byd2(lin_UU(:)),[N_a, N_semiz, N_zloc]);
-            EVnext_atpolicy=wa1l_r.*wa2l.*EV_LL + wa1l_r.*wa2u.*EV_LU + wa1u_r.*wa2l.*EV_UL + wa1u_r.*wa2u.*EV_UU;
-            EVnext_atpolicy(isnan(EVnext_atpolicy))=0; % zero corner weights times -Inf next-states give NaN
+            % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero each term BEFORE summing (after the sum would destroy it)
+            EVnext_atpolicy=wa1l_r.*wa2l.*EV_LL; EVnext_atpolicy(isnan(EVnext_atpolicy))=0;
+            EVterm=wa1l_r.*wa2u.*EV_LU; EVterm(isnan(EVterm))=0; EVnext_atpolicy=EVnext_atpolicy+EVterm;
+            EVterm=wa1u_r.*wa2l.*EV_UL; EVterm(isnan(EVterm))=0; EVnext_atpolicy=EVnext_atpolicy+EVterm;
+            EVterm=wa1u_r.*wa2u.*EV_UU; EVterm(isnan(EVterm))=0; EVnext_atpolicy=EVnext_atpolicy+EVterm;
             V(:,:,jj)=F_jj+beta*reshape(EVnext_atpolicy, [N_a, N_shocks]);
         else
             EVnext_atpolicy=zeros(N_a, N_semiz, N_zloc, N_e, 'gpuArray');
@@ -258,7 +261,12 @@ for reverse_j=0:N_j-1
                 EV_LU=reshape(EVnext_byd2(lin_LU(:)),[N_a, N_semiz, N_zloc]);
                 EV_UL=reshape(EVnext_byd2(lin_UL(:)),[N_a, N_semiz, N_zloc]);
                 EV_UU=reshape(EVnext_byd2(lin_UU(:)),[N_a, N_semiz, N_zloc]);
-                EVnext_atpolicy(:,:,:,e_c)=wa1l_e.*wa2l_e.*EV_LL + wa1l_e.*wa2u_e.*EV_LU + wa1u_e.*wa2l_e.*EV_UL + wa1u_e.*wa2u_e.*EV_UU;
+                % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero each term BEFORE summing (after the sum would destroy it)
+                EVnext_atpolicy_e=wa1l_e.*wa2l_e.*EV_LL; EVnext_atpolicy_e(isnan(EVnext_atpolicy_e))=0;
+                EVterm=wa1l_e.*wa2u_e.*EV_LU; EVterm(isnan(EVterm))=0; EVnext_atpolicy_e=EVnext_atpolicy_e+EVterm;
+                EVterm=wa1u_e.*wa2l_e.*EV_UL; EVterm(isnan(EVterm))=0; EVnext_atpolicy_e=EVnext_atpolicy_e+EVterm;
+                EVterm=wa1u_e.*wa2u_e.*EV_UU; EVterm(isnan(EVterm))=0; EVnext_atpolicy_e=EVnext_atpolicy_e+EVterm;
+                EVnext_atpolicy(:,:,:,e_c)=EVnext_atpolicy_e;
             end
             V(:,:,:,jj)=F_jj+beta*reshape(EVnext_atpolicy, [N_a, N_shocks, N_e]);
         end

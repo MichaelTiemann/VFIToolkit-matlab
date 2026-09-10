@@ -358,6 +358,8 @@ else
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % [N_d2*N_a1*N_a2,N_a3,N_bothz,N_e]
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             entireEV=reshape(entireEV,[N_d2,N_a1,N_a2,1,1,N_a3,N_bothz,N_e]);
             DiscountedEV_alt=beta*entireEV;       % exponential
             DiscountedEV_tilde=beta0beta*entireEV; % QH-perceived
@@ -469,6 +471,8 @@ else
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % [N_d2*N_a1*N_a2,N_a3,N_bothz,N_e]
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             entireEV=reshape(entireEV,[N_d2,N_a1,N_a2,1,1,N_a3,N_bothz,N_e]);
             DiscountedEV_alt=beta*entireEV;       % exponential
             DiscountedEV_tilde=beta0beta*entireEV; % QH-perceived
@@ -588,6 +592,8 @@ else
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % [N_d2*N_a1*N_a2,N_a3,N_bothz,N_e]
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             entireEV=reshape(entireEV,[N_d2,N_a1,N_a2,1,1,N_a3,N_bothz,N_e]);
             DiscountedEV_alt=beta*entireEV;       % exponential
             DiscountedEV_tilde=beta0beta*entireEV; % QH-perceived
@@ -717,6 +723,8 @@ else
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % [N_d2*N_a1*N_a2,N_a3,N_bothz,N_e]
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             entireEV=reshape(entireEV,[N_d2,N_a1,N_a2,1,1,N_a3,N_bothz,N_e]);
             DiscountedEV_alt=beta*entireEV;       % exponential
             DiscountedEV_tilde=beta0beta*entireEV; % QH-perceived
@@ -896,6 +904,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % [N_d2*N_a1*N_a2,N_a3,N_bothz,N_e]
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             entireEV=reshape(entireEV,[N_d2,N_a1,N_a2,1,1,N_a3,N_bothz,N_e]);
             DiscountedEV_alt=beta*entireEV;       % exponential
             DiscountedEV_tilde=beta0beta*entireEV; % QH-perceived
@@ -1007,6 +1017,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % [N_d2*N_a1*N_a2,N_a3,N_bothz,N_e]
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             entireEV=reshape(entireEV,[N_d2,N_a1,N_a2,1,1,N_a3,N_bothz,N_e]);
             DiscountedEV_alt=beta*entireEV;       % exponential
             DiscountedEV_tilde=beta0beta*entireEV; % QH-perceived
@@ -1126,6 +1138,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % [N_d2*N_a1*N_a2,N_a3,N_bothz,N_e]
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             entireEV=reshape(entireEV,[N_d2,N_a1,N_a2,1,1,N_a3,N_bothz,N_e]);
             DiscountedEV_alt=beta*entireEV;       % exponential
             DiscountedEV_tilde=beta0beta*entireEV; % QH-perceived
@@ -1255,6 +1269,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3=aprimeProbs_full;
             aprimeProbs_d3(skipinterp)=0; % effectively skips interpolation
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % [N_d2*N_a1*N_a2,N_a3,N_bothz,N_e]
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             entireEV=reshape(entireEV,[N_d2,N_a1,N_a2,1,1,N_a3,N_bothz,N_e]);
             DiscountedEV_alt=beta*entireEV;       % exponential
             DiscountedEV_tilde=beta0beta*entireEV; % QH-perceived

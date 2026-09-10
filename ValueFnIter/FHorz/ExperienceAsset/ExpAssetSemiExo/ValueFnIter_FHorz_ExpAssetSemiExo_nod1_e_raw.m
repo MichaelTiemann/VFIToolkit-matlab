@@ -145,6 +145,8 @@ else
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % entireEV is (d2,a1prime, a2,z)
 
             entireRHS_d3=ReturnMatrix_d3+DiscountFactorParamsVec*repelem(EV,1,N_a1,1);
@@ -177,6 +179,8 @@ else
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % entireEV is (d2,a1prime, a2,z)
 
             DiscountedEV=DiscountFactorParamsVec*repelem(EV,1,N_a1,1);
@@ -217,6 +221,8 @@ else
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % entireEV is (d,a1prime, a2,z)
 
             DiscountedEV=DiscountFactorParamsVec*repelem(EV,1,N_a1,1);
@@ -262,6 +268,8 @@ else
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % entireEV is (d,a1prime, a2,z)
 
             DiscountedEV=DiscountFactorParamsVec*repelem(EV,1,N_a1,1);
@@ -344,6 +352,8 @@ for reverse_j=1:N_j-1
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % entireEV is (d,a1prime, a2,z)
 
             entireRHS=ReturnMatrix_d3+DiscountFactorParamsVec*repelem(EV,1,N_a1,1);
@@ -376,6 +386,8 @@ for reverse_j=1:N_j-1
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % entireEV is (d,a1prime, a2,z)
 
             DiscountedEV=DiscountFactorParamsVec*repelem(EV,1,N_a1,1);
@@ -416,6 +428,8 @@ for reverse_j=1:N_j-1
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % entireEV is (d,a1prime, a2,z)
 
             DiscountedEV=DiscountFactorParamsVec*repelem(EV,1,N_a1,1);
@@ -462,6 +476,8 @@ for reverse_j=1:N_j-1
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % entireEV is (d,a1prime, a2,z)
 
             DiscountedEV=DiscountFactorParamsVec*repelem(EV,1,N_a1,1);

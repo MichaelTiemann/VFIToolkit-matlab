@@ -8,12 +8,46 @@ N_d=prod(n_d);
 N_z=prod(n_z);
 N_e=prod(vfoptions.n_e);
 
-if ~isscalar(n_a)
-    error('GulPesendorfer with vfoptions.divideandconquer/gridinterplayer and two endogenous states is not yet implemented (the plain GulPesendorfer solver does handle two standard endogenous states)')
+if length(n_a)>2
+    error('Cannot use vfoptions.divideandconquer/gridinterplayer with more than two endogenous states (you have length(n_a)>2)')
 end
 
+%% Dispatch: 1 vs 2 endogenous states
+if ~isscalar(n_a)
+    if ~isscalar(vfoptions.ngridinterp)
+        error('vfoptions.gridinterplayer=1 with two endogenous states can only be applied to the first of the two endo states (you have length(vfoptions.ngridinterp)>1)')
+    end
+    if N_d==0
+        if N_e==0
+            if N_z==0
+                [VKron,PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_GI2A_nod_noz_raw(n_a, N_j, a_grid, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+            else
+                [VKron,PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_GI2A_nod_raw(n_a, n_z, N_j, a_grid, z_gridvals_J, pi_z_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+            end
+        else
+            if N_z==0
+                [VKron,PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_GI2A_nod_noz_e_raw(n_a, vfoptions.n_e, N_j, a_grid, vfoptions.e_gridvals_J, vfoptions.pi_e_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+            else
+                [VKron,PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_GI2A_nod_e_raw(n_a, n_z, vfoptions.n_e, N_j, a_grid, z_gridvals_J, vfoptions.e_gridvals_J, pi_z_J, vfoptions.pi_e_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+            end
+        end
+    else
+        if N_e==0
+            if N_z==0
+                [VKron,PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_GI2A_noz_raw(n_d, n_a, N_j, d_gridvals, a_grid, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+            else
+                [VKron, PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_GI2A_raw(n_d, n_a, n_z, N_j, d_gridvals, a_grid, z_gridvals_J, pi_z_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+            end
+        else
+            if N_z==0
+                [VKron,PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_GI2A_noz_e_raw(n_d, n_a, vfoptions.n_e, N_j, d_gridvals, a_grid, vfoptions.e_gridvals_J, vfoptions.pi_e_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+            else
+                [VKron,PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_GI2A_e_raw(n_d, n_a, n_z, vfoptions.n_e, N_j, d_gridvals, a_grid, z_gridvals_J, vfoptions.e_gridvals_J, pi_z_J, vfoptions.pi_e_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
+            end
+        end
+    end
 %% 1 endogenous state
-if N_d==0
+elseif N_d==0
     if N_e==0
         if N_z==0
             [VKron,PolicyKron]=ValueFnIter_FHorz_GulPesendorfer_GI1_nod_noz_raw(n_a, N_j, a_grid, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions);
@@ -51,32 +85,66 @@ if vfoptions.outputkron==1
     return
 end
 
-if N_d==0
-    if N_e==0
-        if N_z==0
-            Policy=UnKronPolicyIndexes1_FHorz_noz(PolicyKron,n_a,n_a,N_j,vfoptions);
+if isscalar(n_a)
+    if N_d==0
+        if N_e==0
+            if N_z==0
+                Policy=UnKronPolicyIndexes1_FHorz_noz(PolicyKron,n_a,n_a,N_j,vfoptions);
+            else
+                Policy=UnKronPolicyIndexes1_FHorz_z(PolicyKron,n_a,n_a,n_z,N_j,vfoptions);
+            end
         else
-            Policy=UnKronPolicyIndexes1_FHorz_z(PolicyKron,n_a,n_a,n_z,N_j,vfoptions);
+            if N_z==0
+                Policy=UnKronPolicyIndexes1_FHorz_z(PolicyKron,n_a,n_a,vfoptions.n_e,N_j,vfoptions);  % Treat e as z (because no z)
+            else
+                Policy=UnKronPolicyIndexes1_FHorz_z_e(PolicyKron,n_a,n_a,n_z,vfoptions.n_e,N_j,vfoptions);
+            end
         end
     else
-        if N_z==0
-            Policy=UnKronPolicyIndexes1_FHorz_z(PolicyKron,n_a,n_a,vfoptions.n_e,N_j,vfoptions);  % Treat e as z (because no z)
+        if N_e==0
+            if N_z==0
+                Policy=UnKronPolicyIndexes2_FHorz_noz(PolicyKron,n_d,n_a,n_a,N_j,vfoptions);
+            else
+                Policy=UnKronPolicyIndexes2_FHorz_z(PolicyKron,n_d,n_a,n_a,n_z,N_j,vfoptions);
+            end
         else
-            Policy=UnKronPolicyIndexes1_FHorz_z_e(PolicyKron,n_a,n_a,n_z,vfoptions.n_e,N_j,vfoptions);
+            if N_z==0
+                Policy=UnKronPolicyIndexes2_FHorz_z(PolicyKron,n_d,n_a,n_a,vfoptions.n_e,N_j,vfoptions);  % Treat e as z (because no z)
+            else
+                Policy=UnKronPolicyIndexes2_FHorz_z_e(PolicyKron,n_d,n_a,n_a,n_z,vfoptions.n_e,N_j,vfoptions);
+            end
         end
     end
-else
-    if N_e==0
-        if N_z==0
-            Policy=UnKronPolicyIndexes2_FHorz_noz(PolicyKron,n_d,n_a,n_a,N_j,vfoptions);
+else % two endogenous states
+    n_a1=n_a(1);
+    n_a2=n_a(2:end);
+    if N_d==0
+        if N_e==0
+            if N_z==0
+                Policy=UnKronPolicyIndexes2_FHorz_noz(PolicyKron,n_a1,n_a2,n_a,N_j,vfoptions);
+            else
+                Policy=UnKronPolicyIndexes2_FHorz_z(PolicyKron,n_a1,n_a2,n_a,n_z,N_j,vfoptions);
+            end
         else
-            Policy=UnKronPolicyIndexes2_FHorz_z(PolicyKron,n_d,n_a,n_a,n_z,N_j,vfoptions);
+            if N_z==0
+                Policy=UnKronPolicyIndexes2_FHorz_z(PolicyKron,n_a1,n_a2,n_a,vfoptions.n_e,N_j,vfoptions);  % Treat e as z (because no z)
+            else
+                Policy=UnKronPolicyIndexes2_FHorz_z_e(PolicyKron,n_a1,n_a2,n_a,n_z,vfoptions.n_e,N_j,vfoptions);
+            end
         end
     else
-        if N_z==0
-            Policy=UnKronPolicyIndexes2_FHorz_z(PolicyKron,n_d,n_a,n_a,vfoptions.n_e,N_j,vfoptions);  % Treat e as z (because no z)
+        if N_e==0
+            if N_z==0
+                Policy=UnKronPolicyIndexes3_FHorz_noz(PolicyKron,n_d,n_a1,n_a2,n_a,N_j,vfoptions);
+            else
+                Policy=UnKronPolicyIndexes3_FHorz_z(PolicyKron,n_d,n_a1,n_a2,n_a,n_z,N_j,vfoptions);
+            end
         else
-            Policy=UnKronPolicyIndexes2_FHorz_z_e(PolicyKron,n_d,n_a,n_a,n_z,vfoptions.n_e,N_j,vfoptions);
+            if N_z==0
+                Policy=UnKronPolicyIndexes3_FHorz_z(PolicyKron,n_d,n_a1,n_a2,n_a,vfoptions.n_e,N_j,vfoptions);  % Treat e as z (because no z)
+            else
+                Policy=UnKronPolicyIndexes3_FHorz_z_e(PolicyKron,n_d,n_a1,n_a2,n_a,n_z,vfoptions.n_e,N_j,vfoptions);
+            end
         end
     end
 end

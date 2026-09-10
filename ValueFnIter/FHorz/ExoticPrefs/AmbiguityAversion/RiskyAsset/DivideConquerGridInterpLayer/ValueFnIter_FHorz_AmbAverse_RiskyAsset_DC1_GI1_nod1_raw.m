@@ -192,6 +192,8 @@ else % V_Jplus1
         % Take the expectation over the between period iid u shock
         EV1=reshape(EV(aprimeIndex(:)+N_a*((1:1:N_z)-1)),[N_d23*N_a1,N_u,N_z]).*aprimeProbsK;
         EV2=reshape(EV(aprimeplus1Index(:)+N_a*((1:1:N_z)-1)),[N_d23*N_a1,N_u,N_z]).*(1-aprimeProbsK);
+        EV1(isnan(EV1))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so the term contributes nothing
+        EV2(isnan(EV2))=0;
         if amb_c==1
             Mmin=EV1+EV2; EV1sel=EV1; EV2sel=EV2;
         else
@@ -388,6 +390,8 @@ for reverse_j=1:N_j-1
         % Take the expectation over the between period iid u shock
         EV1=reshape(EV(aprimeIndex(:)+N_a*((1:1:N_z)-1)),[N_d23*N_a1,N_u,N_z]).*aprimeProbsK;
         EV2=reshape(EV(aprimeplus1Index(:)+N_a*((1:1:N_z)-1)),[N_d23*N_a1,N_u,N_z]).*(1-aprimeProbsK);
+        EV1(isnan(EV1))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so the term contributes nothing
+        EV2(isnan(EV2))=0;
         if amb_c==1
             Mmin=EV1+EV2; EV1sel=EV1; EV2sel=EV2;
         else

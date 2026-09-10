@@ -86,6 +86,8 @@ else
 
     % Switch EV from being in terms of a2prime to being in terms of d2 and a2
     EV=aprimeProbs.*EVlower+(1-aprimeProbs).*EVupper; % (d23 & a1prime,u,zprime)
+    EV(aprimeProbs==0)=EVupper(aprimeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+    EV(aprimeProbs==1)=EVlower(aprimeProbs==1);
     % Already applied the probabilities from interpolating onto grid
     EV=squeeze(sum((EV.*pi_u),2)); % (d23 & a1prime,1)
 
@@ -169,6 +171,8 @@ for reverse_j=1:N_j-1
 
     % Switch EV from being in terms of a2prime to being in terms of d2 and a2
     EV=aprimeProbs.*EVlower+(1-aprimeProbs).*EVupper; % (d23 & a1prime,u,zprime)
+    EV(aprimeProbs==0)=EVupper(aprimeProbs==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+    EV(aprimeProbs==1)=EVlower(aprimeProbs==1);
     % Already applied the probabilities from interpolating onto grid
     EV=squeeze(sum((EV.*pi_u),2)); % (d23 & a1prime,1)
 

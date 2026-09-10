@@ -119,6 +119,8 @@ else
             aprimeProbs_d3=repmat(a2primeProbs,1,1,1,N_bothz); % [N_d2,N_a2,N_e,N_bothz]
             aprimeProbs_d3(skipinterp)=0;
             entireEV=aprimeProbs_d3.*Vlower+(1-aprimeProbs_d3).*Vupper; % (d2,a2,e_cur,bothzcur)
+            entireEV(aprimeProbs_d3==0)=Vupper(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=Vlower(aprimeProbs_d3==1);
             entireEV=permute(entireEV,[1,2,4,3]); % (d2,a2,bothzcur,e_cur) -- match return-fn dim order
 
             ReturnMatrix_d3=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, [n_d1,n_d2,1], n_a2, n_bothz, n_e, d123_gridvals_val, a2_grid, bothz_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec);
@@ -144,6 +146,8 @@ else
             aprimeProbs_d3=repmat(a2primeProbs,1,1,1,N_bothz);
             aprimeProbs_d3(skipinterp)=0;
             entireEV=aprimeProbs_d3.*Vlower+(1-aprimeProbs_d3).*Vupper;
+            entireEV(aprimeProbs_d3==0)=Vupper(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=Vlower(aprimeProbs_d3==1);
             entireEV=permute(entireEV,[1,2,4,3]); % (d2,a2,bothzcur,e_cur)
             DiscountedEV=DiscountFactorParamsVec*repelem(entireEV,N_d1,1,1,1);
 
@@ -173,6 +177,8 @@ else
             aprimeProbs_d3=repmat(a2primeProbs,1,1,1,N_bothz);
             aprimeProbs_d3(skipinterp)=0;
             entireEV=aprimeProbs_d3.*Vlower+(1-aprimeProbs_d3).*Vupper;
+            entireEV(aprimeProbs_d3==0)=Vupper(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=Vlower(aprimeProbs_d3==1);
             entireEV=permute(entireEV,[1,2,4,3]); % (d2,a2,bothzcur,e_cur)
             DiscountedEV=DiscountFactorParamsVec*repelem(entireEV,N_d1,1,1,1);
 
@@ -207,6 +213,8 @@ else
             aprimeProbs_d3=repmat(a2primeProbs,1,1,1,N_bothz);
             aprimeProbs_d3(skipinterp)=0;
             entireEV=aprimeProbs_d3.*Vlower+(1-aprimeProbs_d3).*Vupper;
+            entireEV(aprimeProbs_d3==0)=Vupper(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=Vlower(aprimeProbs_d3==1);
             entireEV=permute(entireEV,[1,2,4,3]); % (d2,a2,bothzcur,e_cur)
             DiscountedEV=DiscountFactorParamsVec*repelem(entireEV,N_d1,1,1,1);
 
@@ -270,6 +278,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3=repmat(a2primeProbs,1,1,1,N_bothz);
             aprimeProbs_d3(skipinterp)=0;
             entireEV=aprimeProbs_d3.*Vlower+(1-aprimeProbs_d3).*Vupper;
+            entireEV(aprimeProbs_d3==0)=Vupper(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=Vlower(aprimeProbs_d3==1);
             entireEV=permute(entireEV,[1,2,4,3]); % (d2,a2,bothzcur,e_cur)
 
             ReturnMatrix_d3=CreateReturnFnMatrix_Case2_Disc_e(ReturnFn, [n_d1,n_d2,1], n_a2, n_bothz, n_e, d123_gridvals_val, a2_grid, bothz_gridvals_J(:,:,jj), e_gridvals_J(:,:,jj), ReturnFnParamsVec);
@@ -295,6 +305,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3=repmat(a2primeProbs,1,1,1,N_bothz);
             aprimeProbs_d3(skipinterp)=0;
             entireEV=aprimeProbs_d3.*Vlower+(1-aprimeProbs_d3).*Vupper;
+            entireEV(aprimeProbs_d3==0)=Vupper(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=Vlower(aprimeProbs_d3==1);
             entireEV=permute(entireEV,[1,2,4,3]); % (d2,a2,bothzcur,e_cur)
             DiscountedEV=DiscountFactorParamsVec*repelem(entireEV,N_d1,1,1,1);
 
@@ -324,6 +336,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3=repmat(a2primeProbs,1,1,1,N_bothz);
             aprimeProbs_d3(skipinterp)=0;
             entireEV=aprimeProbs_d3.*Vlower+(1-aprimeProbs_d3).*Vupper;
+            entireEV(aprimeProbs_d3==0)=Vupper(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=Vlower(aprimeProbs_d3==1);
             entireEV=permute(entireEV,[1,2,4,3]); % (d2,a2,bothzcur,e_cur)
             DiscountedEV=DiscountFactorParamsVec*repelem(entireEV,N_d1,1,1,1);
 
@@ -358,6 +372,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3=repmat(a2primeProbs,1,1,1,N_bothz);
             aprimeProbs_d3(skipinterp)=0;
             entireEV=aprimeProbs_d3.*Vlower+(1-aprimeProbs_d3).*Vupper;
+            entireEV(aprimeProbs_d3==0)=Vupper(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=Vlower(aprimeProbs_d3==1);
             entireEV=permute(entireEV,[1,2,4,3]); % (d2,a2,bothzcur,e_cur)
             DiscountedEV=DiscountFactorParamsVec*repelem(entireEV,N_d1,1,1,1);
 

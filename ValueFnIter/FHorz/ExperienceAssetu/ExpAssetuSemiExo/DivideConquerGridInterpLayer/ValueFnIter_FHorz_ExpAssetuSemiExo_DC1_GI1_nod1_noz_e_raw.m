@@ -300,6 +300,8 @@ else
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % Already applied the probabilities from interpolating onto grid
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,semiz)
 
@@ -386,6 +388,8 @@ else
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % Already applied the probabilities from interpolating onto grid
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,semiz)
 
@@ -476,6 +480,8 @@ else
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % Already applied the probabilities from interpolating onto grid
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,semiz)
 
@@ -610,6 +616,8 @@ for reverse_j=1:N_j-1
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % Already applied the probabilities from interpolating onto grid
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,semiz)
 
@@ -696,6 +704,8 @@ for reverse_j=1:N_j-1
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % Already applied the probabilities from interpolating onto grid
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,semiz)
 
@@ -786,6 +796,8 @@ for reverse_j=1:N_j-1
 
             % Apply the aprimeProbs
             EV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3); % probability of lower grid point+ probability of upper grid point
+            EV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            EV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
             % Already applied the probabilities from interpolating onto grid
             EV=squeeze(sum((EV.*pi_u),3)); % (d2,a1prime,a2,semiz)
 

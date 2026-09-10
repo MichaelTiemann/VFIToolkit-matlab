@@ -1,0 +1,615 @@
+function [V,Policy3]=ValueFnIter_FHorz_GulPesendorfer_SemiExo_DC1_nod1_raw(n_d2,n_a,n_z,n_semiz,N_j, d2_gridvals, a_grid, z_gridvals_J, semiz_gridvals_J, pi_z_J, pi_semiz_J, ReturnFn, TemptationFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, TemptationFnParamNames, vfoptions)
+% Gul-Pesendorfer with a semi-exogenous state and divide-and-conquer on a. The tempted
+% objective u+v+beta*EV goes through the standard per-d2 DC machinery (an inner solve per d2
+% value, then a max over d2, so the windows/argmax are those of the TEMPTED objective); the
+% most-tempting term is a max over the FULL (d2,aprime) choice set: a per-d2 full aprime
+% max is collected alongside each inner solve (from the level-1 temptation matrix at the level-1
+% stations, and from full-column temptation matrices one a-slab at a time for the intermediate a,
+% never over a window) and the max over d2 is subtracted from V after the outer max (the '-max v'
+% term is constant w.r.t. the choice given the state, so the subtraction after the d2-max is exact).
+
+n_bothz=[n_semiz,n_z];
+
+N_d2=prod(n_d2);
+N_a=prod(n_a);
+N_semiz=prod(n_semiz);
+N_z=prod(n_z);
+N_bothz=prod(n_bothz);
+
+V=zeros(N_a,N_semiz*N_z,N_j,'gpuArray');
+% For semiz it turns out to be easier to go straight to constructing policy that stores d,d2,aprime seperately
+Policy3=zeros(2,N_a,N_semiz*N_z,N_j,'gpuArray');
+
+%%
+special_n_d2=ones(1,length(n_d2));
+
+if vfoptions.lowmemory==1
+    special_n_z=ones(1,length(n_z));
+    semizind=shiftdim(gpuArray(0:1:N_semiz-1),-1);
+    loweredgesizeL1=[1,1,N_semiz];
+elseif vfoptions.lowmemory==2
+    special_n_bothz=ones(1,length(n_semiz)+length(n_z));
+end
+
+bothz_gridvals_J=[repmat(semiz_gridvals_J,N_z,1,1),repelem(z_gridvals_J,N_semiz,1,1)];
+
+bothzind=shiftdim(gpuArray(0:1:N_bothz-1),-1);
+
+loweredgesize=[1,1,N_semiz*N_z];
+
+% Preallocate
+V_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
+Policy_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray');
+MostTempting_ford2_jj=zeros(N_a,N_semiz*N_z,N_d2,'gpuArray'); % per-d2 full aprime max of the temptation
+
+% n-Monotonicity
+level1ii=round(linspace(1,n_a,vfoptions.level1n));
+level1iidiff=level1ii(2:end)-level1ii(1:end-1)-1;
+
+
+%% j=N_j
+
+% Create a vector containing all the return function parameters (in order)
+ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
+TemptationFnParamsVec=CreateVectorFromParams(Parameters, TemptationFnParamNames,N_j);
+
+
+if ~isfield(vfoptions,'V_Jplus1')
+
+    if vfoptions.lowmemory==0
+        for d2_c=1:N_d2
+            d2_val=d2_gridvals(d2_c,:);
+            % n-Monotonicity
+            ReturnMatrix_d2ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, special_n_d2, n_bothz, d2_val, a_grid, a_grid(level1ii), bothz_gridvals_J(:,:,N_j), ReturnFnParamsVec,4);
+            TemptationMatrix_d2ii=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, n_bothz, d2_val, a_grid, a_grid(level1ii), bothz_gridvals_J(:,:,N_j), TemptationFnParamsVec,4);
+            MostTempting_ford2_jj(level1ii,:,d2_c)=shiftdim(max(TemptationMatrix_d2ii,[],1),1); % full aprime grid at the level-1 stations
+
+            entireRHS_ii=ReturnMatrix_d2ii+TemptationMatrix_d2ii;
+
+            % First, we want aprime conditional on (1,a,z)
+            [Vtempii,maxindex1]=max(entireRHS_ii,[],1);
+
+            % Store
+            V_ford2_jj(level1ii,:,d2_c)=shiftdim(Vtempii,1);
+            Policy_ford2_jj(level1ii,:,d2_c)=shiftdim(maxindex1,1); % d,aprime
+
+
+            % Second level based on monotonicity
+            maxgap=squeeze(max(maxindex1(1,2:end,:)-maxindex1(1,1:end-1,:),[],3));
+            for ii=1:(vfoptions.level1n-1)
+                curraindex=level1ii(ii)+1:1:level1ii(ii+1)-1;
+                % Most-tempting term over the FULL aprime grid for these a (never just the window)
+                TemptationMatrix_full=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, n_bothz, d2_val, a_grid, a_grid(curraindex), bothz_gridvals_J(:,:,N_j), TemptationFnParamsVec,4);
+                MostTempting_ford2_jj(curraindex,:,d2_c)=shiftdim(max(TemptationMatrix_full,[],1),1);
+                if maxgap(ii)>0
+                    loweredge=min(maxindex1(1,ii,:),n_a-maxgap(ii)); % maxindex1(ii,:), but avoid going off top of grid when we add maxgap(ii) points
+                    % loweredge is 1-by-1-by-n_z
+                    aprimeindexes=loweredge+(0:1:maxgap(ii))';
+                    % aprime possibilities are maxgap(ii)+1-by-1-by-n_z
+                    ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, special_n_d2, n_bothz, d2_val, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), bothz_gridvals_J(:,:,N_j), ReturnFnParamsVec,5);
+                    TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, n_bothz, d2_val, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), bothz_gridvals_J(:,:,N_j), TemptationFnParamsVec,5);
+                    entireRHS_ii=ReturnMatrix_ii+TemptationMatrix_ii;
+                    [Vtempii,maxindex]=max(entireRHS_ii,[],1);
+                    V_ford2_jj(curraindex,:,d2_c)=shiftdim(Vtempii,1);
+                    Policy_ford2_jj(curraindex,:,d2_c)=maxindex+(loweredge-1); % no d1
+                else
+                    loweredge=maxindex1(1,ii,:);
+                    % Just use aprime(ii) for everything
+                    ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, special_n_d2, n_bothz, d2_val, reshape(a_grid(loweredge),loweredgesize), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), bothz_gridvals_J(:,:,N_j), ReturnFnParamsVec,5);
+                    TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, n_bothz, d2_val, reshape(a_grid(loweredge),loweredgesize), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), bothz_gridvals_J(:,:,N_j), TemptationFnParamsVec,5);
+                    entireRHS_ii=ReturnMatrix_ii+TemptationMatrix_ii;
+                    V_ford2_jj(curraindex,:,d2_c)=shiftdim(entireRHS_ii,1);
+                    Policy_ford2_jj(curraindex,:,d2_c)=repelem(shiftdim(loweredge,1),level1iidiff(ii),1); % no d2
+                end
+            end
+        end
+
+    elseif vfoptions.lowmemory==1 % parallel over semiz, loop over z
+        for d2_c=1:N_d2
+            d2_val=d2_gridvals(d2_c,:);
+            for z_c=1:N_z
+                semizblock=(z_c-1)*N_semiz+(1:1:N_semiz);
+                z_valblock=bothz_gridvals_J(semizblock,:,N_j);
+                % n-Monotonicity
+                ReturnMatrix_d2ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, special_n_d2, [n_semiz,special_n_z], d2_val, a_grid, a_grid(level1ii), z_valblock, ReturnFnParamsVec,4);
+                TemptationMatrix_d2ii=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, [n_semiz,special_n_z], d2_val, a_grid, a_grid(level1ii), z_valblock, TemptationFnParamsVec,4);
+                MostTempting_ford2_jj(level1ii,semizblock,d2_c)=shiftdim(max(TemptationMatrix_d2ii,[],1),1); % full aprime grid at the level-1 stations
+
+                entireRHS_ii=ReturnMatrix_d2ii+TemptationMatrix_d2ii;
+
+                % First, we want aprime conditional on (1,a,semiz)
+                [Vtempii,maxindex1]=max(entireRHS_ii,[],1);
+
+                % Store
+                V_ford2_jj(level1ii,semizblock,d2_c)=shiftdim(Vtempii,1);
+                Policy_ford2_jj(level1ii,semizblock,d2_c)=shiftdim(maxindex1,1); % d,aprime
+
+                % Second level based on monotonicity
+                maxgap=squeeze(max(maxindex1(1,2:end,:)-maxindex1(1,1:end-1,:),[],3));
+                for ii=1:(vfoptions.level1n-1)
+                    curraindex=level1ii(ii)+1:1:level1ii(ii+1)-1;
+                    % Most-tempting term over the FULL aprime grid for these a (never just the window)
+                    TemptationMatrix_full=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, [n_semiz,special_n_z], d2_val, a_grid, a_grid(curraindex), z_valblock, TemptationFnParamsVec,4);
+                    MostTempting_ford2_jj(curraindex,semizblock,d2_c)=shiftdim(max(TemptationMatrix_full,[],1),1);
+                    if maxgap(ii)>0
+                        loweredge=min(maxindex1(1,ii,:),n_a-maxgap(ii)); % maxindex1(ii,:), but avoid going off top of grid when we add maxgap(ii) points
+                        % loweredge is 1-by-1-by-n_semiz
+                        aprimeindexes=loweredge+(0:1:maxgap(ii))';
+                        % aprime possibilities are maxgap(ii)+1-by-1-by-n_semiz
+                        ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, special_n_d2, [n_semiz,special_n_z], d2_val, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_valblock, ReturnFnParamsVec,5);
+                        TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, [n_semiz,special_n_z], d2_val, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_valblock, TemptationFnParamsVec,5);
+                        entireRHS_ii=ReturnMatrix_ii+TemptationMatrix_ii;
+                        [Vtempii,maxindex]=max(entireRHS_ii,[],1);
+                        V_ford2_jj(curraindex,semizblock,d2_c)=shiftdim(Vtempii,1);
+                        Policy_ford2_jj(curraindex,semizblock,d2_c)=maxindex+(loweredge-1); % no d1
+                    else
+                        loweredge=maxindex1(1,ii,:);
+                        % Just use aprime(ii) for everything
+                        ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, special_n_d2, [n_semiz,special_n_z], d2_val, reshape(a_grid(loweredge),loweredgesizeL1), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_valblock, ReturnFnParamsVec,5);
+                        TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, [n_semiz,special_n_z], d2_val, reshape(a_grid(loweredge),loweredgesizeL1), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_valblock, TemptationFnParamsVec,5);
+                        entireRHS_ii=ReturnMatrix_ii+TemptationMatrix_ii;
+                        V_ford2_jj(curraindex,semizblock,d2_c)=shiftdim(entireRHS_ii,1);
+                        Policy_ford2_jj(curraindex,semizblock,d2_c)=repelem(shiftdim(loweredge,1),level1iidiff(ii),1); % no d2
+                    end
+                end
+            end
+        end
+
+    elseif vfoptions.lowmemory==2 % joint loop over bothz
+        for d2_c=1:N_d2
+            d2_val=d2_gridvals(d2_c,:);
+            for z_c=1:N_bothz
+                z_val=bothz_gridvals_J(z_c,:,N_j);
+                % n-Monotonicity
+                ReturnMatrix_d2ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, special_n_d2, special_n_bothz, d2_val, a_grid, a_grid(level1ii), z_val, ReturnFnParamsVec,4);
+                TemptationMatrix_d2ii=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, special_n_bothz, d2_val, a_grid, a_grid(level1ii), z_val, TemptationFnParamsVec,4);
+                MostTempting_ford2_jj(level1ii,z_c,d2_c)=shiftdim(max(TemptationMatrix_d2ii,[],1),1); % full aprime grid at the level-1 stations
+
+                entireRHS_ii=ReturnMatrix_d2ii+TemptationMatrix_d2ii;
+
+                % First, we want aprime conditional on (1,a,bothz)
+                [Vtempii,maxindex1]=max(entireRHS_ii,[],1);
+
+                % Store
+                V_ford2_jj(level1ii,z_c,d2_c)=shiftdim(Vtempii,1);
+                Policy_ford2_jj(level1ii,z_c,d2_c)=shiftdim(maxindex1,1); % d,aprime
+
+                % Second level based on monotonicity
+                maxgap=squeeze(max(maxindex1(1,2:end,:)-maxindex1(1,1:end-1,:),[],3));
+                for ii=1:(vfoptions.level1n-1)
+                    curraindex=level1ii(ii)+1:1:level1ii(ii+1)-1;
+                    % Most-tempting term over the FULL aprime grid for these a (never just the window)
+                    TemptationMatrix_full=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, special_n_bothz, d2_val, a_grid, a_grid(curraindex), z_val, TemptationFnParamsVec,4);
+                    MostTempting_ford2_jj(curraindex,z_c,d2_c)=shiftdim(max(TemptationMatrix_full,[],1),1);
+                    if maxgap(ii)>0
+                        loweredge=min(maxindex1(1,ii,:),n_a-maxgap(ii)); % maxindex1(ii,:), but avoid going off top of grid when we add maxgap(ii) points
+                        % loweredge is 1-by-1-by-1
+                        aprimeindexes=loweredge+(0:1:maxgap(ii))';
+                        % aprime possibilities are maxgap(ii)+1-by-1-by-1
+                        ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, special_n_d2, special_n_bothz, d2_val, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_val, ReturnFnParamsVec,5);
+                        TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, special_n_bothz, d2_val, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_val, TemptationFnParamsVec,5);
+                        entireRHS_ii=ReturnMatrix_ii+TemptationMatrix_ii;
+                        [Vtempii,maxindex]=max(entireRHS_ii,[],1);
+                        V_ford2_jj(curraindex,z_c,d2_c)=shiftdim(Vtempii,1);
+                        Policy_ford2_jj(curraindex,z_c,d2_c)=maxindex+(loweredge-1); % no d1
+                    else
+                        loweredge=maxindex1(1,ii,:);
+                        % Just use aprime(ii) for everything
+                        ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, special_n_d2, special_n_bothz, d2_val, a_grid(loweredge), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_val, ReturnFnParamsVec,5);
+                        TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, special_n_bothz, d2_val, a_grid(loweredge), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_val, TemptationFnParamsVec,5);
+                        entireRHS_ii=ReturnMatrix_ii+TemptationMatrix_ii;
+                        V_ford2_jj(curraindex,z_c,d2_c)=shiftdim(entireRHS_ii,1);
+                        Policy_ford2_jj(curraindex,z_c,d2_c)=repelem(shiftdim(loweredge,1),level1iidiff(ii),1); % no d2
+                    end
+                end
+            end
+        end
+
+    end
+    % Now we just max over d2, and keep the policy that corresponded to that (including modify the policy to include the d2 decision)
+    [V_jj,maxindex]=max(V_ford2_jj,[],3); % max over d2
+    V(:,:,N_j)=V_jj-max(MostTempting_ford2_jj,[],3); % subtract the full (d2,aprime) most-tempting term
+    Policy3(1,:,:,N_j)=shiftdim(maxindex,-1); % d2 is just maxindex
+    maxindex=reshape(maxindex,[N_a*N_semiz*N_z,1]); % This is the value of d that corresponds, make it this shape for addition just below
+    Policy3(2,:,:,N_j)=reshape(Policy_ford2_jj((1:1:N_a*N_semiz*N_z)'+(N_a*N_semiz*N_z)*(maxindex-1)),[1,N_a,N_semiz*N_z]);
+
+else
+    % Using V_Jplus1
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,N_j);
+    DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
+
+    EV=reshape(vfoptions.V_Jplus1,[N_a,N_bothz]);    % First, switch V_Jplus1 into Kron form
+
+    if vfoptions.lowmemory==0
+        for d2_c=1:N_d2
+            d2_val=d2_gridvals(d2_c,:);
+            % Note: By definition V_Jplus1 does not depend on d (only aprime)
+            pi_bothz=kron(pi_z_J(:,:,N_j), pi_semiz_J(:,:,d2_c,N_j)); % reverse order
+
+            EV_d2=EV.*shiftdim(pi_bothz',-1);
+            EV_d2(isnan(EV_d2))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+            EV_d2=sum(EV_d2,2); % sum over z', leaving a singular second dimension
+
+            % n-Monotonicity
+            ReturnMatrix_d2ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, special_n_d2, n_bothz, d2_val, a_grid, a_grid(level1ii), bothz_gridvals_J(:,:,N_j), ReturnFnParamsVec,4);
+            TemptationMatrix_d2ii=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, n_bothz, d2_val, a_grid, a_grid(level1ii), bothz_gridvals_J(:,:,N_j), TemptationFnParamsVec,4);
+            MostTempting_ford2_jj(level1ii,:,d2_c)=shiftdim(max(TemptationMatrix_d2ii,[],1),1); % full aprime grid at the level-1 stations
+
+            entireRHS_ii=ReturnMatrix_d2ii+TemptationMatrix_d2ii+DiscountFactorParamsVec*EV_d2;
+
+            % First, we want aprime conditional on (1,a,z)
+            [Vtempii,maxindex1]=max(entireRHS_ii,[],1);
+
+            % Store
+            V_ford2_jj(level1ii,:,d2_c)=shiftdim(Vtempii,1);
+            Policy_ford2_jj(level1ii,:,d2_c)=shiftdim(maxindex1,1); % d,aprime
+
+            % Second level based on monotonicity
+            maxgap=squeeze(max(maxindex1(1,2:end,:)-maxindex1(1,1:end-1,:),[],3));
+            for ii=1:(vfoptions.level1n-1)
+                curraindex=level1ii(ii)+1:1:level1ii(ii+1)-1;
+                % Most-tempting term over the FULL aprime grid for these a (never just the window)
+                TemptationMatrix_full=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, n_bothz, d2_val, a_grid, a_grid(curraindex), bothz_gridvals_J(:,:,N_j), TemptationFnParamsVec,4);
+                MostTempting_ford2_jj(curraindex,:,d2_c)=shiftdim(max(TemptationMatrix_full,[],1),1);
+                if maxgap(ii)>0
+                    loweredge=min(maxindex1(1,ii,:),n_a-maxgap(ii)); % maxindex1(ii,:), but avoid going off top of grid when we add maxgap(ii) points
+                    % loweredge is 1-by-1-by-n_z
+                    aprimeindexes=loweredge+(0:1:maxgap(ii))';
+                    % aprime possibilities are maxgap(ii)+1-by-1-by-n_z
+                    ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, special_n_d2, n_bothz, d2_val, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), bothz_gridvals_J(:,:,N_j), ReturnFnParamsVec,5);
+                    TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, n_bothz, d2_val, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), bothz_gridvals_J(:,:,N_j), TemptationFnParamsVec,5);
+                    aprimez=aprimeindexes+N_a*bothzind;
+                    entireRHS_ii=ReturnMatrix_ii+TemptationMatrix_ii+DiscountFactorParamsVec*reshape(EV_d2(aprimez),[(maxgap(ii)+1),1,N_bothz]); % autoexpand level1iidiff(ii) in 2nd-dim
+                    [Vtempii,maxindex]=max(entireRHS_ii,[],1);
+                    V_ford2_jj(curraindex,:,d2_c)=shiftdim(Vtempii,1);
+                    Policy_ford2_jj(curraindex,:,d2_c)=maxindex+(loweredge-1); % no d1
+                else
+                    loweredge=maxindex1(1,ii,:);
+                    % Just use aprime(ii) for everything
+                    ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, special_n_d2, n_bothz, d2_val, reshape(a_grid(loweredge),loweredgesize), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), bothz_gridvals_J(:,:,N_j), ReturnFnParamsVec,5);
+                    TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, n_bothz, d2_val, reshape(a_grid(loweredge),loweredgesize), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), bothz_gridvals_J(:,:,N_j), TemptationFnParamsVec,5);
+                    aprimez=loweredge+N_a*bothzind;
+                    entireRHS_ii=ReturnMatrix_ii+TemptationMatrix_ii+DiscountFactorParamsVec*reshape(EV_d2(aprimez),[1,1,N_bothz]); % autoexpand level1iidiff(ii) in 2nd-dim
+                    V_ford2_jj(curraindex,:,d2_c)=shiftdim(entireRHS_ii,1);
+                    Policy_ford2_jj(curraindex,:,d2_c)=repelem(shiftdim(loweredge,1),level1iidiff(ii),1); % no d2
+                end
+            end
+        end
+
+    elseif vfoptions.lowmemory==1 % parallel over semiz, loop over z
+        for d2_c=1:N_d2
+            d2_val=d2_gridvals(d2_c,:);
+            % Note: By definition V_Jplus1 does not depend on d (only aprime)
+            pi_bothz=kron(pi_z_J(:,:,N_j), pi_semiz_J(:,:,d2_c,N_j)); % reverse order
+            for z_c=1:N_z
+                semizblock=(z_c-1)*N_semiz+(1:1:N_semiz);
+                z_valblock=bothz_gridvals_J(semizblock,:,N_j);
+
+                % Calc the condl expectation term (except beta): loop z, vectorize over semiz
+                EV_d2z=EV.*shiftdim(pi_bothz(semizblock,:)',-1); % [N_a, N_bothz, N_semiz]
+                EV_d2z(isnan(EV_d2z))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+                EV_d2z=sum(EV_d2z,2); % [N_a, 1, N_semiz]
+
+                % n-Monotonicity
+                ReturnMatrix_d2ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, special_n_d2, [n_semiz,special_n_z], d2_val, a_grid, a_grid(level1ii), z_valblock, ReturnFnParamsVec,4);
+                TemptationMatrix_d2ii=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, [n_semiz,special_n_z], d2_val, a_grid, a_grid(level1ii), z_valblock, TemptationFnParamsVec,4);
+                MostTempting_ford2_jj(level1ii,semizblock,d2_c)=shiftdim(max(TemptationMatrix_d2ii,[],1),1); % full aprime grid at the level-1 stations
+
+                entireRHS_ii=ReturnMatrix_d2ii+TemptationMatrix_d2ii+DiscountFactorParamsVec*EV_d2z;
+
+                % First, we want aprime conditional on (1,a,semiz)
+                [Vtempii,maxindex1]=max(entireRHS_ii,[],1);
+
+                % Store
+                V_ford2_jj(level1ii,semizblock,d2_c)=shiftdim(Vtempii,1);
+                Policy_ford2_jj(level1ii,semizblock,d2_c)=shiftdim(maxindex1,1); % d,aprime
+
+                % Second level based on monotonicity
+                maxgap=squeeze(max(maxindex1(1,2:end,:)-maxindex1(1,1:end-1,:),[],3));
+                for ii=1:(vfoptions.level1n-1)
+                    curraindex=level1ii(ii)+1:1:level1ii(ii+1)-1;
+                    % Most-tempting term over the FULL aprime grid for these a (never just the window)
+                    TemptationMatrix_full=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, [n_semiz,special_n_z], d2_val, a_grid, a_grid(curraindex), z_valblock, TemptationFnParamsVec,4);
+                    MostTempting_ford2_jj(curraindex,semizblock,d2_c)=shiftdim(max(TemptationMatrix_full,[],1),1);
+                    if maxgap(ii)>0
+                        loweredge=min(maxindex1(1,ii,:),n_a-maxgap(ii)); % maxindex1(ii,:), but avoid going off top of grid when we add maxgap(ii) points
+                        % loweredge is 1-by-1-by-n_semiz
+                        aprimeindexes=loweredge+(0:1:maxgap(ii))';
+                        % aprime possibilities are maxgap(ii)+1-by-1-by-n_semiz
+                        ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, special_n_d2, [n_semiz,special_n_z], d2_val, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_valblock, ReturnFnParamsVec,5);
+                        TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, [n_semiz,special_n_z], d2_val, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_valblock, TemptationFnParamsVec,5);
+                        aprimez=aprimeindexes+N_a*semizind;
+                        entireRHS_ii=ReturnMatrix_ii+TemptationMatrix_ii+DiscountFactorParamsVec*reshape(EV_d2z(aprimez),[(maxgap(ii)+1),1,N_semiz]); % autoexpand level1iidiff(ii) in 2nd-dim
+                        [Vtempii,maxindex]=max(entireRHS_ii,[],1);
+                        V_ford2_jj(curraindex,semizblock,d2_c)=shiftdim(Vtempii,1);
+                        Policy_ford2_jj(curraindex,semizblock,d2_c)=maxindex+(loweredge-1); % no d1
+                    else
+                        loweredge=maxindex1(1,ii,:);
+                        % Just use aprime(ii) for everything
+                        ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, special_n_d2, [n_semiz,special_n_z], d2_val, reshape(a_grid(loweredge),loweredgesizeL1), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_valblock, ReturnFnParamsVec,5);
+                        TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, [n_semiz,special_n_z], d2_val, reshape(a_grid(loweredge),loweredgesizeL1), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_valblock, TemptationFnParamsVec,5);
+                        aprimez=loweredge+N_a*semizind;
+                        entireRHS_ii=ReturnMatrix_ii+TemptationMatrix_ii+DiscountFactorParamsVec*reshape(EV_d2z(aprimez),[1,1,N_semiz]); % autoexpand level1iidiff(ii) in 2nd-dim
+                        V_ford2_jj(curraindex,semizblock,d2_c)=shiftdim(entireRHS_ii,1);
+                        Policy_ford2_jj(curraindex,semizblock,d2_c)=repelem(shiftdim(loweredge,1),level1iidiff(ii),1); % no d2
+                    end
+                end
+            end
+        end
+
+    elseif vfoptions.lowmemory==2 % joint loop over bothz
+        for d2_c=1:N_d2
+            d2_val=d2_gridvals(d2_c,:);
+            % Note: By definition V_Jplus1 does not depend on d (only aprime)
+            pi_bothz=kron(pi_z_J(:,:,N_j), pi_semiz_J(:,:,d2_c,N_j)); % reverse order
+            for z_c=1:N_bothz
+                z_val=bothz_gridvals_J(z_c,:,N_j);
+
+                % Calc the condl expectation term (except beta), which depends on z but not on control variables
+                EV_z=EV.*shiftdim(pi_bothz(z_c,:)',-1);
+                EV_z(isnan(EV_z))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+                EV_z=sum(EV_z,2); % [N_a, 1]
+
+                % n-Monotonicity
+                ReturnMatrix_d2ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, special_n_d2, special_n_bothz, d2_val, a_grid, a_grid(level1ii), z_val, ReturnFnParamsVec,4);
+                TemptationMatrix_d2ii=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, special_n_bothz, d2_val, a_grid, a_grid(level1ii), z_val, TemptationFnParamsVec,4);
+                MostTempting_ford2_jj(level1ii,z_c,d2_c)=shiftdim(max(TemptationMatrix_d2ii,[],1),1); % full aprime grid at the level-1 stations
+
+                entireRHS_ii=ReturnMatrix_d2ii+TemptationMatrix_d2ii+DiscountFactorParamsVec*EV_z;
+
+                % First, we want aprime conditional on (1,a,bothz)
+                [Vtempii,maxindex1]=max(entireRHS_ii,[],1);
+
+                % Store
+                V_ford2_jj(level1ii,z_c,d2_c)=shiftdim(Vtempii,1);
+                Policy_ford2_jj(level1ii,z_c,d2_c)=shiftdim(maxindex1,1); % d,aprime
+
+                % Second level based on monotonicity
+                maxgap=squeeze(max(maxindex1(1,2:end,:)-maxindex1(1,1:end-1,:),[],3));
+                for ii=1:(vfoptions.level1n-1)
+                    curraindex=level1ii(ii)+1:1:level1ii(ii+1)-1;
+                    % Most-tempting term over the FULL aprime grid for these a (never just the window)
+                    TemptationMatrix_full=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, special_n_bothz, d2_val, a_grid, a_grid(curraindex), z_val, TemptationFnParamsVec,4);
+                    MostTempting_ford2_jj(curraindex,z_c,d2_c)=shiftdim(max(TemptationMatrix_full,[],1),1);
+                    if maxgap(ii)>0
+                        loweredge=min(maxindex1(1,ii,:),n_a-maxgap(ii)); % maxindex1(ii,:), but avoid going off top of grid when we add maxgap(ii) points
+                        % loweredge is 1-by-1-by-1
+                        aprimeindexes=loweredge+(0:1:maxgap(ii))';
+                        % aprime possibilities are maxgap(ii)+1-by-1-by-1
+                        ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, special_n_d2, special_n_bothz, d2_val, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_val, ReturnFnParamsVec,5);
+                        TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, special_n_bothz, d2_val, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_val, TemptationFnParamsVec,5);
+                        aprimez=aprimeindexes;
+                        entireRHS_ii=ReturnMatrix_ii+TemptationMatrix_ii+DiscountFactorParamsVec*reshape(EV_z(aprimez),[(maxgap(ii)+1),1]); % autoexpand level1iidiff(ii) in 2nd-dim
+                        [Vtempii,maxindex]=max(entireRHS_ii,[],1);
+                        V_ford2_jj(curraindex,z_c,d2_c)=shiftdim(Vtempii,1);
+                        Policy_ford2_jj(curraindex,z_c,d2_c)=maxindex+(loweredge-1); % no d1
+                    else
+                        loweredge=maxindex1(1,ii,:);
+                        % Just use aprime(ii) for everything
+                        ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, special_n_d2, special_n_bothz, d2_val, a_grid(loweredge), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_val, ReturnFnParamsVec,5);
+                        TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, special_n_bothz, d2_val, a_grid(loweredge), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_val, TemptationFnParamsVec,5);
+                        aprimez=loweredge;
+                        entireRHS_ii=ReturnMatrix_ii+TemptationMatrix_ii+DiscountFactorParamsVec*reshape(EV_z(aprimez),[1,1]); % autoexpand level1iidiff(ii) in 2nd-dim
+                        V_ford2_jj(curraindex,z_c,d2_c)=shiftdim(entireRHS_ii,1);
+                        Policy_ford2_jj(curraindex,z_c,d2_c)=repelem(shiftdim(loweredge,1),level1iidiff(ii),1); % no d2
+                    end
+                end
+            end
+        end
+
+    end
+    % Now we just max over d2, and keep the policy that corresponded to that (including modify the policy to include the d2 decision)
+    [V_jj,maxindex]=max(V_ford2_jj,[],3); % max over d2
+    V(:,:,N_j)=V_jj-max(MostTempting_ford2_jj,[],3); % subtract the full (d2,aprime) most-tempting term
+    Policy3(1,:,:,N_j)=shiftdim(maxindex,-1); % d2 is just maxindex
+    maxindex=reshape(maxindex,[N_a*N_semiz*N_z,1]); % This is the value of d that corresponds, make it this shape for addition just below
+    Policy3(2,:,:,N_j)=reshape(Policy_ford2_jj((1:1:N_a*N_semiz*N_z)'+(N_a*N_semiz*N_z)*(maxindex-1)),[1,N_a,N_semiz*N_z]);
+
+end
+
+%% Iterate backwards through j.
+for reverse_j=1:N_j-1
+    jj=N_j-reverse_j;
+
+    if vfoptions.verbose==1
+        fprintf('Finite horizon: %i of %i \n',jj, N_j)
+    end
+
+
+    % Create a vector containing all the return function parameters (in order)
+    ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,jj);
+    TemptationFnParamsVec=CreateVectorFromParams(Parameters, TemptationFnParamNames,jj);
+    DiscountFactorParamsVec=CreateVectorFromParams(Parameters, DiscountFactorParamNames,jj);
+    DiscountFactorParamsVec=prod(DiscountFactorParamsVec);
+
+    EV=V(:,:,jj+1);
+
+    if vfoptions.lowmemory==0
+        for d2_c=1:N_d2
+            d2_val=d2_gridvals(d2_c,:);
+            % Note: By definition V_Jplus1 does not depend on d2 (only aprime)
+            pi_bothz=kron(pi_z_J(:,:,jj),pi_semiz_J(:,:,d2_c,jj)); % reverse order
+
+            EV_d2=EV.*shiftdim(pi_bothz',-1);
+            EV_d2(isnan(EV_d2))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+            EV_d2=sum(EV_d2,2); % sum over z', leaving a singular second dimension
+
+            % n-Monotonicity
+            ReturnMatrix_d2ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, special_n_d2, n_bothz, d2_val, a_grid, a_grid(level1ii), bothz_gridvals_J(:,:,jj), ReturnFnParamsVec,4);
+            TemptationMatrix_d2ii=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, n_bothz, d2_val, a_grid, a_grid(level1ii), bothz_gridvals_J(:,:,jj), TemptationFnParamsVec,4);
+            MostTempting_ford2_jj(level1ii,:,d2_c)=shiftdim(max(TemptationMatrix_d2ii,[],1),1); % full aprime grid at the level-1 stations
+
+            entireRHS_ii=ReturnMatrix_d2ii+TemptationMatrix_d2ii+DiscountFactorParamsVec*EV_d2;
+
+            % First, we want aprime conditional on (1,a,z)
+            [Vtempii,maxindex1]=max(entireRHS_ii,[],1);
+
+            % Store
+            V_ford2_jj(level1ii,:,d2_c)=shiftdim(Vtempii,1);
+            Policy_ford2_jj(level1ii,:,d2_c)=shiftdim(maxindex1,1); % d,aprime
+
+            % Second level based on monotonicity
+            maxgap=squeeze(max(maxindex1(1,2:end,:)-maxindex1(1,1:end-1,:),[],3));
+            for ii=1:(vfoptions.level1n-1)
+                curraindex=level1ii(ii)+1:1:level1ii(ii+1)-1;
+                % Most-tempting term over the FULL aprime grid for these a (never just the window)
+                TemptationMatrix_full=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, n_bothz, d2_val, a_grid, a_grid(curraindex), bothz_gridvals_J(:,:,jj), TemptationFnParamsVec,4);
+                MostTempting_ford2_jj(curraindex,:,d2_c)=shiftdim(max(TemptationMatrix_full,[],1),1);
+                if maxgap(ii)>0
+                    loweredge=min(maxindex1(1,ii,:),n_a-maxgap(ii)); % maxindex1(ii,:), but avoid going off top of grid when we add maxgap(ii) points
+                    % loweredge is 1-by-1-by-n_z
+                    aprimeindexes=loweredge+(0:1:maxgap(ii))';
+                    % aprime possibilities are maxgap(ii)+1-by-1-by-n_z
+                    ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, special_n_d2, n_bothz, d2_val, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), bothz_gridvals_J(:,:,jj), ReturnFnParamsVec,5);
+                    TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, n_bothz, d2_val, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), bothz_gridvals_J(:,:,jj), TemptationFnParamsVec,5);
+                    aprimez=aprimeindexes+N_a*bothzind;
+                    entireRHS_ii=ReturnMatrix_ii+TemptationMatrix_ii+DiscountFactorParamsVec*reshape(EV_d2(aprimez),[(maxgap(ii)+1),1,N_bothz]); % autoexpand level1iidiff(ii) in 2nd-dim
+                    [Vtempii,maxindex]=max(entireRHS_ii,[],1);
+                    V_ford2_jj(curraindex,:,d2_c)=shiftdim(Vtempii,1);
+                    Policy_ford2_jj(curraindex,:,d2_c)=maxindex+(loweredge-1); % no d1
+                else
+                    loweredge=maxindex1(1,ii,:);
+                    % Just use aprime(ii) for everything
+                    ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, special_n_d2, n_bothz, d2_val, reshape(a_grid(loweredge),loweredgesize), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), bothz_gridvals_J(:,:,jj), ReturnFnParamsVec,5);
+                    TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, n_bothz, d2_val, reshape(a_grid(loweredge),loweredgesize), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), bothz_gridvals_J(:,:,jj), TemptationFnParamsVec,5);
+                    aprimez=loweredge+N_a*bothzind;
+                    entireRHS_ii=ReturnMatrix_ii+TemptationMatrix_ii+DiscountFactorParamsVec*reshape(EV_d2(aprimez),[1,1,N_bothz]); % autoexpand level1iidiff(ii) in 2nd-dim
+                    V_ford2_jj(curraindex,:,d2_c)=shiftdim(entireRHS_ii,1);
+                    Policy_ford2_jj(curraindex,:,d2_c)=repelem(shiftdim(loweredge,1),level1iidiff(ii),1); % no d2
+                end
+            end
+        end
+
+    elseif vfoptions.lowmemory==1 % parallel over semiz, loop over z
+        for d2_c=1:N_d2
+            d2_val=d2_gridvals(d2_c,:);
+            % Note: By definition V_Jplus1 does not depend on d2 (only aprime)
+            pi_bothz=kron(pi_z_J(:,:,jj),pi_semiz_J(:,:,d2_c,jj)); % reverse order
+            for z_c=1:N_z
+                semizblock=(z_c-1)*N_semiz+(1:1:N_semiz);
+                z_valblock=bothz_gridvals_J(semizblock,:,jj);
+
+                % Calc the condl expectation term (except beta): loop z, vectorize over semiz
+                EV_d2z=EV.*shiftdim(pi_bothz(semizblock,:)',-1); % [N_a, N_bothz, N_semiz]
+                EV_d2z(isnan(EV_d2z))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+                EV_d2z=sum(EV_d2z,2); % [N_a, 1, N_semiz]
+
+                % n-Monotonicity
+                ReturnMatrix_d2ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, special_n_d2, [n_semiz,special_n_z], d2_val, a_grid, a_grid(level1ii), z_valblock, ReturnFnParamsVec,4);
+                TemptationMatrix_d2ii=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, [n_semiz,special_n_z], d2_val, a_grid, a_grid(level1ii), z_valblock, TemptationFnParamsVec,4);
+                MostTempting_ford2_jj(level1ii,semizblock,d2_c)=shiftdim(max(TemptationMatrix_d2ii,[],1),1); % full aprime grid at the level-1 stations
+
+                entireRHS_ii=ReturnMatrix_d2ii+TemptationMatrix_d2ii+DiscountFactorParamsVec*EV_d2z;
+
+                % First, we want aprime conditional on (1,a,semiz)
+                [Vtempii,maxindex1]=max(entireRHS_ii,[],1);
+
+                % Store
+                V_ford2_jj(level1ii,semizblock,d2_c)=shiftdim(Vtempii,1);
+                Policy_ford2_jj(level1ii,semizblock,d2_c)=shiftdim(maxindex1,1); % d,aprime
+
+                % Second level based on monotonicity
+                maxgap=squeeze(max(maxindex1(1,2:end,:)-maxindex1(1,1:end-1,:),[],3));
+                for ii=1:(vfoptions.level1n-1)
+                    curraindex=level1ii(ii)+1:1:level1ii(ii+1)-1;
+                    % Most-tempting term over the FULL aprime grid for these a (never just the window)
+                    TemptationMatrix_full=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, [n_semiz,special_n_z], d2_val, a_grid, a_grid(curraindex), z_valblock, TemptationFnParamsVec,4);
+                    MostTempting_ford2_jj(curraindex,semizblock,d2_c)=shiftdim(max(TemptationMatrix_full,[],1),1);
+                    if maxgap(ii)>0
+                        loweredge=min(maxindex1(1,ii,:),n_a-maxgap(ii)); % maxindex1(ii,:), but avoid going off top of grid when we add maxgap(ii) points
+                        % loweredge is 1-by-1-by-n_semiz
+                        aprimeindexes=loweredge+(0:1:maxgap(ii))';
+                        % aprime possibilities are maxgap(ii)+1-by-1-by-n_semiz
+                        ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, special_n_d2, [n_semiz,special_n_z], d2_val, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_valblock, ReturnFnParamsVec,5);
+                        TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, [n_semiz,special_n_z], d2_val, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_valblock, TemptationFnParamsVec,5);
+                        aprimez=aprimeindexes+N_a*semizind;
+                        entireRHS_ii=ReturnMatrix_ii+TemptationMatrix_ii+DiscountFactorParamsVec*reshape(EV_d2z(aprimez),[(maxgap(ii)+1),1,N_semiz]); % autoexpand level1iidiff(ii) in 2nd-dim
+                        [Vtempii,maxindex]=max(entireRHS_ii,[],1);
+                        V_ford2_jj(curraindex,semizblock,d2_c)=shiftdim(Vtempii,1);
+                        Policy_ford2_jj(curraindex,semizblock,d2_c)=maxindex+(loweredge-1); % no d1
+                    else
+                        loweredge=maxindex1(1,ii,:);
+                        % Just use aprime(ii) for everything
+                        ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, special_n_d2, [n_semiz,special_n_z], d2_val, reshape(a_grid(loweredge),loweredgesizeL1), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_valblock, ReturnFnParamsVec,5);
+                        TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, [n_semiz,special_n_z], d2_val, reshape(a_grid(loweredge),loweredgesizeL1), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_valblock, TemptationFnParamsVec,5);
+                        aprimez=loweredge+N_a*semizind;
+                        entireRHS_ii=ReturnMatrix_ii+TemptationMatrix_ii+DiscountFactorParamsVec*reshape(EV_d2z(aprimez),[1,1,N_semiz]); % autoexpand level1iidiff(ii) in 2nd-dim
+                        V_ford2_jj(curraindex,semizblock,d2_c)=shiftdim(entireRHS_ii,1);
+                        Policy_ford2_jj(curraindex,semizblock,d2_c)=repelem(shiftdim(loweredge,1),level1iidiff(ii),1); % no d2
+                    end
+                end
+            end
+        end
+
+    elseif vfoptions.lowmemory==2 % joint loop over bothz
+        for d2_c=1:N_d2
+            d2_val=d2_gridvals(d2_c,:);
+            % Note: By definition V_Jplus1 does not depend on d2 (only aprime)
+            pi_bothz=kron(pi_z_J(:,:,jj),pi_semiz_J(:,:,d2_c,jj)); % reverse order
+            for z_c=1:N_bothz
+                z_val=bothz_gridvals_J(z_c,:,jj);
+
+                % Calc the condl expectation term (except beta), which depends on z but not on control variables
+                EV_z=EV.*shiftdim(pi_bothz(z_c,:)',-1);
+                EV_z(isnan(EV_z))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+                EV_z=sum(EV_z,2); % [N_a, 1]
+
+                % n-Monotonicity
+                ReturnMatrix_d2ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, special_n_d2, special_n_bothz, d2_val, a_grid, a_grid(level1ii), z_val, ReturnFnParamsVec,4);
+                TemptationMatrix_d2ii=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, special_n_bothz, d2_val, a_grid, a_grid(level1ii), z_val, TemptationFnParamsVec,4);
+                MostTempting_ford2_jj(level1ii,z_c,d2_c)=shiftdim(max(TemptationMatrix_d2ii,[],1),1); % full aprime grid at the level-1 stations
+
+                entireRHS_ii=ReturnMatrix_d2ii+TemptationMatrix_d2ii+DiscountFactorParamsVec*EV_z;
+
+                % First, we want aprime conditional on (1,a,bothz)
+                [Vtempii,maxindex1]=max(entireRHS_ii,[],1);
+
+                % Store
+                V_ford2_jj(level1ii,z_c,d2_c)=shiftdim(Vtempii,1);
+                Policy_ford2_jj(level1ii,z_c,d2_c)=shiftdim(maxindex1,1); % d,aprime
+
+                % Second level based on monotonicity
+                maxgap=squeeze(max(maxindex1(1,2:end,:)-maxindex1(1,1:end-1,:),[],3));
+                for ii=1:(vfoptions.level1n-1)
+                    curraindex=level1ii(ii)+1:1:level1ii(ii+1)-1;
+                    % Most-tempting term over the FULL aprime grid for these a (never just the window)
+                    TemptationMatrix_full=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, special_n_bothz, d2_val, a_grid, a_grid(curraindex), z_val, TemptationFnParamsVec,4);
+                    MostTempting_ford2_jj(curraindex,z_c,d2_c)=shiftdim(max(TemptationMatrix_full,[],1),1);
+                    if maxgap(ii)>0
+                        loweredge=min(maxindex1(1,ii,:),n_a-maxgap(ii)); % maxindex1(ii,:), but avoid going off top of grid when we add maxgap(ii) points
+                        % loweredge is 1-by-1-by-1
+                        aprimeindexes=loweredge+(0:1:maxgap(ii))';
+                        % aprime possibilities are maxgap(ii)+1-by-1-by-1
+                        ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, special_n_d2, special_n_bothz, d2_val, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_val, ReturnFnParamsVec,5);
+                        TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, special_n_bothz, d2_val, a_grid(aprimeindexes), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_val, TemptationFnParamsVec,5);
+                        aprimez=aprimeindexes;
+                        entireRHS_ii=ReturnMatrix_ii+TemptationMatrix_ii+DiscountFactorParamsVec*reshape(EV_z(aprimez),[(maxgap(ii)+1),1]); % autoexpand level1iidiff(ii) in 2nd-dim
+                        [Vtempii,maxindex]=max(entireRHS_ii,[],1);
+                        V_ford2_jj(curraindex,z_c,d2_c)=shiftdim(Vtempii,1);
+                        Policy_ford2_jj(curraindex,z_c,d2_c)=maxindex+(loweredge-1); % no d1
+                    else
+                        loweredge=maxindex1(1,ii,:);
+                        % Just use aprime(ii) for everything
+                        ReturnMatrix_ii=CreateReturnFnMatrix_Disc_DC1(ReturnFn, special_n_d2, special_n_bothz, d2_val, a_grid(loweredge), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_val, ReturnFnParamsVec,5);
+                        TemptationMatrix_ii=CreateReturnFnMatrix_Disc_DC1(TemptationFn, special_n_d2, special_n_bothz, d2_val, a_grid(loweredge), a_grid(level1ii(ii)+1:level1ii(ii+1)-1), z_val, TemptationFnParamsVec,5);
+                        aprimez=loweredge;
+                        entireRHS_ii=ReturnMatrix_ii+TemptationMatrix_ii+DiscountFactorParamsVec*reshape(EV_z(aprimez),[1,1]); % autoexpand level1iidiff(ii) in 2nd-dim
+                        V_ford2_jj(curraindex,z_c,d2_c)=shiftdim(entireRHS_ii,1);
+                        Policy_ford2_jj(curraindex,z_c,d2_c)=repelem(shiftdim(loweredge,1),level1iidiff(ii),1); % no d2
+                    end
+                end
+            end
+        end
+
+    end
+    % Now we just max over d2, and keep the policy that corresponded to that (including modify the policy to include the d2 decision)
+    [V_jj,maxindex]=max(V_ford2_jj,[],3); % max over d2
+    V(:,:,jj)=V_jj-max(MostTempting_ford2_jj,[],3); % subtract the full (d2,aprime) most-tempting term
+    Policy3(1,:,:,jj)=shiftdim(maxindex,-1); % d2 is just maxindex
+    maxindex=reshape(maxindex,[N_a*N_semiz*N_z,1]); % This is the value of d that corresponds, make it this shape for addition just below
+    Policy3(2,:,:,jj)=reshape(Policy_ford2_jj((1:1:N_a*N_semiz*N_z)'+(N_a*N_semiz*N_z)*(maxindex-1)),[1,N_a,N_semiz*N_z]);
+
+end
+
+
+end

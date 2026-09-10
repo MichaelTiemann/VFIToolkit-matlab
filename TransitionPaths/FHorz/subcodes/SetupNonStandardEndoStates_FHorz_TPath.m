@@ -160,7 +160,7 @@ if isfield(vfoptions,'experienceassetz')
         if isfield(vfoptions,'ExogShockFn')
             tempoptions.ExogShockFn=vfoptions.ExogShockFn;
         end
-        [z_gridvals_J_expassetz,~,~]=ExogShockSetup_FHorz(n_z,z_grid,[],N_j,Parameters,tempoptions,1); % [N_z,l_z,N_j]
+        [z_gridvals_J_expassetz,~,~]=ExogShockSetup_FHorz(n_z,z_grid,[],N_j,Parameters,tempoptions,1,0); % [N_z,l_z,N_j]
 
         % N_d1=prod(n_d1);
         N_a1=prod(n_a1);

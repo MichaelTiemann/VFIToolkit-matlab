@@ -234,6 +234,8 @@ else
             aprimeProbs_d3(skipinterp)=0;
 
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
 
             EVbase_qh=reshape(entireEV,[N_d2,N_a1,1,N_a2,N_bothz]);
             DiscountedEV_under=beta*EVbase_qh;
@@ -256,11 +258,11 @@ else
             a1primeindexesfine=(midpoint+(midpoint-1)*n2short)+(-n2short-1:1:1+n2short);
             ReturnMatrix_ii_d3=CreateReturnFnMatrix_ExpAsset_Disc_e(ReturnFn, n_d1,[n_d2,1],n2long,n_a1,n_a2,n_bothz,n_e, d123_gridvals_val, a1prime_grid(a1primeindexesfine), a1_gridvals, a2_gridvals, bothz_gridvals_J(:,:,N_j), e_gridvals_J(:,:,N_j), ReturnFnParamsVec,2,0);
             d12a1primea2bothz=(1:1:N_d12)'+N_d12*(a1primeindexesfine-1)+N_d12*N_a1prime*a2ind+N_d12*N_a1prime*N_a2*bothzind;
-            entireRHS_ii_d3=ReturnMatrix_ii_d3+reshape(DiscountedEVinterp_hat(d12a1primea2bothz(:)),[N_d12*n2long,N_a1*N_a2,N_bothz,1]); % broadcasts over e
+            entireRHS_ii_d3=ReturnMatrix_ii_d3+reshape(DiscountedEVinterp_hat(d12a1primea2bothz(:)),[N_d12*n2long,N_a1*N_a2,N_bothz,N_e]); % broadcasts over e
             [Vtempii,maxindexL2]=max(entireRHS_ii_d3,[],1);
             % Vunderbar: the beta fine-RHS gathered at the hat argmax (not re-maximised)
-            entireRHS_under=ReturnMatrix_ii_d3+reshape(DiscountedEVinterp_under(d12a1primea2bothz(:)),[N_d12*n2long,N_a1*N_a2,N_bothz,1]);
-            maxindexfull=maxindexL2+(N_d12*n2long)*(0:1:(N_a1*N_a2)-1)+shiftdim((N_d12*n2long)*(N_a1*N_a2)*(0:1:(N_bothz)-1),-1)+shiftdim((N_d12*n2long)*(N_a1*N_a2)*(N_bothz)*(0:1:(1)-1),-2);
+            entireRHS_under=ReturnMatrix_ii_d3+reshape(DiscountedEVinterp_under(d12a1primea2bothz(:)),[N_d12*n2long,N_a1*N_a2,N_bothz,N_e]);
+            maxindexfull=maxindexL2+(N_d12*n2long)*(0:1:(N_a1*N_a2)-1)+shiftdim((N_d12*n2long)*(N_a1*N_a2)*(0:1:(N_bothz)-1),-1)+shiftdim((N_d12*n2long)*(N_a1*N_a2)*(N_bothz)*(0:1:(N_e)-1),-2);
             V_ford3_under(:,:,:,d3_c)=shiftdim(entireRHS_under(maxindexfull),1);
             V_ford3_hat(:,:,:,d3_c)=shiftdim(Vtempii,1);
             d_ind=rem(maxindexL2-1,N_d12)+1;
@@ -297,6 +299,8 @@ else
             aprimeProbs_d3(skipinterp)=0;
 
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
 
             EVbase_qh=reshape(entireEV,[N_d2,N_a1,1,N_a2,N_bothz]);
             DiscountedEV_under=beta*EVbase_qh;
@@ -368,6 +372,8 @@ else
                 aprimeProbs_z(skipinterp)=0;
 
                 entireEV_z=EV1.*aprimeProbs_z+EV2.*(1-aprimeProbs_z);
+                entireEV_z(aprimeProbs_z==0)=EV2(aprimeProbs_z==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+                entireEV_z(aprimeProbs_z==1)=EV1(aprimeProbs_z==1);
 
                 EVbase_qh=reshape(entireEV_z,[N_d2,N_a1,1,N_a2,N_semiz]);
                 DiscountedEV_under=beta*EVbase_qh;
@@ -436,6 +442,8 @@ else
             aprimeProbs_d3(skipinterp)=0;
 
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
 
             EVbase_qh=reshape(entireEV,[N_d2,N_a1,1,N_a2,N_bothz]);
             DiscountedEV_under=beta*EVbase_qh;
@@ -551,6 +559,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3(skipinterp)=0;
 
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
 
             EVbase_qh=reshape(entireEV,[N_d2,N_a1,1,N_a2,N_bothz]);
             DiscountedEV_under=beta*EVbase_qh;
@@ -621,6 +631,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3(skipinterp)=0;
 
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
 
             EVbase_qh=reshape(entireEV,[N_d2,N_a1,1,N_a2,N_bothz]);
             DiscountedEV_under=beta*EVbase_qh;
@@ -692,6 +704,8 @@ for reverse_j=1:N_j-1
                 aprimeProbs_z(skipinterp)=0;
 
                 entireEV_z=EV1.*aprimeProbs_z+EV2.*(1-aprimeProbs_z);
+                entireEV_z(aprimeProbs_z==0)=EV2(aprimeProbs_z==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+                entireEV_z(aprimeProbs_z==1)=EV1(aprimeProbs_z==1);
 
                 EVbase_qh=reshape(entireEV_z,[N_d2,N_a1,1,N_a2,N_semiz]);
                 DiscountedEV_under=beta*EVbase_qh;
@@ -760,6 +774,8 @@ for reverse_j=1:N_j-1
             aprimeProbs_d3(skipinterp)=0;
 
             entireEV=EV1.*aprimeProbs_d3+EV2.*(1-aprimeProbs_d3);
+            entireEV(aprimeProbs_d3==0)=EV2(aprimeProbs_d3==0); % includes the skipinterp positions; a zero weight against an infinite node gives 0*(-Inf)=NaN
+            entireEV(aprimeProbs_d3==1)=EV1(aprimeProbs_d3==1);
 
             EVbase_qh=reshape(entireEV,[N_d2,N_a1,1,N_a2,N_bothz]);
             DiscountedEV_under=beta*EVbase_qh;

@@ -19,7 +19,7 @@ function V=ValueFnFromPolicy_FHorz_EpsteinZin_RiskyAsset_GI(Policy,n_d,n_a,n_z,N
 % Under GI, Policy carries an L2 fine-grid index for a1prime; lookup is 2x2 in (a1,a2), then summed over u with pi_u.
 
 %% Setup
-[z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3);
+[z_gridvals_J, pi_z_J, vfoptions]=ExogShockSetup_FHorz(n_z,z_grid,pi_z,N_j,Parameters,vfoptions,3,0);
 
 if ~isfield(vfoptions,'aprimeFn')
     error('To use riskyasset you must define vfoptions.aprimeFn')
@@ -268,16 +268,16 @@ for reverse_j=0:N_j-1
             EV_UL=reshape(EVnext(a1u+N_a1*(a2l-1)),[N_a,N_u]);
             EV_UU=reshape(EVnext(a1u+N_a1*(a2u-1)),[N_a,N_u]);
             per_u=wa1l.*wa2l.*EV_LL + wa1l.*wa2u.*EV_LU + wa1u.*wa2l.*EV_UL + wa1u.*wa2u.*EV_UU;
-            EVnextOfPolicy=sum(per_u .* shiftdim(pi_u,-1), 2); % sum over u -> [N_a, 1]
-            EVnextOfPolicy(isnan(EVnextOfPolicy))=0; % zero corner weights times -Inf next-states
+            EVw=per_u .* shiftdim(pi_u,-1); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+            EVnextOfPolicy=sum(EVw,2); % sum over u -> [N_a, 1]
         elseif N_z==0 && N_e>0
             V_nextpre=V(:,:,jj+1); % [N_a, N_e]
             temp=V_nextpre;
             temp(isfinite(V_nextpre))=(ezc4*V_nextpre(isfinite(V_nextpre))).^ezc5(jj);
             temp(V_nextpre==0)=0;
             % Integrate over the iid e'
-            EVnext=sum(temp .* shiftdim(vfoptions.pi_e_J(:,jj+1), -1), 2); % [N_a, 1]
-            EVnext(isnan(EVnext))=0;
+            EVw=temp .* shiftdim(vfoptions.pi_e_J(:,jj+1), -1); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+            EVnext=sum(EVw,2); % [N_a, 1]
             % a1l/u, wa1l/u: [N_a, N_e]; a2primeIndex/Probs: [N_a, N_e, N_u]
             a1l=a1_lower(:,:,jj); a1u=a1_upper(:,:,jj);
             wa1l=w_a1_lower(:,:,jj); wa1u=w_a1_upper(:,:,jj);
@@ -290,8 +290,8 @@ for reverse_j=0:N_j-1
             EV_UL=reshape(EVnext(lin_UL(:)),[N_a,N_e,N_u]);
             EV_UU=reshape(EVnext(lin_UU(:)),[N_a,N_e,N_u]);
             per_u=wa1l.*wa2l.*EV_LL + wa1l.*wa2u.*EV_LU + wa1u.*wa2l.*EV_UL + wa1u.*wa2u.*EV_UU;
-            EVnextOfPolicy=sum(per_u .* shiftdim(pi_u,-2), 3); % sum over u -> [N_a, N_e]
-            EVnextOfPolicy(isnan(EVnextOfPolicy))=0; % zero corner weights times -Inf next-states
+            EVw=per_u .* shiftdim(pi_u,-2); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+            EVnextOfPolicy=sum(EVw,3); % sum over u -> [N_a, N_e]
         elseif N_z>0 && N_e==0
             V_nextpre=V(:,:,jj+1); % [N_a, N_z']
             temp=V_nextpre;
@@ -314,8 +314,8 @@ for reverse_j=0:N_j-1
             EV_UL=reshape(EVnext(lin_UL(:)),[N_a,N_z,N_u]);
             EV_UU=reshape(EVnext(lin_UU(:)),[N_a,N_z,N_u]);
             per_u=wa1l.*wa2l.*EV_LL + wa1l.*wa2u.*EV_LU + wa1u.*wa2l.*EV_UL + wa1u.*wa2u.*EV_UU;
-            EVnextOfPolicy=sum(per_u .* shiftdim(pi_u,-2), 3); % sum over u -> [N_a, N_z]
-            EVnextOfPolicy(isnan(EVnextOfPolicy))=0; % zero corner weights times -Inf next-states
+            EVw=per_u .* shiftdim(pi_u,-2); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+            EVnextOfPolicy=sum(EVw,3); % sum over u -> [N_a, N_z]
         else
             V_nextpre=V(:,:,:,jj+1); % [N_a, N_z', N_e']
             temp=V_nextpre;
@@ -340,8 +340,8 @@ for reverse_j=0:N_j-1
             EV_UL=reshape(EVnext(lin_UL(:)),[N_a,N_z,N_e,N_u]);
             EV_UU=reshape(EVnext(lin_UU(:)),[N_a,N_z,N_e,N_u]);
             per_u=wa1l.*wa2l.*EV_LL + wa1l.*wa2u.*EV_LU + wa1u.*wa2l.*EV_UL + wa1u.*wa2u.*EV_UU;
-            EVnextOfPolicy=sum(per_u .* shiftdim(pi_u,-3), 4); % sum over u -> [N_a, N_z, N_e]
-            EVnextOfPolicy(isnan(EVnextOfPolicy))=0; % zero corner weights times -Inf next-states
+            EVw=per_u .* shiftdim(pi_u,-3); EVw(isnan(EVw))=0; % a zero weight against an infinite node gives 0*(-Inf)=NaN, so zero the terms BEFORE summing
+            EVnextOfPolicy=sum(EVw,4); % sum over u -> [N_a, N_z, N_e]
         end
 
         % Certainty-equivalent (and mortality-risk/warm-glow) transform, pointwise at the policy
