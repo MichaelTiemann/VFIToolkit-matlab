@@ -194,6 +194,10 @@ if isfield(vfoptions, 'outputkron') && vfoptions.outputkron == 1
     return
 end
 
+% VFIToolkit expects PolicyKron (in this simple case) to have a singleton first dimension (1, n_a, N_j)
+% Later we will handle more exotic things, like L2 interpolation index, L2 flag, etc.
+PolicyKron = shiftdim(PolicyKron, -1);
+
 % Let the toolkit wrap our optimal indices into the expected cell array structure
 Policy = UnKronPolicyIndexes1_FHorz_noz(PolicyKron, n_daprime, n_a, N_j, vfoptions);
 
