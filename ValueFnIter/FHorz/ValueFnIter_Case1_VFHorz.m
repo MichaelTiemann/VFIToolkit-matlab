@@ -202,8 +202,19 @@ for j = N_j:-1:1
         eval_func = @(aprime_in, a_in) ReturnFn(aprime_in, a_in, ReturnFnParamsVec{:});
     end
     
-    [V_current, Policy_Indices] = ValueFnIter_FHorz_vectorized_raw(eval_func, V_next, A_flat, Aprime_flat, AprimeIdx_flat, n_states, n_choices, n_a_work, n_z_work, pi_z_j, beta_j);
-    
+    if vfoptions.divideandconquer == 1
+        % Anonymous evaluation function parameterized for dynamic bounds
+        eval_func_dc = @(d_in, apr_in, a_in, z_in) ReturnFn(d_in, apr_in, a_in, z_in, ReturnFnParamsVec{:});
+        
+        [V_current, Policy_Indices] = ValueFnIter_FHorz_vectorized_DC(...
+            eval_func_dc, V_next, a_work, z_work_1, d_work, ...
+            n_a_work, n_z_work, n_d_work, pi_z_j, beta_j);
+    else
+        [V_current, Policy_Indices] = ValueFnIter_FHorz_vectorized_raw(...
+            eval_func, V_next, A_flat, Aprime_flat, AprimeIdx_flat, ...
+            n_states, n_choices, n_a_work, n_z_work, pi_z_j, beta_j);
+    end
+
     V(:, :, j) = reshape(V_current, [n_a_work, n_z_work]);
     PolicyKron(:, :, j) = reshape(Policy_Indices, [n_a_work, n_z_work]);
     V_next = reshape(V_current, [n_a_work, n_z_work]);
