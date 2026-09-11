@@ -196,7 +196,7 @@ end
 has_e = isfield(vfoptions, 'n_e') && ~isempty(vfoptions.n_e) && prod(vfoptions.n_e) > 0;
 if has_e
     n_e_work = prod(vfoptions.n_e);
-    e_work   = gpuArray(vfoptions.e_grid);
+    e_work   = shiftdim(gpuArray(vfoptions.e_grid),-2);
 else
     n_e_work = 1;
     e_work   = gpuArray(0); % dummy scalar keeping rank/signatures consistent
@@ -334,7 +334,7 @@ for j = N_j:-1:1
 
         for e_iter = 1:n_e_loops
             if use_loop_e
-                e_slice = e_work(e_iter);
+                e_slice = e_work(1, 1, e_iter); % keeps it scalar [1, 1, 1]
                 n_e_slice = 1;
                 e_idx_range = e_iter;
             else
@@ -416,7 +416,7 @@ if isfield(vfoptions, 'outputkron') && vfoptions.outputkron == 1
 end
 
 if has_z && has_e
-    Policy = UnKronPolicyIndexes1_FHorz_ze(PolicyKron, n_daprime, n_a, N_z, n_e_work, N_j, vfoptions);
+    Policy = UnKronPolicyIndexes1_FHorz_z_e(PolicyKron, n_daprime, n_a, N_z, n_e_work, N_j, vfoptions);
 elseif has_z && ~has_e
     Policy = UnKronPolicyIndexes1_FHorz_z(PolicyKron, n_daprime, n_a, N_z, N_j, vfoptions);
 elseif ~has_z && has_e

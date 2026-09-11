@@ -32,30 +32,32 @@ n_anchors = length(level1ii);
 a_anchors = a_work(level1ii);
 
 % Broadcast shapes (strictly 4D: n_anchors x n_z x n_d x n_a):
-% a:   (n_anchors, 1,   1,   1)
-% z:   (1,         n_z, 1,   1)
-% d:   (1,         1,   n_d, 1)
-% apr: (1,         1,   1,   n_a)  <-- coarse only!
-A_1   = reshape(a_anchors, [n_anchors, 1,   1,   1]);
-Z_1   = reshape(z_work,    [1,         n_z, 1,   1]);
-D_1   = reshape(d_work,    [1,         1,   n_d, 1]);
-Apr_1 = reshape(a_work,    [1,         1,   1,   n_a]);
+% a:   (n_anchors, 1,   1,   1,   1)
+% z:   (1,         n_z, 1,   1,   1)
+% d:   (1,         1,   1,   n_d, 1)
+% apr: (1,         1,   1,   1,   n_a)  <-- coarse only!
+A_1   = reshape(a_anchors, [n_anchors, 1,   1,   1,   1]);
+Z_1   = reshape(z_work,    [1,         n_z, 1,   1,   1]);
+% Save room for n_e
+D_1   = reshape(d_work,    [1,         1,   1,   n_d, 1]);
+Apr_1 = reshape(a_work,    [1,         1,   1,   1,   n_a]);
 
 F_1 = eval_kernel(D_1, Apr_1, A_1, Z_1);
 
 guard_1 = zeros([n_anchors, n_z, n_d, n_a], 'like', a_work);
 F_1 = F_1 + guard_1;
 
-% EV continuation values on coarse grid: EV is (n_a x n_z) -> align with (1, n_z, 1, n_a)
-EV_broadcast1 = permute(EV, [3, 2, 4, 1]);
+% EV continuation values on coarse grid: EV is (n_a x n_z) -> align with (1, n_z, 1, 1, n_a)
+EV_broadcast1 = permute(EV, [3, 2, 4, 5, 1]);
 
 RHS_1 = F_1 + beta_j .* EV_broadcast1;
 
-% Fold states into rows, choices into columns
-n_states_1  = n_anchors * n_z;
+% States: (n_anchors * n_z * n_e)
+% Choices: (n_d * n_a)
+n_states_1  = n_anchors * n_z * size(F_1, 3);
 n_choices_1 = n_d * n_a;
 RHS_m1 = reshape(RHS_1, [n_states_1, n_choices_1]);
-[~, sub_Pol1] = max(RHS_m1, [], 2);
+[sub_V1, sub_Pol1] = max(RHS_m1, [], 2);
 
 % Choice unpacking: d varies fastest, coarse_apr varies slower
 coarse_apr_opt1 = ceil(sub_Pol1 ./ n_d);
@@ -75,10 +77,10 @@ tau_opt1 = ones(n_anchors, n_z, 'like', a_work);
 Policy_row1(level1ii, :) = reshape(sub_Pol1, [n_anchors, n_z]);
 Policy_row2(level1ii, :) = tau_opt1;
 
-D_2 = reshape(d_work, [1, 1, n_d, 1, 1]);
-Z_2 = reshape(z_work, [1, n_z, 1, 1, 1]);
-tau_sub_idx = reshape(1:G, [1, 1, 1, 1, G]);
-z_sub_idx   = reshape(1:n_z, [1, n_z, 1, 1, 1]);
+D_2 = reshape(d_work, [1, 1, 1, n_d, 1, 1]);
+Z_2 = reshape(z_work, [1, n_z, 1, 1, 1, 1]);
+z_sub_idx   = reshape(1:n_z, [1, n_z, 1, 1, 1, 1]);
+tau_sub_idx = reshape(1:G, [1, 1, 1, 1, 1, G]);
 
 for bin = 1:(n_anchors - 1)
     % Interior asset indices between anchor(bin) and anchor(bin+1)
@@ -102,31 +104,37 @@ for bin = 1:(n_anchors - 1)
     maxgap_bin = max(ub_bin_pad(:) - lb_bin_pad(:));
     n_cand_bin = maxgap_bin + 1;
     
-    k_offsets = reshape(0:maxgap_bin, [1, 1, 1, n_cand_bin, 1]);
-    coarse_cand_idx = min(reshape(lb_bin_pad, [1, n_z, 1, 1, 1]) + k_offsets, ...
-                          reshape(ub_bin_pad, [1, n_z, 1, 1, 1]));
+% Candidates span dimension 5
+    k_offsets = reshape(0:maxgap_bin, [1, 1, 1, 1, n_cand_bin, 1]);
     
-    % Candidate assets on subgrid: (1, n_z, 1, n_cand_bin, G)
+    coarse_cand_idx = min(reshape(lb_bin_pad, [1, n_z, 1, 1, 1, 1]) + k_offsets, ...
+                          reshape(ub_bin_pad, [1, n_z, 1, 1, 1, 1]));
+
+    % Candidate assets on subgrid: shape (1, n_z, 1, 1, n_cand_bin, G)
     apr_cand_lin = coarse_cand_idx + (tau_sub_idx - 1) .* n_a;
     Apr_val_bin  = Apr_dense(apr_cand_lin);
-    
-    A_bin = reshape(a_bin, [n_bin_a, 1, 1, 1, 1]);
-    
-    % 5D evaluation strictly bounded within this interval
+
+    A_bin = reshape(a_bin, [n_bin_a, 1, 1, 1, 1, 1]);
+
+    % Evaluation across 6D broadcast: (a, z, e, d, cand, G)
     F_bin = eval_kernel(D_2, Apr_val_bin, A_bin, Z_2);
-    guard_bin = zeros([n_bin_a, n_z, n_d, n_cand_bin, G], 'like', a_work);
-    F_bin = F_bin + guard_bin;
     
-    % Continuation values
+    n_e_actual = size(F_bin, 3);
+    guard_bin  = zeros([n_bin_a, n_z, n_e_actual, n_d, n_cand_bin, G], 'like', a_work);
+    F_bin      = F_bin + guard_bin;
+
+    % Continuation values: EV_dense_3d has shape (n_a, G, n_z)
     ev_cand_lin = (coarse_cand_idx - 1) + (tau_sub_idx - 1) .* n_a + ...
                   (z_sub_idx - 1) .* (n_a * G) + 1;
-    V_cont_bin = EV_dense_3d(ev_cand_lin);
-    
+    V_cont_bin  = EV_dense_3d(ev_cand_lin);
+
     RHS_bin = F_bin + beta_j .* V_cont_bin;
-    
-    n_states_bin  = n_bin_a * n_z;
+
+    % Fold states: (n_bin_a * n_z * n_e)
+    % Fold choices: (n_d * n_cand_bin * G)
+    n_states_bin  = n_bin_a * n_z * n_e_actual;
     n_choices_bin = n_d * n_cand_bin * G;
-    RHS_m_bin = reshape(RHS_bin, [n_states_bin, n_choices_bin]);
+    RHS_m_bin     = reshape(RHS_bin, [n_states_bin, n_choices_bin]);
     [sub_V_bin, sub_Pol_bin] = max(RHS_m_bin, [], 2);
     
     % Unpack choices
