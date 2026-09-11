@@ -209,8 +209,8 @@ for j = N_j:-1:1
     if N_z > 0
         if size(z_gridvals_J, 3) > 1
             z_work_j = squeeze(z_gridvals_J(:, :, j));
-            [~, Z_mat, ~, ~] = ndgrid(a_work, z_work_j, d_work, a_work);
-            Z_flat = Z_mat(:);
+        else
+            z_work_j = z_work_1;
         end
         if j < N_j
             pi_z_j = pi_z_J(:, :, j);
@@ -218,7 +218,8 @@ for j = N_j:-1:1
             pi_z_j = eye(n_z_work, 'like', a_grid);
         end
     else
-        pi_z_j = ones(1, 1, 'like', a_grid);
+        z_work_j = zeros(1, 1, 'like', a_grid);
+        pi_z_j   = ones(1, 1, 'like', a_grid);
     end
 
     % Wrap user ReturnFn into standard signature: eval_kernel(d_in, apr_in, a_in, z_in)
@@ -315,13 +316,13 @@ for j = N_j:-1:1
     % ---------------------------------------------------------------------
     for z_iter = 1:n_z_loops
         if use_loop_z
-            z_slice = z_work(z_iter);
+            z_slice = z_work_j(z_iter);
             n_z_slice = 1;
             z_idx_range = z_iter;
             % Slice continuation value for this specific z: (n_a x 1)
             EV_slice = EV_next(:, z_iter);
         else
-            z_slice = z_work;
+            z_slice = z_work_j;
             n_z_slice = n_z_work;
             z_idx_range = 1:n_z_work;
             EV_slice = EV_next; % (n_a x n_z)
@@ -337,21 +338,21 @@ for j = N_j:-1:1
                 n_e_slice = n_e_work;
                 e_idx_range = 1:n_e_work;
             end
-
-            % Construct unified kernel adapter for this slice
-            % Order: (d, aprime, a, z, e)
+            
+            % Construct unified kernel adapter for this e-slice
+            % Signature inside all kernels: eval_kernel(d_in, apr_in, a_in, z_in)
             if has_d && has_z && has_e
-                eval_kernel = @(d_in, apr_in, a_in) ReturnFn(d_in, apr_in, a_in, z_slice, e_slice, ReturnFnParamsVec{:});
+                eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(d_in, apr_in, a_in, z_in, e_slice, ReturnFnParamsVec{:});
             elseif has_d && has_z && ~has_e
-                eval_kernel = @(d_in, apr_in, a_in) ReturnFn(d_in, apr_in, a_in, z_slice, ReturnFnParamsVec{:});
+                eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(d_in, apr_in, a_in, z_in, ReturnFnParamsVec{:});
             elseif ~has_d && has_z && has_e
-                eval_kernel = @(d_in, apr_in, a_in) ReturnFn(apr_in, a_in, z_slice, e_slice, ReturnFnParamsVec{:});
+                eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(apr_in, a_in, z_in, e_slice, ReturnFnParamsVec{:});
             elseif ~has_d && has_z && ~has_e
-                eval_kernel = @(d_in, apr_in, a_in) ReturnFn(apr_in, a_in, z_slice, ReturnFnParamsVec{:});
+                eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(apr_in, a_in, z_in, ReturnFnParamsVec{:});
             elseif has_d && ~has_z && ~has_e
-                eval_kernel = @(d_in, apr_in, a_in) ReturnFn(d_in, apr_in, a_in, ReturnFnParamsVec{:});
+                eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(d_in, apr_in, a_in, ReturnFnParamsVec{:});
             else
-                eval_kernel = @(d_in, apr_in, a_in) ReturnFn(apr_in, a_in, ReturnFnParamsVec{:});
+                eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(apr_in, a_in, ReturnFnParamsVec{:});
             end
 
             % -------------------------------------------------------------
@@ -410,8 +411,12 @@ if isfield(vfoptions, 'outputkron') && vfoptions.outputkron == 1
     return
 end
 
-if N_z > 0
+if has_z && has_e
+    Policy = UnKronPolicyIndexes1_FHorz_ze(PolicyKron, n_daprime, n_a, N_z, n_e_work, N_j, vfoptions);
+elseif has_z && ~has_e
     Policy = UnKronPolicyIndexes1_FHorz_z(PolicyKron, n_daprime, n_a, N_z, N_j, vfoptions);
+elseif ~has_z && has_e
+    Policy = UnKronPolicyIndexes1_FHorz_e(PolicyKron, n_daprime, n_a, n_e_work, N_j, vfoptions);
 else
     Policy = UnKronPolicyIndexes1_FHorz_noz(PolicyKron, n_daprime, n_a, N_j, vfoptions);
 end
