@@ -193,13 +193,22 @@ else
     n_choices = n_d_work * n_a_work;
 end
 
-V = zeros(n_a_work, n_z_work, N_j, 'like', a_grid);
-if vfoptions.gridinterplayer == 1
-    PolicyKron = zeros(3, n_a_work, n_z_work, N_j, 'like', a_grid);
+has_e = isfield(vfoptions, 'n_e') && ~isempty(vfoptions.n_e) && prod(vfoptions.n_e) > 0;
+if has_e
+    n_e_work = prod(vfoptions.n_e);
+    e_work   = gpuArray(vfoptions.e_grid);
 else
-    PolicyKron = zeros(n_a_work, n_z_work, N_j, 'like', a_grid);
+    n_e_work = 1;
+    e_work   = gpuArray(0); % dummy scalar keeping rank/signatures consistent
 end
-V_next = zeros(n_a_work, n_z_work, 'like', a_grid);
+
+V = zeros(n_a_work, n_z_work, n_e_work, N_j, 'like', a_grid);
+if vfoptions.gridinterplayer == 1
+    PolicyKron = zeros(3, n_a_work, n_z_work, n_e_work, N_j, 'like', a_grid);
+else
+    PolicyKron = zeros(n_a_work, n_z_work, n_e_work, N_j, 'like', a_grid);
+end
+V_next = zeros(n_a_work, n_z_work, n_e_work, 'like', a_grid);
 
 for j = N_j:-1:1
     DiscountFactorParamsVec = CreateVectorFromParams(Parameters, DiscountFactorParamNames, j);
@@ -229,15 +238,6 @@ for j = N_j:-1:1
     % Wrap user ReturnFn into standard signature: eval_kernel(d_in, apr_in, a_in, z_in)
     has_d = (n_d_work > 0 && n_d(1) > 0);
     has_z = (n_z_work > 0 && N_z > 0);
-    has_e = isfield(vfoptions, 'n_e') && ~isempty(vfoptions.n_e) && prod(vfoptions.n_e) > 0;
-    
-    if has_e
-        n_e_work = prod(vfoptions.n_e);
-        e_work   = gpuArray(vfoptions.e_grid);
-    else
-        n_e_work = 1;
-        e_work   = gpuArray(0); % dummy scalar keeping rank/signatures consistent
-    end
 
     if has_e
         if isfield(vfoptions, 'pi_e_J') && ~isempty(vfoptions.pi_e_J)
