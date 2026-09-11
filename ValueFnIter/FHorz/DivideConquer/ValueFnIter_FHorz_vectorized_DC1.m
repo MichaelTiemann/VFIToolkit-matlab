@@ -25,11 +25,11 @@ level1ii  = round(linspace(1, N_a, vfoptions.level1n(1)));
 n_anchors = length(level1ii);
 a_anchors = a_work(level1ii);
 
-% Broadcast shapes (strictly 4D: n_anchors x N_z x N_d x N_a)
-A_1   = reshape(a_anchors, [n_anchors, 1,   1,   1,   1]);
-Z_1   = reshape(z_work,    [1,         N_z, 1,   1,   1]);
-D_1   = reshape(d_work,    [1,         1,   1,   N_d, 1]);
-Apr_1 = reshape(a_work,    [1,         1,   1,   1,   N_a]);
+% Broadcast shapes (Dim 1: a, Dim 2: z, Dim 4: d, Dim 5: aprime)
+A_1   = a_anchors;                % Natively spans Dim 1
+Z_1   = shiftdim(z_work(:), -1);  % Pushed to Dim 2
+D_1   = shiftdim(d_work(:), -3);  % Pushed to Dim 4
+Apr_1 = shiftdim(a_work(:), -4);  % Pushed to Dim 5
 
 F_1 = eval_kernel(D_1, Apr_1, A_1, Z_1);
 guard_1 = zeros([n_anchors, N_z, N_e, N_d, N_a], 'like', a_work);
@@ -59,9 +59,9 @@ end
 %% =========================================================================
 % PASS 2: Monotonic Bins on Coarse Grid
 % =========================================================================
-D_2       = reshape(d_work, [1, 1,   1, N_d, 1]);
-Z_2       = reshape(z_work, [1, N_z, 1, 1,   1]);
-z_sub_idx = reshape(1:N_z,  [1, N_z, 1, 1,   1]);
+D_2         = shiftdim(d_work(:), -3);    % Dim 4
+Z_2         = shiftdim(z_work(:), -1);    % Dim 2
+z_sub_idx   = shiftdim((1:N_z)',  -1);    % Dim 2
 
 for bin = 1:(n_anchors - 1)
     idx_start = level1ii(bin) + 1;
@@ -84,16 +84,21 @@ for bin = 1:(n_anchors - 1)
 
     lb_bin_pad = max(1, lb_bin - 1);
     ub_bin_pad = min(N_a, ub_bin + 1);
-
+    
     maxgap_bin = max(ub_bin_pad(:) - lb_bin_pad(:));
     n_cand_bin = maxgap_bin + 1;
+    
+    % k_offsets pushed to Dim 5
+    k_offsets = shiftdim((0:maxgap_bin)', -4); 
+    
+    % MATLAB broadcasts [1, N_z, N_e] + [1, 1, 1, 1, n_cand_bin] natively
+    coarse_cand_idx = min(lb_bin_pad + k_offsets, ub_bin_pad);
 
-    k_offsets = reshape(0:maxgap_bin, [1, 1, 1, 1, n_cand_bin]);
-    coarse_cand_idx = min(reshape(lb_bin_pad, [1, N_z, N_e, 1, 1]) + k_offsets, ...
-                          reshape(ub_bin_pad, [1, N_z, N_e, 1, 1]));
+    % Candidate assets on subgrid
+    apr_cand_lin = coarse_cand_idx + (tau_sub_idx - 1) .* N_a;
+    Apr_val_bin  = Apr_dense(apr_cand_lin);
 
-    Apr_val_bin = a_work(coarse_cand_idx);
-    A_bin       = reshape(a_bin, [n_bin_a, 1, 1, 1, 1]);
+    A_bin = a_bin; % Natively spans Dim 1
 
     F_bin = eval_kernel(D_2, Apr_val_bin, A_bin, Z_2);
     guard_bin = zeros([n_bin_a, N_z, N_e, N_d, n_cand_bin], 'like', a_work);
