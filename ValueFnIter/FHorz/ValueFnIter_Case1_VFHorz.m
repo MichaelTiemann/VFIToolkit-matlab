@@ -242,23 +242,6 @@ else
     n_z_work = N_z;
 end
 
-if vfoptions.divideandconquer == 0 && vfoptions.gridinterplayer == 0
-    % Canonical grid: States (a, z), Choices (d, aprime)
-    [A_mat, Z_mat, D_mat, Aprime_mat] = ndgrid(a_work, z_work_1, d_work, a_work);
-    [~, ~, ~, AprimeIdx_mat] = ndgrid(1:n_a_work, 1:n_z_work, 1:n_d_work, 1:n_a_work);
-    A_flat = A_mat(:);
-    Z_flat = Z_mat(:);
-    D_flat = D_mat(:);
-    Aprime_flat = Aprime_mat(:);
-    AprimeIdx_flat = AprimeIdx_mat(:);
-    n_states = n_a_work * n_z_work;
-    n_choices = n_d_work * n_a_work;
-else
-    A_flat = []; Z_flat = []; D_flat = []; Aprime_flat = []; AprimeIdx_flat = [];
-    n_states = n_a_work * n_z_work;
-    n_choices = n_d_work * n_a_work;
-end
-
 has_e = isfield(vfoptions, 'n_e') && ~isempty(vfoptions.n_e) && prod(vfoptions.n_e) > 0;
 if has_e
     n_e_work = prod(vfoptions.n_e);
@@ -322,96 +305,88 @@ for reverse_j = 1:N_j-1
         pi_e_j = gpuArray(1);
     end
 
+    % ---------------------------------------------------------------------
+    % 1. Pre-Expectation Transform
+    % ---------------------------------------------------------------------
     if is_EZ
-        % 2a. Calculate loop-level ezc1
         if vfoptions.EZoneminusbeta == 1
-            ezc1 = 1 - beta_j; 
+            ezc1 = 1 - beta_j;
         elseif vfoptions.EZoneminusbeta == 2
             ezc1 = 1 - sj(jj) * beta_j;
-        end
-
-        % 2b. Evaluate Warm Glow Matrix if needed for this age
-        % (Pulling from lines 149-166 of your EZ_raw tab)
-        if warmglow == 1
-            % ... calculate WGmatrix ...
         else
-            WGmatrix = 0;
+            ezc1 = 1;
         end
 
-        % 2c. EZ PRE-EXPECTATION TRANSFORM
-        % V_next -> (ezc4 * V_next)^ezc5
         temp_V = V_next;
-        valid = isfinite(V_next);
-        temp_V(valid) = (ezc4 * V_next(valid)).^ezc5(jj);
-        temp_V(V_next == 0) = 0; 
+        valid_V = isfinite(V_next);
+        temp_V(valid_V) = (ezc4 * V_next(valid_V)).^ezc5(jj);
+        temp_V(V_next == 0) = 0;
         temp_V(~isfinite(V_next)) = ezc4 * V_next(~isfinite(V_next));
-
-        % 3. Take the expectation
-        % (Call your vectorized transition logic here, yielding EV_raw)
-        EV_raw = temp_V .* shiftdim(pi_z_j', -1); % Or your specific eval logic
-        EV_raw(isnan(EV_raw)) = 0;
-        EV_raw = sum(EV_raw, 2);
-
-        % 4. EZ POST-EXPECTATION TRANSFORM (Certainty Equivalent)
-        % Incorporate warmglow if applicable, then raise to ezc6
-        EV_ready = zeros(size(EV_raw), 'like', EV_raw);
-        valid_EV = isfinite(EV_raw);
-        if warmglow == 1
-            EV_ready(valid_EV) = (sj(jj) * EV_raw(valid_EV).^ezc8(jj) + ...
-                (1 - sj(jj)) * WGmatrix.^ezc8(jj)).^ezc6(jj);
-            EV_ready((EV_raw == 0) & (WGmatrix == 0)) = 0;
-        else
-            EV_ready(valid_EV) = (sj(jj) * EV_raw(valid_EV).^ezc8(jj)).^ezc6(jj);
-            EV_ready(EV_raw == 0) = 0;
-        end
-
-        % 5. SET EZ COMBINER CLOSURE
-        BellmanCombiner = @(F, EV_cont) Compute_EZ_RHS(F, EV_cont, ezc1, ezc2(jj), ezc3, ezc7(jj), beta_j);
-
     else
-        % 2b/3b. STANDARD EXPECTED UTILITY (EU) Path
-        % Just take the expectation directly
-        EV_ready = V_next .* shiftdim(pi_z_j', -1);
-        EV_ready = sum(EV_ready, 2);
-
-        % 4b. SET STANDARD COMBINER CLOSURE
-        BellmanCombiner = @(F, EV_cont) F + beta_j .* EV_cont;
+        temp_V = V_next;
     end
 
     % ---------------------------------------------------------------------
-    % 1. Continuation Value Integration: Integrate e' out, then Markov z' -> z
+    % 2. Continuation Value Integration: Integrate e' out, then Markov z' -> z
     % ---------------------------------------------------------------------
     if jj == N_j
-        EV_next = zeros(n_a_work, n_z_work, 'like', a_work);
+        EV_raw = zeros(n_a_work, n_z_work, 'like', a_work);
     else
-        % Tomorrow's marginal shock distribution: pi_e(j+1)
         if has_e
             if isfield(vfoptions, 'pi_e_J') && ~isempty(vfoptions.pi_e_J)
                 pi_e_tomorrow = gpuArray(vfoptions.pi_e_J(:, jj + 1));
             else
                 pi_e_tomorrow = gpuArray(vfoptions.pi_e(:));
             end
-
-            % V_next has shape (n_a x n_z x n_e)
-            % Integrate across dimension 3: dot product with pi_e_tomorrow
-            V_next_inte = sum(V_next .* reshape(pi_e_tomorrow, [1, 1, n_e_work]), 3); % -> (n_a x n_z)
-
+            % Integrate across e
+            temp_V_inte = sum(temp_V .* reshape(pi_e_tomorrow, [1, 1, n_e_work]), 3);
             if has_z
-                EV_next = V_next_inte * (pi_z_j'); % (n_a x n_z)
+                EV_raw = temp_V_inte * (pi_z_j');
             else
-                EV_next = V_next_inte;
+                EV_raw = temp_V_inte;
             end
         else
             if has_z
-                EV_next = V_next * (pi_z_j');
+                EV_raw = temp_V * (pi_z_j');
             else
-                EV_next = V_next;
+                EV_raw = temp_V;
             end
         end
     end
 
     % ---------------------------------------------------------------------
-    % 2. Memory Throttling Bounds (Hoisted across all kernels)
+    % 3. Post-Expectation Transform (CE) & Warm Glow Matrix
+    % ---------------------------------------------------------------------
+    if is_EZ
+        if warmglow == 1
+            WGParamsCell = CreateCellFromParams(Parameters, vfoptions.WarmGlowBequestsFnParamsNames, jj);
+            WGmatrix = vfoptions.WarmGlowBequestsFn(a_work, WGParamsCell{:});
+        else
+            WGmatrix = 0;
+        end
+
+        EV_next = zeros(size(EV_raw), 'like', EV_raw);
+        valid_EV = isfinite(EV_raw);
+
+        if warmglow == 1
+            % Broadcast full 2D tensors: (N_a x N_z) + (N_a x 1)
+            CE_base = sj(jj) .* (EV_raw .^ ezc8(jj)) + (1 - sj(jj)) .* (WGmatrix .^ ezc8(jj));
+            EV_next(valid_EV) = CE_base(valid_EV) .^ ezc6(jj);
+            EV_next((EV_raw == 0) & (WGmatrix == 0)) = 0;
+        else
+            CE_base = sj(jj) .* (EV_raw .^ ezc8(jj));
+            EV_next(valid_EV) = CE_base(valid_EV) .^ ezc6(jj);
+            EV_next(EV_raw == 0) = 0;
+        end
+
+        BellmanCombiner = @(F, EV_cont) Compute_EZ_RHS(F, EV_cont, ezc1, ezc2(jj), ezc3, ezc7(jj), beta_j);
+    else
+        EV_next = EV_raw;
+        BellmanCombiner = @(F, EV_cont) F + beta_j .* EV_cont;
+    end
+
+    % ---------------------------------------------------------------------
+    % 4. Memory Throttling Bounds (Hoisted across all kernels)
     % ---------------------------------------------------------------------
     lowmem = 0;
     if isfield(vfoptions, 'lowmemory')
@@ -435,18 +410,27 @@ for reverse_j = 1:N_j-1
     end
 
     % Container allocation for period j
-    % Policy has 2 rows (standard) or 3 rows (gridinterplayer)
-    n_pol_rows = 2 + (vfoptions.gridinterplayer == 1);
-    if has_e
-        V_j_all = zeros(n_a_work, n_z_work, n_e_work, 'like', a_work);
-        Pol_j_all = zeros(n_pol_rows, n_a_work, n_z_work, n_e_work, 'like', a_work);
+    if vfoptions.gridinterplayer == 1
+        n_pol_rows = 3;
+        if has_e
+            V_j_all   = zeros(n_a_work, n_z_work, n_e_work, 'like', a_work);
+            Pol_j_all = zeros(n_pol_rows, n_a_work, n_z_work, n_e_work, 'like', a_work);
+        else
+            V_j_all   = zeros(n_a_work, n_z_work, 'like', a_work);
+            Pol_j_all = zeros(n_pol_rows, n_a_work, n_z_work, 'like', a_work);
+        end
     else
-        V_j_all = zeros(n_a_work, n_z_work, 'like', a_work);
-        Pol_j_all = zeros(n_pol_rows, n_a_work, n_z_work, 'like', a_work);
+        if has_e
+            V_j_all   = zeros(n_a_work, n_z_work, n_e_work, 'like', a_work);
+            Pol_j_all = zeros(n_a_work, n_z_work, n_e_work, 'like', a_work);
+        else
+            V_j_all   = zeros(n_a_work, n_z_work, 'like', a_work);
+            Pol_j_all = zeros(n_a_work, n_z_work, 'like', a_work);
+        end
     end
 
     % ---------------------------------------------------------------------
-    % 3. Nested Shocks Iteration
+    % 5. Nested Shocks Iteration
     % ---------------------------------------------------------------------
     for z_iter = 1:n_z_loops
         if use_loop_z
@@ -490,7 +474,7 @@ for reverse_j = 1:N_j-1
             end
 
             % -------------------------------------------------------------
-            % 4. Method Dispatch (Consumes standard n_z_slice, EV_slice)
+            % 6. Method Dispatch (Consumes standard n_z_slice, EV_slice)
             % -------------------------------------------------------------
             if vfoptions.divideandconquer == 1 && vfoptions.gridinterplayer == 1
                 [V_sub, Pol_sub] = ValueFnIter_FHorz_vectorized_DC1_GI1(...
@@ -523,25 +507,39 @@ for reverse_j = 1:N_j-1
                     n_a_work, n_z_slice, n_d_work, pi_z_j, vfoptions);
 
             else
-                eval_func_raw = @(apr_in, a_in) eval_kernel(D_flat, apr_in, a_in);
+                % pi_z_j has already done its work
                 [V_sub, Pol_sub] = ValueFnIter_FHorz_vectorized_raw(...
-                    eval_func_raw, BellmanCombiner, EV_slice, A_flat, Aprime_flat, AprimeIdx_flat, ...
-                    n_states, n_choices, n_a_work, n_z_slice, pi_z_j, vfoptions);
+                    eval_kernel, BellmanCombiner, EV_slice, a_work, z_slice, d_work,  ...
+                    n_a_work, n_z_slice, n_d_work, vfoptions);
             end
 
             % Store results into period containers
-            if has_e
-                V_j_all(:, z_idx_range, e_idx_range) = reshape(V_sub, [n_a_work, n_z_slice, n_e_slice]);
-                Pol_j_all(:, :, z_idx_range, e_idx_range) = reshape(Pol_sub, [n_pol_rows, n_a_work, n_z_slice, n_e_slice]);
+            if vfoptions.gridinterplayer == 1
+                if has_e
+                    V_j_all(:, z_idx_range, e_idx_range)       = reshape(V_sub, [n_a_work, n_z_slice, n_e_slice]);
+                    Pol_j_all(:, :, z_idx_range, e_idx_range) = reshape(Pol_sub, [n_pol_rows, n_a_work, n_z_slice, n_e_slice]);
+                else
+                    V_j_all(:, z_idx_range)       = reshape(V_sub, [n_a_work, n_z_slice]);
+                    Pol_j_all(:, :, z_idx_range) = reshape(Pol_sub, [n_pol_rows, n_a_work, n_z_slice]);
+                end
             else
-                V_j_all(:, z_idx_range) = reshape(V_sub, [n_a_work, n_z_slice]);
-                Pol_j_all(:, :, z_idx_range) = reshape(Pol_sub, [n_pol_rows, n_a_work, n_z_slice]);
+                if has_e
+                    V_j_all(:, z_idx_range, e_idx_range)     = reshape(V_sub, [n_a_work, n_z_slice, n_e_slice]);
+                    Pol_j_all(:, z_idx_range, e_idx_range)   = reshape(Pol_sub, [n_a_work, n_z_slice, n_e_slice]);
+                else
+                    V_j_all(:, z_idx_range)     = reshape(V_sub, [n_a_work, n_z_slice]);
+                    Pol_j_all(:, z_idx_range)   = reshape(Pol_sub, [n_a_work, n_z_slice]);
+                end
             end
         end
     end
 
     V(:, :, :, jj) = V_j_all;
-    PolicyKron(:, :, :, :, jj) = Pol_j_all;
+    if vfoptions.gridinterplayer == 1
+        PolicyKron(:, :, :, :, jj) = Pol_j_all;
+    else
+        PolicyKron(:, :, :, jj) = Pol_j_all;
+    end
     V_next = V_j_all;
 end
 

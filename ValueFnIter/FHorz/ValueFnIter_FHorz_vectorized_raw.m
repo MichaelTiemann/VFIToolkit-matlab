@@ -1,24 +1,57 @@
-function [V_current, Policy_Indices] = ValueFnIter_FHorz_vectorized_raw(eval_func, BellmanCombiner, V_next, A_flat, Aprime_flat, AprimeIdx_flat, n_states, n_choices, n_a, n_z, pi_z_j, vfoptions)
+function [V_current, Policy_Row] = ValueFnIter_FHorz_vectorized_raw(...
+    eval_kernel, BellmanCombiner, EV, a_work, z_work, d_work, ...
+    N_a, N_z, N_d, vfoptions)
 
-F_flat = eval_func(Aprime_flat, A_flat);
+% Check if e exists in the model
+has_e = isfield(vfoptions, 'n_e') && ~isempty(vfoptions.n_e) && prod(vfoptions.n_e) > 0;
 
-% Expected continuation value over tomorrow's shocks (z'):
-% V_next is (n_a x n_z), pi_z_j is (n_z x n_z) -> EV_next is (n_a x n_z)
-EV_next = V_next * (pi_z_j');
+% If lowmemory >= 1, the caller loops over e sequentially, so this call only sees 1 slice.
+if has_e && vfoptions.lowmemory == 0
+    N_e = prod(vfoptions.n_e);
+    state_dims = [N_a, N_z, N_e];
+else
+    N_e = 1;
+    state_dims = [N_a, N_z];
+end
 
-% Map the flattened choice grid (AprimeIdx_flat) and state shocks (z_idx_vec)
-% Canonical grid ordering: ndgrid(a, z, d, aprime)
-% States (a, z) vary fastest, choices (d, aprime) vary slowest.
-z_idx_state = repelem((1:n_z)', n_a, 1);
-z_idx_flat = repmat(z_idx_state, n_choices, 1);
+% Align 5D grid: Dim 1: a, Dim 2: z, Dim 3: e, Dim 4: d, Dim 5: aprime
+A_in   = a_work(:);                % Dim 1
+Z_in   = shiftdim(z_work(:), -1);  % Dim 2
+D_in   = shiftdim(d_work(:), -3);  % Dim 4
+Apr_in = shiftdim(a_work(:), -4);  % Dim 5
 
-linear_indices = sub2ind([n_a, n_z], AprimeIdx_flat, z_idx_flat);
-V_cont_flat = EV_next(linear_indices);
+F = eval_kernel(D_in, Apr_in, A_in, Z_in);
+guard = zeros([N_a, N_z, N_e, N_d, N_a], 'like', a_work);
+F = F + guard;
 
-RHS_flat = BellmanCombiner(F_flat, V_cont_flat);
-RHS_matrix = reshape(RHS_flat, n_states, n_choices);
+% EV enters as (N_a x N_z x N_e) or (N_a x N_z). Map to (1, N_z, N_e, 1, N_a)
+if has_e
+    V_cont = permute(EV, [4, 2, 3, 5, 1]);
+else
+    V_cont = permute(EV, [3, 2, 4, 5, 1]);
+end
 
-[V_current, Policy_Indices] = max(RHS_matrix, [], 2);
+RHS = BellmanCombiner(F, V_cont);
 
+% Fold states: (N_a * N_z * N_e)
+% Fold choices: (N_d * N_a)
+n_states  = N_a * N_z * N_e;
+n_choices = N_d * N_a;
+RHS_m     = reshape(RHS, [n_states, n_choices]);
+[sub_V, sub_Pol] = max(RHS_m, [], 2);
+
+% Unpack choices
+d_opt        = mod(sub_Pol - 1, N_d) + 1;
+coarse_a_opt = ceil(sub_Pol ./ N_d);
+
+row1_kron = (coarse_a_opt - 1) .* N_d + d_opt;
+
+if has_e
+    V_current  = reshape(sub_V, [N_a, N_z, N_e]);
+    Policy_Row = reshape(row1_kron, [N_a, N_z, N_e]);
+else
+    V_current  = reshape(sub_V, [N_a, N_z]);
+    Policy_Row = reshape(row1_kron, [N_a, N_z]);
+end
 
 end
