@@ -64,79 +64,97 @@ coarse_apr_opt1 = ceil(sub_Pol1 ./ n_d);
 opt_coarse_anchors = reshape(coarse_apr_opt1, [n_anchors, n_z]);
 
 %% =========================================================================
-% PASS 2: All States (Anchors + Remaining) Evaluated with Subgrid G
-% Narrow candidate bands established by coarse anchor monotonicity
+% PASS 2: Bounded Monotonic Intervals (Vectorized per bin)
+% Peak memory per bin: <= 110 MB (prevents Pass 2 multi-GB blowup)
 % =========================================================================
-% Discretize bins between anchors
-bin_idx = discretize(1:n_a, level1ii);
-% Handle terminal endpoint edge case
-bin_idx(n_a) = n_anchors - 1;
+% Pre-populate anchors into output grids
+V_current(level1ii, :) = reshape(sub_V1, [n_anchors, n_z]);
 
-lb_coarse = opt_coarse_anchors(bin_idx, :);       % (n_a x n_z)
-ub_coarse = opt_coarse_anchors(bin_idx + 1, :);   % (n_a x n_z)
+% Assign anchor subgrid indices (tau = 1, since coarse)
+tau_opt1 = ones(n_anchors, n_z, 'like', a_work);
+Policy_row1(level1ii, :) = reshape(sub_Pol1, [n_anchors, n_z]);
+Policy_row2(level1ii, :) = tau_opt1;
 
-% Expand bracket by 1 to guarantee covering coarse boundary points
-lb_all = max(1, lb_coarse - 1);
-ub_all = min(n_a, ub_coarse + 1);
-
-maxgap = max(ub_all(:) - lb_all(:));
-n_cand_coarse = maxgap + 1;
-
-k_offsets = reshape(0:maxgap, [1, 1, 1, n_cand_coarse, 1]);
-
-% Candidate coarse indices: (n_a, n_z, 1, n_cand_coarse, 1)
-coarse_cand_idx = min(reshape(lb_all, [n_a, n_z, 1, 1, 1]) + k_offsets, ...
-                      reshape(ub_all, [n_a, n_z, 1, 1, 1]));
-
+D_2 = reshape(d_work, [1, 1, n_d, 1, 1]);
+Z_2 = reshape(z_work, [1, n_z, 1, 1, 1]);
 tau_sub_idx = reshape(1:G, [1, 1, 1, 1, G]);
+z_sub_idx   = reshape(1:n_z, [1, n_z, 1, 1, 1]);
 
-% Lookup candidate asset levels from Apr_dense (n_a x G)
-apr_cand_lin = coarse_cand_idx + (tau_sub_idx - 1) .* n_a;
-Apr_val_5d   = Apr_dense(apr_cand_lin); % (n_a, n_z, 1, n_cand_coarse, G)
-
-A_2 = reshape(a_work, [n_a, 1,   1,   1, 1]);
-Z_2 = reshape(z_work, [1,   n_z, 1,   1, 1]);
-D_2 = reshape(d_work, [1,   1,   n_d, 1, 1]);
-
-F_2 = eval_kernel(D_2, Apr_val_5d, A_2, Z_2);
-
-guard_2 = zeros([n_a, n_z, n_d, n_cand_coarse, G], 'like', a_work);
-F_2 = F_2 + guard_2;
-
-% Lookup continuation values from EV_dense_3d (n_a, G, n_z)
-z_sub_idx = reshape(1:n_z, [1, n_z, 1, 1, 1]);
-ev_cand_lin = (coarse_cand_idx - 1) + (tau_sub_idx - 1) .* n_a + ...
-              (z_sub_idx - 1) .* (n_a * G) + 1;
-V_cont_5d = EV_dense_3d(ev_cand_lin);
-
-RHS_2 = F_2 + beta_j .* V_cont_5d;
-
-n_states_2  = n_a * n_z;
-n_choices_2 = n_d * n_cand_coarse * G;
-RHS_m2 = reshape(RHS_2, [n_states_2, n_choices_2]);
-[sub_V2, sub_Pol2] = max(RHS_m2, [], 2);
-
-% Choice unpacking: d fastest, coarse candidate middle, tau slowest
-d_chosen2     = mod(sub_Pol2 - 1, n_d) + 1;
-cand_tau_opt2 = ceil(sub_Pol2 ./ n_d);
-
-coarse_offset_opt2 = mod(cand_tau_opt2 - 1, n_cand_coarse) + 1;
-tau_idx_opt2       = ceil(cand_tau_opt2 ./ n_cand_coarse);
-
-coarse_cand_2d = reshape(coarse_cand_idx, [n_states_2, n_cand_coarse]);
-state_lin2 = (1:n_states_2)';
-chosen_coarse_lin = sub2ind([n_states_2, n_cand_coarse], state_lin2, coarse_offset_opt2);
-coarse_apr_opt2 = coarse_cand_2d(chosen_coarse_lin);
-
-% Boundary clamping at maximum asset state
-at_upper2 = (coarse_apr_opt2 == n_a);
-tau_idx_opt2(at_upper2) = 1;
-
-row1_kron2 = (coarse_apr_opt2 - 1) .* n_d + d_chosen2;
-
-V_current   = reshape(sub_V2, [n_a, n_z]);
-Policy_row1 = reshape(row1_kron2, [n_a, n_z]);
-Policy_row2 = reshape(tau_idx_opt2, [n_a, n_z]);
+for bin = 1:(n_anchors - 1)
+    % Interior asset indices between anchor(bin) and anchor(bin+1)
+    idx_start = level1ii(bin) + 1;
+    idx_end   = level1ii(bin + 1) - 1;
+    if idx_start > idx_end
+        continue;
+    end
+    
+    bin_a_idx = idx_start:idx_end;
+    n_bin_a   = length(bin_a_idx);
+    a_bin     = a_work(bin_a_idx);
+    
+    % Monotonic bounds established by Pass 1 anchors
+    lb_bin = opt_coarse_anchors(bin, :);     % (1 x n_z)
+    ub_bin = opt_coarse_anchors(bin + 1, :); % (1 x n_z)
+    
+    lb_bin_pad = max(1, lb_bin - 1);
+    ub_bin_pad = min(n_a, ub_bin + 1);
+    
+    maxgap_bin = max(ub_bin_pad(:) - lb_bin_pad(:));
+    n_cand_bin = maxgap_bin + 1;
+    
+    k_offsets = reshape(0:maxgap_bin, [1, 1, 1, n_cand_bin, 1]);
+    coarse_cand_idx = min(reshape(lb_bin_pad, [1, n_z, 1, 1, 1]) + k_offsets, ...
+                          reshape(ub_bin_pad, [1, n_z, 1, 1, 1]));
+    
+    % Candidate assets on subgrid: (1, n_z, 1, n_cand_bin, G)
+    apr_cand_lin = coarse_cand_idx + (tau_sub_idx - 1) .* n_a;
+    Apr_val_bin  = Apr_dense(apr_cand_lin);
+    
+    A_bin = reshape(a_bin, [n_bin_a, 1, 1, 1, 1]);
+    
+    % 5D evaluation strictly bounded within this interval
+    F_bin = eval_kernel(D_2, Apr_val_bin, A_bin, Z_2);
+    guard_bin = zeros([n_bin_a, n_z, n_d, n_cand_bin, G], 'like', a_work);
+    F_bin = F_bin + guard_bin;
+    
+    % Continuation values
+    ev_cand_lin = (coarse_cand_idx - 1) + (tau_sub_idx - 1) .* n_a + ...
+                  (z_sub_idx - 1) .* (n_a * G) + 1;
+    V_cont_bin = EV_dense_3d(ev_cand_lin);
+    
+    RHS_bin = F_bin + beta_j .* V_cont_bin;
+    
+    n_states_bin  = n_bin_a * n_z;
+    n_choices_bin = n_d * n_cand_bin * G;
+    RHS_m_bin = reshape(RHS_bin, [n_states_bin, n_choices_bin]);
+    [sub_V_bin, sub_Pol_bin] = max(RHS_m_bin, [], 2);
+    
+    % Unpack choices
+    d_chosen     = mod(sub_Pol_bin - 1, n_d) + 1;
+    cand_tau_opt = ceil(sub_Pol_bin ./ n_d);
+    
+    coarse_offset_opt = mod(cand_tau_opt - 1, n_cand_bin) + 1;
+    tau_idx_opt       = ceil(cand_tau_opt ./ n_cand_bin);
+    
+    % Map candidate offset back to global coarse asset index
+    % coarse_cand_idx is (1, n_z, 1, n_cand_bin, 1) -> expand across n_bin_a
+    coarse_cand_expanded = repmat(coarse_cand_idx, [n_bin_a, 1, 1, 1, 1]);
+    coarse_cand_2d = reshape(coarse_cand_expanded, [n_states_bin, n_cand_bin]);
+    
+    state_lin = (1:n_states_bin)';
+    chosen_lin = sub2ind([n_states_bin, n_cand_bin], state_lin, coarse_offset_opt);
+    coarse_apr_bin = coarse_cand_2d(chosen_lin);
+    
+    % Boundary clamp at upper bound
+    at_upper = (coarse_apr_bin == n_a);
+    tau_idx_opt(at_upper) = 1;
+    
+    row1_kron_bin = (coarse_apr_bin - 1) .* n_d + d_chosen;
+    
+    V_current(bin_a_idx, :)   = reshape(sub_V_bin, [n_bin_a, n_z]);
+    Policy_row1(bin_a_idx, :) = reshape(row1_kron_bin, [n_bin_a, n_z]);
+    Policy_row2(bin_a_idx, :) = reshape(tau_idx_opt, [n_bin_a, n_z]);
+end
 
 Policy_3Row = zeros(3, n_a, n_z, 'like', a_work);
 Policy_3Row(1, :, :) = Policy_row1;
