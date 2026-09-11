@@ -371,6 +371,21 @@ for j = N_j:-1:1
                 [V_sub, Pol_sub] = ValueFnIter_FHorz_vectorized_DC1_GI1(...
                     eval_kernel, ReturnFnParamsVec, EV_slice, a_work, z_slice, d_work, ...
                     n_a_work, n_z_slice, n_d_work, pi_z_j, beta_j, vfoptions);
+                % Pol_sub contains:
+                % Row 1: Optimal coarse asset index a'_opt
+                % Row 2: Optimal subgrid index tau_opt
+                % If n_d == 0, evaluate optimal continuous choice h* on the optimal policy grid
+                if N_d == 0 && nargout(ReturnFn) >= 2
+                    % Reconstruct optimal continuous a'
+                    a_diff_j = [diff(a_work); 0];
+                    tau_step = (Pol_sub(2, :) - 1) ./ G;
+                    apr_star = a_work(Pol_sub(1, :)) + a_diff_j(Pol_sub(1, :)) .* tau_step;
+
+                    [~, h_star] = ReturnFn(apr_star, a_grid_expanded, z_grid_expanded, e_grid_expanded, ReturnFnParamsVec{:});
+
+                    % Store h* into Policy row 1 or as a separate Policy array
+                    Pol_j_all(1, :, z_idx_range, e_idx_range) = reshape(h_star, [1, n_a_work, n_z_slice, n_e_slice]);
+                end
 
             elseif vfoptions.gridinterplayer == 1
                 [V_sub, Pol_sub] = ValueFnIter_FHorz_vectorized_GI1_raw(...
