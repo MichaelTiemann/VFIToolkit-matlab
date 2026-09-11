@@ -19,15 +19,17 @@ tau_3d = reshape(tau_vec, [1, G, 1]);
 EV_dense_3d = (1 - tau_3d) .* reshape(EV, [n_a, 1, n_z]) + ...
               tau_3d .* reshape(EV_pad(2:end, :), [n_a, 1, n_z]);
 
-% Determine if this subproblem instance is solving e simultaneously:
-has_e_simul = isfield(vfoptions, 'n_e') && ~isempty(vfoptions.n_e) && prod(vfoptions.n_e) > 0 && ...
-    (~isfield(vfoptions, 'lowmemory') || vfoptions.lowmemory == 0);
+% Check if e exists in the model
+has_e = isfield(vfoptions, 'n_e') && ~isempty(vfoptions.n_e) && prod(vfoptions.n_e) > 0;
 
-if has_e_simul
-    n_e = prod(vfoptions.n_e);
-    state_dims = [n_a, n_z, n_e];
+% If lowmemory >= 1, the caller loops over e sequentially, so this call only sees 1 slice.
+% If lowmemory == 0, this call processes all n_e simultaneously.
+
+if has_e && vfoptions.lowmemory == 0
+    n_e_slice = prod(vfoptions.n_e);
+    state_dims = [n_a, n_z, vfoptions.n_e];
 else
-    n_e = 1;
+    n_e_slice = 1;
     state_dims = [n_a, n_z];
 end
 
@@ -58,7 +60,7 @@ Apr_1 = reshape(a_work,    [1,         1,   1,   1,   n_a]);
 
 F_1 = eval_kernel(D_1, Apr_1, A_1, Z_1);
 
-guard_1 = zeros([n_anchors, n_z, n_e, n_d, n_a], 'like', a_work);
+guard_1 = zeros([n_anchors, n_z, n_e_slice, n_d, n_a], 'like', a_work);
 F_1 = F_1 + guard_1;
 
 % EV continuation values on coarse grid: EV is (n_a x n_z) -> align with (1, n_z, 1, 1, n_a)
@@ -68,7 +70,7 @@ RHS_1 = F_1 + beta_j .* EV_broadcast1;
 
 % States: (n_anchors * n_z * n_e)
 % Choices: (n_d * n_a)
-n_states_1  = n_anchors * n_z * n_e;
+n_states_1  = n_anchors * n_z * n_e_slice;
 n_choices_1 = n_d * n_a;
 RHS_m1 = reshape(RHS_1, [n_states_1, n_choices_1]);
 [sub_V1, sub_Pol1] = max(RHS_m1, [], 2);
@@ -76,11 +78,11 @@ RHS_m1 = reshape(RHS_1, [n_states_1, n_choices_1]);
 % Choice unpacking: d varies fastest, coarse_apr varies slower
 coarse_apr_opt1 = ceil(sub_Pol1 ./ n_d);
 
-if has_e_simul
-    opt_coarse_anchors = reshape(coarse_apr_opt1, [n_anchors, n_z, n_e]);
-    V_current(level1ii, :, :)   = reshape(sub_V1, [n_anchors, n_z, n_e]);
-    Policy_row1(level1ii, :, :) = reshape(sub_Pol1, [n_anchors, n_z, n_e]);
-    Policy_row2(level1ii, :, :) = ones(n_anchors, n_z, n_e, 'like', a_work);
+if has_e
+    opt_coarse_anchors = reshape(coarse_apr_opt1, [n_anchors, n_z, n_e_slice]);
+    V_current(level1ii, :, :)   = reshape(sub_V1, [n_anchors, n_z, n_e_slice]);
+    Policy_row1(level1ii, :, :) = reshape(sub_Pol1, [n_anchors, n_z, n_e_slice]);
+    Policy_row2(level1ii, :, :) = ones(n_anchors, n_z, n_e_slice, 'like', a_work);
 else
     opt_coarse_anchors = reshape(coarse_apr_opt1, [n_anchors, n_z]);
     V_current(level1ii, :)   = reshape(sub_V1, [n_anchors, n_z]);
@@ -110,7 +112,7 @@ for bin = 1:(n_anchors - 1)
     a_bin     = a_work(bin_a_idx);
     
     % Monotonic bounds established by Pass 1 anchors
-    if has_e_simul
+    if has_e
         lb_bin = opt_coarse_anchors(bin, :, :);     % (1 x n_z x n_e)
         ub_bin = opt_coarse_anchors(bin + 1, :, :); % (1 x n_z x n_e)
     else
@@ -127,8 +129,8 @@ for bin = 1:(n_anchors - 1)
     % Candidates span dimension 5
     k_offsets = reshape(0:maxgap_bin, [1, 1, 1, 1, n_cand_bin, 1]);
     
-    coarse_cand_idx = min(reshape(lb_bin_pad, [1, n_z, n_e, 1, 1, 1]) + k_offsets, ...
-                          reshape(ub_bin_pad, [1, n_z, n_e, 1, 1, 1]));
+    coarse_cand_idx = min(reshape(lb_bin_pad, [1, n_z, n_e_slice, 1, 1, 1]) + k_offsets, ...
+                          reshape(ub_bin_pad, [1, n_z, n_e_slice, 1, 1, 1]));
 
     % Candidate assets on subgrid: shape (1, n_z, 1, 1, n_cand_bin, G)
     apr_cand_lin = coarse_cand_idx + (tau_sub_idx - 1) .* n_a;
@@ -139,7 +141,7 @@ for bin = 1:(n_anchors - 1)
     % Evaluation across 6D broadcast: (a, z, e, d, cand, G)
     F_bin = eval_kernel(D_2, Apr_val_bin, A_bin, Z_2);
     
-    guard_bin  = zeros([n_bin_a, n_z, n_e, n_d, n_cand_bin, G], 'like', a_work);
+    guard_bin  = zeros([n_bin_a, n_z, n_e_slice, n_d, n_cand_bin, G], 'like', a_work);
     F_bin      = F_bin + guard_bin;
 
     % Continuation values: EV_dense_3d has shape (n_a, G, n_z)
@@ -151,7 +153,7 @@ for bin = 1:(n_anchors - 1)
 
     % Fold states: (n_bin_a * n_z * n_e)
     % Fold choices: (n_d * n_cand_bin * G)
-    n_states_bin  = n_bin_a * n_z * n_e;
+    n_states_bin  = n_bin_a * n_z * n_e_slice;
     n_choices_bin = n_d * n_cand_bin * G;
     RHS_m_bin     = reshape(RHS_bin, [n_states_bin, n_choices_bin]);
     [sub_V_bin, sub_Pol_bin] = max(RHS_m_bin, [], 2);
@@ -178,10 +180,10 @@ for bin = 1:(n_anchors - 1)
     
     row1_kron_bin = (coarse_apr_bin - 1) .* n_d + d_chosen;
     
-    if has_e_simul
-        V_current(bin_a_idx, :, :)   = reshape(sub_V_bin, [n_bin_a, n_z, n_e]);
-        Policy_row1(bin_a_idx, :, :) = reshape(row1_kron_bin, [n_bin_a, n_z, n_e]);
-        Policy_row2(bin_a_idx, :, :) = reshape(tau_idx_opt, [n_bin_a, n_z, n_e]);
+    if has_e
+        V_current(bin_a_idx, :, :)   = reshape(sub_V_bin, [n_bin_a, n_z, n_e_slice]);
+        Policy_row1(bin_a_idx, :, :) = reshape(row1_kron_bin, [n_bin_a, n_z, n_e_slice]);
+        Policy_row2(bin_a_idx, :, :) = reshape(tau_idx_opt, [n_bin_a, n_z, n_e_slice]);
     else
         V_current(bin_a_idx, :)   = reshape(sub_V_bin, [n_bin_a, n_z]);
         Policy_row1(bin_a_idx, :) = reshape(row1_kron_bin, [n_bin_a, n_z]);
@@ -189,11 +191,11 @@ for bin = 1:(n_anchors - 1)
     end
 end
 
-if has_e_simul
-    Policy_3Row = zeros([3, n_a, n_z, n_e], 'like', a_work);
+if has_e
+    Policy_3Row = zeros([3, n_a, n_z, n_e_slice], 'like', a_work);
     Policy_3Row(1, :, :, :) = Policy_row1;
     Policy_3Row(2, :, :, :) = Policy_row2;
-    Policy_3Row(3, :, :, :) = ones(n_a, n_z, n_e, 'like', a_work);
+    Policy_3Row(3, :, :, :) = ones(n_a, n_z, n_e_slice, 'like', a_work);
 else
     Policy_3Row = zeros([3, n_a, n_z], 'like', a_work);
     Policy_3Row(1, :, :) = Policy_row1;
