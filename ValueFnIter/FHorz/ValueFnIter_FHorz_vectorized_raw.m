@@ -18,9 +18,14 @@ Z_in   = shiftdim(z_work(:), -1);  % Dim 2
 D_in   = shiftdim(d_work(:), -3);  % Dim 4
 Apr_in = shiftdim(a_work(:), -4);  % Dim 5
 
+% Lines 22-25 in ValueFnIter_FHorz_vectorized_raw.m:
 F = eval_kernel(D_in, Apr_in, A_in, Z_in);
-guard = zeros([N_a, N_z, N_e, N_d, N_a], 'like', a_work);
-F = F + guard;
+
+% Zero-overhead guard: Only expands if an author writes a non-broadcasting ReturnFn
+expected_sz = [N_a, N_z, N_e, N_d, N_a];
+if ~isequal(size(F), expected_sz)
+    F = F + zeros(expected_sz, 'like', a_work);
+end
 
 % EV enters as (N_a x N_z x N_e) or (N_a x N_z). Map to (1, N_z, N_e, 1, N_a)
 if has_e
@@ -29,13 +34,11 @@ else
     V_cont = permute(EV, [3, 2, 4, 5, 1]);
 end
 
-RHS = BellmanCombiner(F, V_cont);
-
 % Fold states: (N_a * N_z * N_e)
 % Fold choices: (N_d * N_a)
 n_states  = N_a * N_z * N_e;
 n_choices = N_d * N_a;
-RHS_m     = reshape(RHS, [n_states, n_choices]);
+RHS_m     = reshape(BellmanCombiner(F, V_cont), [n_states, n_choices]);
 [sub_V, sub_Pol] = max(RHS_m, [], 2);
 
 % Unpack choices
