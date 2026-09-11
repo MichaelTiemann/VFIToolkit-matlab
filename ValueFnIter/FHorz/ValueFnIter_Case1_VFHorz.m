@@ -224,66 +224,170 @@ for j = N_j:-1:1
     % Wrap user ReturnFn into standard signature: eval_kernel(d_in, apr_in, a_in, z_in)
     has_d = (n_d_work > 0 && n_d(1) > 0);
     has_z = (n_z_work > 0 && N_z > 0);
-
-    if has_d && has_z
-        eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(d_in, apr_in, a_in, z_in, ReturnFnParamsVec{:});
-    elseif has_d && ~has_z
-        eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(d_in, apr_in, a_in, ReturnFnParamsVec{:});
-    elseif ~has_d && has_z
-        % Model 10: drops d_in, passes (apr_in, a_in, z_in)
-        eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(apr_in, a_in, z_in, ReturnFnParamsVec{:});
+    has_e = isfield(vfoptions, 'n_e') && ~isempty(vfoptions.n_e) && prod(vfoptions.n_e) > 0;
+    
+    if has_e
+        n_e_work = prod(vfoptions.n_e);
+        e_work   = gpuArray(vfoptions.e_grid);
     else
-        % Deterministic, no d: passes (apr_in, a_in)
-        eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(apr_in, a_in, ReturnFnParamsVec{:});
+        n_e_work = 1;
+        e_work   = gpuArray(0); % dummy scalar keeping rank/signatures consistent
     end
 
-    if vfoptions.divideandconquer == 1 && vfoptions.gridinterplayer == 1
-        [V_current, Policy_Indices] = ValueFnIter_FHorz_vectorized_DC1_GI1(...
-            eval_kernel, ReturnFnParamsVec, V_next, a_work, z_work_1, d_work, ...
-            n_a_work, n_z_work, n_d_work, pi_z_j, beta_j, vfoptions);
-
-        V(:, :, j) = V_current;
-        PolicyKron(:, :, :, j) = Policy_Indices;
-        V_next = V_current;
-
-    elseif vfoptions.gridinterplayer == 1
-        [V_current, Policy_Indices] = ValueFnIter_FHorz_vectorized_GI1_raw(...
-            eval_kernel, ReturnFnParamsVec, V_next, a_work, z_work_1, d_work, ...
-            n_a_work, n_z_work, n_d_work, pi_z_j, beta_j, vfoptions);
-
-        V(:, :, j) = V_current;
-        PolicyKron(:, :, :, j) = Policy_Indices;
-        V_next = V_current;
-
-    elseif vfoptions.divideandconquer == 1
-        [V_current, Policy_Indices] = ValueFnIter_FHorz_vectorized_DC1(...
-            eval_kernel, V_next, a_work, z_work_1, d_work, ...
-            n_a_work, n_z_work, n_d_work, pi_z_j, beta_j, vfoptions);
-
-        V(:, :, j) = reshape(V_current, [n_a_work, n_z_work]);
-        PolicyKron(:, :, j) = reshape(Policy_Indices, [n_a_work, n_z_work]);
-        V_next = V(:, :, j);
-
+    if has_e
+        if isfield(vfoptions, 'pi_e_J') && ~isempty(vfoptions.pi_e_J)
+            % Age-specific column slice: size [n_e, 1]
+            pi_e_j = gpuArray(vfoptions.pi_e_J(:, j));
+        elseif isfield(vfoptions, 'pi_e') && ~isempty(vfoptions.pi_e)
+            % Time-invariant distribution: size [n_e, 1]
+            pi_e_j = gpuArray(vfoptions.pi_e(:));
+        else
+            error('has_e is true, but neither pi_e nor pi_e_J is defined in vfoptions.');
+        end
     else
-        % Evaluate via pre-flattened 2D arrays
-        eval_func_raw = @(apr_in, a_in) eval_kernel(D_flat, apr_in, a_in, Z_flat);
-
-        [V_current, Policy_Indices] = ValueFnIter_FHorz_vectorized_raw(...
-            eval_func_raw, V_next, A_flat, Aprime_flat, AprimeIdx_flat, ...
-            n_states, n_choices, n_a_work, n_z_work, pi_z_j, beta_j);
-
-        V(:, :, j) = reshape(V_current, [n_a_work, n_z_work]);
-        PolicyKron(:, :, j) = reshape(Policy_Indices, [n_a_work, n_z_work]);
-        V_next = V(:, :, j);
+        pi_e_j = gpuArray(1);
     end
 
-    V(:, :, j) = reshape(V_current, [n_a_work, n_z_work]);
-    if vfoptions.gridinterplayer == 1
-        PolicyKron(:, :, :, j) = reshape(Policy_Indices, [3, n_a_work, n_z_work]);
+    % ---------------------------------------------------------------------
+    % 1. Continuation Value Integration: Integrate e' out, then Markov z' -> z
+    % ---------------------------------------------------------------------
+    if j == N_j
+        EV_next = zeros(n_a_work, n_z_work, 'like', a_work);
     else
-        PolicyKron(:, :, j) = reshape(Policy_Indices, [n_a_work, n_z_work]);
+        % Tomorrow's marginal shock distribution: pi_e(j+1)
+        if has_e
+            if isfield(vfoptions, 'pi_e_J') && ~isempty(vfoptions.pi_e_J)
+                pi_e_tomorrow = gpuArray(vfoptions.pi_e_J(:, j + 1));
+            else
+                pi_e_tomorrow = gpuArray(vfoptions.pi_e(:));
+            end
+
+            % V_next has shape (n_a x n_z x n_e)
+            % Integrate across dimension 3: dot product with pi_e_tomorrow
+            V_next_inte = sum(V_next .* reshape(pi_e_tomorrow, [1, 1, n_e_work]), 3); % -> (n_a x n_z)
+
+            if has_z
+                EV_next = V_next_inte * (pi_z_j'); % (n_a x n_z)
+            else
+                EV_next = V_next_inte;
+            end
+        else
+            if has_z
+                EV_next = V_next * (pi_z_j');
+            else
+                EV_next = V_next;
+            end
+        end
     end
-    V_next = reshape(V_current, [n_a_work, n_z_work]);
+
+    % ---------------------------------------------------------------------
+    % 2. Memory Throttling Bounds (Hoisted across all kernels)
+    % ---------------------------------------------------------------------
+    lowmem = 0;
+    if isfield(vfoptions, 'lowmemory')
+        lowmem = vfoptions.lowmemory;
+    end
+
+    % lowmem >= 1: loop sequentially over e
+    use_loop_e = (has_e && lowmem >= 1);
+    if use_loop_e
+        n_e_loops = n_e_work;
+    else
+        n_e_loops = 1;
+    end
+
+    % lowmem >= 2: loop sequentially over z
+    use_loop_z = (has_z && lowmem >= 2);
+    if use_loop_z
+        n_z_loops = n_z_work;
+    else
+        n_z_loops = 1;
+    end
+
+    % Container allocation for period j
+    % Policy has 2 rows (standard) or 3 rows (gridinterplayer)
+    n_pol_rows = 2 + (vfoptions.gridinterplayer == 1);
+    V_j_all = zeros(n_a_work, n_z_work, n_e_work, 'like', a_work);
+    Pol_j_all = zeros(n_pol_rows, n_a_work, n_z_work, n_e_work, 'like', a_work);
+
+    % ---------------------------------------------------------------------
+    % 3. Nested Shocks Iteration
+    % ---------------------------------------------------------------------
+    for z_iter = 1:n_z_loops
+        if use_loop_z
+            z_slice = z_work(z_iter);
+            n_z_slice = 1;
+            z_idx_range = z_iter;
+            % Slice continuation value for this specific z: (n_a x 1)
+            EV_slice = EV_next(:, z_iter);
+        else
+            z_slice = z_work;
+            n_z_slice = n_z_work;
+            z_idx_range = 1:n_z_work;
+            EV_slice = EV_next; % (n_a x n_z)
+        end
+
+        for e_iter = 1:n_e_loops
+            if use_loop_e
+                e_slice = e_work(e_iter);
+                n_e_slice = 1;
+                e_idx_range = e_iter;
+            else
+                e_slice = e_work;
+                n_e_slice = n_e_work;
+                e_idx_range = 1:n_e_work;
+            end
+
+            % Construct unified kernel adapter for this slice
+            % Order: (d, aprime, a, z, e)
+            if has_d && has_z && has_e
+                eval_kernel = @(d_in, apr_in, a_in) ReturnFn(d_in, apr_in, a_in, z_slice, e_slice, ReturnFnParamsVec{:});
+            elseif has_d && has_z && ~has_e
+                eval_kernel = @(d_in, apr_in, a_in) ReturnFn(d_in, apr_in, a_in, z_slice, ReturnFnParamsVec{:});
+            elseif ~has_d && has_z && has_e
+                eval_kernel = @(d_in, apr_in, a_in) ReturnFn(apr_in, a_in, z_slice, e_slice, ReturnFnParamsVec{:});
+            elseif ~has_d && has_z && ~has_e
+                eval_kernel = @(d_in, apr_in, a_in) ReturnFn(apr_in, a_in, z_slice, ReturnFnParamsVec{:});
+            elseif has_d && ~has_z && ~has_e
+                eval_kernel = @(d_in, apr_in, a_in) ReturnFn(d_in, apr_in, a_in, ReturnFnParamsVec{:});
+            else
+                eval_kernel = @(d_in, apr_in, a_in) ReturnFn(apr_in, a_in, ReturnFnParamsVec{:});
+            end
+
+            % -------------------------------------------------------------
+            % 4. Method Dispatch (Consumes standard n_z_slice, EV_slice)
+            % -------------------------------------------------------------
+            if vfoptions.divideandconquer == 1 && vfoptions.gridinterplayer == 1
+                [V_sub, Pol_sub] = ValueFnIter_FHorz_vectorized_DC1_GI1(...
+                    eval_kernel, ReturnFnParamsVec, EV_slice, a_work, z_slice, d_work, ...
+                    n_a_work, n_z_slice, n_d_work, pi_z_j, beta_j, vfoptions);
+
+            elseif vfoptions.gridinterplayer == 1
+                [V_sub, Pol_sub] = ValueFnIter_FHorz_vectorized_GI1_raw(...
+                    eval_kernel, ReturnFnParamsVec, EV_slice, a_work, z_slice, d_work, ...
+                    n_a_work, n_z_slice, n_d_work, pi_z_j, beta_j, vfoptions);
+
+            elseif vfoptions.divideandconquer == 1
+                [V_sub, Pol_sub] = ValueFnIter_FHorz_vectorized_DC1(...
+                    eval_kernel, EV_slice, a_work, z_slice, d_work, ...
+                    n_a_work, n_z_slice, n_d_work, pi_z_j, beta_j, vfoptions);
+
+            else
+                eval_func_raw = @(apr_in, a_in) eval_kernel(D_flat, apr_in, a_in);
+                [V_sub, Pol_sub] = ValueFnIter_FHorz_vectorized_raw(...
+                    eval_func_raw, EV_slice, A_flat, Aprime_flat, AprimeIdx_flat, ...
+                    n_states, n_choices, n_a_work, n_z_slice, pi_z_j, beta_j);
+            end
+
+            % Store results into period containers
+            V_j_all(:, z_idx_range, e_idx_range) = reshape(V_sub, [n_a_work, n_z_slice, n_e_slice]);
+            Pol_j_all(:, :, z_idx_range, e_idx_range) = reshape(Pol_sub, [n_pol_rows, n_a_work, n_z_slice, n_e_slice]);
+        end
+    end
+
+    V(:, :, :, j) = V_j_all;
+    PolicyKron(:, :, :, :, j) = Pol_j_all;
+    V_next = V_j_all;
 end
 
 if N_z == 0
