@@ -1,5 +1,5 @@
 function [V_current, Policy_3Row] = ValueFnIter_FHorz_vectorized_DC1_GI1(...
-    ReturnFn, ReturnFnParamsVec, V_next, a_work, z_work, d_work, ...
+    eval_func, ReturnFnParamsVec, V_next, a_work, z_work, d_work, ...
     n_a, n_z, n_d, pi_z_j, beta_j, vfoptions)
 
 G = vfoptions.ngridinterp;
@@ -39,7 +39,7 @@ Z_1   = reshape(z_work,    [1, n_z, 1, 1, 1]);
 D_1   = reshape(d_work,    [1, 1, n_d, 1, 1]);
 Apr_1 = reshape(Apr_dense, [1, 1, 1, n_a, G]);
 
-F_1 = ReturnFn(D_1, Apr_1, A_1, Z_1, ReturnFnParamsVec{:});
+F_1 = eval_func(D_1, Apr_1, A_1, Z_1);
 
 % Continuation lookup across choices: (1, n_z, 1, n_a, G)
 % Permute EV_dense_3d (n_a, G, n_z) -> (1, n_z, 1, n_a, G)
@@ -102,7 +102,7 @@ if n_rem > 0
     Z_2 = reshape(z_work, [1, n_z, 1, 1, 1]);
     D_2 = reshape(d_work, [1, 1, n_d, 1, 1]);
     
-    F_2 = ReturnFn(D_2, Apr_val_5d, A_2, Z_2, ReturnFnParamsVec{:});
+    F_2 = eval_func(D_2, Apr_val_5d, A_2, Z_2);
     
     % Continuation lookup: index into EV_dense_3d (n_a, G, n_z)
     % Linear index in EV_dense_3d: (coarse - 1) + (tau - 1)*n_a + (z - 1)*n_a*G + 1

@@ -397,6 +397,7 @@ end
 adjust=(Policy(2,:,:,:)<1+n2short+1); % if second layer is choosing below midpoint
 Policy(1,:,:,:)=Policy(1,:,:,:)-adjust; % lower grid point
 Policy(2,:,:,:)=adjust.*Policy(2,:,:,:)+(1-adjust).*(Policy(2,:,:,:)-n2short-1); % from 1 (lower grid point) to 1+n2short+1 (upper grid point)
+Policy(2,:,:,:) = min(Policy(2,:,:,:), n2short + 1);
 
 Policy=[Policy; PolicyL2flag];
 

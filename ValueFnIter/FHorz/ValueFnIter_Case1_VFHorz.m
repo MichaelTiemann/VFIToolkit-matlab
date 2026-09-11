@@ -220,40 +220,61 @@ for j = N_j:-1:1
     else
         pi_z_j = ones(1, 1, 'like', a_grid);
     end
-    
-    if N_z > 0
-        eval_func = @(aprime_in, a_in) ReturnFn(D_flat, aprime_in, a_in, Z_flat, ReturnFnParamsVec{:});
-    elseif N_d > 0
-        eval_func = @(aprime_in, a_in) ReturnFn(D_flat, aprime_in, a_in, ReturnFnParamsVec{:});
+
+    % Wrap user ReturnFn into standard signature: eval_kernel(d_in, apr_in, a_in, z_in)
+    has_d = (n_d_work > 0 && n_d(1) > 0);
+    has_z = (n_z_work > 0 && N_z > 0);
+
+    if has_d && has_z
+        eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(d_in, apr_in, a_in, z_in, ReturnFnParamsVec{:});
+    elseif has_d && ~has_z
+        eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(d_in, apr_in, a_in, ReturnFnParamsVec{:});
+    elseif ~has_d && has_z
+        % Model 10: drops d_in, passes (apr_in, a_in, z_in)
+        eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(apr_in, a_in, z_in, ReturnFnParamsVec{:});
     else
-        eval_func = @(aprime_in, a_in) ReturnFn(aprime_in, a_in, ReturnFnParamsVec{:});
+        % Deterministic, no d: passes (apr_in, a_in)
+        eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(apr_in, a_in, ReturnFnParamsVec{:});
     end
+
     if vfoptions.divideandconquer == 1 && vfoptions.gridinterplayer == 1
         [V_current, Policy_Indices] = ValueFnIter_FHorz_vectorized_DC1_GI1(...
-            ReturnFn, ReturnFnParamsVec, V_next, a_work, z_work_1, d_work, ...
+            eval_kernel, ReturnFnParamsVec, V_next, a_work, z_work_1, d_work, ...
             n_a_work, n_z_work, n_d_work, pi_z_j, beta_j, vfoptions);
 
         V(:, :, j) = V_current;
         PolicyKron(:, :, :, j) = Policy_Indices;
         V_next = V_current;
+
     elseif vfoptions.gridinterplayer == 1
         [V_current, Policy_Indices] = ValueFnIter_FHorz_vectorized_GI1_raw(...
-            ReturnFn, ReturnFnParamsVec, V_next, a_work, z_work_1, d_work, ...
+            eval_kernel, ReturnFnParamsVec, V_next, a_work, z_work_1, d_work, ...
             n_a_work, n_z_work, n_d_work, pi_z_j, beta_j, vfoptions);
 
         V(:, :, j) = V_current;
         PolicyKron(:, :, :, j) = Policy_Indices;
         V_next = V_current;
+
     elseif vfoptions.divideandconquer == 1
-        eval_func_dc = @(d_in, apr_in, a_in, z_in) ReturnFn(d_in, apr_in, a_in, z_in, ReturnFnParamsVec{:});
-        
         [V_current, Policy_Indices] = ValueFnIter_FHorz_vectorized_DC1(...
-            eval_func_dc, V_next, a_work, z_work_1, d_work, ...
+            eval_kernel, V_next, a_work, z_work_1, d_work, ...
             n_a_work, n_z_work, n_d_work, pi_z_j, beta_j, vfoptions);
+
+        V(:, :, j) = reshape(V_current, [n_a_work, n_z_work]);
+        PolicyKron(:, :, j) = reshape(Policy_Indices, [n_a_work, n_z_work]);
+        V_next = V(:, :, j);
+
     else
+        % Evaluate via pre-flattened 2D arrays
+        eval_func_raw = @(apr_in, a_in) eval_kernel(D_flat, apr_in, a_in, Z_flat);
+
         [V_current, Policy_Indices] = ValueFnIter_FHorz_vectorized_raw(...
-            eval_func, V_next, A_flat, Aprime_flat, AprimeIdx_flat, ...
+            eval_func_raw, V_next, A_flat, Aprime_flat, AprimeIdx_flat, ...
             n_states, n_choices, n_a_work, n_z_work, pi_z_j, beta_j);
+
+        V(:, :, j) = reshape(V_current, [n_a_work, n_z_work]);
+        PolicyKron(:, :, j) = reshape(Policy_Indices, [n_a_work, n_z_work]);
+        V_next = V(:, :, j);
     end
 
     V(:, :, j) = reshape(V_current, [n_a_work, n_z_work]);
