@@ -38,12 +38,11 @@ if ~isequal(size(F_1), expected_sz1)
     F_1 = F_1 + zeros(expected_sz1, 'like', a_work);
 end
 
-% EV continuation values on coarse grid: EV is (N_a x N_z) or (N_a x N_z x N_e)
-if has_e
-    EV_broadcast1 = permute(EV, [4, 2, 3, 5, 1]);
-else
-    EV_broadcast1 = permute(EV, [3, 2, 4, 5, 1]);
-end
+% Ensure EV has explicit 2D shape [N_a, N_z]
+EV = reshape(EV, [N_a, N_z]);
+
+% EV continuation values on coarse grid: EV is (N_a x N_z), e' integrated out
+EV_broadcast1 = permute(EV, [3, 2, 4, 5, 1]);
 RHS_1 = BellmanCombiner(F_1, EV_broadcast1);
 
 n_states_1  = n_anchors * N_z * N_e;
@@ -117,12 +116,7 @@ for bin = 1:(n_anchors - 1)
 
     % Continuation value lookup via linear indexing for each candidate asset
     z_coords = 1:N_z; % This is a 1xN_z vector, just as we need it
-    if has_e
-        e_coords = shiftdim(1:N_e, -1); % This converts a 1xN_e vector to a 1x1xN_e vector, just as we need it
-        ev_lin_idx = coarse_cand_idx + (z_coords - 1) .* N_a + (e_coords - 1) .* (N_a * N_z);
-    else
-        ev_lin_idx = coarse_cand_idx + (z_coords - 1) .* N_a;
-    end
+    ev_lin_idx = coarse_cand_idx + (z_coords - 1) .* N_a;
 
     % 2. Force continuation values to stay strictly along [1, N_z, N_e, 1, n_cand_bin]
     V_cont_bin = reshape(EV(ev_lin_idx(:)), cand_shape);
