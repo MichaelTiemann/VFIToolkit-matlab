@@ -33,9 +33,9 @@ end
 
 n_states_total = prod(state_dims);
 
-V_current   = zeros(n_a, n_z, 'like', a_work);
-Policy_row1 = zeros(n_a, n_z, 'like', a_work);
-Policy_row2 = zeros(n_a, n_z, 'like', a_work);
+V_current   = zeros(state_dims, 'like', a_work);
+Policy_row1 = zeros(state_dims, 'like', a_work);
+Policy_row2 = zeros(state_dims, 'like', a_work);
 
 %% =========================================================================
 % PASS 1: Coarse Anchors (NO G subgrid, strictly coarse n_a choices)
@@ -92,15 +92,6 @@ end
 % PASS 2: Bounded Monotonic Intervals (Vectorized per bin)
 % Peak memory per bin: <= 110 MB (prevents Pass 2 multi-GB blowup)
 % =========================================================================
-% Pre-populate anchors into output grids
-V_current(level1ii, :, :)   = reshape(sub_V1, [n_anchors, n_z, n_e_actual]);
-
-opt_coarse_anchors = reshape(coarse_apr_opt1, [n_anchors, n_z, n_e_actual]);
-% Assign anchor subgrid indices (tau = 1, since coarse)
-tau_opt1 = ones(n_anchors, n_z, n_e_actual, 'like', a_work);
-Policy_row1(level1ii, :, :) = reshape(sub_Pol1, [n_anchors, n_z, n_e_actual]);
-Policy_row2(level1ii, :, :) = tau_opt1;
-
 D_2 = reshape(d_work, [1, 1, 1, n_d, 1, 1]);
 Z_2 = reshape(z_work, [1, n_z, 1, 1, 1, 1]);
 z_sub_idx   = reshape(1:n_z, [1, n_z, 1, 1, 1, 1]);
@@ -119,8 +110,13 @@ for bin = 1:(n_anchors - 1)
     a_bin     = a_work(bin_a_idx);
     
     % Monotonic bounds established by Pass 1 anchors
-    lb_bin = opt_coarse_anchors(bin, :);     % (1 x n_z)
-    ub_bin = opt_coarse_anchors(bin + 1, :); % (1 x n_z)
+    if has_e_simul
+        lb_bin = opt_coarse_anchors(bin, :, :);     % (1 x n_z x n_e)
+        ub_bin = opt_coarse_anchors(bin + 1, :, :); % (1 x n_z x n_e)
+    else
+        lb_bin = opt_coarse_anchors(bin, :);        % (1 x n_z)
+        ub_bin = opt_coarse_anchors(bin + 1, :);    % (1 x n_z)
+    end
     
     lb_bin_pad = max(1, lb_bin - 1);
     ub_bin_pad = min(n_a, ub_bin + 1);
@@ -128,11 +124,11 @@ for bin = 1:(n_anchors - 1)
     maxgap_bin = max(ub_bin_pad(:) - lb_bin_pad(:));
     n_cand_bin = maxgap_bin + 1;
     
-% Candidates span dimension 5
+    % Candidates span dimension 5
     k_offsets = reshape(0:maxgap_bin, [1, 1, 1, 1, n_cand_bin, 1]);
     
-    coarse_cand_idx = min(reshape(lb_bin_pad, [1, n_z, 1, 1, 1, 1]) + k_offsets, ...
-                          reshape(ub_bin_pad, [1, n_z, 1, 1, 1, 1]));
+    coarse_cand_idx = min(reshape(lb_bin_pad, [1, n_z, n_e, 1, 1, 1]) + k_offsets, ...
+                          reshape(ub_bin_pad, [1, n_z, n_e, 1, 1, 1]));
 
     % Candidate assets on subgrid: shape (1, n_z, 1, 1, n_cand_bin, G)
     apr_cand_lin = coarse_cand_idx + (tau_sub_idx - 1) .* n_a;
@@ -143,8 +139,7 @@ for bin = 1:(n_anchors - 1)
     % Evaluation across 6D broadcast: (a, z, e, d, cand, G)
     F_bin = eval_kernel(D_2, Apr_val_bin, A_bin, Z_2);
     
-    n_e_actual = size(F_bin, 3);
-    guard_bin  = zeros([n_bin_a, n_z, n_e_actual, n_d, n_cand_bin, G], 'like', a_work);
+    guard_bin  = zeros([n_bin_a, n_z, n_e, n_d, n_cand_bin, G], 'like', a_work);
     F_bin      = F_bin + guard_bin;
 
     % Continuation values: EV_dense_3d has shape (n_a, G, n_z)
@@ -156,7 +151,7 @@ for bin = 1:(n_anchors - 1)
 
     % Fold states: (n_bin_a * n_z * n_e)
     % Fold choices: (n_d * n_cand_bin * G)
-    n_states_bin  = n_bin_a * n_z * n_e_actual;
+    n_states_bin  = n_bin_a * n_z * n_e;
     n_choices_bin = n_d * n_cand_bin * G;
     RHS_m_bin     = reshape(RHS_bin, [n_states_bin, n_choices_bin]);
     [sub_V_bin, sub_Pol_bin] = max(RHS_m_bin, [], 2);
