@@ -106,6 +106,72 @@ else
     end
 end
 
+is_EZ = strcmp(vfoptions.exoticpreferences, 'EpsteinZin');
+if is_EZ
+    % Reject asset types this dispatcher does not handle: every asset type it does handle is
+    % dispatched below and returns, so an unsupported flag would otherwise be silently ignored.
+    if vfoptions.experienceasset>=1 || vfoptions.experienceassetu>=1 || vfoptions.experienceassetz>=1 || vfoptions.experienceassete>=1 || vfoptions.experienceassetze>=1 || vfoptions.experienceassetsemiz>=1
+        error('Epstein-Zin preferences are not implemented for the experience assets (only for riskyasset, or for the standard endogenous states)')
+    end
+    if vfoptions.residualasset==1
+        error('Epstein-Zin preferences are not implemented for residualasset')
+    end
+    if vfoptions.dynasty==1
+        error('Epstein-Zin preferences are not implemented for dynasty')
+    end
+
+    %% Some Epstein-Zin specific options need to be set if they are not already declared
+    if ~isfield(vfoptions,'EZriskaversion')
+        error('When using Epstein-Zin preferences you must declare vfoptions.EZriskaversion (coefficient controlling risk aversion)')
+    end
+    if ~isfield(vfoptions,'EZutils')
+        vfoptions.EZutils=1; % Use EZ preferences with general utility function (0 gives traditional EZ with exogenous labor, 2 gives traditional EZ with endogenous labor)
+    end
+    if vfoptions.EZutils==1
+        % Have to do EZ preferences differently depending on whether the utility function is >=0 or <=0.
+        % vfoptions.EZpositiveutility=1 if utility is positive; Note, in this case when EZriskaversion is higher, the risk aversion is larger (EZriskaversion>0 is risk averse)
+        % vfoptions.EZpositiveutility=0 if utility is negative; Note, in this case when EZriskaversion is lower, the risk aversion is larger  (EZriskaversion<0 is risk averse)
+        if ~isfield(vfoptions,'EZpositiveutility')
+            warning('Using Epstein-Zin preferences it is assumed the utility/return function is negative valued, if not you need to set vfoptions.EZpositiveutility=1')
+            vfoptions.EZpositiveutility=0; % User did not specify. Guess that it is negative as most common things (like CES) are negative valued.
+        end
+    else
+        % Traditional EZ preferences requires you to specify the EIS parameter
+        if ~isfield(vfoptions,'EZeis')
+            error('When using Epstein-Zin preferences you must declare vfoptions.EZeis (elasticity of intertemporal substitution)')
+        end
+    end
+    if ~isfield(vfoptions,'EZoneminusbeta')
+        vfoptions.EZoneminusbeta=0; % default essentially does nothing
+        %=1 Put a (1-beta)* term on the this period return
+        %=2 Put a (1-sj*beta)* term on the this period return
+    end
+    % Set up sj
+    if isfield(vfoptions,'survivalprobability')
+        sj=Parameters.(vfoptions.survivalprobability);
+        if length(sj)~=N_j
+            error('Survival probabilities must be of the same length as N_j')
+        end
+    elseif isfield(vfoptions,'WarmGlowBequestsFn')
+        % If you have warm-glow but do not specify survival probabilities it is assumed you only get it at end of final period
+        sj=ones(N_j,1); % conditional survival probabilities
+        sj(end)=0;
+        warning('You have used vfoptions.WarmGlowBequestsFn, but have not set vfoptions.survivalprobability, it is assumed you only want to have the warm-glow at the end of the final period')
+    else
+        sj=ones(N_j,1); % conditional survival probabilities
+    end
+    % Declare warmglow indicator
+    if isfield(vfoptions,'WarmGlowBequestsFn')
+        warmglow=1;
+        temp=getAnonymousFnInputNames(vfoptions.WarmGlowBequestsFn);
+        vfoptions.WarmGlowBequestsFnParamsNames={temp{2:end}};
+    else
+        warmglow=0;
+    end
+    [ezc2, ezc3, ezc4, ezc5, ezc6, ezc7, ezc8, sj, warmglow] = ...
+        EpsteinZinSetup_FHorz(N_j, Parameters, ReturnFnParamNames, DiscountFactorParamNames, vfoptions);
+end
+
 if vfoptions.divideandconquer==1
     if ~isfield(vfoptions,'level1n')
         if isscalar(n_a)
@@ -210,23 +276,26 @@ else
 end
 V_next = zeros(n_a_work, n_z_work, n_e_work, 'like', a_grid);
 
-for j = N_j:-1:1
-    DiscountFactorParamsVec = CreateVectorFromParams(Parameters, DiscountFactorParamNames, j);
+for reverse_j = 1:N_j-1
+    jj = N_j - reverse_j;
+
+    % 1. Get standard discount factor
+    DiscountFactorParamsVec = CreateVectorFromParams(Parameters, DiscountFactorParamNames, jj);
     beta_j = prod(DiscountFactorParamsVec);
-    
-    ReturnFnParamsVec = CreateVectorFromParams(Parameters, ReturnFnParamNames, j);
+
+    ReturnFnParamsVec = CreateVectorFromParams(Parameters, ReturnFnParamNames, jj);
     if ~iscell(ReturnFnParamsVec)
         ReturnFnParamsVec = num2cell(ReturnFnParamsVec);
     end
     
     if N_z > 0
         if size(z_gridvals_J, 3) > 1
-            z_work_j = squeeze(z_gridvals_J(:, :, j));
+            z_work_j = squeeze(z_gridvals_J(:, :, jj));
         else
             z_work_j = z_work_1;
         end
-        if j < N_j
-            pi_z_j = pi_z_J(:, :, j);
+        if jj < N_j
+            pi_z_j = pi_z_J(:, :, jj);
         else
             pi_z_j = eye(n_z_work, 'like', a_grid);
         end
@@ -242,7 +311,7 @@ for j = N_j:-1:1
     if has_e
         if isfield(vfoptions, 'pi_e_J') && ~isempty(vfoptions.pi_e_J)
             % Age-specific column slice: size [n_e, 1]
-            pi_e_j = gpuArray(vfoptions.pi_e_J(:, j));
+            pi_e_j = gpuArray(vfoptions.pi_e_J(:, jj));
         elseif isfield(vfoptions, 'pi_e') && ~isempty(vfoptions.pi_e)
             % Time-invariant distribution: size [n_e, 1]
             pi_e_j = gpuArray(vfoptions.pi_e(:));
@@ -253,16 +322,72 @@ for j = N_j:-1:1
         pi_e_j = gpuArray(1);
     end
 
+    if is_EZ
+        % 2a. Calculate loop-level ezc1
+        if vfoptions.EZoneminusbeta == 1
+            ezc1 = 1 - beta_j; 
+        elseif vfoptions.EZoneminusbeta == 2
+            ezc1 = 1 - sj(jj) * beta_j;
+        end
+
+        % 2b. Evaluate Warm Glow Matrix if needed for this age
+        % (Pulling from lines 149-166 of your EZ_raw tab)
+        if warmglow == 1
+            % ... calculate WGmatrix ...
+        else
+            WGmatrix = 0;
+        end
+
+        % 2c. EZ PRE-EXPECTATION TRANSFORM
+        % V_next -> (ezc4 * V_next)^ezc5
+        temp_V = V_next;
+        valid = isfinite(V_next);
+        temp_V(valid) = (ezc4 * V_next(valid)).^ezc5(jj);
+        temp_V(V_next == 0) = 0; 
+        temp_V(~isfinite(V_next)) = ezc4 * V_next(~isfinite(V_next));
+
+        % 3. Take the expectation
+        % (Call your vectorized transition logic here, yielding EV_raw)
+        EV_raw = temp_V .* shiftdim(pi_z_j', -1); % Or your specific eval logic
+        EV_raw(isnan(EV_raw)) = 0;
+        EV_raw = sum(EV_raw, 2);
+
+        % 4. EZ POST-EXPECTATION TRANSFORM (Certainty Equivalent)
+        % Incorporate warmglow if applicable, then raise to ezc6
+        EV_ready = zeros(size(EV_raw), 'like', EV_raw);
+        valid_EV = isfinite(EV_raw);
+        if warmglow == 1
+            EV_ready(valid_EV) = (sj(jj) * EV_raw(valid_EV).^ezc8(jj) + ...
+                (1 - sj(jj)) * WGmatrix.^ezc8(jj)).^ezc6(jj);
+            EV_ready((EV_raw == 0) & (WGmatrix == 0)) = 0;
+        else
+            EV_ready(valid_EV) = (sj(jj) * EV_raw(valid_EV).^ezc8(jj)).^ezc6(jj);
+            EV_ready(EV_raw == 0) = 0;
+        end
+
+        % 5. SET EZ COMBINER CLOSURE
+        BellmanCombiner = @(F, EV_cont) Compute_EZ_RHS(F, EV_cont, ezc1, ezc2(jj), ezc3, ezc7(jj), beta_j);
+
+    else
+        % 2b/3b. STANDARD EXPECTED UTILITY (EU) Path
+        % Just take the expectation directly
+        EV_ready = V_next .* shiftdim(pi_z_j', -1);
+        EV_ready = sum(EV_ready, 2);
+
+        % 4b. SET STANDARD COMBINER CLOSURE
+        BellmanCombiner = @(F, EV_cont) F + beta_j .* EV_cont;
+    end
+
     % ---------------------------------------------------------------------
     % 1. Continuation Value Integration: Integrate e' out, then Markov z' -> z
     % ---------------------------------------------------------------------
-    if j == N_j
+    if jj == N_j
         EV_next = zeros(n_a_work, n_z_work, 'like', a_work);
     else
         % Tomorrow's marginal shock distribution: pi_e(j+1)
         if has_e
             if isfield(vfoptions, 'pi_e_J') && ~isempty(vfoptions.pi_e_J)
-                pi_e_tomorrow = gpuArray(vfoptions.pi_e_J(:, j + 1));
+                pi_e_tomorrow = gpuArray(vfoptions.pi_e_J(:, jj + 1));
             else
                 pi_e_tomorrow = gpuArray(vfoptions.pi_e(:));
             end
@@ -369,8 +494,8 @@ for j = N_j:-1:1
             % -------------------------------------------------------------
             if vfoptions.divideandconquer == 1 && vfoptions.gridinterplayer == 1
                 [V_sub, Pol_sub] = ValueFnIter_FHorz_vectorized_DC1_GI1(...
-                    eval_kernel, ReturnFnParamsVec, EV_slice, a_work, z_slice, d_work, ...
-                    n_a_work, n_z_slice, n_d_work, pi_z_j, beta_j, vfoptions);
+                    eval_kernel, BellmanCombiner, EV_slice, a_work, z_slice, d_work, ...
+                    n_a_work, n_z_slice, n_d_work, pi_z_j, ReturnFnParamsVec, vfoptions);
                 % Pol_sub contains:
                 % Row 1: Optimal coarse asset index a'_opt
                 % Row 2: Optimal subgrid index tau_opt
@@ -389,19 +514,19 @@ for j = N_j:-1:1
 
             elseif vfoptions.gridinterplayer == 1
                 [V_sub, Pol_sub] = ValueFnIter_FHorz_vectorized_GI1_raw(...
-                    eval_kernel, ReturnFnParamsVec, EV_slice, a_work, z_slice, d_work, ...
-                    n_a_work, n_z_slice, n_d_work, pi_z_j, beta_j, vfoptions);
+                    eval_kernel, BellmanCombiner, EV_slice, a_work, z_slice, d_work, ...
+                    n_a_work, n_z_slice, n_d_work, pi_z_j, ReturnFnParamsVec, vfoptions);
 
             elseif vfoptions.divideandconquer == 1
                 [V_sub, Pol_sub] = ValueFnIter_FHorz_vectorized_DC1(...
-                    eval_kernel, EV_slice, a_work, z_slice, d_work, ...
-                    n_a_work, n_z_slice, n_d_work, pi_z_j, beta_j, vfoptions);
+                    eval_kernel, BellmanCombiner, EV_slice, a_work, z_slice, d_work, ...
+                    n_a_work, n_z_slice, n_d_work, pi_z_j, vfoptions);
 
             else
                 eval_func_raw = @(apr_in, a_in) eval_kernel(D_flat, apr_in, a_in);
                 [V_sub, Pol_sub] = ValueFnIter_FHorz_vectorized_raw(...
-                    eval_func_raw, EV_slice, A_flat, Aprime_flat, AprimeIdx_flat, ...
-                    n_states, n_choices, n_a_work, n_z_slice, pi_z_j, beta_j);
+                    eval_func_raw, BellmanCombiner, EV_slice, A_flat, Aprime_flat, AprimeIdx_flat, ...
+                    n_states, n_choices, n_a_work, n_z_slice, pi_z_j, vfoptions);
             end
 
             % Store results into period containers
@@ -415,8 +540,8 @@ for j = N_j:-1:1
         end
     end
 
-    V(:, :, :, j) = V_j_all;
-    PolicyKron(:, :, :, :, j) = Pol_j_all;
+    V(:, :, :, jj) = V_j_all;
+    PolicyKron(:, :, :, :, jj) = Pol_j_all;
     V_next = V_j_all;
 end
 

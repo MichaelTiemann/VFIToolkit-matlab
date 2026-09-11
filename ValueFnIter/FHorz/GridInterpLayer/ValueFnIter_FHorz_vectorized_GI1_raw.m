@@ -1,6 +1,6 @@
 function [V_current, Policy_3Row] = ValueFnIter_FHorz_vectorized_GI1_raw(...
-    eval_kernel, ReturnFnParamsVec, EV, a_work, z_work, d_work, ...
-    N_a, N_z, N_d, pi_z_j, beta_j, vfoptions)
+    eval_kernel, BellmanCombiner, EV, a_work, z_work, d_work, ...
+    N_a, N_z, N_d, pi_z_j, ReturnFnParamsVec, vfoptions)
 
 G = vfoptions.ngridinterp;
 tau_vec = linspace(0, (G - 1) / G, G);
@@ -44,7 +44,7 @@ F = F + guard;
 % Continuation values mapped to (1, N_z, 1, 1, N_a, G)
 V_cont = permute(EV_dense_3d, [4, 3, 5, 6, 1, 2]);
 
-RHS = F + beta_j .* V_cont;
+RHS = BellmanCombiner(F, V_cont);
 
 % Fold states: (N_a * N_z * N_e)
 % Fold choices: (N_d * N_a * G)

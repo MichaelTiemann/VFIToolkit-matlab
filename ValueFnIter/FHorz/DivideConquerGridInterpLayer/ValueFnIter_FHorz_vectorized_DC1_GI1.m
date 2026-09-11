@@ -1,6 +1,6 @@
 function [V_current, Policy_3Row] = ValueFnIter_FHorz_vectorized_DC1_GI1(...
-    eval_kernel, ReturnFnParamsVec, EV, a_work, z_work, d_work, ...
-    N_a, N_z, N_d, pi_z_j, beta_j, vfoptions)
+    eval_kernel, BellmanCombiner, EV, a_work, z_work, d_work, ...
+    N_a, N_z, N_d, pi_z_j, ReturnFnParamsVec, vfoptions)
 
 G = vfoptions.ngridinterp;
 tau_vec = linspace(0, (G - 1) / G, G);
@@ -55,7 +55,7 @@ F_1 = F_1 + guard_1;
 
 % EV continuation values on coarse grid: EV is (N_a x N_z) 
 EV_broadcast1 = permute(EV, [3, 2, 4, 5, 1]);
-RHS_1 = F_1 + beta_j .* EV_broadcast1;
+RHS_1 = BellmanCombiner(F_1, EV_broadcast1);
 
 % States: (n_anchors * N_z * N_e)
 % Choices: (N_d * N_a)
@@ -132,7 +132,7 @@ for bin = 1:(n_anchors - 1)
                   (z_sub_idx - 1) .* (N_a * G) + 1;
     V_cont_bin  = EV_dense_3d(ev_cand_lin);
 
-    RHS_bin = F_bin + beta_j .* V_cont_bin;
+    RHS_bin = BellmanCombiner(F_bin, V_cont_bin);
 
     n_states_bin  = n_bin_a * N_z * N_e;
     n_choices_bin = N_d * n_cand_bin * G;

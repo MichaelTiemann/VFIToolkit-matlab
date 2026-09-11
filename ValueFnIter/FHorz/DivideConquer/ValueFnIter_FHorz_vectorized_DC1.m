@@ -1,6 +1,6 @@
 function [V_current, Policy_Row] = ValueFnIter_FHorz_vectorized_DC1(...
-    eval_kernel, EV, a_work, z_work, d_work, ...
-    N_a, N_z, N_d, pi_z_j, beta_j, vfoptions)
+    eval_kernel, BellmanCombiner, EV, a_work, z_work, d_work, ...
+    N_a, N_z, N_d, pi_z_j, vfoptions)
 
 % Check if e exists in the model
 has_e = isfield(vfoptions, 'n_e') && ~isempty(vfoptions.n_e) && prod(vfoptions.n_e) > 0;
@@ -37,7 +37,7 @@ F_1 = F_1 + guard_1;
 
 % EV continuation values on coarse grid: EV is (N_a x N_z)
 EV_broadcast1 = permute(EV, [3, 2, 4, 5, 1]);
-RHS_1 = F_1 + beta_j .* EV_broadcast1;
+RHS_1 = BellmanCombiner(F_1, EV_broadcast1);
 
 n_states_1  = n_anchors * N_z * N_e;
 n_choices_1 = N_d * N_a;
@@ -108,7 +108,7 @@ for bin = 1:(n_anchors - 1)
     ev_cand_lin = (coarse_cand_idx - 1) + (z_sub_idx - 1) .* N_a + 1;
     V_cont_bin  = EV(ev_cand_lin);
 
-    RHS_bin = F_bin + beta_j .* V_cont_bin;
+    RHS_bin = BellmanCombiner(F_bin, V_cont_bin);
 
     n_states_bin  = n_bin_a * N_z * N_e;
     n_choices_bin = N_d * n_cand_bin;
