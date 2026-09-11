@@ -12,6 +12,9 @@ end
 a_diff = [diff(a_work); 0];
 Apr_dense = a_work + a_diff * tau_vec;
 
+% Ensure EV has explicit 2D shape [N_a, N_z]
+EV = reshape(EV, [N_a, N_z]);
+
 % Dense continuation values: (N_a x G x N_z)
 EV_pad = [EV; EV(end, :)];
 EV_dense_3d = (1 - tau_vec) .* reshape(EV, [N_a, 1, N_z]) + ...
@@ -57,12 +60,8 @@ if ~isequal(size(F_1), expected_sz1)
     F_1 = F_1 + zeros(expected_sz1, 'like', a_work);
 end
 
-% EV continuation values on coarse grid: EV is (N_a x N_z) or (N_a x N_z x N_e)
-if has_e
-    EV_broadcast1 = permute(EV, [4, 2, 3, 5, 1]);
-else
-    EV_broadcast1 = permute(EV, [3, 2, 4, 5, 1]);
-end
+% EV continuation values on coarse grid: EV is (N_a x N_z) or (N_a x N_z x N_e), but e' integrated out
+EV_broadcast1 = permute(EV, [3, 2, 4, 5, 1]);
 RHS_1 = BellmanCombiner(F_1, EV_broadcast1);
 
 % States: (n_anchors * N_z * N_e)
@@ -143,15 +142,9 @@ for bin = 1:(n_anchors - 1)
     end
 
     % 2. Continuation values lookup from precomputed EV_dense_3d
-    if has_e
-        e_coords = shiftdim(1:N_e, -1);
-        ev_cand_lin = coarse_cand_idx + (g_coords - 1) .* N_a + ...
-            (z_coords - 1) .* (N_a * G) + (e_coords - 1) .* (N_a * G * N_z);
-    else
-        ev_cand_lin = coarse_cand_idx + (g_coords - 1) .* N_a + ...
-            (z_coords - 1) .* (N_a * G);
-    end
-    V_cont_bin = reshape(EV_dense_3d(ev_cand_lin(:)), cand_shape_gi);
+    ev_cand_lin = coarse_cand_idx + (g_coords - 1) .* N_a + ...
+                  (z_coords - 1) .* (N_a * G);
+    V_cont_bin  = reshape(EV_dense_3d(ev_cand_lin(:)), cand_shape_gi);
 
     RHS_bin = BellmanCombiner(F_bin, V_cont_bin);
 
