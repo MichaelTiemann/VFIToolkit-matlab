@@ -190,7 +190,11 @@ n_states = n_a_work * n_z_work;
 n_choices = n_d_work * n_a_work;
 
 V = zeros(n_a_work, n_z_work, N_j, 'like', a_grid);
-PolicyKron = zeros(n_a_work, n_z_work, N_j, 'like', a_grid);
+if vfoptions.gridinterplayer == 1
+    PolicyKron = zeros(3, n_a_work, n_z_work, N_j, 'like', a_grid);
+else
+    PolicyKron = zeros(n_a_work, n_z_work, N_j, 'like', a_grid);
+end
 V_next = zeros(n_a_work, n_z_work, 'like', a_grid);
 
 for j = N_j:-1:1
@@ -224,8 +228,23 @@ for j = N_j:-1:1
     else
         eval_func = @(aprime_in, a_in) ReturnFn(aprime_in, a_in, ReturnFnParamsVec{:});
     end
-    
-    if vfoptions.divideandconquer == 1
+    if vfoptions.divideandconquer == 1 && vfoptions.gridinterplayer == 1
+        [V_current, Policy_Indices] = ValueFnIter_FHorz_vectorized_DC1_GI1(...
+            ReturnFn, ReturnFnParamsVec, V_next, a_work, z_work_1, d_work, ...
+            n_a_work, n_z_work, n_d_work, pi_z_j, beta_j, vfoptions);
+
+        V(:, :, j) = V_current;
+        PolicyKron(:, :, :, j) = Policy_Indices;
+        V_next = V_current;
+    elseif vfoptions.gridinterplayer == 1
+        [V_current, Policy_Indices] = ValueFnIter_FHorz_vectorized_GI1_raw(...
+            ReturnFn, ReturnFnParamsVec, V_next, a_work, z_work_1, d_work, ...
+            n_a_work, n_z_work, n_d_work, pi_z_j, beta_j, vfoptions);
+
+        V(:, :, j) = V_current;
+        PolicyKron(:, :, :, j) = Policy_Indices;
+        V_next = V_current;
+    elseif vfoptions.divideandconquer == 1
         eval_func_dc = @(d_in, apr_in, a_in, z_in) ReturnFn(d_in, apr_in, a_in, z_in, ReturnFnParamsVec{:});
         
         [V_current, Policy_Indices] = ValueFnIter_FHorz_vectorized_DC1(...
@@ -238,7 +257,11 @@ for j = N_j:-1:1
     end
 
     V(:, :, j) = reshape(V_current, [n_a_work, n_z_work]);
-    PolicyKron(:, :, j) = reshape(Policy_Indices, [n_a_work, n_z_work]);
+    if vfoptions.gridinterplayer == 1
+        PolicyKron(:, :, :, j) = reshape(Policy_Indices, [3, n_a_work, n_z_work]);
+    else
+        PolicyKron(:, :, j) = reshape(Policy_Indices, [n_a_work, n_z_work]);
+    end
     V_next = reshape(V_current, [n_a_work, n_z_work]);
 end
 
@@ -252,7 +275,9 @@ else
     n_daprime = [n_d, n_a];
 end
 
-PolicyKron = shiftdim(PolicyKron, -1);
+if vfoptions.gridinterplayer == 0
+    PolicyKron = shiftdim(PolicyKron, -1);
+end
 
 if isfield(vfoptions, 'outputkron') && vfoptions.outputkron == 1
     varargout{1} = V;
