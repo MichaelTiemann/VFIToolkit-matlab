@@ -8,10 +8,8 @@ has_e = isfield(vfoptions, 'n_e') && ~isempty(vfoptions.n_e) && prod(vfoptions.n
 % If lowmemory >= 1, the caller loops over e sequentially, so this call only sees 1 slice.
 if has_e && vfoptions.lowmemory == 0
     N_e = prod(vfoptions.n_e);
-    state_dims = [N_a, N_z, N_e];
 else
     N_e = 1;
-    state_dims = [N_a, N_z];
 end
 
 % Align 5D grid: Dim 1: a, Dim 2: z, Dim 3: e, Dim 4: d, Dim 5: aprime
@@ -53,5 +51,6 @@ else
     V_current  = reshape(sub_V, [N_a, N_z]);
     Policy_Row = reshape(row1_kron, [N_a, N_z]);
 end
+
 
 end
