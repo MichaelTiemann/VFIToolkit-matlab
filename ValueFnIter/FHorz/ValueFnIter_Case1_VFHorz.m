@@ -312,8 +312,13 @@ for j = N_j:-1:1
     % Container allocation for period j
     % Policy has 2 rows (standard) or 3 rows (gridinterplayer)
     n_pol_rows = 2 + (vfoptions.gridinterplayer == 1);
-    V_j_all = zeros(n_a_work, n_z_work, n_e_work, 'like', a_work);
-    Pol_j_all = zeros(n_pol_rows, n_a_work, n_z_work, n_e_work, 'like', a_work);
+    if has_e
+        V_j_all = zeros(n_a_work, n_z_work, n_e_work, 'like', a_work);
+        Pol_j_all = zeros(n_pol_rows, n_a_work, n_z_work, n_e_work, 'like', a_work);
+    else
+        V_j_all = zeros(n_a_work, n_z_work, 'like', a_work);
+        Pol_j_all = zeros(n_pol_rows, n_a_work, n_z_work, 'like', a_work);
+    end
 
     % ---------------------------------------------------------------------
     % 3. Nested Shocks Iteration
@@ -385,8 +390,13 @@ for j = N_j:-1:1
             end
 
             % Store results into period containers
-            V_j_all(:, z_idx_range, e_idx_range) = reshape(V_sub, [n_a_work, n_z_slice, n_e_slice]);
-            Pol_j_all(:, :, z_idx_range, e_idx_range) = reshape(Pol_sub, [n_pol_rows, n_a_work, n_z_slice, n_e_slice]);
+            if has_e
+                V_j_all(:, z_idx_range, e_idx_range) = reshape(V_sub, [n_a_work, n_z_slice, n_e_slice]);
+                Pol_j_all(:, :, z_idx_range, e_idx_range) = reshape(Pol_sub, [n_pol_rows, n_a_work, n_z_slice, n_e_slice]);
+            else
+                V_j_all(:, z_idx_range) = reshape(V_sub, [n_a_work, n_z_slice]);
+                Pol_j_all(:, :, z_idx_range) = reshape(Pol_sub, [n_pol_rows, n_a_work, n_z_slice]);
+            end
         end
     end
 
