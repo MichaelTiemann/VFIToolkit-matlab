@@ -1,75 +1,89 @@
 function [V_current, Policy_3Row] = ValueFnIter_FHorz_vectorized_GI1_raw(...
-    ReturnFn, ReturnFnParamsVec, V_next, a_work, z_work, d_work, ...
-    n_a, n_z, n_d, pi_z_j, beta_j, vfoptions)
+    eval_kernel, ReturnFnParamsVec, EV, a_work, z_work, d_work, ...
+    N_a, N_z, N_d, pi_z_j, beta_j, vfoptions)
 
 G = vfoptions.ngridinterp;
-
-% Step weights: tau in [0, (G-1)/G]
 tau_vec = linspace(0, (G - 1) / G, G);
 if vfoptions.parallel == 2
     tau_vec = gpuArray(tau_vec);
 end
 
-% Construct dense interpolated asset choices
-% For a_work(end), upper interval clamps to a_work(end)
+% Dense sub-grid for interpolation: (N_a x G)
 a_diff = [diff(a_work); 0];
-% Shape: (n_a, G)
 Apr_dense = a_work + a_diff * tau_vec;
-Apr_dense_flat = Apr_dense(:);      % (n_a * G x 1)
-n_dense_apr = n_a * G;
 
-% Expected continuation value on coarse grid: (n_a x n_z)
-EV_next = V_next * (pi_z_j');
-
-% Linear interpolation of continuation values:
-% EV_dense(k, tau, z') = (1 - tau)*EV(k, z') + tau*EV(k+1, z')
-EV_next_pad = [EV_next; EV_next(end, :)]; % clamp at boundary
+% Dense continuation values: (N_a x G x N_z)
+EV_pad = [EV; EV(end, :)];
 tau_3d = reshape(tau_vec, [1, G, 1]);
-EV_dense = (1 - tau_3d) .* reshape(EV_next, [n_a, 1, n_z]) + ...
-    tau_3d .* reshape(EV_next_pad(2:end, :), [n_a, 1, n_z]);
-% Reshape to (n_dense_apr x n_z)
-EV_dense = reshape(permute(EV_dense, [1, 2, 3]), [n_dense_apr, n_z]);
+EV_dense_3d = (1 - tau_3d) .* reshape(EV, [N_a, 1, N_z]) + ...
+              tau_3d .* reshape(EV_pad(2:end, :), [N_a, 1, N_z]);
 
-% Canonical 4D evaluation tensor: States (a, z), Choices (d, apr_dense)
-[A_m, Z_m, D_m, Apr_m] = ndgrid(a_work, z_work, d_work, Apr_dense_flat);
-[~, ~, ~, Apr_dense_idx_m] = ndgrid(1:n_a, 1:n_z, 1:n_d, 1:n_dense_apr);
+% Check if e exists in the model
+has_e = isfield(vfoptions, 'n_e') && ~isempty(vfoptions.n_e) && prod(vfoptions.n_e) > 0;
 
-n_states = n_a * n_z;
-n_choices_dense = n_d * n_dense_apr;
+% If lowmemory >= 1, the caller loops over e sequentially, so this call only sees 1 slice.
+% If lowmemory == 0, this call processes all N_e simultaneously.
+if has_e && vfoptions.lowmemory == 0
+    N_e = prod(vfoptions.n_e);
+    state_dims = [N_a, N_z, N_e];
+else
+    N_e = 1;
+    state_dims = [N_a, N_z];
+end
 
-% Vectorized ReturnFn evaluation
-F_flat = ReturnFn(D_m(:), Apr_m(:), A_m(:), Z_m(:), ReturnFnParamsVec{:});
+% Align 6D grid:
+% Dim 1: a, Dim 2: z, Dim 3: e, Dim 4: d, Dim 5: aprime_coarse, Dim 6: tau
+A_in   = reshape(a_work,    [N_a, 1,   1, 1,   1,   1]);
+Z_in   = reshape(z_work,    [1,   N_z, 1, 1,   1,   1]);
+D_in   = reshape(d_work,    [1,   1,   1, N_d, 1,   1]);
+Apr_in = reshape(Apr_dense, [1,   1,   1, 1,   N_a, G]);
 
-% Vectorized continuation value lookup
-z_idx_state = repelem((1:n_z)', n_a, 1);
-z_idx_f = repmat(z_idx_state, n_choices_dense, 1);
-lin_idx = sub2ind([n_dense_apr, n_z], Apr_dense_idx_m(:), z_idx_f);
-V_cont_flat = EV_dense(lin_idx);
+F = eval_kernel(D_in, Apr_in, A_in, Z_in);
+guard = zeros([N_a, N_z, N_e, N_d, N_a, G], 'like', a_work);
+F = F + guard;
 
-RHS_flat = F_flat + beta_j .* V_cont_flat;
-RHS_matrix = reshape(RHS_flat, [n_states, n_choices_dense]);
+% Continuation values mapped to (1, N_z, 1, 1, N_a, G)
+V_cont = permute(EV_dense_3d, [4, 3, 5, 6, 1, 2]);
 
-[V_current, best_choice_idx] = max(RHS_matrix, [], 2);
+RHS = F + beta_j .* V_cont;
 
-% Unpack best_choice_idx (1 : n_d * n_a * G)
-% Choice dimension ordering: d varies fastest, coarse a' middle, tau slowest
-d_opt = mod(best_choice_idx - 1, n_d) + 1;
-dense_apr_opt = ceil(best_choice_idx ./ n_d);
+% Fold states: (N_a * N_z * N_e)
+% Fold choices: (N_d * N_a * G)
+n_states  = N_a * N_z * N_e;
+n_choices = N_d * N_a * G;
+RHS_m     = reshape(RHS, [n_states, n_choices]);
+[sub_V, sub_Pol] = max(RHS_m, [], 2);
 
-coarse_apr_opt = mod(dense_apr_opt - 1, n_a) + 1;
-tau_idx_opt = ceil(dense_apr_opt ./ n_a);
+% Unpack choices
+d_opt        = mod(sub_Pol - 1, N_d) + 1;
+apr_tau_opt  = ceil(sub_Pol ./ N_d);
+coarse_a_opt = mod(apr_tau_opt - 1, N_a) + 1;
+tau_opt      = ceil(apr_tau_opt ./ N_a);
 
-% Reconstruct row 1 Kron index: (coarse_apr_opt - 1)*n_d + d_opt
-row1_kron = (coarse_apr_opt - 1) .* n_d + d_opt;
-row2_tau = tau_idx_opt;
-row3_flag = ones(n_states, 1, 'like', a_work);
+% Boundary clamp at upper bound
+at_upper = (coarse_a_opt == N_a);
+tau_opt(at_upper) = 1;
 
-% Shape: (3, n_a, n_z)
-Policy_3Row = zeros(3, n_a, n_z, 'like', a_work);
-Policy_3Row(1, :, :) = reshape(row1_kron, [n_a, n_z]);
-Policy_3Row(2, :, :) = reshape(row2_tau, [n_a, n_z]);
-Policy_3Row(3, :, :) = reshape(row3_flag, [n_a, n_z]);
+row1_kron = (coarse_a_opt - 1) .* N_d + d_opt;
 
-V_current = reshape(V_current, [n_a, n_z]);
+if has_e
+    V_current   = reshape(sub_V, [N_a, N_z, N_e]);
+    Policy_row1 = reshape(row1_kron, [N_a, N_z, N_e]);
+    Policy_row2 = reshape(tau_opt, [N_a, N_z, N_e]);
+
+    Policy_3Row = zeros([3, N_a, N_z, N_e], 'like', a_work);
+    Policy_3Row(1, :, :, :) = Policy_row1;
+    Policy_3Row(2, :, :, :) = Policy_row2;
+    Policy_3Row(3, :, :, :) = ones(N_a, N_z, N_e, 'like', a_work);
+else
+    V_current   = reshape(sub_V, [N_a, N_z]);
+    Policy_row1 = reshape(row1_kron, [N_a, N_z]);
+    Policy_row2 = reshape(tau_opt, [N_a, N_z]);
+
+    Policy_3Row = zeros([3, N_a, N_z], 'like', a_work);
+    Policy_3Row(1, :, :) = Policy_row1;
+    Policy_3Row(2, :, :) = Policy_row2;
+    Policy_3Row(3, :, :) = ones(N_a, N_z, 'like', a_work);
+end
 
 end

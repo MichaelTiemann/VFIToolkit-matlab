@@ -1,99 +1,134 @@
-function [V_current, Policy_Indices] = ValueFnIter_FHorz_vectorized_DC1(...
-    eval_func, V_next, a_work, z_work, d_work, n_a, n_z, n_d, pi_z_j, beta_j, vfoptions)
+function [V_current, Policy_Row] = ValueFnIter_FHorz_vectorized_DC1(...
+    eval_kernel, EV, a_work, z_work, d_work, ...
+    N_a, N_z, N_d, pi_z_j, beta_j, vfoptions)
 
-% Expected continuation value: (n_a x n_z)
-EV_next = V_next * (pi_z_j');
+% Check if e exists in the model
+has_e = isfield(vfoptions, 'n_e') && ~isempty(vfoptions.n_e) && prod(vfoptions.n_e) > 0;
 
-V_current = zeros(n_a, n_z, 'like', a_work);
-Policy_Indices = zeros(n_a, n_z, 'like', a_work);
+% If lowmemory >= 1, the caller loops over e sequentially, so this call only sees 1 slice.
+% If lowmemory == 0, this call processes all N_e simultaneously.
+if has_e && vfoptions.lowmemory == 0
+    N_e = prod(vfoptions.n_e);
+    state_dims = [N_a, N_z, N_e];
+else
+    N_e = 1;
+    state_dims = [N_a, N_z];
+end
 
-%% Pass 1: Solve Coarse Anchor States in Parallel
-level1ii = round(linspace(1, n_a, vfoptions.level1n));
+V_current  = zeros(state_dims, 'like', a_work);
+Policy_Row = zeros(state_dims, 'like', a_work);
+
+%% =========================================================================
+% PASS 1: Coarse Anchors across N_a choices
+% =========================================================================
+level1ii  = round(linspace(1, N_a, vfoptions.level1n(1)));
 n_anchors = length(level1ii);
 a_anchors = a_work(level1ii);
 
-[A_m1, Z_m1, D_m1, Apr_m1] = ndgrid(a_anchors, z_work, d_work, a_work);
-[~, ~, ~, Apr_idx_m1] = ndgrid(1:n_anchors, 1:n_z, 1:n_d, 1:n_a);
+% Broadcast shapes (strictly 4D: n_anchors x N_z x N_d x N_a)
+A_1   = reshape(a_anchors, [n_anchors, 1,   1,   1,   1]);
+Z_1   = reshape(z_work,    [1,         N_z, 1,   1,   1]);
+D_1   = reshape(d_work,    [1,         1,   1,   N_d, 1]);
+Apr_1 = reshape(a_work,    [1,         1,   1,   1,   N_a]);
 
-F_f1 = eval_func(D_m1(:), Apr_m1(:), A_m1(:), Z_m1(:));
+F_1 = eval_kernel(D_1, Apr_1, A_1, Z_1);
+guard_1 = zeros([n_anchors, N_z, N_e, N_d, N_a], 'like', a_work);
+F_1 = F_1 + guard_1;
 
-z_idx_anchor = repelem((1:n_z)', n_anchors, 1);
-z_idx_f1 = repmat(z_idx_anchor, n_d * n_a, 1);
-lin_idx1 = sub2ind([n_a, n_z], Apr_idx_m1(:), z_idx_f1);
-V_cont_f1 = EV_next(lin_idx1);
+% EV continuation values on coarse grid: EV is (N_a x N_z)
+EV_broadcast1 = permute(EV, [3, 2, 4, 5, 1]);
+RHS_1 = F_1 + beta_j .* EV_broadcast1;
 
-RHS_m1 = reshape(F_f1 + beta_j .* V_cont_f1, [n_anchors * n_z, n_d * n_a]);
+n_states_1  = n_anchors * N_z * N_e;
+n_choices_1 = N_d * N_a;
+RHS_m1 = reshape(RHS_1, [n_states_1, n_choices_1]);
 [sub_V1, sub_Pol1] = max(RHS_m1, [], 2);
 
-V_current(level1ii, :) = reshape(sub_V1, [n_anchors, n_z]);
-Policy_Indices(level1ii, :) = reshape(sub_Pol1, [n_anchors, n_z]);
+coarse_apr_opt1 = ceil(sub_Pol1 ./ N_d);
 
-% Optimal aprime index for anchors (d varies fastest, aprime slowest)
-opt_apr_anchors = ceil(reshape(sub_Pol1, [n_anchors, n_z]) ./ n_d);
-
-%% Pass 2: Vectorized Batch Evaluation of All Remaining States
-rem_mask = true(n_a, 1);
-rem_mask(level1ii) = false;
-rem_a_idx = find(rem_mask);
-n_rem = length(rem_a_idx);
-
-if n_rem > 0
-    rem_a = a_work(rem_a_idx);
-    
-    % Map remaining states to their left and right anchor interval indices
-    % discretize assigns each index to bin ii such that level1ii(ii) <= idx <= level1ii(ii+1)
-    bin_idx = discretize(rem_a_idx, level1ii);
-    
-    % Extract lower and upper bounds for each remaining state and shock: shape (n_rem, n_z)
-    lb_rem = opt_apr_anchors(bin_idx, :);
-    ub_rem = opt_apr_anchors(bin_idx + 1, :);
-    
-    maxgap = max(ub_rem(:) - lb_rem(:));
-    n_cand = maxgap + 1;
-    k_offsets = reshape(0:maxgap, [1, 1, 1, n_cand]);
-    
-    % Bounded candidates: shape (n_rem, n_z, 1, n_cand)
-    Apr_idx_4d = min(reshape(lb_rem, [n_rem, n_z, 1, 1]) + k_offsets, ...
-                     reshape(ub_rem, [n_rem, n_z, 1, 1]));
-    
-    % Expand over d: shape (n_rem, n_z, n_d, n_cand)
-    Apr_idx_m2 = repmat(Apr_idx_4d, [1, 1, n_d, 1]);
-    Apr_m2 = a_work(Apr_idx_m2);
-    
-    [A_m2, Z_m2, D_m2] = ndgrid(rem_a, z_work, d_work);
-    A_m2 = repmat(A_m2, [1, 1, 1, n_cand]);
-    Z_m2 = repmat(Z_m2, [1, 1, 1, n_cand]);
-    D_m2 = repmat(D_m2, [1, 1, 1, n_cand]);
-    
-    Apr_idx_f2 = Apr_idx_m2(:);
-    F_f2 = eval_func(D_m2(:), Apr_m2(:), A_m2(:), Z_m2(:));
-    
-    z_idx_rem = repelem((1:n_z)', n_rem, 1);
-    z_idx_f2 = repmat(z_idx_rem, n_d * n_cand, 1);
-    lin_idx2 = sub2ind([n_a, n_z], Apr_idx_f2, z_idx_f2);
-    V_cont_f2 = EV_next(lin_idx2);
-    
-    RHS_m2 = reshape(F_f2 + beta_j .* V_cont_f2, [n_rem * n_z, n_d * n_cand]);
-    [sub_V2, sub_Pol2] = max(RHS_m2, [], 2);
-    
-    % Extract chosen d and candidate offset
-    d_chosen = mod(sub_Pol2 - 1, n_d) + 1;
-    cand_chosen = ceil(sub_Pol2 ./ n_d);
-    
-    % Reconstruct global aprime index from Apr_idx_4d
-    % Apr_idx_4d has shape (n_rem, n_z, 1, n_cand)
-    Apr_idx_flat_map = reshape(Apr_idx_4d, [n_rem * n_z, n_cand]);
-    state_idx = (1:(n_rem * n_z))';
-    chosen_lin = sub2ind([n_rem * n_z, n_cand], state_idx, cand_chosen);
-    apr_chosen_global = Apr_idx_flat_map(chosen_lin);
-    
-    global_Pol2 = (apr_chosen_global - 1) .* n_d + d_chosen;
-    
-    V_current(rem_a_idx, :) = reshape(sub_V2, [n_rem, n_z]);
-    Policy_Indices(rem_a_idx, :) = reshape(global_Pol2, [n_rem, n_z]);
+if has_e
+    opt_coarse_anchors = reshape(coarse_apr_opt1, [n_anchors, N_z, N_e]);
+    V_current(level1ii, :, :)  = reshape(sub_V1, [n_anchors, N_z, N_e]);
+    Policy_Row(level1ii, :, :) = reshape(sub_Pol1, [n_anchors, N_z, N_e]);
+else
+    opt_coarse_anchors = reshape(coarse_apr_opt1, [n_anchors, N_z]);
+    V_current(level1ii, :)  = reshape(sub_V1, [n_anchors, N_z]);
+    Policy_Row(level1ii, :) = reshape(sub_Pol1, [n_anchors, N_z]);
 end
 
-V_current = V_current(:);
-Policy_Indices = Policy_Indices(:);
+%% =========================================================================
+% PASS 2: Monotonic Bins on Coarse Grid
+% =========================================================================
+D_2       = reshape(d_work, [1, 1,   1, N_d, 1]);
+Z_2       = reshape(z_work, [1, N_z, 1, 1,   1]);
+z_sub_idx = reshape(1:N_z,  [1, N_z, 1, 1,   1]);
+
+for bin = 1:(n_anchors - 1)
+    idx_start = level1ii(bin) + 1;
+    idx_end   = level1ii(bin + 1) - 1;
+    if idx_start > idx_end
+        continue;
+    end
+
+    bin_a_idx = idx_start:idx_end;
+    n_bin_a   = length(bin_a_idx);
+    a_bin     = a_work(bin_a_idx);
+
+    if has_e
+        lb_bin = opt_coarse_anchors(bin, :, :);
+        ub_bin = opt_coarse_anchors(bin + 1, :, :);
+    else
+        lb_bin = opt_coarse_anchors(bin, :);
+        ub_bin = opt_coarse_anchors(bin + 1, :);
+    end
+
+    lb_bin_pad = max(1, lb_bin - 1);
+    ub_bin_pad = min(N_a, ub_bin + 1);
+
+    maxgap_bin = max(ub_bin_pad(:) - lb_bin_pad(:));
+    n_cand_bin = maxgap_bin + 1;
+
+    k_offsets = reshape(0:maxgap_bin, [1, 1, 1, 1, n_cand_bin]);
+    coarse_cand_idx = min(reshape(lb_bin_pad, [1, N_z, N_e, 1, 1]) + k_offsets, ...
+                          reshape(ub_bin_pad, [1, N_z, N_e, 1, 1]));
+
+    Apr_val_bin = a_work(coarse_cand_idx);
+    A_bin       = reshape(a_bin, [n_bin_a, 1, 1, 1, 1]);
+
+    F_bin = eval_kernel(D_2, Apr_val_bin, A_bin, Z_2);
+    guard_bin = zeros([n_bin_a, N_z, N_e, N_d, n_cand_bin], 'like', a_work);
+    F_bin = F_bin + guard_bin;
+
+    % Continuation value lookup: EV is (N_a x N_z)
+    ev_cand_lin = (coarse_cand_idx - 1) + (z_sub_idx - 1) .* N_a + 1;
+    V_cont_bin  = EV(ev_cand_lin);
+
+    RHS_bin = F_bin + beta_j .* V_cont_bin;
+
+    n_states_bin  = n_bin_a * N_z * N_e;
+    n_choices_bin = N_d * n_cand_bin;
+    RHS_m_bin     = reshape(RHS_bin, [n_states_bin, n_choices_bin]);
+    [sub_V_bin, sub_Pol_bin] = max(RHS_m_bin, [], 2);
+
+    % Unpack
+    d_chosen          = mod(sub_Pol_bin - 1, N_d) + 1;
+    coarse_offset_opt = ceil(sub_Pol_bin ./ N_d);
+
+    coarse_cand_expanded = repmat(coarse_cand_idx, [n_bin_a, 1, 1, 1, 1]);
+    coarse_cand_2d       = reshape(coarse_cand_expanded, [n_states_bin, n_cand_bin]);
+    state_lin            = (1:n_states_bin)';
+    chosen_lin           = sub2ind([n_states_bin, n_cand_bin], state_lin, coarse_offset_opt);
+    coarse_apr_bin       = coarse_cand_2d(chosen_lin);
+
+    row_kron_bin = (coarse_apr_bin - 1) .* N_d + d_chosen;
+
+    if has_e
+        V_current(bin_a_idx, :, :)  = reshape(sub_V_bin, [n_bin_a, N_z, N_e]);
+        Policy_Row(bin_a_idx, :, :) = reshape(row_kron_bin, [n_bin_a, N_z, N_e]);
+    else
+        V_current(bin_a_idx, :)  = reshape(sub_V_bin, [n_bin_a, N_z]);
+        Policy_Row(bin_a_idx, :) = reshape(row_kron_bin, [n_bin_a, N_z]);
+    end
+end
 
 end
