@@ -176,18 +176,22 @@ else
     n_z_work = N_z;
 end
 
-% Canonical grid: States (a, z), Choices (d, aprime)
-[A_mat, Z_mat, D_mat, Aprime_mat] = ndgrid(a_work, z_work_1, d_work, a_work);
-[~, ~, ~, AprimeIdx_mat] = ndgrid(1:n_a_work, 1:n_z_work, 1:n_d_work, 1:n_a_work);
-
-A_flat = A_mat(:);
-Z_flat = Z_mat(:);
-D_flat = D_mat(:);
-Aprime_flat = Aprime_mat(:);
-AprimeIdx_flat = AprimeIdx_mat(:);
-
-n_states = n_a_work * n_z_work;
-n_choices = n_d_work * n_a_work;
+if vfoptions.divideandconquer == 0 && vfoptions.gridinterplayer == 0
+    % Canonical grid: States (a, z), Choices (d, aprime)
+    [A_mat, Z_mat, D_mat, Aprime_mat] = ndgrid(a_work, z_work_1, d_work, a_work);
+    [~, ~, ~, AprimeIdx_mat] = ndgrid(1:n_a_work, 1:n_z_work, 1:n_d_work, 1:n_a_work);
+    A_flat = A_mat(:);
+    Z_flat = Z_mat(:);
+    D_flat = D_mat(:);
+    Aprime_flat = Aprime_mat(:);
+    AprimeIdx_flat = AprimeIdx_mat(:);
+    n_states = n_a_work * n_z_work;
+    n_choices = n_d_work * n_a_work;
+else
+    A_flat = []; Z_flat = []; D_flat = []; Aprime_flat = []; AprimeIdx_flat = [];
+    n_states = n_a_work * n_z_work;
+    n_choices = n_d_work * n_a_work;
+end
 
 V = zeros(n_a_work, n_z_work, N_j, 'like', a_grid);
 if vfoptions.gridinterplayer == 1
