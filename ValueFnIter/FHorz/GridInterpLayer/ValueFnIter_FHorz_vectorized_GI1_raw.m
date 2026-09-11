@@ -32,11 +32,10 @@ end
 
 % Align 6D grid:
 % Dim 1: a, Dim 2: z, Dim 3: e, Dim 4: d, Dim 5: aprime_coarse, Dim 6: tau
-% Broadcast shapes (Dim 1: a, Dim 2: z, Dim 4: d, Dim 5: aprime)
-A_in   = a_anchors;                % Natively spans Dim 1
+A_in   = a_work(:);                % Natively spans Dim 1
 Z_in   = shiftdim(z_work(:), -1);  % Pushed to Dim 2
 D_in   = shiftdim(d_work(:), -3);  % Pushed to Dim 4
-Apr_in = shiftdim(a_work(:), -4);  % Pushed to Dim 5
+Apr_in = shiftdim(Apr_dense, -4);  % Apr_dense is (N_a x G). Pushed to Dims 5 & 6!
 
 F = eval_kernel(D_in, Apr_in, A_in, Z_in);
 guard = zeros([N_a, N_z, N_e, N_d, N_a, G], 'like', a_work);
