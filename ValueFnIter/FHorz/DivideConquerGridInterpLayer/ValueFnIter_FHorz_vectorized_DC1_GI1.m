@@ -50,11 +50,19 @@ D_1   = shiftdim(d_work(:), -3);  % Pushed to Dim 4
 Apr_1 = shiftdim(a_work(:), -4);  % Pushed to Dim 5
 
 F_1 = eval_kernel(D_1, Apr_1, A_1, Z_1);
-guard_1 = zeros([n_anchors, N_z, N_e, N_d, N_a], 'like', a_work);
-F_1 = F_1 + guard_1;
 
-% EV continuation values on coarse grid: EV is (N_a x N_z) 
-EV_broadcast1 = permute(EV, [3, 2, 4, 5, 1]);
+% Zero-overhead shape guard
+expected_sz1 = [n_anchors, N_z, N_e, N_d, N_a];
+if ~isequal(size(F_1), expected_sz1)
+    F_1 = F_1 + zeros(expected_sz1, 'like', a_work);
+end
+
+% EV continuation values on coarse grid: EV is (N_a x N_z) or (N_a x N_z x N_e)
+if has_e
+    EV_broadcast1 = permute(EV, [4, 2, 3, 5, 1]);
+else
+    EV_broadcast1 = permute(EV, [3, 2, 4, 5, 1]);
+end
 RHS_1 = BellmanCombiner(F_1, EV_broadcast1);
 
 % States: (n_anchors * N_z * N_e)
@@ -83,8 +91,10 @@ end
 % =========================================================================
 D_2         = shiftdim(d_work(:), -3);    % Dim 4
 Z_2         = shiftdim(z_work(:), -1);    % Dim 2
-z_sub_idx   = shiftdim((1:N_z)',  -1);    % Dim 2
-tau_sub_idx = shiftdim((1:G)',    -5);    % Dim 6
+
+% Coordinate vectors for Dim 2 and Dim 6 using shiftdim
+z_coords = 1:N_z;                 % Row vector natively spans Dim 2
+g_coords = shiftdim(1:G, -4);     % Pushed to Dim 6
 
 for bin = 1:(n_anchors - 1)
     idx_start = level1ii(bin) + 1;
@@ -113,24 +123,35 @@ for bin = 1:(n_anchors - 1)
     
     % k_offsets pushed to Dim 5
     k_offsets = shiftdim((0:maxgap_bin)', -4); 
-    
-    % MATLAB broadcasts [1, N_z, N_e] + [1, 1, 1, 1, n_cand_bin] natively
     coarse_cand_idx = min(lb_bin_pad + k_offsets, ub_bin_pad);
 
-    % Candidate assets on subgrid
-    apr_cand_lin = coarse_cand_idx + (tau_sub_idx - 1) .* N_a;
-    Apr_val_bin  = Apr_dense(apr_cand_lin);
+    % Explicit 6D candidate shape: [1, N_z, N_e, 1, n_cand_bin, G]
+    cand_shape_gi = [1, N_z, N_e, 1, n_cand_bin, G];
+
+    % 1. Candidate assets on subgrid
+    apr_cand_lin = coarse_cand_idx + (g_coords - 1) .* N_a;
+    Apr_val_bin  = reshape(Apr_dense(apr_cand_lin(:)), cand_shape_gi);
 
     A_bin = a_bin; % Natively spans Dim 1
 
     F_bin = eval_kernel(D_2, Apr_val_bin, A_bin, Z_2);
-    guard_bin  = zeros([n_bin_a, N_z, N_e, N_d, n_cand_bin, G], 'like', a_work);
-    F_bin      = F_bin + guard_bin;
 
-    % Continuation values
-    ev_cand_lin = (coarse_cand_idx - 1) + (tau_sub_idx - 1) .* N_a + ...
-                  (z_sub_idx - 1) .* (N_a * G) + 1;
-    V_cont_bin  = EV_dense_3d(ev_cand_lin);
+    % Zero-overhead shape guard
+    expected_sz_bin = [n_bin_a, N_z, N_e, N_d, n_cand_bin, G];
+    if ~isequal(size(F_bin), expected_sz_bin)
+        F_bin = F_bin + zeros(expected_sz_bin, 'like', a_work);
+    end
+
+    % 2. Continuation values lookup from precomputed EV_dense_3d
+    if has_e
+        e_coords = shiftdim(1:N_e, -1);
+        ev_cand_lin = coarse_cand_idx + (g_coords - 1) .* N_a + ...
+            (z_coords - 1) .* (N_a * G) + (e_coords - 1) .* (N_a * G * N_z);
+    else
+        ev_cand_lin = coarse_cand_idx + (g_coords - 1) .* N_a + ...
+            (z_coords - 1) .* (N_a * G);
+    end
+    V_cont_bin = reshape(EV_dense_3d(ev_cand_lin(:)), cand_shape_gi);
 
     RHS_bin = BellmanCombiner(F_bin, V_cont_bin);
 
@@ -179,5 +200,6 @@ else
     Policy_3Row(2, :, :) = Policy_row2;
     Policy_3Row(3, :, :) = ones(N_a, N_z, 'like', a_work);
 end
+
 
 end
