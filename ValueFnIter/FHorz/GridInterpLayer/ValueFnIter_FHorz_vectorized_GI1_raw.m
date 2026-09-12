@@ -1,8 +1,9 @@
 function [V_current, Policy_3Row] = ValueFnIter_FHorz_vectorized_GI1_raw(...
-    eval_kernel, BellmanCombiner, EV, a_work, z_work, d_work, ...
+    eval_kernel, BellmanCombiner, EV, A_mat, z_work, d_work, ...
     N_a, N_z, N_d, pi_z_j, ReturnFnParamsVec, vfoptions)
 
 G = vfoptions.ngridinterp;
+a_work = A_mat(:, 1); % Extract primary asset grid
 tau_vec = linspace(0, (G - 1) / G, G);
 if vfoptions.parallel == 2
     tau_vec = gpuArray(tau_vec);
@@ -32,7 +33,7 @@ end
 
 % Align 6D grid:
 % Dim 1: a, Dim 2: z, Dim 3: e, Dim 4: d, Dim 5: aprime_coarse, Dim 6: tau
-A_in   = a_work(:);                % Natively spans Dim 1
+A_in   = num2cell(A_mat, 1); % Packages all endogenous states natively spanning Dim 1
 Z_in   = shiftdim(z_work(:), -1);  % Pushed to Dim 2
 D_in   = shiftdim(d_work(:), -3);  % Pushed to Dim 4
 Apr_in = shiftdim(Apr_dense, -4);  % Apr_dense is (N_a x G). Pushed to Dims 5 & 6!

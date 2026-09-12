@@ -1,5 +1,5 @@
 function [V_current, Policy_Row] = ValueFnIter_FHorz_vectorized_DC1(...
-    eval_kernel, BellmanCombiner, EV, a_work, z_work, d_work, ...
+    eval_kernel, BellmanCombiner, EV, A_mat, z_work, d_work, ...
     N_a, N_z, N_d, pi_z_j, vfoptions)
 
 % Check if e exists in the model
@@ -14,6 +14,7 @@ else
     state_dims = [N_a, N_z];
 end
 
+a_work = A_mat(:, 1);
 V_current  = zeros(state_dims, 'like', a_work);
 Policy_Row = zeros(state_dims, 'like', a_work);
 
@@ -25,7 +26,8 @@ n_anchors = length(level1ii);
 a_anchors = a_work(level1ii);
 
 % Broadcast shapes (Dim 1: a, Dim 2: z, Dim 4: d, Dim 5: aprime)
-A_1   = a_anchors;                % Natively spans Dim 1
+% For the raw/full-grid evaluators:
+A_1 = num2cell(A_mat, 1);
 Z_1   = shiftdim(z_work(:), -1);  % Pushed to Dim 2
 D_1   = shiftdim(d_work(:), -3);  % Pushed to Dim 4
 Apr_1 = shiftdim(a_work(:), -4);  % Pushed to Dim 5
@@ -77,7 +79,6 @@ for bin = 1:(n_anchors - 1)
 
     bin_a_idx = idx_start:idx_end;
     n_bin_a   = length(bin_a_idx);
-    a_bin     = a_work(bin_a_idx);
 
     if has_e
         lb_bin = opt_coarse_anchors(bin, :, :);
@@ -104,8 +105,7 @@ for bin = 1:(n_anchors - 1)
 
     % 1. Force candidate asset choices to stay strictly along Dim 5
     Apr_val_bin = reshape(a_work(coarse_cand_idx(:)), cand_shape);
-    A_bin       = a_bin; % Natively spans Dim 1
-
+    A_bin = num2cell(A_mat(bin_a_idx, :), 1); % Packages all endogenous states for this bin
     F_bin = eval_kernel(D_2, Apr_val_bin, A_bin, Z_2);
 
     % Zero-overhead shape guard

@@ -261,7 +261,26 @@ else
     D_cells = {};
 end
 
-a_work = a_grid;
+% ---------------------------------------------------------------------
+% Unstack Endogenous States (a, n1, n2, ...)
+% ---------------------------------------------------------------------
+num_a = length(n_a);
+if num_a > 1
+    a_grids_1d = cell(1, num_a);
+    offset = 0;
+    for i_a = 1:num_a
+        a_grids_1d{i_a} = a_grid((offset + 1):(offset + n_a(i_a)));
+        offset = offset + n_a(i_a);
+    end
+    [A_mesh_raw{1:num_a}] = ndgrid(a_grids_1d{:});
+    A_mat = zeros(N_a, num_a, 'like', a_grid);
+    for i_a = 1:num_a
+        A_mat(:, i_a) = A_mesh_raw{i_a}(:);
+    end
+else
+    A_mat = a_grid(:);
+end
+a_work = A_mat(:, 1); % Primary asset grid for interpolation
 n_a_work = N_a;
 
 if isempty(z_gridvals_J) || N_z == 0
@@ -275,23 +294,35 @@ else
 end
 has_z = (n_z_work > 0 && N_z > 0);
 
-has_semiz = isfield(vfoptions, 'n_semiz') && ~isempty(vfoptions.n_semiz) && prod(vfoptions.n_semiz) > 0;
-if has_semiz
-    % Guard against age-varying semi-exogenous grids
-    if isfield(vfoptions, 'semiz_gridvals_J') && ndims(vfoptions.semiz_gridvals_J) >= 3 && size(vfoptions.semiz_gridvals_J, 3) > 1
-        error('Vectorized FHorz does not currently support age-varying semi-exogenous grids (semiz_gridvals_J with size > 1 in dimension 3).');
+% ---------------------------------------------------------------------
+% Reverted Z_cells parsing (strictly using n_z)
+% ---------------------------------------------------------------------
+if has_z
+    num_z = length(n_z);
+    if num_z > 1
+        if size(z_work_j, 2) == num_z
+            Z_cells = cell(1, num_z);
+            for i_z = 1:num_z
+                Z_cells{i_z} = shiftdim(z_work_j(:, i_z), -1);
+            end
+        else
+            z_grids_1d = cell(1, num_z);
+            offset = 0;
+            for i_z = 1:num_z
+                z_grids_1d{i_z} = z_work_j((offset + 1):(offset + n_z(i_z)));
+                offset = offset + n_z(i_z);
+            end
+            [Z_mesh{1:num_z}] = ndgrid(z_grids_1d{:});
+            Z_cells = cell(1, num_z);
+            for i_z = 1:num_z
+                Z_cells{i_z} = shiftdim(Z_mesh{i_z}(:), -1);
+            end
+        end
+    else
+        Z_cells = { shiftdim(z_work_j(:), -1) };
     end
-    if isfield(vfoptions, 'semiexog_grid_J') || isfield(vfoptions, 'semiz_grid_J')
-        error('Vectorized FHorz does not currently support age-varying semi-exogenous grids (*_J).');
-    end
-    num_semiz = length(vfoptions.n_semiz);
-    if isfield(vfoptions, 'semiz_gridvals')
-        semiz_work = vfoptions.semiz_gridvals;
-    elseif isfield(vfoptions, 'semiexog_grid')
-        semiz_work = vfoptions.semiexog_grid;
-    elseif isfield(vfoptions, 'semiz_grid')
-        semiz_work = vfoptions.semiz_grid;
-    end
+else
+    Z_cells = {};
 end
 
 has_e = isfield(vfoptions, 'n_e') && ~isempty(vfoptions.n_e) && prod(vfoptions.n_e) > 0;
@@ -341,7 +372,15 @@ for reverse_j = 1:N_j-1
         pi_z_j   = ones(1, 1, 'like', a_grid);
     end
     if has_z
-        num_z = length(n_z);
+        % 1. Combine semi-exogenous and exogenous state dimensions
+        if isfield(vfoptions, 'n_semiz') && ~isempty(vfoptions.n_semiz) && prod(vfoptions.n_semiz) > 0
+            n_all_z = [vfoptions.n_semiz, n_z];
+        else
+            n_all_z = n_z;
+        end
+        
+        num_z = length(n_all_z);
+        
         if num_z > 1
             if size(z_work_j, 2) == num_z
                 % Already Cartesian coordinates: [N_z x num_z]
@@ -350,12 +389,12 @@ for reverse_j = 1:N_j-1
                     Z_cells{i_z} = shiftdim(z_work_j(:, i_z), -1); % Dim 2
                 end
             else
-                % Stacked 1D grids: unstack via ndgrid
+                % Stacked 1D grids: unstack via ndgrid using n_all_z
                 z_grids_1d = cell(1, num_z);
                 offset = 0;
                 for i_z = 1:num_z
-                    z_grids_1d{i_z} = z_work_j((offset + 1):(offset + n_z(i_z)));
-                    offset = offset + n_z(i_z);
+                    z_grids_1d{i_z} = z_work_j((offset + 1):(offset + n_all_z(i_z)));
+                    offset = offset + n_all_z(i_z);
                 end
                 [Z_mesh{1:num_z}] = ndgrid(z_grids_1d{:});
                 Z_cells = cell(1, num_z);
@@ -571,23 +610,23 @@ for reverse_j = 1:N_j-1
     
             % Construct unified kernel adapter for this e-slice
             if has_d && has_z && has_e
-                eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(...
-                    D_cells{:}, apr_in, a_in, Z_cells{:}, E_cells_slice{:}, ReturnFnParamsVec{:});
+                eval_kernel = @(d_in, apr_in, A_cells, z_in) ReturnFn(...
+                    D_cells{:}, apr_in, A_cells{:}, Z_cells{:}, E_cells_slice{:}, ReturnFnParamsVec{:});
             elseif has_d && has_z && ~has_e
-                eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(...
-                    D_cells{:}, apr_in, a_in, Z_cells{:}, ReturnFnParamsVec{:});
+                eval_kernel = @(d_in, apr_in, A_cells, z_in) ReturnFn(...
+                    D_cells{:}, apr_in, A_cells{:}, Z_cells{:}, ReturnFnParamsVec{:});
             elseif ~has_d && has_z && has_e
-                eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(...
-                    apr_in, a_in, Z_cells{:}, E_cells_slice{:}, ReturnFnParamsVec{:});
+                eval_kernel = @(d_in, apr_in, A_cells, z_in) ReturnFn(...
+                    apr_in, A_cells{:}, Z_cells{:}, E_cells_slice{:}, ReturnFnParamsVec{:});
             elseif ~has_d && has_z && ~has_e
-                eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(...
-                    apr_in, a_in, Z_cells{:}, ReturnFnParamsVec{:});
+                eval_kernel = @(d_in, apr_in, A_cells, z_in) ReturnFn(...
+                    apr_in, A_cells{:}, Z_cells{:}, ReturnFnParamsVec{:});
             elseif has_d && ~has_z && ~has_e
-                eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(...
-                    D_cells{:}, apr_in, a_in, ReturnFnParamsVec{:});
+                eval_kernel = @(d_in, apr_in, A_cells, z_in) ReturnFn(...
+                    D_cells{:}, apr_in, A_cells{:}, ReturnFnParamsVec{:});
             else
-                eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(...
-                    apr_in, a_in, ReturnFnParamsVec{:});
+                eval_kernel = @(d_in, apr_in, A_cells, z_in) ReturnFn(...
+                    apr_in, A_cells{:}, ReturnFnParamsVec{:});
             end
 
             % -------------------------------------------------------------
@@ -595,7 +634,7 @@ for reverse_j = 1:N_j-1
             % -------------------------------------------------------------
             if vfoptions.divideandconquer == 1 && vfoptions.gridinterplayer == 1
                 [V_sub, Pol_sub] = ValueFnIter_FHorz_vectorized_DC1_GI1(...
-                    eval_kernel, BellmanCombiner, EV_slice, a_work, z_slice, d_work, ...
+                    eval_kernel, BellmanCombiner, EV_slice, A_mat, z_slice, d_work, ...
                     n_a_work, n_z_slice, n_d_work, pi_z_j, ReturnFnParamsVec, vfoptions);
                 % Pol_sub contains:
                 % Row 1: Optimal coarse asset index a'_opt
@@ -615,18 +654,18 @@ for reverse_j = 1:N_j-1
 
             elseif vfoptions.gridinterplayer == 1
                 [V_sub, Pol_sub] = ValueFnIter_FHorz_vectorized_GI1_raw(...
-                    eval_kernel, BellmanCombiner, EV_slice, a_work, z_slice, d_work, ...
+                    eval_kernel, BellmanCombiner, EV_slice, A_mat, z_slice, d_work, ...
                     n_a_work, n_z_slice, n_d_work, pi_z_j, ReturnFnParamsVec, vfoptions);
 
             elseif vfoptions.divideandconquer == 1
                 [V_sub, Pol_sub] = ValueFnIter_FHorz_vectorized_DC1(...
-                    eval_kernel, BellmanCombiner, EV_slice, a_work, z_slice, d_work, ...
+                    eval_kernel, BellmanCombiner, EV_slice, A_mat, z_slice, d_work, ...
                     n_a_work, n_z_slice, n_d_work, pi_z_j, vfoptions);
 
             else
                 % pi_z_j has already done its work
                 [V_sub, Pol_sub] = ValueFnIter_FHorz_vectorized_raw(...
-                    eval_kernel, BellmanCombiner, EV_slice, a_work, z_slice, d_work,  ...
+                    eval_kernel, BellmanCombiner, EV_slice, A_mat, z_slice, d_work,  ...
                     n_a_work, n_z_slice, n_d_work, vfoptions);
             end
 

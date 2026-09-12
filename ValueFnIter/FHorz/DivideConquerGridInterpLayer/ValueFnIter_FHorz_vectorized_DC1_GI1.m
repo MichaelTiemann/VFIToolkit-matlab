@@ -1,8 +1,9 @@
 function [V_current, Policy_3Row] = ValueFnIter_FHorz_vectorized_DC1_GI1(...
-    eval_kernel, BellmanCombiner, EV, a_work, z_work, d_work, ...
+    eval_kernel, BellmanCombiner, EV, A_mat, z_work, d_work, ...
     N_a, N_z, N_d, pi_z_j, ReturnFnParamsVec, vfoptions)
 
 G = vfoptions.ngridinterp;
+a_work = A_mat(:, 1); % Extract primary asset grid
 tau_vec = linspace(0, (G - 1) / G, G);
 if vfoptions.parallel == 2
     tau_vec = gpuArray(tau_vec);
@@ -44,7 +45,7 @@ n_anchors = length(level1ii);
 a_anchors = a_work(level1ii);
 
 % Broadcast shapes (Dim 1: a, Dim 2: z, Dim 4: d, Dim 5: aprime)
-A_1   = a_anchors;                % Natively spans Dim 1
+A_1   = num2cell(A_mat(level1ii, :), 1); % Packages all endogenous states into cells spanning Dim 1
 Z_1   = shiftdim(z_work(:), -1);  % Pushed to Dim 2
 D_1   = shiftdim(d_work(:), -3);  % Pushed to Dim 4
 Apr_1 = shiftdim(a_work(:), -4);  % Pushed to Dim 5
@@ -128,8 +129,7 @@ for bin = 1:(n_anchors - 1)
     apr_cand_lin = coarse_cand_idx + (g_coords - 1) .* N_a;
     Apr_val_bin  = reshape(Apr_dense(apr_cand_lin(:)), cand_shape_gi);
 
-    A_bin = a_bin; % Natively spans Dim 1
-
+    A_bin = num2cell(A_mat(bin_a_idx, :), 1); % Spans natively on Dim 1
     F_bin = eval_kernel(D_2, Apr_val_bin, A_bin, Z_2);
 
     % Zero-overhead shape guard
