@@ -32,18 +32,6 @@ else
     state_dims = [N_a, N_z];
 end
 
-% If lowmemory >= 1, the caller loops over e sequentially, so this call only sees 1 slice.
-% If lowmemory == 0, this call processes all N_e simultaneously.
-if has_e && vfoptions.lowmemory == 0
-    N_e = prod(vfoptions.n_e);
-    state_dims = [N_a, N_z, N_e];
-else
-    N_e = 1;
-    state_dims = [N_a, N_z];
-end
-
-n_states_total = prod(state_dims);
-
 V_current   = zeros(state_dims, 'like', a_work);
 Policy_row1 = zeros(state_dims, 'like', a_work);
 Policy_row2 = zeros(state_dims, 'like', a_work);
