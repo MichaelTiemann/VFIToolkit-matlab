@@ -18,15 +18,14 @@ EV_pad = [EV; EV(end, :)];
 EV_dense_3d = (1 - tau_vec) .* reshape(EV, [N_a, 1, N_z]) + ...
               tau_vec .* reshape(EV_pad(2:end, :), [N_a, 1, N_z]);
 
-% Check if e exists in the model
-has_e = isfield(vfoptions, 'n_e') && ~isempty(vfoptions.n_e) && prod(vfoptions.n_e) > 0;
-
-% If lowmemory >= 1, the caller loops over e sequentially, so this call only sees 1 slice.
-% If lowmemory == 0, this call processes all N_e simultaneously.
-if has_e && vfoptions.lowmemory == 0
+% Check if e exists and whether this call processes multiple e simultaneously.
+% If lowmemory >= 1, the caller loops over e sequentially, so this invocation sees exactly 1 slice (has_e = false).
+if isfield(vfoptions, 'n_e') && ~isempty(vfoptions.n_e) && prod(vfoptions.n_e) > 0 && vfoptions.lowmemory == 0
+    has_e = true;
     N_e = prod(vfoptions.n_e);
     state_dims = [N_a, N_z, N_e];
 else
+    has_e = false;
     N_e = 1;
     state_dims = [N_a, N_z];
 end

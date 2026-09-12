@@ -294,37 +294,6 @@ else
 end
 has_z = (n_z_work > 0 && N_z > 0);
 
-% ---------------------------------------------------------------------
-% Reverted Z_cells parsing (strictly using n_z)
-% ---------------------------------------------------------------------
-if has_z
-    num_z = length(n_z);
-    if num_z > 1
-        if size(z_work_j, 2) == num_z
-            Z_cells = cell(1, num_z);
-            for i_z = 1:num_z
-                Z_cells{i_z} = shiftdim(z_work_j(:, i_z), -1);
-            end
-        else
-            z_grids_1d = cell(1, num_z);
-            offset = 0;
-            for i_z = 1:num_z
-                z_grids_1d{i_z} = z_work_j((offset + 1):(offset + n_z(i_z)));
-                offset = offset + n_z(i_z);
-            end
-            [Z_mesh{1:num_z}] = ndgrid(z_grids_1d{:});
-            Z_cells = cell(1, num_z);
-            for i_z = 1:num_z
-                Z_cells{i_z} = shiftdim(Z_mesh{i_z}(:), -1);
-            end
-        end
-    else
-        Z_cells = { shiftdim(z_work_j(:), -1) };
-    end
-else
-    Z_cells = {};
-end
-
 has_e = isfield(vfoptions, 'n_e') && ~isempty(vfoptions.n_e) && prod(vfoptions.n_e) > 0;
 if has_e
     n_e_vars = length(vfoptions.n_e);
@@ -371,35 +340,26 @@ for reverse_j = 1:N_j-1
         z_work_j = zeros(1, 1, 'like', a_grid);
         pi_z_j   = ones(1, 1, 'like', a_grid);
     end
+
     if has_z
-        % 1. Combine semi-exogenous and exogenous state dimensions
-        if isfield(vfoptions, 'n_semiz') && ~isempty(vfoptions.n_semiz) && prod(vfoptions.n_semiz) > 0
-            n_all_z = [vfoptions.n_semiz, n_z];
-        else
-            n_all_z = n_z;
-        end
-        
-        num_z = length(n_all_z);
-        
+        num_z = length(n_z);
         if num_z > 1
             if size(z_work_j, 2) == num_z
-                % Already Cartesian coordinates: [N_z x num_z]
                 Z_cells = cell(1, num_z);
                 for i_z = 1:num_z
-                    Z_cells{i_z} = shiftdim(z_work_j(:, i_z), -1); % Dim 2
+                    Z_cells{i_z} = shiftdim(z_work_j(:, i_z), -1);
                 end
             else
-                % Stacked 1D grids: unstack via ndgrid using n_all_z
                 z_grids_1d = cell(1, num_z);
                 offset = 0;
                 for i_z = 1:num_z
-                    z_grids_1d{i_z} = z_work_j((offset + 1):(offset + n_all_z(i_z)));
-                    offset = offset + n_all_z(i_z);
+                    z_grids_1d{i_z} = z_work_j((offset + 1):(offset + n_z(i_z)));
+                    offset = offset + n_z(i_z);
                 end
                 [Z_mesh{1:num_z}] = ndgrid(z_grids_1d{:});
                 Z_cells = cell(1, num_z);
                 for i_z = 1:num_z
-                    Z_cells{i_z} = shiftdim(Z_mesh{i_z}(:), -1); % Dim 2
+                    Z_cells{i_z} = shiftdim(Z_mesh{i_z}(:), -1);
                 end
             end
         else

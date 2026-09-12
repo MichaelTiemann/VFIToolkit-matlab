@@ -2,14 +2,14 @@ function [V_current, Policy_Row] = ValueFnIter_FHorz_vectorized_DC1(...
     eval_kernel, BellmanCombiner, EV, A_mat, z_work, d_work, ...
     N_a, N_z, N_d, pi_z_j, vfoptions)
 
-% Check if e exists in the model
-has_e = isfield(vfoptions, 'n_e') && ~isempty(vfoptions.n_e) && prod(vfoptions.n_e) > 0;
-
-% If lowmemory >= 1, the caller loops over e sequentially, so this call only sees 1 slice.
-if has_e && vfoptions.lowmemory == 0
+% Check if e exists and whether this call processes multiple e simultaneously.
+% If lowmemory >= 1, the caller loops over e sequentially, so this invocation sees exactly 1 slice (has_e = false).
+if isfield(vfoptions, 'n_e') && ~isempty(vfoptions.n_e) && prod(vfoptions.n_e) > 0 && vfoptions.lowmemory == 0
+    has_e = true;
     N_e = prod(vfoptions.n_e);
     state_dims = [N_a, N_z, N_e];
 else
+    has_e = false;
     N_e = 1;
     state_dims = [N_a, N_z];
 end
