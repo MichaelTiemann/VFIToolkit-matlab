@@ -7,11 +7,9 @@ function [V_current, Policy_Row] = ValueFnIter_FHorz_vectorized_DC1(...
 if isfield(vfoptions, 'n_e') && ~isempty(vfoptions.n_e) && prod(vfoptions.n_e) > 0 && vfoptions.lowmemory == 0
     has_e = true;
     N_e = prod(vfoptions.n_e);
-    state_dims = [N_a, N_z, N_e];
 else
     has_e = false;
     N_e = 1;
-    state_dims = [N_a, N_z];
 end
 
 a_work = A_mat(:, 1);
@@ -23,7 +21,6 @@ Policy_Row = zeros(state_dims, 'like', a_work);
 % =========================================================================
 level1ii  = round(linspace(1, N_a, vfoptions.level1n(1)));
 n_anchors = length(level1ii);
-a_anchors = a_work(level1ii);
 
 % Broadcast shapes (Dim 1: a, Dim 2: z, Dim 4: d, Dim 5: aprime)
 % For the raw/full-grid evaluators:

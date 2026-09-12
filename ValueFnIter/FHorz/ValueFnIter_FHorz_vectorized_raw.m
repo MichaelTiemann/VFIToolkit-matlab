@@ -2,20 +2,19 @@ function [V_current, Policy_Row] = ValueFnIter_FHorz_vectorized_raw(...
     eval_kernel, BellmanCombiner, EV, A_mat, z_work, d_work, ...
     N_a, N_z, N_d, vfoptions)
 
+a_work = A_mat(:, 1); % Extract primary asset grid for broadcasting and 'like' typing
+
 % Check if e exists and whether this call processes multiple e simultaneously.
-% If lowmemory >= 1, the caller loops over e sequentially, so this invocation sees exactly 1 slice (has_e = false).
 if isfield(vfoptions, 'n_e') && ~isempty(vfoptions.n_e) && prod(vfoptions.n_e) > 0 && vfoptions.lowmemory == 0
     has_e = true;
     N_e = prod(vfoptions.n_e);
-    state_dims = [N_a, N_z, N_e];
 else
     has_e = false;
     N_e = 1;
-    state_dims = [N_a, N_z];
 end
 
 % Align 5D grid: Dim 1: a, Dim 2: z, Dim 3: e, Dim 4: d, Dim 5: aprime
-A_1 = num2cell(A_mat, 1); % Packages all endogenous states natively spanning Dim 1
+A_in   = num2cell(A_mat, 1);       % Packages all endogenous states natively spanning Dim 1
 Z_in   = shiftdim(z_work(:), -1);  % Dim 2
 D_in   = shiftdim(d_work(:), -3);  % Dim 4
 Apr_in = shiftdim(a_work(:), -4);  % Dim 5

@@ -26,11 +26,9 @@ EV_dense_3d = (1 - tau_vec) .* reshape(EV, [N_a, 1, N_z]) + ...
 if isfield(vfoptions, 'n_e') && ~isempty(vfoptions.n_e) && prod(vfoptions.n_e) > 0 && vfoptions.lowmemory == 0
     has_e = true;
     N_e = prod(vfoptions.n_e);
-    state_dims = [N_a, N_z, N_e];
 else
     has_e = false;
     N_e = 1;
-    state_dims = [N_a, N_z];
 end
 
 V_current   = zeros(state_dims, 'like', a_work);
@@ -42,7 +40,6 @@ Policy_row2 = zeros(state_dims, 'like', a_work);
 % =========================================================================
 level1ii  = round(linspace(1, N_a, vfoptions.level1n(1)));
 n_anchors = length(level1ii);
-a_anchors = a_work(level1ii);
 
 % Broadcast shapes (Dim 1: a, Dim 2: z, Dim 4: d, Dim 5: aprime)
 A_1   = num2cell(A_mat(level1ii, :), 1); % Packages all endogenous states into cells spanning Dim 1
