@@ -322,10 +322,10 @@ for reverse_j = 1:N_j-1
         pi_z_j   = ones(1, 1, 'like', a_grid);
     end
     if has_z
-        num_z = length(n_z);
-        if num_z > 1
-            Z_cells = cell(1, num_z);
-            for i_z = 1:num_z
+        num_z_cols = size(z_work_j, 2);
+        if num_z_cols > 1
+            Z_cells = cell(1, num_z_cols);
+            for i_z = 1:num_z_cols
                 Z_cells{i_z} = shiftdim(z_work_j(:, i_z), -1); % Dim 2: [1, N_z]
             end
         else
