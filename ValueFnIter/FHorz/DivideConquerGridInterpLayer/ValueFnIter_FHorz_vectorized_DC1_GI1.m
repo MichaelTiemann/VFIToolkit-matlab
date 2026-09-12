@@ -26,9 +26,11 @@ EV_dense_3d = (1 - tau_vec) .* reshape(EV, [N_a, 1, N_z]) + ...
 if isfield(vfoptions, 'n_e') && ~isempty(vfoptions.n_e) && prod(vfoptions.n_e) > 0 && vfoptions.lowmemory == 0
     has_e = true;
     N_e = prod(vfoptions.n_e);
+    state_dims = [N_a, N_z, N_e];
 else
     has_e = false;
     N_e = 1;
+    state_dims = [N_a, N_z];
 end
 
 V_current   = zeros(state_dims, 'like', a_work);

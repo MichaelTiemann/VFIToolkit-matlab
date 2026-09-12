@@ -7,9 +7,11 @@ function [V_current, Policy_Row] = ValueFnIter_FHorz_vectorized_DC1(...
 if isfield(vfoptions, 'n_e') && ~isempty(vfoptions.n_e) && prod(vfoptions.n_e) > 0 && vfoptions.lowmemory == 0
     has_e = true;
     N_e = prod(vfoptions.n_e);
+    state_dims = [N_a, N_z, N_e];
 else
     has_e = false;
     N_e = 1;
+    state_dims = [N_a, N_z];
 end
 
 a_work = A_mat(:, 1);
