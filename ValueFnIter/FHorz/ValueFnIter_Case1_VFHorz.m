@@ -214,6 +214,10 @@ if vfoptions.alreadygridvals_semiexo==0
     end
 end
 
+N_d = prod(n_d);
+N_a = prod(n_a);
+N_z = prod(n_z);
+
 %% Exogenous shock gridvals and pi
 if N_z > 0
     if vfoptions.alreadygridvals == 0
@@ -252,22 +256,6 @@ if isfield(vfoptions, 'n_semiz') && prod(vfoptions.n_semiz)>0
 
     varargout = {V, Policy};
     return
-end
-
-N_d = prod(n_d);
-N_a = prod(n_a);
-N_z = prod(n_z);
-
-if N_z > 0
-    if vfoptions.alreadygridvals == 0
-        [z_gridvals_J, pi_z_J, vfoptions] = ExogShockSetup_FHorz(n_z, z_grid, pi_z, N_j, Parameters, vfoptions, 3, 0);
-    else
-        z_gridvals_J = z_grid;
-        pi_z_J = pi_z;
-    end
-else
-    z_gridvals_J = [];
-    pi_z_J = [];
 end
 
 % Standardize missing dimensions to length-1 singletons
