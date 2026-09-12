@@ -379,7 +379,7 @@ for reverse_j = 0:N_j-1
         else
             z_work_j = z_work_1;
         end
-        pi_z_j = pi_z_J(:, :, jj);
+        pi_z_j = pi_z_J(:, :, min(jj, size(pi_z_J, 3)));
     else
         z_work_j = zeros(1, 1, 'like', a_grid);
         pi_z_j   = ones(1, 1, 'like', a_grid);

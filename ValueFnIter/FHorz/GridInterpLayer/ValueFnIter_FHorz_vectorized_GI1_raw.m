@@ -2,7 +2,7 @@ function [V_current, Policy_3Row] = ValueFnIter_FHorz_vectorized_GI1_raw(...
     eval_kernel, BellmanCombiner, EV, A_mat, z_work, d_work, ...
     N_a, N_z, N_d, pi_z_j, ReturnFnParamsVec, vfoptions)
 
-G = vfoptions.ngridinterp;
+G = vfoptions.ngridinterp + 1; % Toolkit uses ngridinterp as the number of *interior* points
 a_work = A_mat(:, 1); % Extract primary asset grid
 tau_vec = linspace(0, (G - 1) / G, G);
 if vfoptions.parallel == 2

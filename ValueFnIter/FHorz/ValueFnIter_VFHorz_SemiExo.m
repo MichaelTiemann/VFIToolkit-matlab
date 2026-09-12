@@ -68,7 +68,7 @@ for reverse_j = 0:N_j-1
     if jj == N_j
         if isfield(vfoptions, 'V_Jplus1') && ~isempty(vfoptions.V_Jplus1)
             temp_V_rs = reshape(vfoptions.V_Jplus1, [N_a * N_semiz, N_z]);
-            pi_z_j = pi_z_J(:,:,jj);
+            pi_z_j = pi_z_J(:,:,min(jj, size(pi_z_J, 3)));
             EV_raw_rs = temp_V_rs * (pi_z_j');
             EV_slice = reshape(EV_raw_rs, [N_a, N_semiz, N_z]);
         else
@@ -84,7 +84,7 @@ for reverse_j = 0:N_j-1
     end
     
     % Pass SemiExo transition matrix to dispatchers for choice-dependent integration
-    vfoptions.pi_semiz_j_active = pi_semiz_J(:,:,:,jj);
+    vfoptions.pi_semiz_j_active = pi_semiz_J(:,:,:,min(jj, size(pi_semiz_J, 4)));
     
     % Define Kernel & Combiner
     eval_kernel = @(d_in, apr_in, A_cells, z_in) ReturnFn(D_cells{:}, apr_in, A_cells{:}, Z_cells{:}, ReturnFnParamsVec{:});
@@ -114,9 +114,17 @@ for reverse_j = 0:N_j-1
     
     if vfoptions.gridinterplayer == 1
         apr_coarse_opt = ceil(Pol_sub(1,:) ./ N_d);
-
+        tau_opt = Pol_sub(2,:);
+        
+        % VFIToolkit safety clamp: StationaryDist crashes if apr_coarse_opt == N_a
+        % Force coarse to N_a - 1, and max out tau so it puts 100% weight on N_a
+        G_segments = vfoptions.ngridinterp + 1; 
+        at_top = (apr_coarse_opt == N_a);
+        apr_coarse_opt(at_top) = N_a - 1;
+        tau_opt(at_top) = G_segments + 1; 
+        
         PolicyKron(3,:,:,jj) = reshape(apr_coarse_opt, [N_a, N_bothz]);
-        PolicyKron(4,:,:,jj) = reshape(Pol_sub(2,:), [N_a, N_bothz]); % tau subgrid index
+        PolicyKron(4,:,:,jj) = reshape(tau_opt, [N_a, N_bothz]);
         PolicyKron(5,:,:,jj) = reshape(Pol_sub(3,:), [N_a, N_bothz]); % L2 flag
     else
         PolicyKron(3,:,:,jj) = reshape(ceil(Pol_sub(1,:) ./ N_d), [N_a, N_bothz]);
