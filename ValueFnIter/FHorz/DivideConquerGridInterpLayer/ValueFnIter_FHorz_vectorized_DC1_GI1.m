@@ -21,41 +21,8 @@ EV_pad = [EV; EV(end, :)];
 EV_dense_3d = (1 - tau_vec) .* reshape(EV, [N_a, 1, N_z]) + ...
               tau_vec .* reshape(EV_pad(2:end, :), [N_a, 1, N_z]);
 
-% -------------------------------------------------------------------------
-% NEW: Choice-Dependent Tensor Contraction for Semi-Exogenous States
-% -------------------------------------------------------------------------
-if isfield(vfoptions, 'pi_semiz_j_active')
-    pi_semiz = vfoptions.pi_semiz_j_active; % [N_semiz_prime, N_semiz, N_d2]
-    N_semiz  = prod(vfoptions.n_semiz);
-    N_z_exog = N_z / N_semiz;
-    N_d2     = size(pi_semiz, 3);
-    N_d1     = N_d / N_d2;
-    
-    % Reshape EV to expose semiz' for matrix multiplication
-    EV_reshaped = reshape(EV_dense_3d, [N_a * G, N_semiz, N_z_exog]);
-    EV_flat     = reshape(permute(EV_reshaped, [1, 3, 2]), [N_a * G * N_z_exog, N_semiz]);
-    
-    % Integrate out semiz' for each d2 choice
-    EV_new = zeros(N_a * G * N_z_exog, N_semiz, N_d2, 'like', a_work);
-    for d2_idx = 1:N_d2
-        EV_new(:,:,d2_idx) = EV_flat * pi_semiz(:,:,d2_idx);
-    end
-    
-    % Reconstruct dimensions: [N_a, G, N_semiz, N_z_exog, N_d2]
-    EV_new = reshape(EV_new, [N_a, G, N_z_exog, N_semiz, N_d2]);
-    EV_new = permute(EV_new, [1, 2, 4, 3, 5]); 
-    EV_new = reshape(EV_new, [N_a, G, N_z, N_d2]);
-    
-    % Expand N_d2 across N_d1 to match the full choice grid (d1 varies fastest)
-    EV_expected = repelem(EV_new, 1, 1, 1, N_d1); 
-    
-    % Map to (1, N_z, 1, N_d, N_a, G) to match F for BellmanCombiner
-    EV_expected = reshape(EV_expected, [N_a, G, N_z, 1, N_d, 1]);
-    V_cont = permute(EV_expected, [6, 3, 4, 5, 1, 2]);
-else
-    % Standard invariant expectation mapping
-    V_cont = permute(EV_dense_3d, [4, 3, 5, 6, 1, 2]);
-end
+% Standard invariant expectation mapping
+V_cont = permute(EV_dense_3d, [4, 3, 5, 6, 1, 2]);
 
 % Check if e exists and whether this call processes multiple e simultaneously.
 % If lowmemory >= 1, the caller loops over e sequentially, so this invocation sees exactly 1 slice (has_e = false).
@@ -93,13 +60,7 @@ if ~isequal(size(F_1), expected_sz1)
     F_1 = F_1 + zeros(expected_sz1, 'like', a_work);
 end
 
-if isfield(vfoptions, 'pi_semiz_j_active')
-    % Extract g=1 slice for coarse grid: [N_a, 1, N_z, 1, N_d, 1]
-    V_cont_1 = permute(EV_expected(:, 1, :, :, :, :), [6, 3, 4, 5, 1, 2]); 
-else
-    V_cont_1 = permute(EV, [3, 2, 4, 5, 1]);
-end
-RHS_1 = BellmanCombiner(F_1, V_cont_1);
+RHS_1 = BellmanCombiner(F_1, permute(EV, [3, 2, 4, 5, 1]));
 
 % States: (n_anchors * N_z * N_e)
 % Choices: (N_d * N_a)
@@ -129,8 +90,8 @@ D_2         = shiftdim(d_work(:), -3);    % Dim 4
 Z_2         = shiftdim(z_work(:), -1);    % Dim 2
 
 % Coordinate vectors for Dim 2 and Dim 6 using shiftdim
-z_coords = 1:N_z;                 % Row vector natively spans Dim 2
-g_coords = shiftdim(1:G, -4);     % Pushed to Dim 6
+z_coords = gpuArray(1:N_z);               % Row vector natively spans Dim 2
+g_coords = shiftdim(gpuArray(1:G), -4);   % Pushed to Dim 6
 
 for bin = 1:(n_anchors - 1)
     idx_start = level1ii(bin) + 1;
@@ -158,7 +119,7 @@ for bin = 1:(n_anchors - 1)
     n_cand_bin = maxgap_bin + 1;
     
     % k_offsets pushed to Dim 5
-    k_offsets = shiftdim((0:maxgap_bin)', -4); 
+    k_offsets = shiftdim(gpuArray((0:maxgap_bin)'), -4); 
     coarse_cand_idx = min(lb_bin_pad + k_offsets, ub_bin_pad);
 
     % Explicit 6D candidate shape: [1, N_z, N_e, 1, n_cand_bin, G]
@@ -178,19 +139,8 @@ for bin = 1:(n_anchors - 1)
     end
 
     % 2. Continuation values lookup
-    if isfield(vfoptions, 'pi_semiz_j_active')
-        % Choice-dependent EV lookup: index into EV_expected (a', g, z, 1, d)
-        d_coords = shiftdim((1:N_d)', -3); % [1, 1, 1, N_d]
-        ev_lin_idx_d = coarse_cand_idx ...
-            + (g_coords - 1) .* N_a ...
-            + (z_coords - 1) .* (N_a * G) ...
-            + (d_coords - 1) .* (N_a * G * N_z);
-        V_cont_bin = reshape(EV_expected(ev_lin_idx_d(:)), [1, N_z, 1, N_d, n_cand_bin, G]);
-    else
-        % Standard invariant EV lookup: index into EV_dense_3d (a', g, z)
-        ev_lin_idx = coarse_cand_idx + (g_coords - 1) .* N_a + (z_coords - 1) .* (N_a * G);
-        V_cont_bin  = reshape(EV_dense_3d(ev_lin_idx(:)), cand_shape_gi);
-    end
+    ev_lin_idx = coarse_cand_idx + (g_coords - 1) .* N_a + (z_coords - 1) .* (N_a * G);
+    V_cont_bin  = reshape(EV_dense_3d(ev_lin_idx(:)), cand_shape_gi);
 
     RHS_bin = BellmanCombiner(F_bin, V_cont_bin);
 
@@ -207,7 +157,7 @@ for bin = 1:(n_anchors - 1)
 
     coarse_cand_expanded = repmat(coarse_cand_idx, [n_bin_a, 1, 1, 1, 1]);
     coarse_cand_2d = reshape(coarse_cand_expanded, [n_states_bin, n_cand_bin]);
-    state_lin = (1:n_states_bin)';
+    state_lin = gpuArray((1:n_states_bin)');
     chosen_lin = sub2ind([n_states_bin, n_cand_bin], state_lin, coarse_offset_opt);
     coarse_apr_bin = coarse_cand_2d(chosen_lin);
 
