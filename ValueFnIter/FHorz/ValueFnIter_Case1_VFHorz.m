@@ -518,26 +518,32 @@ for reverse_j = 1:N_j-1
 
         for e_iter = 1:n_e_loops
             if use_loop_e
-                e_slice = e_work(1, 1, e_iter); % keeps it scalar [1, 1, 1]
+                e_slice = e_work(1, 1, e_iter);
                 n_e_slice = 1;
                 e_idx_range = e_iter;
+                
+                % Slice each coordinate in E_cells to the current e_iter point: size [1, 1, 1]
+                E_cells_slice = cell(1, length(E_cells));
+                for i_e = 1:length(E_cells)
+                    E_cells_slice{i_e} = E_cells{i_e}(1, 1, e_iter);
+                end
             else
                 e_slice = e_work;
                 n_e_slice = n_e_work;
                 e_idx_range = 1:n_e_work;
+                E_cells_slice = E_cells;
             end
-            
+    
             % Construct unified kernel adapter for this e-slice
-            % Signature inside all kernels: eval_kernel(d_in, apr_in, a_in, z_in)
             if has_d && has_z && has_e
                 eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(...
-                    D_cells{:}, apr_in, a_in, Z_cells{:}, E_cells{:}, ReturnFnParamsVec{:});
+                    D_cells{:}, apr_in, a_in, Z_cells{:}, E_cells_slice{:}, ReturnFnParamsVec{:});
             elseif has_d && has_z && ~has_e
                 eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(...
                     D_cells{:}, apr_in, a_in, Z_cells{:}, ReturnFnParamsVec{:});
             elseif ~has_d && has_z && has_e
                 eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(...
-                    apr_in, a_in, Z_cells{:}, E_cells{:}, ReturnFnParamsVec{:});
+                    apr_in, a_in, Z_cells{:}, E_cells_slice{:}, ReturnFnParamsVec{:});
             elseif ~has_d && has_z && ~has_e
                 eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(...
                     apr_in, a_in, Z_cells{:}, ReturnFnParamsVec{:});
