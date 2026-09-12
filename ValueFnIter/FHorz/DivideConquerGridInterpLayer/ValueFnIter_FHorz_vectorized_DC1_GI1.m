@@ -93,9 +93,13 @@ if ~isequal(size(F_1), expected_sz1)
     F_1 = F_1 + zeros(expected_sz1, 'like', a_work);
 end
 
-% EV continuation values on coarse grid: EV is (N_a x N_z) or (N_a x N_z x N_e), but e' integrated out
-EV_broadcast1 = permute(EV, [3, 2, 4, 5, 1]);
-RHS_1 = BellmanCombiner(F_1, EV_broadcast1);
+if isfield(vfoptions, 'pi_semiz_j_active')
+    % Extract g=1 slice for coarse grid: [N_a, 1, N_z, 1, N_d, 1]
+    V_cont_1 = permute(EV_expected(:, 1, :, :, :, :), [6, 3, 4, 5, 1, 2]); 
+else
+    V_cont_1 = permute(EV, [3, 2, 4, 5, 1]);
+end
+RHS_1 = BellmanCombiner(F_1, V_cont_1);
 
 % States: (n_anchors * N_z * N_e)
 % Choices: (N_d * N_a)
@@ -173,10 +177,20 @@ for bin = 1:(n_anchors - 1)
         F_bin = F_bin + zeros(expected_sz_bin, 'like', a_work);
     end
 
-    % 2. Continuation values lookup from precomputed EV_dense_3d
-    ev_cand_lin = coarse_cand_idx + (g_coords - 1) .* N_a + ...
-                  (z_coords - 1) .* (N_a * G);
-    V_cont_bin  = reshape(EV_dense_3d(ev_cand_lin(:)), cand_shape_gi);
+    % 2. Continuation values lookup
+    if isfield(vfoptions, 'pi_semiz_j_active')
+        % Choice-dependent EV lookup: index into EV_expected (a', g, z, 1, d)
+        d_coords = shiftdim(1:N_d, -3); % [1, 1, 1, N_d]
+        ev_lin_idx_d = coarse_cand_idx ...
+            + (g_coords - 1) .* N_a ...
+            + (z_coords - 1) .* (N_a * G) ...
+            + (d_coords - 1) .* (N_a * G * N_z);
+        V_cont_bin = reshape(EV_expected(ev_lin_idx_d(:)), [1, N_z, 1, N_d, n_cand_bin, G]);
+    else
+        % Standard invariant EV lookup: index into EV_dense_3d (a', g, z)
+        ev_lin_idx = coarse_cand_idx + (g_coords - 1) .* N_a + (z_coords - 1) .* (N_a * G);
+        V_cont_bin  = reshape(EV_dense_3d(ev_lin_idx(:)), cand_shape_gi);
+    end
 
     RHS_bin = BellmanCombiner(F_bin, V_cont_bin);
 

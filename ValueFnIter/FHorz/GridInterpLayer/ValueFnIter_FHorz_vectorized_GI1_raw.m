@@ -75,29 +75,6 @@ F = eval_kernel(D_in, Apr_in, A_in, Z_in);
 guard = zeros([N_a, N_z, N_e, N_d, N_a, G], 'like', a_work);
 F = F + guard;
 
-z_coords = 1:N_z; 
-if isfield(vfoptions, 'pi_semiz_j_active')
-    % Choice-dependent EV lookup: index into (a', z, e, d)
-    d_coords = shiftdim(1:N_d, -3); % [1, 1, 1, N_d]
-    if has_e
-        e_coords = shiftdim(1:N_e, -2);
-        ev_lin_idx_d = coarse_cand_idx + (z_coords - 1) .* N_a + (e_coords - 1) .* (N_a * N_z) + (d_coords - 1) .* (N_a * N_z * N_e);
-        V_cont_bin = reshape(EV_expected(ev_lin_idx_d(:)), [1, N_z, N_e, N_d, n_cand_bin]);
-    else
-        ev_lin_idx_d = coarse_cand_idx + (z_coords - 1) .* N_a + (d_coords - 1) .* (N_a * N_z);
-        V_cont_bin = reshape(EV_expected(ev_lin_idx_d(:)), [1, N_z, 1, N_d, n_cand_bin]);
-    end
-else
-    % Standard invariant EV lookup: index into (a', z, e)
-    if has_e
-        e_coords = shiftdim(1:N_e, -2);
-        ev_lin_idx = coarse_cand_idx + (z_coords - 1) .* N_a + (e_coords - 1) .* (N_a * N_z);
-    else
-        ev_lin_idx = coarse_cand_idx + (z_coords - 1) .* N_a;
-    end
-    V_cont_bin = reshape(EV(ev_lin_idx(:)), cand_shape);
-end
-
 RHS = BellmanCombiner(F, V_cont);
 
 % Fold states: (N_a * N_z * N_e)
