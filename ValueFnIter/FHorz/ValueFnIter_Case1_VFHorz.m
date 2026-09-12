@@ -284,15 +284,23 @@ a_work = A_mat(:, 1); % Primary asset grid for interpolation
 n_a_work = N_a;
 
 if isempty(z_gridvals_J) || N_z == 0
-    n_z_vars = 0;
+    N_z_exog = 0;
     z_work_1 = zeros(1, 1, 'like', a_grid);
-    n_z_work = 1;
 else
-    n_z_vars = length(n_z);
+    N_z_exog = N_z;
     z_work_1 = squeeze(z_gridvals_J(:, :, 1));
-    n_z_work = N_z;
 end
-has_z = (n_z_work > 0 && N_z > 0);
+
+has_semiz = isfield(vfoptions, 'n_semiz') && ~isempty(vfoptions.n_semiz) && prod(vfoptions.n_semiz) > 0;
+if has_semiz
+    N_semiz = prod(vfoptions.n_semiz);
+    n_all_z = [vfoptions.n_semiz, n_z];
+else
+    N_semiz = 1;
+    n_all_z = n_z;
+end
+n_z_work = N_semiz * max(1, N_z_exog);
+has_z = (N_z_exog > 0);
 
 has_e = isfield(vfoptions, 'n_e') && ~isempty(vfoptions.n_e) && prod(vfoptions.n_e) > 0;
 if has_e
@@ -342,28 +350,39 @@ for reverse_j = 1:N_j-1
     end
 
     if has_z
-        num_z = length(n_z);
-        if num_z > 1
-            if size(z_work_j, 2) == num_z
-                Z_cells = cell(1, num_z);
-                for i_z = 1:num_z
-                    Z_cells{i_z} = shiftdim(z_work_j(:, i_z), -1);
-                end
-            else
-                z_grids_1d = cell(1, num_z);
-                offset = 0;
-                for i_z = 1:num_z
-                    z_grids_1d{i_z} = z_work_j((offset + 1):(offset + n_z(i_z)));
-                    offset = offset + n_z(i_z);
-                end
-                [Z_mesh{1:num_z}] = ndgrid(z_grids_1d{:});
-                Z_cells = cell(1, num_z);
-                for i_z = 1:num_z
-                    Z_cells{i_z} = shiftdim(Z_mesh{i_z}(:), -1);
-                end
+        num_z = length(n_all_z);
+
+        if has_semiz
+            if isfield(vfoptions, 'semiexog_grid')
+                semiz_work = vfoptions.semiexog_grid;
+            elseif isfield(vfoptions, 'semiz_grid')
+                semiz_work = vfoptions.semiz_grid;
+            elseif isfield(vfoptions, 'semiz_gridvals')
+                semiz_work = vfoptions.semiz_gridvals;
+            end
+            s_grids_1d = cell(1, length(vfoptions.n_semiz));
+            offset = 0;
+            for i_s = 1:length(vfoptions.n_semiz)
+                s_grids_1d{i_s} = semiz_work((offset + 1):(offset + vfoptions.n_semiz(i_s)));
+                offset = offset + vfoptions.n_semiz(i_s);
             end
         else
-            Z_cells = { shiftdim(z_work_j(:), -1) };
+            s_grids_1d = {};
+        end
+
+        z_grids_1d = cell(1, length(n_z));
+        offset = 0;
+        for i_z = 1:length(n_z)
+            z_grids_1d{i_z} = z_work_j((offset + 1):(offset + n_z(i_z)));
+            offset = offset + n_z(i_z);
+        end
+
+        all_grids_1d = [s_grids_1d, z_grids_1d];
+        [Z_mesh{1:num_z}] = ndgrid(all_grids_1d{:});
+
+        Z_cells = cell(1, num_z);
+        for i_z = 1:num_z
+            Z_cells{i_z} = shiftdim(Z_mesh{i_z}(:), -1); % Dim 2
         end
     else
         Z_cells = {};
@@ -442,16 +461,27 @@ for reverse_j = 1:N_j-1
             else
                 pi_e_tomorrow = gpuArray(vfoptions.pi_e(:));
             end
-            % Integrate across e
             temp_V_inte = sum(temp_V .* reshape(pi_e_tomorrow, [1, 1, n_e_work]), 3);
             if has_z
-                EV_raw = temp_V_inte * (pi_z_j');
+                if has_semiz
+                    temp_V_inte_rs = reshape(temp_V_inte, [n_a_work * N_semiz, N_z_exog]);
+                    EV_raw_rs = temp_V_inte_rs * (pi_z_j');
+                    EV_raw = reshape(EV_raw_rs, [n_a_work, n_z_work]);
+                else
+                    EV_raw = temp_V_inte * (pi_z_j');
+                end
             else
                 EV_raw = temp_V_inte;
             end
         else
             if has_z
-                EV_raw = temp_V * (pi_z_j');
+                if has_semiz
+                    temp_V_rs = reshape(temp_V, [n_a_work * N_semiz, N_z_exog]);
+                    EV_raw_rs = temp_V_rs * (pi_z_j');
+                    EV_raw = reshape(EV_raw_rs, [n_a_work, n_z_work]);
+                else
+                    EV_raw = temp_V * (pi_z_j');
+                end
             else
                 EV_raw = temp_V;
             end
@@ -680,13 +710,22 @@ if isfield(vfoptions, 'outputkron') && vfoptions.outputkron == 1
 end
 
 if has_z && has_e
-    Policy = UnKronPolicyIndexes1_FHorz_z_e(PolicyKron, n_daprime, n_a, N_z, n_e_work, N_j, vfoptions);
+    Policy = UnKronPolicyIndexes1_FHorz_z_e(PolicyKron, n_daprime, n_a, n_all_z, n_e_work, N_j, vfoptions);
+    % Flatten compound Z and E dimensions for downstream toolkit compatibility
+    Policy = reshape(Policy, [size(Policy, 1), n_a_work, n_z_work, n_e_work, N_j]);
+    V = reshape(V, [n_a_work, n_z_work, n_e_work, N_j]);
 elseif has_z && ~has_e
-    Policy = UnKronPolicyIndexes1_FHorz_z(PolicyKron, n_daprime, n_a, N_z, N_j, vfoptions);
+    Policy = UnKronPolicyIndexes1_FHorz_z(PolicyKron, n_daprime, n_a, n_all_z, N_j, vfoptions);
+    Policy = reshape(Policy, [size(Policy, 1), n_a_work, n_z_work, N_j]);
+    V = reshape(V, [n_a_work, n_z_work, N_j]);
 elseif ~has_z && has_e
     Policy = UnKronPolicyIndexes1_FHorz_e(PolicyKron, n_daprime, n_a, n_e_work, N_j, vfoptions);
+    Policy = reshape(Policy, [size(Policy, 1), n_a_work, n_e_work, N_j]);
+    V = reshape(V, [n_a_work, n_e_work, N_j]);
 else
     Policy = UnKronPolicyIndexes1_FHorz_noz(PolicyKron, n_daprime, n_a, N_j, vfoptions);
+    Policy = reshape(Policy, [size(Policy, 1), n_a_work, N_j]);
+    V = reshape(V, [n_a_work, N_j]);
 end
 
 varargout{1} = V;
