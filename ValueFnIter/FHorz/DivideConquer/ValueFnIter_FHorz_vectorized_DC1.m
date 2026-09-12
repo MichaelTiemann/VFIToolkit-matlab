@@ -165,7 +165,7 @@ for bin = 1:(n_anchors - 1)
     z_coords = 1:N_z; 
     if isfield(vfoptions, 'pi_semiz_j_active')
         % Choice-dependent EV lookup: index into (a', z, e, d)
-        d_coords = shiftdim(1:N_d, -3); % [1, 1, 1, N_d]
+        d_coords = shiftdim((1:N_d)', -3); % [1, 1, 1, N_d]
         if has_e
             e_coords = shiftdim(1:N_e, -2);
             ev_lin_idx_d = coarse_cand_idx + (z_coords - 1) .* N_a + (e_coords - 1) .* (N_a * N_z) + (d_coords - 1) .* (N_a * N_z * N_e);

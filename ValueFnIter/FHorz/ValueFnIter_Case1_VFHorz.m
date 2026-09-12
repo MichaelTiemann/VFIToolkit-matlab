@@ -357,8 +357,12 @@ else
 end
 V_next = zeros(n_a_work, n_z_work, n_e_work, 'like', a_grid);
 
-for reverse_j = 1:N_j-1
+for reverse_j = 0:N_j-1
     jj = N_j - reverse_j;
+
+    if jj == N_j && isfield(vfoptions, 'V_Jplus1') && ~isempty(vfoptions.V_Jplus1)
+        V_next = reshape(gpuArray(vfoptions.V_Jplus1), size(V_next));
+    end
 
     % 1. Get standard discount factor
     DiscountFactorParamsVec = CreateVectorFromParams(Parameters, DiscountFactorParamNames, jj);
@@ -375,11 +379,7 @@ for reverse_j = 1:N_j-1
         else
             z_work_j = z_work_1;
         end
-        if jj < N_j
-            pi_z_j = pi_z_J(:, :, jj);
-        else
-            pi_z_j = eye(n_z_work, 'like', a_grid);
-        end
+        pi_z_j = pi_z_J(:, :, jj);
     else
         z_work_j = zeros(1, 1, 'like', a_grid);
         pi_z_j   = ones(1, 1, 'like', a_grid);
@@ -488,12 +488,12 @@ for reverse_j = 1:N_j-1
     % ---------------------------------------------------------------------
     % 2. Continuation Value Integration: Integrate e' out, then Markov z' -> z
     % ---------------------------------------------------------------------
-    if jj == N_j
+    if jj == N_j && ~(isfield(vfoptions, 'V_Jplus1') && ~isempty(vfoptions.V_Jplus1))
         EV_raw = zeros(n_a_work, n_z_work, 'like', a_work);
     else
         if has_e
             if isfield(vfoptions, 'pi_e_J') && ~isempty(vfoptions.pi_e_J)
-                pi_e_tomorrow = gpuArray(vfoptions.pi_e_J(:, jj + 1));
+                pi_e_tomorrow = gpuArray(vfoptions.pi_e_J(:, min(jj + 1, size(vfoptions.pi_e_J, 2))));
             else
                 pi_e_tomorrow = gpuArray(vfoptions.pi_e(:));
             end

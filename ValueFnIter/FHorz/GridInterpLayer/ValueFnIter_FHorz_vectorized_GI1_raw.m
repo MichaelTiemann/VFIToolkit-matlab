@@ -104,7 +104,7 @@ if has_e
     Policy_3Row = zeros([3, N_a, N_z, N_e], 'like', a_work);
     Policy_3Row(1, :, :, :) = Policy_row1;
     Policy_3Row(2, :, :, :) = Policy_row2;
-    Policy_3Row(3, :, :, :) = ones(N_a, N_z, N_e, 'like', a_work);
+    Policy_3Row(3, :, :, :) = 2 * ones(N_a, N_z, N_e, 'like', a_work);
 else
     V_current   = reshape(sub_V, [N_a, N_z]);
     Policy_row1 = reshape(row1_kron, [N_a, N_z]);
@@ -113,7 +113,7 @@ else
     Policy_3Row = zeros([3, N_a, N_z], 'like', a_work);
     Policy_3Row(1, :, :) = Policy_row1;
     Policy_3Row(2, :, :) = Policy_row2;
-    Policy_3Row(3, :, :) = ones(N_a, N_z, 'like', a_work);
+    Policy_3Row(3, :, :) = 2 * ones(N_a, N_z, 'like', a_work);
 end
 
 end

@@ -180,7 +180,7 @@ for bin = 1:(n_anchors - 1)
     % 2. Continuation values lookup
     if isfield(vfoptions, 'pi_semiz_j_active')
         % Choice-dependent EV lookup: index into EV_expected (a', g, z, 1, d)
-        d_coords = shiftdim(1:N_d, -3); % [1, 1, 1, N_d]
+        d_coords = shiftdim((1:N_d)', -3); % [1, 1, 1, N_d]
         ev_lin_idx_d = coarse_cand_idx ...
             + (g_coords - 1) .* N_a ...
             + (z_coords - 1) .* (N_a * G) ...
@@ -232,12 +232,12 @@ if has_e
     Policy_3Row = zeros([3, N_a, N_z, N_e], 'like', a_work);
     Policy_3Row(1, :, :, :) = Policy_row1;
     Policy_3Row(2, :, :, :) = Policy_row2;
-    Policy_3Row(3, :, :, :) = ones(N_a, N_z, N_e, 'like', a_work);
+    Policy_3Row(3, :, :, :) = 2 * ones(N_a, N_z, N_e, 'like', a_work);
 else
     Policy_3Row = zeros([3, N_a, N_z], 'like', a_work);
     Policy_3Row(1, :, :) = Policy_row1;
     Policy_3Row(2, :, :) = Policy_row2;
-    Policy_3Row(3, :, :) = ones(N_a, N_z, 'like', a_work);
+    Policy_3Row(3, :, :) = 2 * ones(N_a, N_z, 'like', a_work);
 end
 
 

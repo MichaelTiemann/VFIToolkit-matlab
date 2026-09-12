@@ -43,14 +43,14 @@ a_work = A_mat(:, 1);
 % 4. Preallocate
 V = zeros(N_a, N_bothz, N_j, 'like', a_grid);
 if vfoptions.gridinterplayer == 1
-    PolicyKron = zeros(4, N_a, N_bothz, N_j, 'like', a_grid);
+    PolicyKron = zeros(5, N_a, N_bothz, N_j, 'like', a_grid); % Must be 5 rows for GI!
 else
     PolicyKron = zeros(3, N_a, N_bothz, N_j, 'like', a_grid);
 end
 V_next = zeros(N_a, N_bothz, 'like', a_grid);
 
 % 5. Backward Induction
-for reverse_j = 1:N_j-1
+for reverse_j = 0:N_j-1
     jj = N_j - reverse_j;
     
     beta_j = prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames, jj));
@@ -65,11 +65,23 @@ for reverse_j = 1:N_j-1
     end
     
     % --- EXPECTATIONS ---
-    % Integrate out Exogenous Z (independent of choices)
-    pi_z_j = pi_z_J(:,:,jj);
-    temp_V_rs = reshape(V_next, [N_a * N_semiz, N_z]);
-    EV_raw_rs = temp_V_rs * (pi_z_j');
-    EV_slice = reshape(EV_raw_rs, [N_a, N_semiz, N_z]);
+    if jj == N_j
+        if isfield(vfoptions, 'V_Jplus1') && ~isempty(vfoptions.V_Jplus1)
+            temp_V_rs = reshape(vfoptions.V_Jplus1, [N_a * N_semiz, N_z]);
+            pi_z_j = pi_z_J(:,:,jj);
+            EV_raw_rs = temp_V_rs * (pi_z_j');
+            EV_slice = reshape(EV_raw_rs, [N_a, N_semiz, N_z]);
+        else
+            EV_slice = zeros(N_a, N_semiz, N_z, 'like', a_grid);
+            pi_z_j = eye(N_z, 'like', a_grid); % Dummy for dispatchers
+        end
+    else
+        % Integrate out Exogenous Z (independent of choices)
+        pi_z_j = pi_z_J(:,:,jj);
+        temp_V_rs = reshape(V_next, [N_a * N_semiz, N_z]);
+        EV_raw_rs = temp_V_rs * (pi_z_j');
+        EV_slice = reshape(EV_raw_rs, [N_a, N_semiz, N_z]);
+    end
     
     % Pass SemiExo transition matrix to dispatchers for choice-dependent integration
     vfoptions.pi_semiz_j_active = pi_semiz_J(:,:,:,jj);
@@ -101,12 +113,11 @@ for reverse_j = 1:N_j-1
     PolicyKron(2,:,:,jj) = reshape(ceil(d_opt / N_d1), [N_a, N_bothz]);       % d2
     
     if vfoptions.gridinterplayer == 1
-        apr_tau_opt = ceil(Pol_sub(1,:) ./ N_d);
-        coarse_a_opt = mod(apr_tau_opt - 1, N_a) + 1;
-        tau_opt = ceil(apr_tau_opt ./ N_a);
-        
-        PolicyKron(3,:,:,jj) = reshape(coarse_a_opt, [N_a, N_bothz]);
-        PolicyKron(4,:,:,jj) = reshape(tau_opt, [N_a, N_bothz]);
+        apr_coarse_opt = ceil(Pol_sub(1,:) ./ N_d);
+
+        PolicyKron(3,:,:,jj) = reshape(apr_coarse_opt, [N_a, N_bothz]);
+        PolicyKron(4,:,:,jj) = reshape(Pol_sub(2,:), [N_a, N_bothz]); % tau subgrid index
+        PolicyKron(5,:,:,jj) = reshape(Pol_sub(3,:), [N_a, N_bothz]); % L2 flag
     else
         PolicyKron(3,:,:,jj) = reshape(ceil(Pol_sub(1,:) ./ N_d), [N_a, N_bothz]);
     end
