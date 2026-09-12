@@ -275,6 +275,25 @@ else
 end
 has_z = (n_z_work > 0 && N_z > 0);
 
+has_semiz = isfield(vfoptions, 'n_semiz') && ~isempty(vfoptions.n_semiz) && prod(vfoptions.n_semiz) > 0;
+if has_semiz
+    % Guard against age-varying semi-exogenous grids
+    if isfield(vfoptions, 'semiz_gridvals_J') && ndims(vfoptions.semiz_gridvals_J) >= 3 && size(vfoptions.semiz_gridvals_J, 3) > 1
+        error('Vectorized FHorz does not currently support age-varying semi-exogenous grids (semiz_gridvals_J with size > 1 in dimension 3).');
+    end
+    if isfield(vfoptions, 'semiexog_grid_J') || isfield(vfoptions, 'semiz_grid_J')
+        error('Vectorized FHorz does not currently support age-varying semi-exogenous grids (*_J).');
+    end
+    num_semiz = length(vfoptions.n_semiz);
+    if isfield(vfoptions, 'semiz_gridvals')
+        semiz_work = vfoptions.semiz_gridvals;
+    elseif isfield(vfoptions, 'semiexog_grid')
+        semiz_work = vfoptions.semiexog_grid;
+    elseif isfield(vfoptions, 'semiz_grid')
+        semiz_work = vfoptions.semiz_grid;
+    end
+end
+
 has_e = isfield(vfoptions, 'n_e') && ~isempty(vfoptions.n_e) && prod(vfoptions.n_e) > 0;
 if has_e
     n_e_vars = length(vfoptions.n_e);
