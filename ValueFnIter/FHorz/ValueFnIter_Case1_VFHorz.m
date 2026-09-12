@@ -224,29 +224,64 @@ end
 
 % Standardize missing dimensions to length-1 singletons
 if isempty(d_grid) || N_d == 0
+    n_d_vars = 0;
     d_work = zeros(1, 1, 'like', a_grid);
     n_d_work = 1;
 else
+    n_d_vars = length(n_d);
     d_work = d_grid;
     n_d_work = N_d;
+end
+has_d = (n_d_work > 0 && n_d(1) > 0);
+
+% Set up D_cells once outside the reverse_j loop
+if has_d
+    num_d = length(n_d);
+    if num_d > 1
+        % 1. Extract 1D grid vectors from the stacked d_grid
+        d_grids_1d = cell(1, num_d);
+        offset = 0;
+        for i_d = 1:num_d
+            d_grids_1d{i_d} = d_grid((offset + 1):(offset + n_d(i_d)));
+            offset = offset + n_d(i_d);
+        end
+        
+        % 2. Form Cartesian coordinates matching the Kron order: [N_d x num_d]
+        [D_mesh{1:num_d}] = ndgrid(d_grids_1d{:});
+        
+        % 3. Pack into cell array, each variable spanning Dim 4: [1, 1, 1, N_d]
+        D_cells = cell(1, num_d);
+        for i_d = 1:num_d
+            D_cells{i_d} = shiftdim(D_mesh{i_d}(:), -3);
+        end
+    else
+        D_cells = { shiftdim(d_work(:), -3) };
+    end
+else
+    D_cells = {};
 end
 
 a_work = a_grid;
 n_a_work = N_a;
 
 if isempty(z_gridvals_J) || N_z == 0
+    n_z_vars = 0;
     z_work_1 = zeros(1, 1, 'like', a_grid);
     n_z_work = 1;
 else
+    n_z_vars = length(n_z);
     z_work_1 = squeeze(z_gridvals_J(:, :, 1));
     n_z_work = N_z;
 end
+has_z = (n_z_work > 0 && N_z > 0);
 
 has_e = isfield(vfoptions, 'n_e') && ~isempty(vfoptions.n_e) && prod(vfoptions.n_e) > 0;
 if has_e
+    n_e_vars = length(vfoptions.n_e);
     n_e_work = prod(vfoptions.n_e);
     e_work   = shiftdim(gpuArray(vfoptions.e_grid),-2);
 else
+    n_e_vars = 0;
     n_e_work = 1;
     e_work   = gpuArray(0); % dummy scalar keeping rank/signatures consistent
 end
@@ -270,7 +305,7 @@ for reverse_j = 1:N_j-1
     if ~iscell(ReturnFnParamsVec)
         ReturnFnParamsVec = num2cell(ReturnFnParamsVec);
     end
-    
+
     if N_z > 0
         if size(z_gridvals_J, 3) > 1
             z_work_j = squeeze(z_gridvals_J(:, :, jj));
@@ -286,10 +321,19 @@ for reverse_j = 1:N_j-1
         z_work_j = zeros(1, 1, 'like', a_grid);
         pi_z_j   = ones(1, 1, 'like', a_grid);
     end
-
-    % Wrap user ReturnFn into standard signature: eval_kernel(d_in, apr_in, a_in, z_in)
-    has_d = (n_d_work > 0 && n_d(1) > 0);
-    has_z = (n_z_work > 0 && N_z > 0);
+    if has_z
+        num_z = length(n_z);
+        if num_z > 1
+            Z_cells = cell(1, num_z);
+            for i_z = 1:num_z
+                Z_cells{i_z} = shiftdim(z_work_j(:, i_z), -1); % Dim 2: [1, N_z]
+            end
+        else
+            Z_cells = { shiftdim(z_work_j(:), -1) };
+        end
+    else
+        Z_cells = {};
+    end
 
     if has_e
         if isfield(vfoptions, 'pi_e_J') && ~isempty(vfoptions.pi_e_J)
@@ -301,8 +345,34 @@ for reverse_j = 1:N_j-1
         else
             error('has_e is true, but neither pi_e nor pi_e_J is defined in vfoptions.');
         end
+        % Set up E_cells outside z_iter loop
+        num_e = length(vfoptions.n_e);
+        if num_e > 1
+            if size(vfoptions.e_grid, 2) == num_e
+                % Already Cartesian coordinates: [N_e x num_e]
+                E_cells = cell(1, num_e);
+                for i_e = 1:num_e
+                    E_cells{i_e} = shiftdim(gpuArray(vfoptions.e_grid(:, i_e)), -2); % Dim 3: [1, 1, N_e]
+                end
+            else
+                % Stacked grid of length sum(n_e)
+                e_grids_1d = cell(1, num_e);
+                offset = 0;
+                for i_e = 1:num_e
+                    e_grids_1d{i_e} = vfoptions.e_grid((offset + 1):(offset + vfoptions.n_e(i_e)));
+                    offset = offset + vfoptions.n_e(i_e);
+                end
+                [E_mesh{1:num_e}] = ndgrid(e_grids_1d{:});
+                E_cells = cell(1, num_e);
+                for i_e = 1:num_e
+                    E_cells{i_e} = shiftdim(gpuArray(E_mesh{i_e}(:)), -2); % Dim 3: [1, 1, N_e]
+                end
+            end
+        else
+            E_cells = { e_work }; % Already pushed to Dim 3
+        end
     else
-        pi_e_j = gpuArray(1);
+        E_cells = {};
     end
 
     % ---------------------------------------------------------------------
@@ -460,17 +530,23 @@ for reverse_j = 1:N_j-1
             % Construct unified kernel adapter for this e-slice
             % Signature inside all kernels: eval_kernel(d_in, apr_in, a_in, z_in)
             if has_d && has_z && has_e
-                eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(d_in, apr_in, a_in, z_in, e_slice, ReturnFnParamsVec{:});
+                eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(...
+                    D_cells{:}, apr_in, a_in, Z_cells{:}, E_cells{:}, ReturnFnParamsVec{:});
             elseif has_d && has_z && ~has_e
-                eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(d_in, apr_in, a_in, z_in, ReturnFnParamsVec{:});
+                eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(...
+                    D_cells{:}, apr_in, a_in, Z_cells{:}, ReturnFnParamsVec{:});
             elseif ~has_d && has_z && has_e
-                eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(apr_in, a_in, z_in, e_slice, ReturnFnParamsVec{:});
+                eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(...
+                    apr_in, a_in, Z_cells{:}, E_cells{:}, ReturnFnParamsVec{:});
             elseif ~has_d && has_z && ~has_e
-                eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(apr_in, a_in, z_in, ReturnFnParamsVec{:});
+                eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(...
+                    apr_in, a_in, Z_cells{:}, ReturnFnParamsVec{:});
             elseif has_d && ~has_z && ~has_e
-                eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(d_in, apr_in, a_in, ReturnFnParamsVec{:});
+                eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(...
+                    D_cells{:}, apr_in, a_in, ReturnFnParamsVec{:});
             else
-                eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(apr_in, a_in, ReturnFnParamsVec{:});
+                eval_kernel = @(d_in, apr_in, a_in, z_in) ReturnFn(...
+                    apr_in, a_in, ReturnFnParamsVec{:});
             end
 
             % -------------------------------------------------------------
