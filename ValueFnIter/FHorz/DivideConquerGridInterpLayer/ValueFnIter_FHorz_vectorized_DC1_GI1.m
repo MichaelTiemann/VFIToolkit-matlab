@@ -16,10 +16,46 @@ Apr_dense = a_work + a_diff * tau_vec;
 % Ensure EV has explicit 2D shape [N_a, N_z]
 EV = reshape(EV, [N_a, N_z]);
 
-% Dense continuation values: (N_a x G x N_z)
+% Dense continuation values: (N_a x G x N_bothz)
 EV_pad = [EV; EV(end, :)];
 EV_dense_3d = (1 - tau_vec) .* reshape(EV, [N_a, 1, N_z]) + ...
               tau_vec .* reshape(EV_pad(2:end, :), [N_a, 1, N_z]);
+
+% -------------------------------------------------------------------------
+% NEW: Choice-Dependent Tensor Contraction for Semi-Exogenous States
+% -------------------------------------------------------------------------
+if isfield(vfoptions, 'pi_semiz_j_active')
+    pi_semiz = vfoptions.pi_semiz_j_active; % [N_semiz_prime, N_semiz, N_d2]
+    N_semiz  = prod(vfoptions.n_semiz);
+    N_z_exog = N_z / N_semiz;
+    N_d2     = size(pi_semiz, 3);
+    N_d1     = N_d / N_d2;
+    
+    % Reshape EV to expose semiz' for matrix multiplication
+    EV_reshaped = reshape(EV_dense_3d, [N_a * G, N_semiz, N_z_exog]);
+    EV_flat     = reshape(permute(EV_reshaped, [1, 3, 2]), [N_a * G * N_z_exog, N_semiz]);
+    
+    % Integrate out semiz' for each d2 choice
+    EV_new = zeros(N_a * G * N_z_exog, N_semiz, N_d2, 'like', a_work);
+    for d2_idx = 1:N_d2
+        EV_new(:,:,d2_idx) = EV_flat * pi_semiz(:,:,d2_idx);
+    end
+    
+    % Reconstruct dimensions: [N_a, G, N_semiz, N_z_exog, N_d2]
+    EV_new = reshape(EV_new, [N_a, G, N_z_exog, N_semiz, N_d2]);
+    EV_new = permute(EV_new, [1, 2, 4, 3, 5]); 
+    EV_new = reshape(EV_new, [N_a, G, N_z, N_d2]);
+    
+    % Expand N_d2 across N_d1 to match the full choice grid (d1 varies fastest)
+    EV_expected = repelem(EV_new, 1, 1, 1, N_d1); 
+    
+    % Map to (1, N_z, 1, N_d, N_a, G) to match F for BellmanCombiner
+    EV_expected = reshape(EV_expected, [N_a, G, N_z, 1, N_d, 1]);
+    V_cont = permute(EV_expected, [6, 3, 4, 5, 1, 2]);
+else
+    % Standard invariant expectation mapping
+    V_cont = permute(EV_dense_3d, [4, 3, 5, 6, 1, 2]);
+end
 
 % Check if e exists and whether this call processes multiple e simultaneously.
 % If lowmemory >= 1, the caller loops over e sequentially, so this invocation sees exactly 1 slice (has_e = false).

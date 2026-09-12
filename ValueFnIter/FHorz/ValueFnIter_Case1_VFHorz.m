@@ -206,6 +206,54 @@ if vfoptions.parallel == 2
     if ~isempty(pi_z),   pi_z   = gpuArray(pi_z);   end
 end
 
+%% Semi-exogenous shock gridvals and pi
+if vfoptions.alreadygridvals_semiexo==0
+    if isfield(vfoptions, 'n_semiz') && prod(vfoptions.n_semiz)>0
+        % Internally, only ever use age-dependent joint-grids
+        vfoptions = SemiExogShockSetup_FHorz(n_d, N_j, d_grid, Parameters, vfoptions, 3);
+    end
+end
+
+%% Exogenous shock gridvals and pi
+if N_z > 0
+    if vfoptions.alreadygridvals == 0
+        % ExogShockSetup_FHorz is called with KeepOriginalGrid==0 here
+        [z_gridvals_J, pi_z_J, vfoptions] = ExogShockSetup_FHorz(n_z, z_grid, pi_z, N_j, Parameters, vfoptions, 3, 0);
+    else
+        z_gridvals_J = z_grid;
+        pi_z_J = pi_z;
+    end
+else
+    z_gridvals_J = [];
+    pi_z_J = [];
+end
+
+%% Semi-exogenous state Dispatch
+% The transition matrix of the exogenous shocks depends on the value of the 'last' decision variable(s).
+if isfield(vfoptions, 'n_semiz') && prod(vfoptions.n_semiz)>0
+    if length(n_d) > vfoptions.l_dsemiz
+        n_d1 = n_d(1:end-vfoptions.l_dsemiz);
+        d1_grid = d_grid(1:sum(n_d1));
+    else
+        n_d1 = 0; 
+        d1_grid = [];
+    end
+    n_d2 = n_d(end-vfoptions.l_dsemiz+1:end); % n_d2 influences transition probs
+    d2_grid = d_grid(sum(n_d1)+1:end);
+
+    d1_gridvals = CreateGridvals(n_d1, d1_grid, 1);
+    d2_gridvals = CreateGridvals(n_d2, d2_grid, 1);
+
+    % Dispatch to the vectorized SemiExo handler and bail out of Case1
+    [V, Policy] = ValueFnIter_VFHorz_SemiExo(n_d1, n_d2, n_a, vfoptions.n_semiz, n_z, N_j, ...
+        d1_gridvals, d2_gridvals, a_grid, z_gridvals_J, vfoptions.semiz_gridvals_J, ...
+        pi_z_J, vfoptions.pi_semiz_J, ReturnFn, Parameters, ...
+        DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
+
+    varargout = {V, Policy};
+    return
+end
+
 N_d = prod(n_d);
 N_a = prod(n_a);
 N_z = prod(n_z);

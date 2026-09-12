@@ -42,6 +42,57 @@ end
 % Ensure EV has explicit 2D shape [N_a, N_z]
 EV = reshape(EV, [N_a, N_z]);
 
+% -------------------------------------------------------------------------
+% NEW: Choice-Dependent Tensor Contraction for Semi-Exogenous States
+% -------------------------------------------------------------------------
+if isfield(vfoptions, 'pi_semiz_j_active')
+    pi_semiz = vfoptions.pi_semiz_j_active;
+    N_semiz  = prod(vfoptions.n_semiz);
+    N_z_exog = N_z / N_semiz;
+    N_d2     = size(pi_semiz, 3);
+    N_d1     = N_d / N_d2;
+
+    if has_e
+        EV_reshaped = reshape(EV, [N_a, N_semiz, N_z_exog, N_e]);
+        EV_perm = permute(EV_reshaped, [1, 3, 4, 2]); 
+        EV_flat = reshape(EV_perm, [N_a * N_z_exog * N_e, N_semiz]);
+    else
+        EV_reshaped = reshape(EV, [N_a, N_semiz, N_z_exog]);
+        EV_perm = permute(EV_reshaped, [1, 3, 2]);
+        EV_flat = reshape(EV_perm, [N_a * N_z_exog, N_semiz]);
+    end
+
+    EV_new = zeros(size(EV_flat, 1), N_semiz, N_d2, 'like', a_work);
+    for d2_idx = 1:N_d2
+        EV_new(:,:,d2_idx) = EV_flat * pi_semiz(:,:,d2_idx);
+    end
+
+    if has_e
+        EV_new = reshape(EV_new, [N_a, N_z_exog, N_e, N_semiz, N_d2]);
+        EV_new = permute(EV_new, [1, 4, 2, 3, 5]); 
+        EV_new = reshape(EV_new, [N_a, N_z, N_e, N_d2]);
+
+        EV_expected = repelem(EV_new, 1, 1, 1, N_d1); 
+        EV_expected = reshape(EV_expected, [N_a, N_z, N_e, N_d, 1]);
+        V_cont = permute(EV_expected, [5, 2, 3, 4, 1]); % -> [1, N_z, N_e, N_d, N_a]
+    else
+        EV_new = reshape(EV_new, [N_a, N_z_exog, N_semiz, N_d2]);
+        EV_new = permute(EV_new, [1, 3, 2, 4]); 
+        EV_new = reshape(EV_new, [N_a, N_z, N_d2]);
+
+        EV_expected = repelem(EV_new, 1, 1, N_d1); 
+        EV_expected = reshape(EV_expected, [N_a, N_z, 1, N_d, 1]);
+        V_cont = permute(EV_expected, [3, 2, 5, 4, 1]); % -> [1, N_z, 1, N_d, N_a]
+    end
+else
+    % Standard invariant expectation mapping
+    if has_e
+        V_cont = permute(EV, [4, 2, 3, 5, 1]);
+    else
+        V_cont = permute(EV, [3, 2, 4, 5, 1]);
+    end
+end
+
 % EV continuation values on coarse grid: EV is (N_a x N_z), e' integrated out
 EV_broadcast1 = permute(EV, [3, 2, 4, 5, 1]);
 RHS_1 = BellmanCombiner(F_1, EV_broadcast1);
