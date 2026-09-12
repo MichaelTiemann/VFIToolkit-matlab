@@ -341,11 +341,27 @@ for reverse_j = 1:N_j-1
         pi_z_j   = ones(1, 1, 'like', a_grid);
     end
     if has_z
-        num_z_cols = size(z_work_j, 2);
-        if num_z_cols > 1
-            Z_cells = cell(1, num_z_cols);
-            for i_z = 1:num_z_cols
-                Z_cells{i_z} = shiftdim(z_work_j(:, i_z), -1); % Dim 2: [1, N_z]
+        num_z = length(n_z);
+        if num_z > 1
+            if size(z_work_j, 2) == num_z
+                % Already Cartesian coordinates: [N_z x num_z]
+                Z_cells = cell(1, num_z);
+                for i_z = 1:num_z
+                    Z_cells{i_z} = shiftdim(z_work_j(:, i_z), -1); % Dim 2
+                end
+            else
+                % Stacked 1D grids: unstack via ndgrid
+                z_grids_1d = cell(1, num_z);
+                offset = 0;
+                for i_z = 1:num_z
+                    z_grids_1d{i_z} = z_work_j((offset + 1):(offset + n_z(i_z)));
+                    offset = offset + n_z(i_z);
+                end
+                [Z_mesh{1:num_z}] = ndgrid(z_grids_1d{:});
+                Z_cells = cell(1, num_z);
+                for i_z = 1:num_z
+                    Z_cells{i_z} = shiftdim(Z_mesh{i_z}(:), -1); % Dim 2
+                end
             end
         else
             Z_cells = { shiftdim(z_work_j(:), -1) };
