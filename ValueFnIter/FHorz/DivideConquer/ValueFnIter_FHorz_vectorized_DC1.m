@@ -93,9 +93,7 @@ else
     end
 end
 
-% EV continuation values on coarse grid: EV is (N_a x N_z), e' integrated out
-EV_broadcast1 = permute(EV, [3, 2, 4, 5, 1]);
-RHS_1 = BellmanCombiner(F_1, EV_broadcast1);
+RHS_1 = BellmanCombiner(F_1, V_cont);
 
 n_states_1  = n_anchors * N_z * N_e;
 n_choices_1 = N_d * N_a;
@@ -164,12 +162,28 @@ for bin = 1:(n_anchors - 1)
         F_bin = F_bin + zeros(expected_sz_bin, 'like', a_work);
     end
 
-    % Continuation value lookup via linear indexing for each candidate asset
-    z_coords = 1:N_z; % This is a 1xN_z vector, just as we need it
-    ev_lin_idx = coarse_cand_idx + (z_coords - 1) .* N_a;
-
-    % 2. Force continuation values to stay strictly along [1, N_z, N_e, 1, n_cand_bin]
-    V_cont_bin = reshape(EV(ev_lin_idx(:)), cand_shape);
+    z_coords = 1:N_z; 
+    if isfield(vfoptions, 'pi_semiz_j_active')
+        % Choice-dependent EV lookup: index into (a', z, e, d)
+        d_coords = shiftdim(1:N_d, -3); % [1, 1, 1, N_d]
+        if has_e
+            e_coords = shiftdim(1:N_e, -2);
+            ev_lin_idx_d = coarse_cand_idx + (z_coords - 1) .* N_a + (e_coords - 1) .* (N_a * N_z) + (d_coords - 1) .* (N_a * N_z * N_e);
+            V_cont_bin = reshape(EV_expected(ev_lin_idx_d(:)), [1, N_z, N_e, N_d, n_cand_bin]);
+        else
+            ev_lin_idx_d = coarse_cand_idx + (z_coords - 1) .* N_a + (d_coords - 1) .* (N_a * N_z);
+            V_cont_bin = reshape(EV_expected(ev_lin_idx_d(:)), [1, N_z, 1, N_d, n_cand_bin]);
+        end
+    else
+        % Standard invariant EV lookup: index into (a', z, e)
+        if has_e
+            e_coords = shiftdim(1:N_e, -2);
+            ev_lin_idx = coarse_cand_idx + (z_coords - 1) .* N_a + (e_coords - 1) .* (N_a * N_z);
+        else
+            ev_lin_idx = coarse_cand_idx + (z_coords - 1) .* N_a;
+        end
+        V_cont_bin = reshape(EV(ev_lin_idx(:)), cand_shape);
+    end
 
     RHS_bin = BellmanCombiner(F_bin, V_cont_bin);
 
