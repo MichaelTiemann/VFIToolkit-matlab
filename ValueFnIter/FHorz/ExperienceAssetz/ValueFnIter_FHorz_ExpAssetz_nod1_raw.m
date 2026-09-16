@@ -178,7 +178,7 @@ for reverse_j=1:N_j-1
     [a2primeIndex,a2primeProbs]=CreateExperienceAssetzFnMatrix(aprimeFn, n_d2, n_a2, n_z, d2_gridvals, a2_grid, z_gridvals_J(:,:,jj), aprimeFnParamsVec,2); % Note, is actually aprime_grid (but a_grid is anyway same for all ages)
     % Note: aprimeIndex is [N_d2,N_a2,N_z], whereas aprimeProbs is [N_d2,N_a2,N_z]   (N_z here is the current z)
 
-    if vfoptions.lowmemory<3
+    if vfoptions.lowmemory<4
         aprimeIndex=repelem((1:1:N_a1)',N_d2,N_a2,N_z)+N_a1*repmat(a2primeIndex-1,N_a1,1,1); % [N_d2*N_a1,N_a2,N_z]
         aprimeplus1Index=repelem((1:1:N_a1)',N_d2,N_a2,N_z)+N_a1*repmat(a2primeIndex,N_a1,1,1); % [N_d2*N_a1,N_a2,N_z]
         aprimeProbs=repmat(a2primeProbs,N_a1,1,1,N_z); % [N_d2*N_a1,N_a2,N_z]    (z dim already present, no repmat over z; but need to add zprime)
@@ -202,20 +202,6 @@ for reverse_j=1:N_j-1
     else
         % We will compute EV piece by piece
     end
-
-    Vlower=reshape(V(aprimeIndex(:),:,jj+1),[N_d2*N_a1,N_a2,N_z,N_z]); % (d2*a1prime,a2,z,zprime)
-    Vupper=reshape(V(aprimeplus1Index(:),:,jj+1),[N_d2*N_a1,N_a2,N_z,N_z]);
-    % Skip interpolation when upper and lower are equal (otherwise can cause numerical rounding errors)
-    skipinterp=(Vlower==Vupper);
-    aprimeProbs(skipinterp)=0; % effectively skips interpolation
-
-    % Switch EV from being in terms of a2prime to being in terms of d2 and a2
-    EV=aprimeProbs.*Vlower+(1-aprimeProbs).*Vupper; % (d2*a1prime,a2,z,zprime)
-    % Already applied the probabilities from interpolating onto grid
-
-    EV=EV.*shiftdim(pi_z_J(:,:,jj),-2); % pi shaped [1,1,z,zprime] -- no transpose since current z is dim 3
-    EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
-    EV=squeeze(sum(EV,4)); % sum over zprime, leaving current z
 
     % DiscountedEV=DiscountFactorParamsVec*repelem(EV,1,N_a1,1);
 
