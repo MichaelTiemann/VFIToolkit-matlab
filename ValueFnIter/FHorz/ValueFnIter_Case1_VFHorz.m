@@ -247,11 +247,11 @@ for i = 1:l_a1
     offset = offset + n_a(i);
 end
 
-% Create master TensorReturnFn with ALL assets so the signature aligns perfectly
-[TensorReturnFn, D_cells_block, A_cells_master, Z_cells_block, E_cells_block] = CreateTensorFnAndCells(ReturnFn, n_d, n_a, n_combined_z, n_e_pass, d_grid, a_grid, [], []);
+% 1. Create the master TensorReturnFn using the full n_a so the function signature correctly expects A1 and A2
+[TensorReturnFn, ~, ~, ~, ~] = CreateTensorFnAndCells(ReturnFn, n_d, n_a, n_combined_z, n_e_pass, d_grid, a_grid, [], []);
 
-% Extract just the A1 cells for A1_mat generation
-A1_cells = A_cells_master(1:l_a1);
+% 2. Generate strictly separated D, A1, Z, and E cells using only l_a1 to prevent cross-meshing memory blowouts
+[~, D_cells_block, A1_cells, Z_cells_block, E_cells_block] = CreateTensorFnAndCells(ReturnFn, n_d, n_a(1:l_a1), n_combined_z, n_e_pass, d_grid, a1_endo_grid_vals, [], []);
 
 if isfield(vfoptions, 'gpu') && vfoptions.gpu == 1
     for i = 1:length(D_cells_block); D_cells_block{i} = gpuArray(D_cells_block{i}); end
@@ -260,8 +260,9 @@ if isfield(vfoptions, 'gpu') && vfoptions.gpu == 1
 end
 
 if l_a2 > 0
-    [~, ~, A2_cells, ~, ~] = CreateTensorFnAndCells(vfoptions.aprimeFn, 0, n_a2, 0, 0, [], a2_exp_grid_vals, [], []);
+    [TensoraprimeFn, ~, A2_cells, ~, ~] = CreateTensorFnAndCells(vfoptions.aprimeFn, 0, n_a2, 0, 0, [], a2_exp_grid_vals, [], []);
 else
+    TensoraprimeFn = [];
     A2_cells = {};
 end
 
