@@ -755,8 +755,11 @@ if isempty(loweredge_matrix)
             linear_idx_right = min(max_idx_row, max(1, idx_right + (dsemiz_idx_tensor - 1) * max_idx_row));
 
             EV_bounded = EV_local(linear_idx_left) + weight .* (EV_local(linear_idx_right) - EV_local(linear_idx_left));
-            EV_bounded(weight == 0) = EV_local(linear_idx_left(weight == 0)); EV_bounded(weight == 1) = EV_local(linear_idx_right(weight == 1));
-            EV_bounded(isnan(EV_bounded)) = -Inf; EV_bounded = beta_j .* EV_bounded;
+            weight_full = repmat(weight, [1, num_choices_total, 1, 1, 1]);
+            EV_bounded(weight_full == 0) = EV_local(linear_idx_left(weight_full == 0));
+            EV_bounded(weight_full == 1) = EV_local(linear_idx_right(weight_full == 1));
+            EV_bounded(isnan(EV_bounded)) = -Inf;
+            EV_bounded = beta_j .* EV_bounded;
         else
             F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
             choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
@@ -823,10 +826,12 @@ if isempty(loweredge_matrix)
             EV_left = EV_interp_local(lin_idx_left); EV_right = EV_interp_local(lin_idx_right);
             EV_bounded = EV_left + weight .* (EV_right - EV_left);
             clear EV_left EV_right; % Memory Hoist
-
-            EV_bounded(weight == 0) = EV_interp_local(lin_idx_left(weight == 0));
-            EV_bounded(weight == 1) = EV_interp_local(lin_idx_right(weight == 1));
-            EV_bounded(isnan(EV_bounded)) = -Inf; EV_bounded = beta_j .* EV_bounded;
+            
+            weight_full = repmat(weight, [1, num_choices_total, 1, 1, 1]);
+            EV_bounded(weight_full == 0) = EV_interp_local(lin_idx_left(weight_full == 0));
+            EV_bounded(weight_full == 1) = EV_interp_local(lin_idx_right(weight_full == 1));
+            EV_bounded(isnan(EV_bounded)) = -Inf;
+            EV_bounded = beta_j .* EV_bounded;
         else
             F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
             choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
@@ -941,8 +946,9 @@ else
             linear_idx_right = min(max_idx_row, max(1, idx_right + (dsemiz_idx_tensor - 1) * max_idx_row));
 
             EV_bounded = EV_local(linear_idx_left) + weight .* (EV_local(linear_idx_right) - EV_local(linear_idx_left));
-            EV_bounded(weight == 0) = EV_local(linear_idx_left(weight == 0));
-            EV_bounded(weight == 1) = EV_local(linear_idx_right(weight == 1));
+            weight_full = repmat(weight, [1, num_choices_total, 1, 1, 1]);
+            EV_bounded(weight_full == 0) = EV_local(linear_idx_left(weight_full == 0));
+            EV_bounded(weight_full == 1) = EV_local(linear_idx_right(weight_full == 1));
             EV_bounded(isnan(EV_bounded)) = -Inf;
             EV_bounded = beta_j .* EV_bounded;
         else
@@ -1019,10 +1025,12 @@ else
             EV_bounded = EV_left + weight .* (EV_right - EV_left);
             clear EV_left EV_right; % Memory Hoist
 
-            EV_bounded(weight == 0) = EV_interp_local(lin_idx_left(weight == 0));
-            EV_bounded(weight == 1) = EV_interp_local(lin_idx_right(weight == 1));
+            weight_full = repmat(weight, [1, num_choices_total, 1, 1, 1]);
+            EV_bounded(weight_full == 0) = EV_interp_local(lin_idx_left(weight_full == 0));
+            EV_bounded(weight_full == 1) = EV_interp_local(lin_idx_right(weight_full == 1));
 
-            if N_dsemiz > 1; out_of_bounds_exp = repmat(out_of_bounds, [N_d_safe, 1, 1, 1, 1]); EV_bounded(out_of_bounds_exp) = -Inf; else; EV_bounded(out_of_bounds) = -Inf; end
+            out_of_bounds_exp = repmat(out_of_bounds, [N_d_safe, 1, 1, 1, 1]);
+            EV_bounded(out_of_bounds_exp) = -Inf;
             EV_bounded(isnan(EV_bounded)) = -Inf;
             EV_bounded = beta_j .* EV_bounded;
         else
@@ -1033,7 +1041,8 @@ else
             if N_dsemiz > 1; L2_linear_idx = L2_linear_idx + (dsemiz_idx_tensor - 1) * (stride_z * N_ze_local); end
             EV_bounded = EV_interp_local(L2_linear_idx);
 
-            if N_dsemiz > 1; out_of_bounds_exp = repmat(out_of_bounds, [N_d_safe, 1, 1, 1, 1]); EV_bounded(out_of_bounds_exp) = -Inf; else; EV_bounded(out_of_bounds) = -Inf; end
+            out_of_bounds_exp = repmat(out_of_bounds, [N_d_safe, 1, 1, 1, 1]);
+            EV_bounded(out_of_bounds_exp) = -Inf;
             EV_bounded = beta_j .* EV_bounded;
         end
     end
