@@ -1093,15 +1093,42 @@ if isempty(loweredge_matrix)
         Pol_L2flag_max(isInnerOrUpper & isInfLower) = 3; Pol_L2flag_max(isInnerOrLower & isInfUpper) = 1;
         Pol_L2flag_max = reshape(Pol_L2flag_max, [N_states, N_ze_local]);
     end
+
 else
     % =================================================================
     % BRANCH 2: ZOOM PHASE (loweredge_matrix provided)
     % =================================================================
     Pol_a1_per_a2 = [];
 
-    % loweredge_matrix arrives perfectly dimensioned from the Coarse Pass:
-    % [max(1, N_d_safe), N_a1_other, N_states, N_ze_local]
+    % Legacy bounds can be expanded < 1 or > N. Safely clip before extracting the a1 dimension
+    % to prevent negative modulo math from wrapping the bounds to the opposite end of the grid.
+    loweredge_matrix = max(1, min(loweredge_matrix, N_a1_dc * N_a1_other));
     loweredge_matrix = mod(loweredge_matrix - 1, N_a1_dc) + 1;
+
+    % Robust Geometry Normalization
+    % Legacy Slicers provide loweredge_matrix in various collapsed 1D/2D forms.
+    % We map the elements to the core states and use implicit broadcasting to fill D and A_other.
+    num_val = numel(loweredge_matrix);
+    target_shape = zeros(max(1, N_d_safe), N_a1_other, N_states, n_z_loc, n_e_loc, 'like', loweredge_matrix);
+    target_states_ze = N_states * n_z_loc * n_e_loc;
+
+    if num_val == target_states_ze
+        low_reshaped = reshape(loweredge_matrix, [1, 1, N_states, n_z_loc, n_e_loc]);
+    elseif num_val == N_a1_other * target_states_ze
+        low_reshaped = reshape(loweredge_matrix, [1, N_a1_other, N_states, n_z_loc, n_e_loc]);
+    elseif num_val == max(1, N_d_safe) * target_states_ze
+        low_reshaped = reshape(loweredge_matrix, [max(1, N_d_safe), 1, N_states, n_z_loc, n_e_loc]);
+    elseif num_val == max(1, N_d_safe) * N_a1_other * target_states_ze
+        low_reshaped = reshape(loweredge_matrix, [max(1, N_d_safe), N_a1_other, N_states, n_z_loc, n_e_loc]);
+    else
+        % Ultimate Fallback: Truncate or pad to exactly match the state space, averting a hard crash
+        low_flat = loweredge_matrix(:);
+        if length(low_flat) < target_states_ze
+            low_flat = repmat(low_flat, ceil(target_states_ze / max(1, length(low_flat))), 1);
+        end
+        low_reshaped = reshape(low_flat(1:target_states_ze), [1, 1, N_states, n_z_loc, n_e_loc]);
+    end
+    loweredge_matrix = low_reshaped + target_shape;
 
     if gridinterplayer(1) == 0 || is_dc_mode == 2
         % -------------------------------------------------------------
@@ -1304,33 +1331,33 @@ else
 
     if gridinterplayer(1) == 0 || is_dc_mode == 2
         clear RHS_flat; % Memory Hoist
-        a1_apr_offset = mod(apr_offset - 1, total_gap + 1) + 1;
-        a2_offset_factor = ceil(apr_offset / (total_gap + 1));
+        a1_apr_offset = mod(apr_offset(:)' - 1, total_gap + 1) + 1;
+        a2_offset_factor = ceil(apr_offset(:)' / (total_gap + 1));
 
         loweredge_matrix_2d = reshape(loweredge_matrix, [max(1, N_d_safe), N_a1_other, FLAT_STATES]);
         lin_idx_loweredge = d_idx_local(:)' + (a2_offset_factor(:)' - 1) * max(1, N_d_safe) + (0:FLAT_STATES-1) * (max(1, N_d_safe) * N_a1_other);
         chosen_loweredge = loweredge_matrix_2d(lin_idx_loweredge);
 
-        a1_Pol_apr = chosen_loweredge + a1_apr_offset - 1;
-        Pol_apr_max = a1_Pol_apr + (a2_offset_factor - 1) * N_a1_dc;
+        a1_Pol_apr = chosen_loweredge(:)' + a1_apr_offset(:)' - 1;
+        a1_Pol_apr = min(a1_Pol_apr, N_a1_dc); % Clip to ensure out-of-bound evaluations aren't returned as policy
+        Pol_apr_max = a1_Pol_apr(:)' + (a2_offset_factor(:)' - 1) * N_a1_dc;
         Pol_apr_max = reshape(Pol_apr_max, [N_states, N_ze_local]);
         Pol_L2idx_max = [];
         Pol_L2flag_max = [];
     else
-        a1_apr_offset = mod(apr_offset - 1, num_choices_total_a1) + 1;
-        a2_offset_factor = ceil(apr_offset / num_choices_total_a1);
-        chosen_offset = start_offset + a1_apr_offset - 1;
+        a1_apr_offset = mod(apr_offset(:)' - 1, num_choices_total_a1) + 1;
+        a2_offset_factor = ceil(apr_offset(:)' / num_choices_total_a1);
+        chosen_offset = start_offset + a1_apr_offset(:)' - 1;
 
         loweredge_matrix_2d = reshape(loweredge_matrix_bounds, [max(1, N_d_safe), N_a1_other, FLAT_STATES]);
         lin_idx_loweredge = d_idx_local(:)' + (a2_offset_factor(:)' - 1) * max(1, N_d_safe) + (0:FLAT_STATES-1) * (max(1, N_d_safe) * N_a1_other);
         chosen_loweredge = loweredge_matrix_2d(lin_idx_loweredge);
 
-        abs_fine_idx_flat = (chosen_loweredge - 1) * (n2short + 1) + 1 + chosen_offset;
-        a1_Pol_apr = floor((abs_fine_idx_flat - 1) / (n2short + 1)) + 1;
+        abs_fine_idx_flat = (chosen_loweredge(:)' - 1) * (n2short + 1) + 1 + chosen_offset(:)';
+        a1_Pol_apr = floor((abs_fine_idx_flat(:)' - 1) / (n2short + 1)) + 1;
         a1_Pol_apr = min(a1_Pol_apr, N_a1_dc - 1);
-        Pol_L2idx_max = abs_fine_idx_flat - (a1_Pol_apr - 1) * (n2short + 1);
-        Pol_apr_max = a1_Pol_apr + (a2_offset_factor - 1) * N_a1_dc;
-
+        Pol_L2idx_max = abs_fine_idx_flat(:)' - (a1_Pol_apr(:)' - 1) * (n2short + 1);
+        Pol_apr_max = a1_Pol_apr(:)' + (a2_offset_factor(:)' - 1) * N_a1_dc;
         Pol_apr_max = reshape(Pol_apr_max, [N_states, N_ze_local]);
         Pol_L2idx_max = reshape(Pol_L2idx_max, [N_states, N_ze_local]);
 
@@ -1369,7 +1396,13 @@ else
     d_gap = 0;
 end
 
-[v_c, p_apr_c, p_d_c, p_l2_c, p_l2f_c, p_a1_c] = CoreFn(state_chunk, low_chunk, mg, d_gap, dc_mode);
+% Strictly respect the caller's requested outputs to prevent generating unused geometry
+if nargout > 5
+    [v_c, p_apr_c, p_d_c, p_l2_c, p_l2f_c, p_a1_c] = CoreFn(state_chunk, low_chunk, mg, d_gap, dc_mode);
+else
+    [v_c, p_apr_c, p_d_c, p_l2_c, p_l2f_c] = CoreFn(state_chunk, low_chunk, mg, d_gap, dc_mode);
+    p_a1_c = [];
+end
 
 num_a1 = length(a1_idx);
 out_shape = [num_a1, N_other, N_ze];
@@ -1391,10 +1424,11 @@ else
 end
 
 if ~isempty(p_a1_c)
+    % Ensure the N_d dimension is perfectly preserved for DC2A Slicers
     if N_a1_other > 1
-        p_a1 = reshape(p_a1_c, [N_a1_other, num_a1, N_a2, N_ze]);
+        p_a1 = reshape(p_a1_c, [N_d, N_a1_other, num_a1, N_a2, N_ze]);
     else
-        p_a1 = reshape(p_a1_c, out_shape);
+        p_a1 = reshape(p_a1_c, [N_d, out_shape]);
     end
 else
     p_a1 = [];
