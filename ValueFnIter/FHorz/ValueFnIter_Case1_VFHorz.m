@@ -1385,14 +1385,23 @@ end
 function [v, p_apr, p_d, p_l2, p_l2f, p_a1] = Helper_SlicerWrapper(a1_idx, low_mat, mg, dc_mode, N_a1_dc, N_a1_other, N_a2, N_ze, N_d, CoreFn)
 % Translates 1D index chunks from DC Slicers into absolute 1D states for the Tensor Block,
 % and reshapes the 2D tensor outputs back into the multi-dimensional geometry expected by the Slicers.
-N_other = N_a1_other * N_a2;
+
+N_other = N_a1_other * max(1, N_a2);
 state_chunk = reshape(a1_idx(:) + (0:N_other-1) * N_a1_dc, 1, []);
+num_a1 = length(a1_idx);
 
 if isempty(low_mat)
     low_chunk = [];
     d_gap = 0;
 else
-    low_chunk = low_mat;
+    % Legacy DC slicer passes loweredge_matrix with N_d as the LAST dimension
+    % We must permute it to [N_d, num_a1, N_other, N_ze] before handing it to the Tensor Block
+    if numel(low_mat) == num_a1 * N_other * N_ze * max(1, N_d)
+        low_chunk = reshape(low_mat, [num_a1, N_other, N_ze, max(1, N_d)]);
+        low_chunk = permute(low_chunk, [4, 1, 2, 3]);
+    else
+        low_chunk = low_mat;
+    end
     d_gap = 0;
 end
 
@@ -1404,7 +1413,6 @@ else
     p_a1_c = [];
 end
 
-num_a1 = length(a1_idx);
 out_shape = [num_a1, N_other, N_ze];
 
 v     = reshape(v_c, out_shape);
@@ -1424,11 +1432,14 @@ else
 end
 
 if ~isempty(p_a1_c)
-    % Ensure the N_d dimension is perfectly preserved for DC2A Slicers
+    % Tensor returns p_a1_c with N_d FIRST: [N_d, N_a1_other, N_states, N_ze]
+    % We must permute it back to [num_a1, ..., N_d] for the legacy Slicers
     if N_a1_other > 1
-        p_a1 = reshape(p_a1_c, [N_d, N_a1_other, num_a1, N_a2, N_ze]);
+        p_a1 = reshape(p_a1_c, [max(1, N_d), N_a1_other, num_a1, max(1, N_a2), N_ze]);
+        p_a1 = permute(p_a1, [3, 2, 4, 5, 1]); % -> [num_a1, N_a1_other, N_a2, N_ze, N_d]
     else
-        p_a1 = reshape(p_a1_c, [N_d, out_shape]);
+        p_a1 = reshape(p_a1_c, [max(1, N_d), num_a1, N_other, N_ze]);
+        p_a1 = permute(p_a1, [2, 3, 4, 1]); % -> [num_a1, N_other, N_ze, N_d]
     end
 else
     p_a1 = [];
