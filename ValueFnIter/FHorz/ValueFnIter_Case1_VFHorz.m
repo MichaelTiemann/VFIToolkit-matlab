@@ -198,10 +198,24 @@ if is_exp_asset || vfoptions.riskyasset == 1 || vfoptions.residualasset == 1
     a2_exp_grid_vals  = vfoptions.a2_grid;
     n_a1_dc = vfoptions.n_a1(1);
 
-    if isequal(vfoptions.n_a1, 0); l_a1 = 0; else; l_a1 = length(vfoptions.n_a1); end
-    if isequal(vfoptions.n_d1, 0); l_d1 = 0; else; l_d1 = length(vfoptions.n_d1); end
+    if isequal(vfoptions.n_a1, 0)
+        l_a1 = 0;
+    else
+        l_a1 = length(vfoptions.n_a1);
+    end
 
-    if l_a1 > 1; n_a1_other = vfoptions.n_a1(2:end); else; n_a1_other = []; end
+    if isequal(vfoptions.n_d1, 0)
+        l_d1 = 0;
+    else
+        l_d1 = length(vfoptions.n_d1);
+    end
+
+    if l_a1 > 1
+        n_a1_other = vfoptions.n_a1(2:end);
+    else
+        n_a1_other = [];
+    end
+
     n_a2 = vfoptions.n_a2;
     l_a2 = length(n_a2);
 else
@@ -212,7 +226,12 @@ else
     l_a1 = length(n_a);
     l_d1 = length(n_d);
 
-    if l_a1 > 1; n_a1_other = n_a(2:end); else; n_a1_other = []; end
+    if l_a1 > 1
+        n_a1_other = n_a(2:end);
+    else
+        n_a1_other = [];
+    end
+
     n_a2 = [];
     l_a2 = 0;
 end
@@ -230,7 +249,8 @@ end
 
 % Universal Packing for full states (creates fully meshed arrays)
 [TensorReturnFn, D_cells_block, A1_cells, ~, ~] = CreateTensorFnAndCells(ReturnFn, n_d, n_a(1:l_a1), n_combined_z, n_e_pass, d_grid, a1_endo_grid_vals, [], []);
-if l_a_exp > 0
+
+if l_a2 > 0
     [TensoraprimeFn, ~, A2_cells, ~, ~] = CreateTensorFnAndCells(vfoptions.aprimeFn, 0, n_a2, 0, 0, [], a2_exp_grid_vals, [], []);
 else
     TensoraprimeFn = [];
@@ -238,7 +258,9 @@ else
 end
 
 A1_mat = zeros(N_a1_dc * N_a1_other, l_a1, 'like', a_grid);
-for i_a = 1:l_a1; A1_mat(:, i_a) = A1_cells{i_a}(:); end
+for i_a = 1:l_a1
+    A1_mat(:, i_a) = A1_cells{i_a}(:);
+end
 
 A2_mat = zeros(N_a2, l_a2, 'like', a_grid);
 a2_grids_1d = cell(1, l_a2);
@@ -379,7 +401,7 @@ elseif vfoptions.lowmemory == 1
     end
 else; ze_chunks = num2cell(1:N_ze); end
 
-if ismember(vfoptions.lowmemory, [4, 5]) && n_a2 > 0; a2_chunks = num2cell(1:N_a2_exp); else; a2_chunks = {1:N_a2_exp}; end
+if ismember(vfoptions.lowmemory, [4, 5]) && n_a2 > 0; a2_chunks = num2cell(1:N_a2); else; a2_chunks = {1:N_a2}; end
 
 chunk_meta = cell(1, length(ze_chunks));
 for i_ze = 1:length(ze_chunks)
@@ -530,7 +552,7 @@ for reverse_j = 0:N_j-1
 
             if vfoptions.gridinterplayer(1) == 1
                 N_cols = N_ze_local * N_dsemiz; zero_weights = (interp_weights == 0); one_weights = (interp_weights == 1);
-                N_a2_rem = N_a2_endo * N_a2_exp;
+                N_a2_rem = N_a1_other * N_a2;
                 EV_2d = reshape(EV_local, [N_a1_dc, N_a2_rem * N_cols]);
                 EV_left_val = EV_2d(interp_left_idx, :); EV_right_val = EV_2d(interp_right_idx, :);
                 EV_interp_flat = EV_left_val + interp_weights .* (EV_right_val - EV_left_val);
@@ -542,13 +564,13 @@ for reverse_j = 0:N_j-1
             if l_a_exp == 0
                 % Reshape to expose N_dsemiz, then slice by dsemiz_idx_tensor to safely
                 % broadcast EV across endogenous choices and semi-exogenous transitions
-                EV_reshaped = reshape(EV_local, [N_a1_dc * N_a2_endo, n_z_loc, n_e_loc, N_dsemiz]);
+                EV_reshaped = reshape(EV_local, [N_a1_dc * N_a1_other, n_z_loc, n_e_loc, N_dsemiz]);
                 EV_d_sliced = EV_reshaped(:, :, :, dsemiz_idx_tensor(:));
                 EV_bounded_pre = beta_j .* permute(EV_d_sliced, [4, 1, 5, 2, 3]);
 
                 d_vec = reshape(0:N_d_safe-1, [N_d_safe, 1, 1, 1, 1]);
-                z_vec = reshape((0:n_z_loc-1) * (N_d_safe * N_a1_dc * N_a2_endo), [1, 1, 1, n_z_loc, 1]);
-                e_vec = reshape((0:n_e_loc-1) * (N_d_safe * N_a1_dc * N_a2_endo * n_z_loc), [1, 1, 1, 1, n_e_loc]);
+                z_vec = reshape((0:n_z_loc-1) * (N_d_safe * N_a1_dc * N_a1_other), [1, 1, 1, n_z_loc, 1]);
+                e_vec = reshape((0:n_e_loc-1) * (N_d_safe * N_a1_dc * N_a1_other * n_z_loc), [1, 1, 1, 1, n_e_loc]);
                 static_EV_offset = cast(d_vec + 1 + z_vec + e_vec, 'like', EV_bounded_pre);
             else; EV_bounded_pre = []; static_EV_offset = []; end
 
@@ -564,11 +586,11 @@ for reverse_j = 0:N_j-1
 
             if vfoptions.gridinterplayer(1) == 1
                 % --- VRAM Protection: Cartesian Chunking for the COARSE Pass ---
-                flat_choices_coarse = max(1, N_d_safe) * N_a1_dc * N_a2_endo;
-                N_other = N_a2_endo * max(1, N_a2_exp);
+                flat_choices_coarse = max(1, N_d_safe) * N_a1_dc * N_a1_other;
+                N_other = N_a1_other * max(1, N_a2);
                 max_a1_per_chunk_coarse = max(1, floor(5e8 / (flat_choices_coarse * N_other * N_ze_local)));
 
-                loweredge_pass = zeros(max(1, N_d_safe), N_a2_endo, N_a1_dc * max(1, N_a2_exp), N_ze_local, 'like', EV_local);
+                loweredge_pass = zeros(max(1, N_d_safe), N_a1_other, N_a1_dc * max(1, N_a2), N_ze_local, 'like', EV_local);
 
                 for chunk_start = 1:max_a1_per_chunk_coarse:N_a1_dc
                     chunk_end = min(N_a1_dc, chunk_start + max_a1_per_chunk_coarse - 1);
@@ -577,11 +599,11 @@ for reverse_j = 0:N_j-1
                     state_chunk = state_chunk_mat(:)';
 
                     [~, ~, ~, ~, ~, p_a1_per_a2] = LocalBlockFn(state_chunk, [], 0, 0, 2);
-                    loweredge_pass(:, :, state_chunk, :) = reshape(p_a1_per_a2, [max(1, N_d_safe), N_a2_endo, length(state_chunk), N_ze_local]);
+                    loweredge_pass(:, :, state_chunk, :) = reshape(p_a1_per_a2, [max(1, N_d_safe), N_a1_other, length(state_chunk), N_ze_local]);
                 end
 
                 % --- VRAM Protection: Cartesian Chunking for the Grid Interp Fine Pass ---
-                flat_choices = max(1, N_d_safe) * n2long * max(1, N_a2_endo);
+                flat_choices = max(1, N_d_safe) * n2long * max(1, N_a1_other);
                 max_a1_per_chunk = max(1, floor(5e8 / (flat_choices * N_other * N_ze_local)));
 
                 v = zeros(N_a, N_ze_local, 'like', EV_local);
@@ -621,9 +643,9 @@ for reverse_j = 0:N_j-1
             else
                 LocalBlockFn_Standard = @(state_idx, loweredge_matrix, maxgap_scalar) SlicerWrapper(state_idx, loweredge_matrix, maxgap_scalar, 0);
                 if l_a1 == 1
-                    [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC1_Slicer(N_a1_dc, N_a1_dc, max(1, N_a2_exp), N_ze_local, vfoptions, LocalBlockFn_Standard);
+                    [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC1_Slicer(N_a1_dc, N_a1_dc, max(1, N_a2), N_ze_local, vfoptions, LocalBlockFn_Standard);
                 else
-                    [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC2A_Slicer(N_a1_dc, N_a2_endo, N_a2_endo * max(1, N_a2_exp), N_a1_dc, N_ze_local, vfoptions, LocalBlockFn_Standard);
+                    [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC2A_Slicer(N_a1_dc, N_a1_other, N_a1_other * max(1, N_a2), N_a1_dc, N_ze_local, vfoptions, LocalBlockFn_Standard);
                 end
             end
 
@@ -639,7 +661,7 @@ for reverse_j = 0:N_j-1
         % Non-DC block
         for i_a2 = 1:length(a2_chunks)
             curr_a2 = a2_chunks{i_a2}; N_a2_local = length(curr_a2);
-            start_a_idx = (min(curr_a2) - 1) * (N_a1_dc * N_a2_endo) + 1; end_a_idx   = max(curr_a2) * (N_a1_dc * N_a2_endo);
+            start_a_idx = (min(curr_a2) - 1) * (N_a1_dc * N_a1_other) + 1; end_a_idx   = max(curr_a2) * (N_a1_dc * N_a1_other);
             for i_ze = 1:length(ze_chunks)
                 curr_ze = ze_chunks{i_ze}; N_ze_local = length(curr_ze);
                 meta = chunk_meta{i_ze}; n_z_loc = meta.n_z_loc; n_e_loc = meta.n_e_loc;
@@ -662,32 +684,32 @@ for reverse_j = 0:N_j-1
                 if vfoptions.gridinterplayer(1) == 1
                     N_cols = N_ze_local * N_dsemiz; zero_weights = (interp_weights == 0); one_weights = (interp_weights == 1);
                     if l_a_exp > 0
-                        EV_2d = reshape(EV_local, [N_a1_dc, N_a2_endo * N_a2_local * N_cols]);
+                        EV_2d = reshape(EV_local, [N_a1_dc, N_a1_other * N_a2_local * N_cols]);
                         EV_left_val = EV_2d(interp_left_idx, :); EV_right_val = EV_2d(interp_right_idx, :);
                         EV_interp_flat = EV_left_val + interp_weights .* (EV_right_val - EV_left_val);
                         EV_interp_flat(zero_weights, :) = EV_left_val(zero_weights, :); EV_interp_flat(one_weights, :) = EV_right_val(one_weights, :);
                         EV_interp_flat(isnan(EV_interp_flat)) = -Inf;
-                        EV_interp_local = reshape(EV_interp_flat, [length(a1prime_grid), N_a2_endo, N_a2_local, N_ze_local, N_dsemiz]);
+                        EV_interp_local = reshape(EV_interp_flat, [length(a1prime_grid), N_a1_other, N_a2_local, N_ze_local, N_dsemiz]);
                     else
-                        EV_2d = reshape(EV_local, [N_a1_dc, N_a2_endo * N_cols]);
+                        EV_2d = reshape(EV_local, [N_a1_dc, N_a1_other * N_cols]);
                         EV_left_val = EV_2d(interp_left_idx, :); EV_right_val = EV_2d(interp_right_idx, :);
                         EV_interp_flat = EV_left_val + interp_weights .* (EV_right_val - EV_left_val);
                         EV_interp_flat(zero_weights, :) = EV_left_val(zero_weights, :); EV_interp_flat(one_weights, :) = EV_right_val(one_weights, :);
                         EV_interp_flat(isnan(EV_interp_flat)) = -Inf;
-                        EV_interp_local = reshape(EV_interp_flat, [length(a1prime_grid), N_a2_endo, N_ze_local, N_dsemiz]);
+                        EV_interp_local = reshape(EV_interp_flat, [length(a1prime_grid), N_a1_other, N_ze_local, N_dsemiz]);
                     end
                 else; EV_interp_local = []; end
 
                 if l_a_exp == 0
                     % Reshape to expose N_dsemiz, then slice by dsemiz_idx_tensor to safely
                     % broadcast EV across endogenous choices and semi-exogenous transitions
-                    EV_reshaped = reshape(EV_local, [N_a1_dc * N_a2_endo, n_z_loc, n_e_loc, N_dsemiz]);
+                    EV_reshaped = reshape(EV_local, [N_a1_dc * N_a1_other, n_z_loc, n_e_loc, N_dsemiz]);
                     EV_d_sliced = EV_reshaped(:, :, :, dsemiz_idx_tensor(:));
                     EV_bounded_pre = beta_j .* permute(EV_d_sliced, [4, 1, 5, 2, 3]);
 
                     d_vec = reshape(0:N_d_safe-1, [N_d_safe, 1, 1, 1, 1]);
-                    z_vec = reshape((0:n_z_loc-1) * (N_d_safe * N_a1_dc * N_a2_endo), [1, 1, 1, n_z_loc, 1]);
-                    e_vec = reshape((0:n_e_loc-1) * (N_d_safe * N_a1_dc * N_a2_endo * n_z_loc), [1, 1, 1, 1, n_e_loc]);
+                    z_vec = reshape((0:n_z_loc-1) * (N_d_safe * N_a1_dc * N_a1_other), [1, 1, 1, n_z_loc, 1]);
+                    e_vec = reshape((0:n_e_loc-1) * (N_d_safe * N_a1_dc * N_a1_other * n_z_loc), [1, 1, 1, 1, n_e_loc]);
                     static_EV_offset = cast(d_vec + 1 + z_vec + e_vec, 'like', EV_bounded_pre);
                 else; EV_bounded_pre = []; static_EV_offset = []; end
 
@@ -699,7 +721,7 @@ for reverse_j = 0:N_j-1
                     TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, dc_mode_override);
 
                 state_list = start_a_idx:end_a_idx; total_states = length(state_list);
-                flat_choices = max(1, N_d_safe) * N_a1_dc * N_a2_endo;
+                flat_choices = max(1, N_d_safe) * N_a1_dc * N_a1_other;
                 max_states_per_chunk = max(1, floor(50000000 / (flat_choices * n_z_loc * n_e_loc)));
                 v_concat = []; p_apr_concat = []; p_d_concat = []; p_l2idx_concat = []; p_l2flag_concat = [];
                 for chunk_start = 1:max_states_per_chunk:total_states
@@ -707,7 +729,7 @@ for reverse_j = 0:N_j-1
                     state_chunk = state_list(chunk_start:chunk_end);
                     if vfoptions.gridinterplayer(1) == 1
                         [~, ~, ~, ~, ~, p_a1_per_a2] = LocalBlockFn(state_chunk, [], 0, 0, 2);
-                        loweredge_chunk = reshape(p_a1_per_a2, [max(1, N_d_safe), N_a2_endo, length(state_chunk), N_ze_local]);
+                        loweredge_chunk = reshape(p_a1_per_a2, [max(1, N_d_safe), N_a1_other, length(state_chunk), N_ze_local]);
 
                         if max(1, N_d_safe) > 1
                             low_min = min(loweredge_chunk, [], 1);
@@ -804,26 +826,32 @@ varargout{1} = V; varargout{2} = Policy;
 end
 
 function [V_j_max, Pol_apr_max, Pol_d_max, Pol_L2idx_max, Pol_L2flag_max, Pol_a1_per_a2] = Evaluate_Case1_TensorBlock(...
-    state_idx, loweredge_matrix, maxgap_scalar, d_gap, N_a1_dc, N_a2_endo, N_a_exp, N_d_safe, N_ze_local, ...
+    state_idx, loweredge_matrix, maxgap_scalar, d_gap, N_a1_dc, N_a1_other, N_a2, N_d_safe, N_ze_local, ...
     Z_cells_block, E_cells_block, D_cells_block, A1_mat, A2_mat, A1_grids_1d, a2_grids_1d, ...
     gridinterplayer, n2short, n2long, beta_j, EV_local, EV_bounded_pre, EV_interp_local, a1prime_grid, ...
     TensorReturnFn, ReturnFnParamsCell, ezc2_j, ezc3, ezc4, ezc7_j, ...
     TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, is_dc_mode)
 
-N_states = length(state_idx); num_a1_vars = length(A1_grids_1d);
-
 N_states = length(state_idx);
 l_a1 = length(A1_grids_1d);
 
-if N_a2 > 1; [a1_sub, a2_sub] = ind2sub([N_a1_dc * N_a1_other, N_a2], state_idx); else; a1_sub = state_idx; end
+if N_a2 > 1
+    [a1_sub, a2_sub] = ind2sub([N_a1_dc * N_a1_other, N_a2], state_idx);
+else
+    a1_sub = state_idx;
+end
 
 A1_cells = cell(1, l_a1);
-for ia = 1:l_a1; A1_cells{ia} = reshape(A1_mat(a1_sub, ia), [1, 1, N_states, 1, 1]); end
+for ia = 1:l_a1
+    A1_cells{ia} = reshape(A1_mat(a1_sub, ia), [1, 1, N_states, 1, 1]);
+end
 
 if N_a2 > 1
     l_a2 = size(A2_mat, 2);
     A2_cells = cell(1, l_a2);
-    for ia = 1:l_a2; A2_cells{ia} = reshape(A2_mat(a2_sub, ia), [1, 1, N_states, 1, 1]); end
+    for ia = 1:l_a2
+        A2_cells{ia} = reshape(A2_mat(a2_sub, ia), [1, 1, N_states, 1, 1]);
+    end
 else
     A2_cells = {};
 end
@@ -834,25 +862,25 @@ if isempty(loweredge_matrix)
         % BRANCH 1A: COARSE EVALUATION
         % =================================================================
         grids_for_choices = A1_grids_1d;
-        if num_a1_vars > 1; [mesh_out{1:num_a1_vars}] = ndgrid(grids_for_choices{:}); else; mesh_out{1} = grids_for_choices{1}; end
+        if l_a1 > 1; [mesh_out{1:l_a1}] = ndgrid(grids_for_choices{:}); else; mesh_out{1} = grids_for_choices{1}; end
         num_choices_total = numel(mesh_out{1});
-        Apr_cells = cell(1, num_a1_vars); for ia = 1:num_a1_vars; Apr_cells{ia} = reshape(mesh_out{ia}(:), [1, num_choices_total, 1, 1, 1]); end
+        Apr_cells = cell(1, l_a1); for ia = 1:l_a1; Apr_cells{ia} = reshape(mesh_out{ia}(:), [1, num_choices_total, 1, 1, 1]); end
 
-        if N_a_exp > 1
+        if N_a2 > 1
             F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
             A2_prime = TensoraprimeFn(D_cells_block, A2_cells, Z_cells_block, E_cells_block, aprimeFnParamsCell);
             a2_grid_1d_vec = a2_grids_1d{1}; a2_prime_clipped = max(a2_grid_1d_vec(1), min(A2_prime, a2_grid_1d_vec(end)));
-            idx = discretize(a2_prime_clipped, a2_grid_1d_vec); idx(isnan(idx)) = N_a_exp - 1; idx = max(1, min(idx, N_a_exp - 1));
+            idx = discretize(a2_prime_clipped, a2_grid_1d_vec); idx(isnan(idx)) = N_a2 - 1; idx = max(1, min(idx, N_a2 - 1));
             a2_left = reshape(a2_grid_1d_vec(idx), size(idx)); a2_right = reshape(a2_grid_1d_vec(idx+1), size(idx));
             weight = (a2_prime_clipped - a2_left) ./ (a2_right - a2_left);
             weight(a2_right == a2_left) = 0;
             weight(abs(weight) < 1e-12) = 0;
             weight(abs(weight - 1) < 1e-12) = 1;
 
-            A1pr_idx = reshape(1:(N_a1_dc * N_a2_endo), [1, (N_a1_dc * N_a2_endo), 1, 1, 1]); ZE_idx = reshape(1:N_ze_local, [1, 1, 1, n_z_loc, n_e_loc]);
+            A1pr_idx = reshape(1:(N_a1_dc * N_a1_other), [1, (N_a1_dc * N_a1_other), 1, 1, 1]); ZE_idx = reshape(1:N_ze_local, [1, 1, 1, n_z_loc, n_e_loc]);
             N_a2_global = max(1, prod(cellfun(@length, a2_grids_1d)));
-            idx_left  = A1pr_idx + (idx - 1) * (N_a1_dc * N_a2_endo) + (ZE_idx - 1) * (N_a1_dc * N_a2_endo * N_a2_global);
-            idx_right = A1pr_idx + (idx) * (N_a1_dc * N_a2_endo) + (ZE_idx - 1) * (N_a1_dc * N_a2_endo * N_a2_global);
+            idx_left  = A1pr_idx + (idx - 1) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
+            idx_right = A1pr_idx + (idx) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
             max_idx_row = size(EV_local, 1);
             linear_idx_left  = min(max_idx_row, max(1, idx_left  + (dsemiz_idx_tensor - 1) * max_idx_row));
             linear_idx_right = min(max_idx_row, max(1, idx_right + (dsemiz_idx_tensor - 1) * max_idx_row));
@@ -882,7 +910,7 @@ if isempty(loweredge_matrix)
             RHS_for_d = reshape(RHS_flat, [max(1, N_d_safe), num_choices_total, FLAT_STATES]);
             [~, max_a1_idx_per_d] = max(RHS_for_d, [], 2);
             clear RHS_for_d; % Memory Hoist
-            Pol_a1_per_a2 = reshape(max_a1_idx_per_d, [max(1, N_d_safe), N_a2_endo, N_states, N_ze_local]);
+            Pol_a1_per_a2 = reshape(max_a1_idx_per_d, [max(1, N_d_safe), N_a1_other, N_states, N_ze_local]);
         else
             Pol_a1_per_a2 = [];
         end
@@ -899,15 +927,15 @@ if isempty(loweredge_matrix)
         % BRANCH 1B: FULL FINE GRID EVALUATION (1-Step Brute Force)
         % =================================================================
         grids_for_choices = A1_grids_1d; grids_for_choices{1} = a1prime_grid;
-        if num_a1_vars > 1; [mesh_out{1:num_a1_vars}] = ndgrid(grids_for_choices{:}); else; mesh_out{1} = grids_for_choices{1}; end
+        if l_a1 > 1; [mesh_out{1:l_a1}] = ndgrid(grids_for_choices{:}); else; mesh_out{1} = grids_for_choices{1}; end
         num_choices_total = numel(mesh_out{1});
-        Apr_cells = cell(1, num_a1_vars); for ia = 1:num_a1_vars; Apr_cells{ia} = reshape(mesh_out{ia}(:), [1, num_choices_total, 1, 1, 1]); end
+        Apr_cells = cell(1, l_a1); for ia = 1:l_a1; Apr_cells{ia} = reshape(mesh_out{ia}(:), [1, num_choices_total, 1, 1, 1]); end
 
-        if N_a_exp > 1
+        if N_a2 > 1
             F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
             A2_prime = TensoraprimeFn(D_cells_block{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, aprimeFnParamsCell{:});
             a2_grid_1d_vec = a2_grids_1d{1}; a2_prime_clipped = max(a2_grid_1d_vec(1), min(A2_prime, a2_grid_1d_vec(end)));
-            idx = discretize(a2_prime_clipped, a2_grid_1d_vec); idx(isnan(idx)) = N_a_exp - 1; idx = max(1, min(idx, N_a_exp - 1));
+            idx = discretize(a2_prime_clipped, a2_grid_1d_vec); idx(isnan(idx)) = N_a2 - 1; idx = max(1, min(idx, N_a2 - 1));
             a2_left = reshape(a2_grid_1d_vec(idx), size(idx)); a2_right = reshape(a2_grid_1d_vec(idx+1), size(idx));
             weight = (a2_prime_clipped - a2_left) ./ (a2_right - a2_left);
             weight(a2_right == a2_left) = 0;
@@ -915,11 +943,11 @@ if isempty(loweredge_matrix)
             weight(abs(weight - 1) < 1e-12) = 1;
 
             A1pr_idx = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
-            ZE_offset = reshape((0:N_ze_local-1) * (length(a1prime_grid) * N_a2_endo * N_a_exp), [1, 1, 1, n_z_loc, n_e_loc]);
-            lin_idx_left = A1pr_idx + (idx - 1) * (length(a1prime_grid) * N_a2_endo) + ZE_offset;
-            lin_idx_right = A1pr_idx + (idx) * (length(a1prime_grid) * N_a2_endo) + ZE_offset;
+            ZE_offset = reshape((0:N_ze_local-1) * (length(a1prime_grid) * N_a1_other * N_a2), [1, 1, 1, n_z_loc, n_e_loc]);
+            lin_idx_left = A1pr_idx + (idx - 1) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
+            lin_idx_right = A1pr_idx + (idx) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
             if N_dsemiz > 1
-                dsemiz_offset = (dsemiz_idx_tensor - 1) * (length(a1prime_grid) * N_a2_endo * N_a_exp * N_ze_local);
+                dsemiz_offset = (dsemiz_idx_tensor - 1) * (length(a1prime_grid) * N_a1_other * N_a2 * N_ze_local);
                 lin_idx_left = lin_idx_left + dsemiz_offset; lin_idx_right = lin_idx_right + dsemiz_offset;
             end
             EV_left = EV_interp_local(lin_idx_left); EV_right = EV_interp_local(lin_idx_right);
@@ -932,7 +960,7 @@ if isempty(loweredge_matrix)
         else
             F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
             choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
-            stride_z = length(a1prime_grid) * N_a2_endo;
+            stride_z = length(a1prime_grid) * N_a1_other;
             ze_offset = reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]);
             L2_linear_idx = choice_idx_linear + ze_offset;
             if N_dsemiz > 1; L2_linear_idx = L2_linear_idx + (dsemiz_idx_tensor - 1) * (stride_z * N_ze_local); end
@@ -980,13 +1008,13 @@ else
     % Normalize loweredge_matrix expansion universally
     a1_idx = mod(loweredge_matrix - 1, N_a1_dc) + 1;
     if numel(a1_idx) == N_states * N_ze_local
-        loweredge_matrix = repmat(reshape(a1_idx, [1, N_states, N_ze_local]), [N_a2_endo, 1, 1]);
-    elseif numel(a1_idx) == N_a2_endo * N_states * N_ze_local
-        loweredge_matrix = reshape(a1_idx, [N_a2_endo, N_states, N_ze_local]);
+        loweredge_matrix = repmat(reshape(a1_idx, [1, N_states, N_ze_local]), [N_a1_other, 1, 1]);
+    elseif numel(a1_idx) == N_a1_other * N_states * N_ze_local
+        loweredge_matrix = reshape(a1_idx, [N_a1_other, N_states, N_ze_local]);
     else
-        a1_idx = reshape(a1_idx, [1, N_a_exp, N_ze_local]);
-        a1_idx = repmat(a1_idx, [N_states / N_a_exp, 1, 1]);
-        loweredge_matrix = repmat(reshape(a1_idx, [1, N_states, N_ze_local]), [N_a2_endo, 1, 1]);
+        a1_idx = reshape(a1_idx, [1, N_a2, N_ze_local]);
+        a1_idx = repmat(a1_idx, [N_states / N_a2, 1, 1]);
+        loweredge_matrix = repmat(reshape(a1_idx, [1, N_states, N_ze_local]), [N_a1_other, 1, 1]);
     end
 
     if gridinterplayer(1) == 0 || is_dc_mode == 2
@@ -995,7 +1023,7 @@ else
         % -------------------------------------------------------------
         total_gap = maxgap_scalar + d_gap;
 
-        if num_a1_vars == 1
+        if l_a1 == 1
             base_idx_a1 = reshape(loweredge_matrix, [1, 1, N_states, n_z_loc, n_e_loc]);
             offsets_a1 = reshape(0:total_gap, [1, total_gap + 1, 1, 1, 1]);
             choice_idx_a1_base = max(1, min(base_idx_a1 + offsets_a1, length(A1_grids_1d{1})));
@@ -1003,31 +1031,31 @@ else
             choice_idx_linear = choice_idx_a1_base;
             num_choices_total = total_gap + 1;
         else
-            num_choices_total = (total_gap + 1) * N_a2_endo;
-            base_idx_a1 = reshape(loweredge_matrix, [1, N_a2_endo, N_states, n_z_loc, n_e_loc]);
+            num_choices_total = (total_gap + 1) * N_a1_other;
+            base_idx_a1 = reshape(loweredge_matrix, [1, N_a1_other, N_states, n_z_loc, n_e_loc]);
             offsets_a1 = reshape(0:total_gap, [total_gap + 1, 1, 1, 1, 1]);
             choice_idx_a1_matrix = max(1, min(base_idx_a1 + offsets_a1, length(A1_grids_1d{1})));
             choice_idx_a1 = reshape(choice_idx_a1_matrix, [1, num_choices_total, N_states, n_z_loc, n_e_loc]);
 
-            a2_base_matrix = repmat(reshape(1:N_a2_endo, [1, N_a2_endo, 1, 1, 1]), [total_gap + 1, 1, 1, 1, 1]);
+            a2_base_matrix = repmat(reshape(1:N_a1_other, [1, N_a1_other, 1, 1, 1]), [total_gap + 1, 1, 1, 1, 1]);
             choice_idx_a2 = cast(reshape(a2_base_matrix, [1, num_choices_total, 1, 1, 1]), 'like', choice_idx_a1);
 
-            Apr_cells = cell(1, num_a1_vars);
+            Apr_cells = cell(1, l_a1);
             Apr_cells{1} = A1_grids_1d{1}(choice_idx_a1);
-            if num_a1_vars > 2; [mesh_a2{1:num_a1_vars-1}] = ndgrid(A1_grids_1d{2:end}); else; mesh_a2{1} = A1_grids_1d{2}; end
-            for ia = 2:num_a1_vars; flat_grid = mesh_a2{ia-1}(:); Apr_cells{ia} = reshape(flat_grid(choice_idx_a2), [1, num_choices_total, 1, 1, 1]); end
+            if l_a1 > 2; [mesh_a2{1:l_a1-1}] = ndgrid(A1_grids_1d{2:end}); else; mesh_a2{1} = A1_grids_1d{2}; end
+            for ia = 2:l_a1; flat_grid = mesh_a2{ia-1}(:); Apr_cells{ia} = reshape(flat_grid(choice_idx_a2), [1, num_choices_total, 1, 1, 1]); end
             choice_idx_linear = choice_idx_a1 + (choice_idx_a2 - 1) * length(A1_grids_1d{1});
         end
 
-        if N_a_exp > 1
+        if N_a2 > 1
             F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
             A2_prime = TensoraprimeFn(D_cells_block{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, aprimeFnParamsCell{:});
 
             a2_grid_1d_vec = a2_grids_1d{1};
             a2_prime_clipped = max(a2_grid_1d_vec(1), min(A2_prime, a2_grid_1d_vec(end)));
             idx = discretize(a2_prime_clipped, a2_grid_1d_vec);
-            idx(isnan(idx)) = N_a_exp - 1;
-            idx = max(1, min(idx, N_a_exp - 1));
+            idx(isnan(idx)) = N_a2 - 1;
+            idx = max(1, min(idx, N_a2 - 1));
             a2_left = reshape(a2_grid_1d_vec(idx), size(idx));
             a2_right = reshape(a2_grid_1d_vec(idx+1), size(idx));
             weight = (a2_prime_clipped - a2_left) ./ (a2_right - a2_left);
@@ -1037,8 +1065,8 @@ else
 
             ZE_idx = reshape(1:N_ze_local, [1, 1, 1, n_z_loc, n_e_loc]);
             N_a2_global = max(1, prod(cellfun(@length, a2_grids_1d)));
-            idx_left  = choice_idx_linear + (idx - 1) * (N_a1_dc * N_a2_endo) + (ZE_idx - 1) * (N_a1_dc * N_a2_endo * N_a2_global);
-            idx_right = choice_idx_linear + (idx) * (N_a1_dc * N_a2_endo) + (ZE_idx - 1) * (N_a1_dc * N_a2_endo * N_a2_global);
+            idx_left  = choice_idx_linear + (idx - 1) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
+            idx_right = choice_idx_linear + (idx) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
 
             max_idx_row = size(EV_local, 1);
             linear_idx_left  = min(max_idx_row, max(1, idx_left  + (dsemiz_idx_tensor - 1) * max_idx_row));
@@ -1066,7 +1094,7 @@ else
         end_offset = (n2short + 1) + d_gap * (n2short + 1);
         num_choices_total_a1 = end_offset - start_offset + 1;
 
-        if num_a1_vars == 1
+        if l_a1 == 1
             base_idx_a1 = reshape(L2_base, [1, 1, N_states, n_z_loc, n_e_loc]);
             offsets_a1 = reshape(start_offset:end_offset, [1, num_choices_total_a1, 1, 1, 1]);
             raw_choice_idx_a1 = base_idx_a1 + offsets_a1;
@@ -1077,33 +1105,33 @@ else
             choice_idx_linear = choice_idx_a1_base;
             num_choices_total = num_choices_total_a1;
         else
-            num_choices_total = num_choices_total_a1 * N_a2_endo;
-            base_idx_a1 = reshape(L2_base, [1, N_a2_endo, N_states, n_z_loc, n_e_loc]);
+            num_choices_total = num_choices_total_a1 * N_a1_other;
+            base_idx_a1 = reshape(L2_base, [1, N_a1_other, N_states, n_z_loc, n_e_loc]);
             offsets_a1 = reshape(start_offset:end_offset, [num_choices_total_a1, 1, 1, 1, 1]);
             raw_choice_idx_a1_matrix = base_idx_a1 + offsets_a1;
             raw_choice_idx_a1 = reshape(raw_choice_idx_a1_matrix, [1, num_choices_total, N_states, n_z_loc, n_e_loc]);
             out_of_bounds = (raw_choice_idx_a1 < 1) | (raw_choice_idx_a1 > length(a1prime_grid));
             choice_idx_a1 = max(1, min(raw_choice_idx_a1, length(a1prime_grid)));
 
-            a2_base_matrix = repmat(reshape(1:N_a2_endo, [1, N_a2_endo, 1, 1, 1]), [num_choices_total_a1, 1, 1, 1, 1]);
+            a2_base_matrix = repmat(reshape(1:N_a1_other, [1, N_a1_other, 1, 1, 1]), [num_choices_total_a1, 1, 1, 1, 1]);
             choice_idx_a2 = cast(reshape(a2_base_matrix, [1, num_choices_total, 1, 1, 1]), 'like', choice_idx_a1);
 
-            Apr_cells = cell(1, num_a1_vars);
+            Apr_cells = cell(1, l_a1);
             Apr_cells{1} = reshape(a1prime_grid(choice_idx_a1), size(choice_idx_a1));
-            if num_a1_vars > 2; [mesh_a2{1:num_a1_vars-1}] = ndgrid(A1_grids_1d{2:end}); else; mesh_a2{1} = A1_grids_1d{2}; end
-            for ia = 2:num_a1_vars; flat_grid = mesh_a2{ia-1}(:); Apr_cells{ia} = reshape(flat_grid(choice_idx_a2), [1, num_choices_total, 1, 1, 1]); end
+            if l_a1 > 2; [mesh_a2{1:l_a1-1}] = ndgrid(A1_grids_1d{2:end}); else; mesh_a2{1} = A1_grids_1d{2}; end
+            for ia = 2:l_a1; flat_grid = mesh_a2{ia-1}(:); Apr_cells{ia} = reshape(flat_grid(choice_idx_a2), [1, num_choices_total, 1, 1, 1]); end
             choice_idx_linear = choice_idx_a1 + (choice_idx_a2 - 1) * length(a1prime_grid);
         end
 
-        if N_a_exp > 1
+        if N_a2 > 1
             F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
             A2_prime = TensoraprimeFn(D_cells_block{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, aprimeFnParamsCell{:});
 
             a2_grid_1d_vec = a2_grids_1d{1};
             a2_prime_clipped = max(a2_grid_1d_vec(1), min(A2_prime, a2_grid_1d_vec(end)));
             idx = discretize(a2_prime_clipped, a2_grid_1d_vec);
-            idx(isnan(idx)) = N_a_exp - 1;
-            idx = max(1, min(idx, N_a_exp - 1));
+            idx(isnan(idx)) = N_a2 - 1;
+            idx = max(1, min(idx, N_a2 - 1));
             a2_left = reshape(a2_grid_1d_vec(idx), size(idx));
             a2_right = reshape(a2_grid_1d_vec(idx+1), size(idx));
             weight = (a2_prime_clipped - a2_left) ./ (a2_right - a2_left);
@@ -1111,12 +1139,12 @@ else
             weight(abs(weight) < 1e-12) = 0;
             weight(abs(weight - 1) < 1e-12) = 1;
 
-            ZE_offset = reshape((0:N_ze_local-1) * (length(a1prime_grid) * N_a2_endo * N_a_exp), [1, 1, 1, n_z_loc, n_e_loc]);
-            lin_idx_left = choice_idx_linear + (idx - 1) * (length(a1prime_grid) * N_a2_endo) + ZE_offset;
-            lin_idx_right = choice_idx_linear + (idx) * (length(a1prime_grid) * N_a2_endo) + ZE_offset;
+            ZE_offset = reshape((0:N_ze_local-1) * (length(a1prime_grid) * N_a1_other * N_a2), [1, 1, 1, n_z_loc, n_e_loc]);
+            lin_idx_left = choice_idx_linear + (idx - 1) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
+            lin_idx_right = choice_idx_linear + (idx) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
 
             if N_dsemiz > 1
-                dsemiz_offset = (dsemiz_idx_tensor - 1) * (length(a1prime_grid) * N_a2_endo * N_a_exp * N_ze_local);
+                dsemiz_offset = (dsemiz_idx_tensor - 1) * (length(a1prime_grid) * N_a1_other * N_a2 * N_ze_local);
                 lin_idx_left = lin_idx_left + dsemiz_offset;
                 lin_idx_right = lin_idx_right + dsemiz_offset;
             end
@@ -1133,7 +1161,7 @@ else
             EV_bounded = beta_j .* EV_bounded;
         else
             F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
-            stride_z = length(a1prime_grid) * N_a2_endo;
+            stride_z = length(a1prime_grid) * N_a1_other;
             ze_offset = reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]);
             L2_linear_idx = choice_idx_linear + ze_offset;
             if N_dsemiz > 1; L2_linear_idx = L2_linear_idx + (dsemiz_idx_tensor - 1) * (stride_z * N_ze_local); end
@@ -1160,7 +1188,7 @@ else
         clear RHS_for_d; % Memory Hoist
 
         if gridinterplayer(1) == 0 || is_dc_mode == 2
-            max_a1_idx_rel = reshape(max_a1_idx_rel, [max(1, N_d_safe), N_a2_endo, N_states, N_ze_local]);
+            max_a1_idx_rel = reshape(max_a1_idx_rel, [max(1, N_d_safe), N_a1_other, N_states, N_ze_local]);
             Pol_a1_per_a2 = min(loweredge_matrix + max_a1_idx_rel - 1, N_a1_dc);
         else
             Pol_a1_per_a2 = [];
@@ -1178,8 +1206,8 @@ else
         a1_apr_offset = mod(apr_offset - 1, total_gap + 1) + 1;
         a2_offset_factor = ceil(apr_offset / (total_gap + 1));
 
-        loweredge_matrix_2d = reshape(loweredge_matrix, [N_a2_endo, FLAT_STATES]);
-        lin_idx_loweredge = a2_offset_factor + (0:FLAT_STATES-1) * N_a2_endo;
+        loweredge_matrix_2d = reshape(loweredge_matrix, [N_a1_other, FLAT_STATES]);
+        lin_idx_loweredge = a2_offset_factor + (0:FLAT_STATES-1) * N_a1_other;
         chosen_loweredge = loweredge_matrix_2d(lin_idx_loweredge);
 
         a1_Pol_apr = chosen_loweredge + a1_apr_offset - 1;
@@ -1192,8 +1220,8 @@ else
         a2_offset_factor = ceil(apr_offset / num_choices_total_a1);
         chosen_offset = start_offset + a1_apr_offset - 1;
 
-        loweredge_matrix_2d = reshape(loweredge_matrix_bounds, [N_a2_endo, FLAT_STATES]);
-        lin_idx_loweredge = a2_offset_factor + (0:FLAT_STATES-1) * N_a2_endo;
+        loweredge_matrix_2d = reshape(loweredge_matrix_bounds, [N_a1_other, FLAT_STATES]);
+        lin_idx_loweredge = a2_offset_factor + (0:FLAT_STATES-1) * N_a1_other;
         chosen_loweredge = loweredge_matrix_2d(lin_idx_loweredge);
 
         abs_fine_idx_flat = (chosen_loweredge - 1) * (n2short + 1) + 1 + chosen_offset;
@@ -1226,10 +1254,10 @@ end
 end
 
 
-function [v, p_apr, p_d, p_l2, p_l2f, p_a1] = Helper_SlicerWrapper(a1_idx, low_mat, mg, dc_mode, N_a1_dc, N_a2_endo, N_a2_exp, N_ze, N_d, CoreFn)
+function [v, p_apr, p_d, p_l2, p_l2f, p_a1] = Helper_SlicerWrapper(a1_idx, low_mat, mg, dc_mode, N_a1_dc, N_a1_other, N_a2, N_ze, N_d, CoreFn)
 % Translates 1D index chunks from DC Slicers into absolute 1D states for the Tensor Block,
 % and reshapes the 2D tensor outputs back into the multi-dimensional geometry expected by the Slicers.
-N_other = N_a2_endo * N_a2_exp;
+N_other = N_a1_other * N_a2;
 state_chunk = reshape(a1_idx(:) + (0:N_other-1) * N_a1_dc, 1, []);
 
 if isempty(low_mat)
@@ -1259,12 +1287,20 @@ v     = reshape(v_c, out_shape);
 p_apr = reshape(p_apr_c, out_shape);
 p_d   = reshape(p_d_c, out_shape);
 
-if ~isempty(p_l2_c);  p_l2  = reshape(p_l2_c, out_shape);  else; p_l2  = []; end
-if ~isempty(p_l2f_c); p_l2f = reshape(p_l2f_c, out_shape); else; p_l2f = []; end
+if ~isempty(p_l2_c)
+    p_l2  = reshape(p_l2_c, out_shape);
+else
+    p_l2  = [];
+end
+
+if ~isempty(p_l2f_c)
+    p_l2f = reshape(p_l2f_c, out_shape);
+else
+    p_l2f = [];
+end
 
 if ~isempty(p_a1_c)
     if N_a1_other > 1
-        % DC2A strictly expects Pol_a1_per_a2 to map [N_a1_other, N_a1, N_a2, N_ze]
         p_a1 = reshape(p_a1_c, [N_a1_other, num_a1, N_a2, N_ze]);
     else
         p_a1 = reshape(p_a1_c, out_shape);
