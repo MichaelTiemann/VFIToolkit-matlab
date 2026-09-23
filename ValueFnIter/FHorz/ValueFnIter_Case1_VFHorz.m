@@ -775,7 +775,7 @@ if isempty(loweredge_matrix)
             linear_idx_right = min(max_idx_row, max(1, idx_right + (dsemiz_idx_tensor - 1) * max_idx_row));
 
             EV_bounded = EV_local(linear_idx_left) + weight .* (EV_local(linear_idx_right) - EV_local(linear_idx_left));
-            weight_full = repmat(weight, [1, num_choices_total, 1, 1, 1]);
+            weight_full = weight + zeros(1, num_choices_total, 1, n_z_loc, n_e_loc, 'like', weight);
             EV_bounded(weight_full == 0) = EV_local(linear_idx_left(weight_full == 0));
             EV_bounded(weight_full == 1) = EV_local(linear_idx_right(weight_full == 1));
             EV_bounded(isnan(EV_bounded)) = -Inf;
@@ -837,12 +837,10 @@ if isempty(loweredge_matrix)
                 lin_idx_left = lin_idx_left + dsemiz_offset; lin_idx_right = lin_idx_right + dsemiz_offset;
             end
             EV_left = EV_interp_local(lin_idx_left); EV_right = EV_interp_local(lin_idx_right);
-            EV_bounded = EV_left + weight .* (EV_right - EV_left);
-            clear EV_left EV_right; % Memory Hoist
-
-            weight_full = repmat(weight, [1, num_choices_total, 1, 1, 1]);
-            EV_bounded(weight_full == 0) = EV_interp_local(lin_idx_left(weight_full == 0));
-            EV_bounded(weight_full == 1) = EV_interp_local(lin_idx_right(weight_full == 1));
+            EV_bounded = EV_local(linear_idx_left) + weight .* (EV_local(linear_idx_right) - EV_local(linear_idx_left));
+            weight_full = weight + zeros(1, num_choices_total, 1, n_z_loc, n_e_loc, 'like', weight);
+            EV_bounded(weight_full == 0) = EV_local(linear_idx_left(weight_full == 0));
+            EV_bounded(weight_full == 1) = EV_local(linear_idx_right(weight_full == 1));
             EV_bounded(isnan(EV_bounded)) = -Inf;
             EV_bounded = beta_j .* EV_bounded;
         else
@@ -959,7 +957,7 @@ else
             linear_idx_right = min(max_idx_row, max(1, idx_right + (dsemiz_idx_tensor - 1) * max_idx_row));
 
             EV_bounded = EV_local(linear_idx_left) + weight .* (EV_local(linear_idx_right) - EV_local(linear_idx_left));
-            weight_full = repmat(weight, [1, num_choices_total, 1, 1, 1]);
+            weight_full = weight + zeros(1, num_choices_total, 1, n_z_loc, n_e_loc, 'like', weight);
             EV_bounded(weight_full == 0) = EV_local(linear_idx_left(weight_full == 0));
             EV_bounded(weight_full == 1) = EV_local(linear_idx_right(weight_full == 1));
             EV_bounded(isnan(EV_bounded)) = -Inf;
@@ -1037,13 +1035,10 @@ else
             EV_right = EV_interp_local(lin_idx_right);
             EV_bounded = EV_left + weight .* (EV_right - EV_left);
             clear EV_left EV_right; % Memory Hoist
-
-            weight_full = repmat(weight, [1, num_choices_total, 1, 1, 1]);
+            
+            weight_full = weight + zeros(1, num_choices_total, 1, n_z_loc, n_e_loc, 'like', weight);
             EV_bounded(weight_full == 0) = EV_interp_local(lin_idx_left(weight_full == 0));
             EV_bounded(weight_full == 1) = EV_interp_local(lin_idx_right(weight_full == 1));
-
-            out_of_bounds_exp = repmat(out_of_bounds, [N_d_safe, 1, 1, 1, 1]);
-            EV_bounded(out_of_bounds_exp) = -Inf;
             EV_bounded(isnan(EV_bounded)) = -Inf;
             EV_bounded = beta_j .* EV_bounded;
         else
