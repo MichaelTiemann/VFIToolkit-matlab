@@ -197,29 +197,30 @@ if is_exp_asset || vfoptions.riskyasset == 1 || vfoptions.residualasset == 1
     a1_endo_grid_vals = vfoptions.a1_grid;
     a2_exp_grid_vals  = vfoptions.a2_grid;
     n_a1_dc = vfoptions.n_a1(1);
-    
+
     if isequal(vfoptions.n_a1, 0); l_a1 = 0; else; l_a1 = length(vfoptions.n_a1); end
     if isequal(vfoptions.n_d1, 0); l_d1 = 0; else; l_d1 = length(vfoptions.n_d1); end
-    
-    if l_a1 > 1; n_a2_endo = vfoptions.n_a1(2:end); else; n_a2_endo = []; end
+
+    if l_a1 > 1; n_a1_other = vfoptions.n_a1(2:end); else; n_a1_other = []; end
     n_a2 = vfoptions.n_a2;
+    l_a2 = length(n_a2);
 else
     a1_endo_grid_vals = a_grid;
     a2_exp_grid_vals  = [];
     n_a1_dc = n_a(1);
-    
+
     l_a1 = length(n_a);
     l_d1 = length(n_d);
-    
-    if l_a1 > 1; n_a2_endo = n_a(2:end); else; n_a2_endo = []; end
+
+    if l_a1 > 1; n_a1_other = n_a(2:end); else; n_a1_other = []; end
     n_a2 = [];
+    l_a2 = 0;
 end
 
 N_a1_dc = n_a1_dc;
-N_a2_endo = max(1, prod(n_a2_endo));
-N_a2_exp = max(1, prod(n_a2));
+N_a1_other = max(1, prod(n_a1_other));
+N_a2 = max(1, prod(n_a2));
 
-A1_grids_1d = cell(1, l_a1);
 A1_grids_1d = cell(1, l_a1);
 offset = 0;
 for i = 1:l_a1
@@ -229,18 +230,20 @@ end
 
 % Universal Packing for full states (creates fully meshed arrays)
 [TensorReturnFn, D_cells_block, A1_cells, ~, ~] = CreateTensorFnAndCells(ReturnFn, n_d, n_a(1:l_a1), n_combined_z, n_e_pass, d_grid, a1_endo_grid_vals, [], []);
-
 if l_a_exp > 0
     [TensoraprimeFn, ~, A2_cells, ~, ~] = CreateTensorFnAndCells(vfoptions.aprimeFn, 0, n_a2, 0, 0, [], a2_exp_grid_vals, [], []);
 else
-    TensoraprimeFn = []; A2_cells = {};
+    TensoraprimeFn = [];
+    A2_cells = {};
 end
 
-A1_mat = zeros(N_a1_dc * N_a2_endo, l_a1, 'like', a_grid);
+A1_mat = zeros(N_a1_dc * N_a1_other, l_a1, 'like', a_grid);
 for i_a = 1:l_a1; A1_mat(:, i_a) = A1_cells{i_a}(:); end
 
-A2_mat = zeros(N_a2_exp, n_a2, 'like', a_grid); a2_grids_1d = cell(1, n_a2); offset = 0;
-for i_a = 1:n_a2
+A2_mat = zeros(N_a2, l_a2, 'like', a_grid);
+a2_grids_1d = cell(1, l_a2);
+offset = 0;
+for i_a = 1:l_a2
     A2_mat(:, i_a) = A2_cells{i_a}(:);
     a2_grids_1d{i_a} = a2_exp_grid_vals((offset + 1):(offset + n_a2(i_a)));
     offset = offset + n_a2(i_a);
@@ -254,14 +257,14 @@ if is_exp_asset || vfoptions.riskyasset == 1
         aprimeFnParamNames = vfoptions.aprimeFnParamNames;
     else
         temp = getAnonymousFnInputNames(aprimeFn);
-        
+
         num_extra = 0;
         if l_exp_z;     num_extra = length(n_z); end
         if l_exp_e;     num_extra = length(vfoptions.n_e); end
         if l_exp_ze;    num_extra = length(n_z) + length(vfoptions.n_e); end
         if l_exp_u;     num_extra = length(vfoptions.n_u); end
         if l_exp_semiz; num_extra = length(vfoptions.n_semiz); end
-        
+
         if vfoptions.riskyasset == 1
             l_d_aprime = length(n_d);
             l_a_aprime = 1;
@@ -269,9 +272,9 @@ if is_exp_asset || vfoptions.riskyasset == 1
             l_d_aprime = vfoptions.l_d2;
             l_a_aprime = vfoptions.l_a2;
         end
-        
+
         num_prefix = l_d_aprime + l_a_aprime + num_extra;
-        
+
         if length(temp) > num_prefix
             aprimeFnParamNames = {temp{num_prefix+1:end}};
         else
@@ -279,15 +282,15 @@ if is_exp_asset || vfoptions.riskyasset == 1
         end
     end
     aprimeFnParamNames = aprimeFnParamNames(isfield(Parameters, aprimeFnParamNames));
-    
+
     % Smart Wrapper: Isolate the exact decisions that drive the non-standard asset
     if is_exp_asset
         d2_idx = (l_d1 + 1) : (l_d1 + vfoptions.l_d2);
     else
         d2_idx = 1:length(n_d); % Risky assets evaluate all decisions
     end
-    
-    BaseTensoraprimeFn = TensoraprimeFn; 
+
+    BaseTensoraprimeFn = TensoraprimeFn;
     if l_exp_ze
         TensoraprimeFn = @(D, A, Z, E, P) BaseTensoraprimeFn(D{d2_idx}, A{:}, Z{:}, E{:}, P{:});
     elseif l_exp_z
@@ -551,13 +554,13 @@ for reverse_j = 0:N_j-1
 
             vfoptions.level1n = vfoptions.level1n(1);
             LocalBlockFn = @(state_idx, loweredge_matrix, maxgap_scalar, d_gap, dc_mode_override) Evaluate_Case1_TensorBlock(...
-                state_idx, loweredge_matrix, maxgap_scalar, d_gap, N_a1_dc, N_a2_endo, max(1, N_a2_exp), N_d_safe, N_ze_local, ...
+                state_idx, loweredge_matrix, maxgap_scalar, d_gap, N_a1_dc, N_a1_other, max(1, N_a2), N_d_safe, N_ze_local, ...
                 Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_mat, A1_grids_1d, a2_grids_1d, ...
                 vfoptions.gridinterplayer, n2short, n2long, beta_j, EV_local, EV_bounded_pre, EV_interp_local, a1prime_grid, ...
                 TensorReturnFn, ReturnFnParamsCell, ezc2(jj), ezc3, ezc4, ezc7(jj), ...
                 TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, dc_mode_override);
 
-            SlicerWrapper = @(a1_idx, low_mat, mg, dc_mode) Helper_SlicerWrapper(a1_idx, low_mat, mg, dc_mode, N_a1_dc, N_a2_endo, max(1, N_a2_exp), N_ze_local, max(1, N_d_safe), LocalBlockFn);
+            SlicerWrapper = @(a1_idx, low_mat, mg, dc_mode) Helper_SlicerWrapper(a1_idx, low_mat, mg, dc_mode, N_a1_dc, N_a1_other, max(1, N_a2), N_ze_local, max(1, N_d_safe), LocalBlockFn);
 
             if vfoptions.gridinterplayer(1) == 1
                 % --- VRAM Protection: Cartesian Chunking for the COARSE Pass ---
@@ -689,7 +692,7 @@ for reverse_j = 0:N_j-1
                 else; EV_bounded_pre = []; static_EV_offset = []; end
 
                 LocalBlockFn = @(state_idx, loweredge_matrix, maxgap_scalar, d_gap, dc_mode_override) Evaluate_Case1_TensorBlock(...
-                    state_idx, loweredge_matrix, maxgap_scalar, d_gap, N_a1_dc, N_a2_endo, max(1, N_a2_local), N_d_safe, N_ze_local, ...
+                    state_idx, loweredge_matrix, maxgap_scalar, d_gap, N_a1_dc, N_a1_other, max(1, N_a2_local), N_d_safe, N_ze_local, ...
                     Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_local, A1_grids_1d, a2_grids_1d, ...
                     vfoptions.gridinterplayer, n2short, n2long, beta_j, EV_local, EV_bounded_pre, EV_interp_local, a1prime_grid, ...
                     TensorReturnFn, ReturnFnParamsCell, ezc2(jj), ezc3, ezc4, ezc7(jj), ...
@@ -809,9 +812,21 @@ function [V_j_max, Pol_apr_max, Pol_d_max, Pol_L2idx_max, Pol_L2flag_max, Pol_a1
 
 N_states = length(state_idx); num_a1_vars = length(A1_grids_1d);
 
-if N_a_exp > 1; [a1_sub, a2_sub] = ind2sub([N_a1_dc * N_a2_endo, N_a_exp], state_idx); else; a1_sub = state_idx; end
-A1_cells = cell(1, num_a1_vars); for ia = 1:num_a1_vars; A1_cells{ia} = reshape(A1_mat(a1_sub, ia), [1, 1, N_states, 1, 1]); end
-if N_a_exp > 1; n_a2_vars = size(A2_mat, 2); A2_cells = cell(1, n_a2_vars); for ia = 1:n_a2_vars; A2_cells{ia} = reshape(A2_mat(a2_sub, ia), [1, 1, N_states, 1, 1]); end; else; A2_cells = {}; end
+N_states = length(state_idx);
+l_a1 = length(A1_grids_1d);
+
+if N_a2 > 1; [a1_sub, a2_sub] = ind2sub([N_a1_dc * N_a1_other, N_a2], state_idx); else; a1_sub = state_idx; end
+
+A1_cells = cell(1, l_a1);
+for ia = 1:l_a1; A1_cells{ia} = reshape(A1_mat(a1_sub, ia), [1, 1, N_states, 1, 1]); end
+
+if N_a2 > 1
+    l_a2 = size(A2_mat, 2);
+    A2_cells = cell(1, l_a2);
+    for ia = 1:l_a2; A2_cells{ia} = reshape(A2_mat(a2_sub, ia), [1, 1, N_states, 1, 1]); end
+else
+    A2_cells = {};
+end
 
 if isempty(loweredge_matrix)
     if gridinterplayer(1) == 0 || is_dc_mode == 2
@@ -1248,8 +1263,9 @@ if ~isempty(p_l2_c);  p_l2  = reshape(p_l2_c, out_shape);  else; p_l2  = []; end
 if ~isempty(p_l2f_c); p_l2f = reshape(p_l2f_c, out_shape); else; p_l2f = []; end
 
 if ~isempty(p_a1_c)
-    if N_a2_endo > 1
-        p_a1 = reshape(p_a1_c, [N_a2_endo, num_a1, N_a2_exp, N_ze]);
+    if N_a1_other > 1
+        % DC2A strictly expects Pol_a1_per_a2 to map [N_a1_other, N_a1, N_a2, N_ze]
+        p_a1 = reshape(p_a1_c, [N_a1_other, num_a1, N_a2, N_ze]);
     else
         p_a1 = reshape(p_a1_c, out_shape);
     end
