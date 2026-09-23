@@ -817,18 +817,7 @@ for reverse_j = 0:N_j-1
                     if vfoptions.gridinterplayer(1) == 1
                         [~, ~, ~, ~, ~, p_a1_per_a2] = LocalBlockFn(state_chunk, [], 0, 0, 2);
                         loweredge_chunk = reshape(p_a1_per_a2, [max(1, N_d_safe), N_a1_other, length(state_chunk), N_ze_local]);
-
-                        if max(1, N_d_safe) > 1
-                            low_min = min(loweredge_chunk, [], 1);
-                            low_max = max(loweredge_chunk, [], 1);
-                            d_gap_val = double(max(low_max(:) - low_min(:)));
-                            loweredge_chunk_pass = low_min;
-                        else
-                            loweredge_chunk_pass = loweredge_chunk;
-                            d_gap_val = 0;
-                        end
-
-                        [v_c, p_apr_c, p_d_c, p_l2idx_c, p_l2flag_c] = LocalBlockFn(state_chunk, loweredge_chunk_pass, n2long - 1, d_gap_val, 0);
+                        [v_c, p_apr_c, p_d_c, p_l2idx_c, p_l2flag_c] = LocalBlockFn(state_chunk, loweredge_chunk, n2long - 1, 0, 0);
                     else
                         [v_c, p_apr_c, p_d_c, p_l2idx_c, p_l2flag_c] = LocalBlockFn(state_chunk, [], 0, 0, 0);
                     end
@@ -1005,7 +994,8 @@ if isempty(loweredge_matrix)
         [V_sub_coarse, Pol_sub_idx] = max(RHS_flat, [], 1);
 
         if nargout > 5
-            RHS_for_d = reshape(RHS_flat, [max(1, N_d_safe), num_choices_total, FLAT_STATES]);
+            num_choices_a1 = num_choices_total / N_a1_other;
+            RHS_for_d = reshape(RHS_flat, [max(1, N_d_safe), num_choices_a1, N_a1_other, FLAT_STATES]);
             [~, max_a1_idx_per_d] = max(RHS_for_d, [], 2);
             clear RHS_for_d; % Memory Hoist
             Pol_a1_per_a2 = reshape(max_a1_idx_per_d, [max(1, N_d_safe), N_a1_other, N_states, N_ze_local]);
@@ -1229,7 +1219,6 @@ else
         end
 
         % Update the mask format for Branch 2B since it now inherently has N_d_safe
-        out_of_bounds_exp = out_of_bounds;
 
         if N_a2 > 1
             for i_a = 1:length(Apr_cells)
@@ -1280,9 +1269,7 @@ else
             L2_linear_idx = choice_idx_linear + ze_offset;
             if N_dsemiz > 1; L2_linear_idx = L2_linear_idx + (dsemiz_idx_tensor - 1) * (stride_z * N_ze_local); end
             EV_bounded = EV_interp_local(L2_linear_idx);
-
-            out_of_bounds_exp = repmat(out_of_bounds, [N_d_safe, 1, 1, 1, 1]);
-            EV_bounded(out_of_bounds_exp) = -Inf;
+            EV_bounded(out_of_bounds) = -Inf;
             EV_bounded = beta_j .* EV_bounded;
         end
     end
@@ -1297,10 +1284,10 @@ else
     [V_sub_fine, Pol_sub_idx] = max(RHS_flat, [], 1);
 
     if nargout > 5
-        RHS_for_d = reshape(RHS_flat, [max(1, N_d_safe), num_choices_total, FLAT_STATES]);
+        num_choices_a1 = num_choices_total / N_a1_other;
+        RHS_for_d = reshape(RHS_flat, [max(1, N_d_safe), num_choices_a1, N_a1_other, FLAT_STATES]);
         [~, max_a1_idx_rel] = max(RHS_for_d, [], 2);
         clear RHS_for_d; % Memory Hoist
-
         if gridinterplayer(1) == 0 || is_dc_mode == 2
             max_a1_idx_rel = reshape(max_a1_idx_rel, [max(1, N_d_safe), N_a1_other, N_states, N_ze_local]);
             Pol_a1_per_a2 = min(loweredge_matrix + max_a1_idx_rel - 1, N_a1_dc);
