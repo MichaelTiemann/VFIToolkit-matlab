@@ -492,7 +492,7 @@ for reverse_j = 0:N_j-1
                 TensorReturnFn, ReturnFnParamsCell, ezc2(jj), ezc3, ezc4, ezc7(jj), ...
                 TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, dc_mode_override);
 
-            SlicerWrapper = @(a1_idx, low_mat, mg, dc_mode) Helper_SlicerWrapper(a1_idx, low_mat, mg, dc_mode, N_a1_dc, N_a2_endo, max(1, N_a2_exp), N_ze_local, LocalBlockFn);
+            SlicerWrapper = @(a1_idx, low_mat, mg, dc_mode) Helper_SlicerWrapper(a1_idx, low_mat, mg, dc_mode, N_a1_dc, N_a2_endo, max(1, N_a2_exp), N_ze_local, max(1, N_d_safe), LocalBlockFn);
 
             if vfoptions.gridinterplayer(1) == 1
                 temp_vfoptions = vfoptions;
@@ -824,7 +824,8 @@ if isempty(loweredge_matrix)
             EV_bounded = EV_left + weight .* (EV_right - EV_left);
             clear EV_left EV_right; % Memory Hoist
 
-            EV_bounded(weight == 0) = EV_local(linear_idx_left(weight == 0)); EV_bounded(weight == 1) = EV_local(linear_idx_right(weight == 1));
+            EV_bounded(weight == 0) = EV_interp_local(lin_idx_left(weight == 0));
+            EV_bounded(weight == 1) = EV_interp_local(lin_idx_right(weight == 1));
             EV_bounded(isnan(EV_bounded)) = -Inf; EV_bounded = beta_j .* EV_bounded;
         else
             F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
@@ -993,7 +994,8 @@ else
             EV_bounded = EV_left + weight .* (EV_right - EV_left);
             clear EV_left EV_right; % Memory Hoist
 
-            EV_bounded(weight == 0) = EV_local(linear_idx_left(weight == 0)); EV_bounded(weight == 1) = EV_local(linear_idx_right(weight == 1));
+            EV_bounded(weight == 0) = EV_interp_local(lin_idx_left(weight == 0));
+            EV_bounded(weight == 1) = EV_interp_local(lin_idx_right(weight == 1));
             if N_dsemiz > 1; out_of_bounds_exp = repmat(out_of_bounds, [N_d_safe, 1, 1, 1, 1]); EV_bounded(out_of_bounds_exp) = -Inf; else; EV_bounded(out_of_bounds) = -Inf; end
             EV_bounded(isnan(EV_bounded)) = -Inf; EV_bounded = beta_j .* EV_bounded;
         else
@@ -1092,7 +1094,7 @@ end
 
 
 
-function [v, p_apr, p_d, p_l2, p_l2f, p_a1] = Helper_SlicerWrapper(a1_idx, low_mat, mg, dc_mode, N_a1_dc, N_a2_endo, N_a2_exp, N_ze, CoreFn)
+function [v, p_apr, p_d, p_l2, p_l2f, p_a1] = Helper_SlicerWrapper(a1_idx, low_mat, mg, dc_mode, N_a1_dc, N_a2_endo, N_a2_exp, N_ze, N_d, CoreFn)
 % Translates 1D index chunks from DC Slicers into absolute 1D states for the Tensor Block,
 % and reshapes the 2D tensor outputs back into the multi-dimensional geometry expected by the Slicers.
 N_other = N_a2_endo * N_a2_exp;
@@ -1100,19 +1102,26 @@ state_chunk = reshape(a1_idx(:) + (0:N_other-1) * N_a1_dc, 1, []);
 
 if isempty(low_mat)
     low_chunk = [];
+    mg_adj = mg;
 else
-    low_chunk = reshape(low_mat, [length(a1_idx) * N_other, N_ze]);
+    % VFIToolkit slicers pass loweredge with the N_d dimension intact
+    % e.g. size [N_d, 1, 1, N_a2_exp, N_ze]. The Tensor Block evaluates
+    % all d choices simultaneously. We extract the bounding box over d.
+    if size(low_mat, 1) == N_d && N_d > 1
+        low_min = min(low_mat, [], 1);
+        low_max = max(low_mat, [], 1);
+        mg_adj = mg + double(max(low_max(:) - low_min(:)));
+        low_chunk = low_min;
+    else
+        low_chunk = low_mat;
+        mg_adj = mg;
+    end
 end
 
-[v_c, p_apr_c, p_d_c, p_l2_c, p_l2f_c, p_a1_c] = CoreFn(state_chunk, low_chunk, mg, dc_mode);
+[v_c, p_apr_c, p_d_c, p_l2_c, p_l2f_c, p_a1_c] = CoreFn(state_chunk, low_chunk, mg_adj, dc_mode);
 
 num_a1 = length(a1_idx);
-
-if N_a2_endo > 1
-    out_shape = [num_a1, N_a2_endo, N_a2_exp, N_ze];
-else
-    out_shape = [num_a1, N_a2_exp, N_ze];
-end
+out_shape = [num_a1, N_other, N_ze];
 
 v     = reshape(v_c, out_shape);
 p_apr = reshape(p_apr_c, out_shape);
