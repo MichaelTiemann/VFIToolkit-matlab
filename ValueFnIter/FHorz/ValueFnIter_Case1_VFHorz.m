@@ -492,25 +492,59 @@ for reverse_j = 0:N_j-1
                 TensorReturnFn, ReturnFnParamsCell, ezc2(jj), ezc3, ezc4, ezc7(jj), ...
                 TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, dc_mode_override);
 
+            SlicerWrapper = @(a1_idx, low_mat, mg, dc_mode) Helper_SlicerWrapper(a1_idx, low_mat, mg, dc_mode, N_a1_dc, N_a2_endo, max(1, N_a2_exp), N_ze_local, LocalBlockFn);
+
             if vfoptions.gridinterplayer(1) == 1
-                temp_vfoptions = vfoptions; temp_vfoptions.gridinterplayer = 0;
-                LocalBlockFn_Coarse = @(state_idx, loweredge_matrix, maxgap_scalar) LocalBlockFn(state_idx, loweredge_matrix, maxgap_scalar, 2);
+                temp_vfoptions = vfoptions;
+                temp_vfoptions.gridinterplayer = 0;
+                LocalBlockFn_Coarse = @(a1_idx, low_mat, mg) SlicerWrapper(a1_idx, low_mat, mg, 2);
+
                 if num_a_endo == 1
-                    [~, p_apr_coarse, ~, ~, ~] = ValueFnIter_DC1_Slicer(N_a1_dc, N_a2_exp, N_a1_dc, N_ze_local, temp_vfoptions, LocalBlockFn_Coarse);
-                    % Flatten the 3D policy to 2D [states, shocks] to prevent MATLAB indexing collapse
+                    [~, p_apr_coarse, ~, ~, ~] = ValueFnIter_DC1_Slicer(N_a1_dc, max(1, N_a2_exp), N_a1_dc, N_ze_local, temp_vfoptions, LocalBlockFn_Coarse);
                     loweredge_pass = reshape(p_apr_coarse, [N_a1_dc * max(1, N_a2_exp), N_ze_local]);
                 else
-                    [~, ~, ~, ~, ~, p_a1_per_a2] = ValueFnIter_DC2A_Slicer(N_a1_dc, N_a2_endo, N_a2_endo * N_a2_exp, N_a1_dc, N_ze_local, temp_vfoptions, LocalBlockFn_Coarse);
-                    % Flatten the 4D policy to 3D [a2, states, shocks] to prevent indexing collapse
+                    [~, ~, ~, ~, ~, p_a1_per_a2] = ValueFnIter_DC2A_Slicer(N_a1_dc, N_a2_endo, max(1, N_a2_exp), N_a1_dc, N_ze_local, temp_vfoptions, LocalBlockFn_Coarse);
                     loweredge_pass = reshape(p_a1_per_a2, [N_a2_endo, N_a1_dc * max(1, N_a2_exp), N_ze_local]);
                 end
-                [v, p_apr, p_d, p_l2idx, p_l2flag] = LocalBlockFn(1:N_a, loweredge_pass, n2long - 1, 0);
+
+                % --- VRAM Protection: Cartesian Chunking for the Grid Interp Fine Pass ---
+                flat_choices = max(1, N_d_safe) * n2long * max(1, N_a2_endo);
+                N_other = N_a2_endo * max(1, N_a2_exp);
+                max_a1_per_chunk = max(1, floor(5e8 / (flat_choices * N_other * N_ze_local)));
+
+                v = zeros(N_a, N_ze_local, 'like', EV_local);
+                p_apr = zeros(N_a, N_ze_local, 'like', EV_local);
+                p_d = zeros(N_a, N_ze_local, 'like', EV_local);
+                p_l2idx = zeros(N_a, N_ze_local, 'like', EV_local);
+                p_l2flag = zeros(N_a, N_ze_local, 'like', EV_local);
+
+                for chunk_start = 1:max_a1_per_chunk:N_a1_dc
+                    chunk_end = min(N_a1_dc, chunk_start + max_a1_per_chunk - 1);
+                    a1_chunk = (chunk_start:chunk_end)';
+
+                    state_chunk_mat = a1_chunk + (0:N_other-1) * N_a1_dc;
+                    state_chunk = state_chunk_mat(:)';
+
+                    if num_a_endo == 1
+                        loweredge_chunk = loweredge_pass(state_chunk, :);
+                    else
+                        loweredge_chunk = loweredge_pass(:, state_chunk, :);
+                    end
+
+                    [v_c, p_apr_c, p_d_c, p_l2idx_c, p_l2flag_c] = LocalBlockFn(state_chunk, loweredge_chunk, n2long - 1, 1);
+
+                    v(state_chunk, :) = v_c;
+                    p_apr(state_chunk, :) = p_apr_c;
+                    p_d(state_chunk, :) = p_d_c;
+                    p_l2idx(state_chunk, :) = p_l2idx_c;
+                    p_l2flag(state_chunk, :) = p_l2flag_c;
+                end
             else
-                LocalBlockFn_Standard = @(state_idx, loweredge_matrix, maxgap_scalar) LocalBlockFn(state_idx, loweredge_matrix, maxgap_scalar, 0);
+                LocalBlockFn_Standard = @(state_idx, loweredge_matrix, maxgap_scalar) SlicerWrapper(state_idx, loweredge_matrix, maxgap_scalar, 0);
                 if num_a_endo == 1
-                    [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC1_Slicer(N_a1_dc * N_a2_exp, N_a, 1, N_ze_local, vfoptions, LocalBlockFn_Standard);
+                    [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC1_Slicer(N_a1_dc, max(1, N_a2_exp), N_a1_dc, N_ze_local, vfoptions, LocalBlockFn_Standard);
                 else
-                    [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC2A_Slicer(N_a1_dc, N_a2_endo, N_a2_endo * N_a2_exp, N_a1_dc, N_ze_local, vfoptions, LocalBlockFn_Standard);
+                    [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC2A_Slicer(N_a1_dc, N_a2_endo, max(1, N_a2_exp), N_a1_dc, N_ze_local, vfoptions, LocalBlockFn_Standard);
                 end
             end
             V_j_max(:, curr_ze)     = reshape(v,     [N_a, N_ze_local]);
@@ -1048,6 +1082,51 @@ else
         Pol_L2flag_max(inLowerStrict & isInfLower) = 3; Pol_L2flag_max(inUpperStrict & isInfUpper) = 1;
         Pol_L2flag_max = reshape(Pol_L2flag_max, [N_states, N_ze_local]);
     end
+end
+
+
+end
+
+
+
+function [v, p_apr, p_d, p_l2, p_l2f, p_a1] = Helper_SlicerWrapper(a1_idx, low_mat, mg, dc_mode, N_a1_dc, N_a2_endo, N_a2_exp, N_ze, CoreFn)
+% Translates 1D index chunks from DC Slicers into absolute 1D states for the Tensor Block,
+% and reshapes the 2D tensor outputs back into the multi-dimensional geometry expected by the Slicers.
+N_other = N_a2_endo * N_a2_exp;
+state_chunk = reshape(a1_idx(:) + (0:N_other-1) * N_a1_dc, 1, []);
+
+if isempty(low_mat)
+    low_chunk = [];
+else
+    low_chunk = reshape(low_mat, [length(a1_idx) * N_other, N_ze]);
+end
+
+[v_c, p_apr_c, p_d_c, p_l2_c, p_l2f_c, p_a1_c] = CoreFn(state_chunk, low_chunk, mg, dc_mode);
+
+num_a1 = length(a1_idx);
+
+if N_a2_endo > 1
+    out_shape = [num_a1, N_a2_endo, N_a2_exp, N_ze];
+else
+    out_shape = [num_a1, N_a2_exp, N_ze];
+end
+
+v     = reshape(v_c, out_shape);
+p_apr = reshape(p_apr_c, out_shape);
+p_d   = reshape(p_d_c, out_shape);
+
+if ~isempty(p_l2_c);  p_l2  = reshape(p_l2_c, out_shape);  else; p_l2  = []; end
+if ~isempty(p_l2f_c); p_l2f = reshape(p_l2f_c, out_shape); else; p_l2f = []; end
+
+if ~isempty(p_a1_c)
+    if N_a2_endo > 1
+        % DC2A strictly expects Pol_a1_per_a2 to map [N_a2_endo, N_a1, N_a2_other, N_ze]
+        p_a1 = reshape(p_a1_c, [N_a2_endo, num_a1, N_a2_exp, N_ze]);
+    else
+        p_a1 = reshape(p_a1_c, out_shape);
+    end
+else
+    p_a1 = [];
 end
 
 
