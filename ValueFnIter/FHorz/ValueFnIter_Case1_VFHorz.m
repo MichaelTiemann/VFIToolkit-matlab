@@ -247,8 +247,13 @@ for i = 1:l_a1
     offset = offset + n_a(i);
 end
 
-% 1. Create the master TensorReturnFn using the full n_a so the function signature correctly expects A1 and A2
-[TensorReturnFn, ~, ~, ~, ~] = CreateTensorFnAndCells(ReturnFn, n_d, n_a, n_combined_z, n_e_pass, d_grid, a_grid, [], []);
+% 1. Create the master TensorReturnFn using n_daprime so the signature expects (d, aprime, a1, a2, z, e)
+if isempty(n_d) || isequal(n_d, 0)
+    n_daprime_sig = n_a(1:l_a1);
+else
+    n_daprime_sig = [n_d, n_a(1:l_a1)];
+end
+[TensorReturnFn, ~, ~, ~, ~] = CreateTensorFnAndCells(ReturnFn, n_daprime_sig, n_a, n_combined_z, n_e_pass, [], [], [], []);
 
 % 2. Generate strictly separated D, A1, Z, and E cells using only l_a1 to prevent cross-meshing memory blowouts
 [~, D_cells_block, A1_cells, Z_cells_block, E_cells_block] = CreateTensorFnAndCells(ReturnFn, n_d, n_a(1:l_a1), n_combined_z, n_e_pass, d_grid, a1_endo_grid_vals, [], []);
@@ -876,12 +881,11 @@ if isempty(loweredge_matrix)
         Apr_cells = cell(1, l_a1); for ia = 1:l_a1; Apr_cells{ia} = reshape(mesh_out{ia}(:), [1, num_choices_total, 1, 1, 1]); end
 
         if N_a2 > 1
-            D_eval = D_cells_block;
             for i_a = 1:length(Apr_cells)
-                D_eval{i_a} = cast(Apr_cells{i_a}, 'like', EV_local);
+                Apr_cells{i_a} = cast(Apr_cells{i_a}, 'like', EV_local);
             end
-            F_tensor = TensorReturnFn(D_eval{:}, A1_cells{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
-            A2_prime = TensoraprimeFn(D_eval, A2_cells, Z_cells_block, E_cells_block, aprimeFnParamsCell);
+            F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
+            A2_prime = TensoraprimeFn(D_cells_block, A2_cells, Z_cells_block, E_cells_block, aprimeFnParamsCell);
             a2_grid_1d_vec = a2_grids_1d{1}; a2_prime_clipped = max(a2_grid_1d_vec(1), min(A2_prime, a2_grid_1d_vec(end)));
             idx = discretize(a2_prime_clipped, a2_grid_1d_vec); idx(isnan(idx)) = N_a2 - 1; idx = max(1, min(idx, N_a2 - 1));
             a2_left = reshape(a2_grid_1d_vec(idx), size(idx)); a2_right = reshape(a2_grid_1d_vec(idx+1), size(idx));
@@ -945,12 +949,11 @@ if isempty(loweredge_matrix)
         Apr_cells = cell(1, l_a1); for ia = 1:l_a1; Apr_cells{ia} = reshape(mesh_out{ia}(:), [1, num_choices_total, 1, 1, 1]); end
 
         if N_a2 > 1
-            D_eval = D_cells_block;
             for i_a = 1:length(Apr_cells)
-                D_eval{i_a} = cast(Apr_cells{i_a}, 'like', EV_local);
+                Apr_cells{i_a} = cast(Apr_cells{i_a}, 'like', EV_local);
             end
-            F_tensor = TensorReturnFn(D_eval{:}, A1_cells{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
-            A2_prime = TensoraprimeFn(D_eval, A2_cells, Z_cells_block, E_cells_block, aprimeFnParamsCell);
+            F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
+            A2_prime = TensoraprimeFn(D_cells_block, A2_cells, Z_cells_block, E_cells_block, aprimeFnParamsCell);
             a2_grid_1d_vec = a2_grids_1d{1}; a2_prime_clipped = max(a2_grid_1d_vec(1), min(A2_prime, a2_grid_1d_vec(end)));
             idx = discretize(a2_prime_clipped, a2_grid_1d_vec); idx(isnan(idx)) = N_a2 - 1; idx = max(1, min(idx, N_a2 - 1));
             a2_left = reshape(a2_grid_1d_vec(idx), size(idx)); a2_right = reshape(a2_grid_1d_vec(idx+1), size(idx));
@@ -975,11 +978,10 @@ if isempty(loweredge_matrix)
             EV_bounded(isnan(EV_bounded)) = -Inf;
             EV_bounded = beta_j .* EV_bounded;
         else
-            D_eval = D_cells_block;
             for i_a = 1:length(Apr_cells)
-                D_eval{i_a} = cast(Apr_cells{i_a}, 'like', EV_local);
+                Apr_cells{i_a} = cast(Apr_cells{i_a}, 'like', EV_local);
             end
-            F_tensor = TensorReturnFn(D_eval{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
+            F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
             choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
             stride_z = length(a1prime_grid) * N_a1_other;
             ze_offset = reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]);
@@ -1069,12 +1071,11 @@ else
         end
 
         if N_a2 > 1
-            D_eval = D_cells_block;
             for i_a = 1:length(Apr_cells)
-                D_eval{i_a} = cast(Apr_cells{i_a}, 'like', EV_local);
+                Apr_cells{i_a} = cast(Apr_cells{i_a}, 'like', EV_local);
             end
-            F_tensor = TensorReturnFn(D_eval{:}, A1_cells{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
-            A2_prime = TensoraprimeFn(D_eval, A2_cells, Z_cells_block, E_cells_block, aprimeFnParamsCell);
+            F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
+            A2_prime = TensoraprimeFn(D_cells_block, A2_cells, Z_cells_block, E_cells_block, aprimeFnParamsCell);
 
             a2_grid_1d_vec = a2_grids_1d{1};
             a2_prime_clipped = max(a2_grid_1d_vec(1), min(A2_prime, a2_grid_1d_vec(end)));
@@ -1104,11 +1105,10 @@ else
             EV_bounded(isnan(EV_bounded)) = -Inf;
             EV_bounded = beta_j .* EV_bounded;
         else
-            D_eval = D_cells_block;
             for i_a = 1:length(Apr_cells)
-                D_eval{i_a} = cast(Apr_cells{i_a}, 'like', EV_local);
+                Apr_cells{i_a} = cast(Apr_cells{i_a}, 'like', EV_local);
             end
-            F_tensor = TensorReturnFn(D_eval{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
+            F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
             EV_bounded = EV_bounded_pre(static_EV_offset + (choice_idx_linear - 1) * N_d_safe);
         end
 
@@ -1153,12 +1153,11 @@ else
         end
 
         if N_a2 > 1
-            D_eval = D_cells_block;
             for i_a = 1:length(Apr_cells)
-                D_eval{i_a} = cast(Apr_cells{i_a}, 'like', EV_local);
+                Apr_cells{i_a} = cast(Apr_cells{i_a}, 'like', EV_local);
             end
-            F_tensor = TensorReturnFn(D_eval{:}, A1_cells{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
-            A2_prime = TensoraprimeFn(D_eval, A2_cells, Z_cells_block, E_cells_block, aprimeFnParamsCell);
+            F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
+            A2_prime = TensoraprimeFn(D_cells_block, A2_cells, Z_cells_block, E_cells_block, aprimeFnParamsCell);
 
             a2_grid_1d_vec = a2_grids_1d{1};
             a2_prime_clipped = max(a2_grid_1d_vec(1), min(A2_prime, a2_grid_1d_vec(end)));
@@ -1193,11 +1192,10 @@ else
             EV_bounded(isnan(EV_bounded)) = -Inf;
             EV_bounded = beta_j .* EV_bounded;
         else
-            D_eval = D_cells_block;
             for i_a = 1:length(Apr_cells)
-                D_eval{i_a} = cast(Apr_cells{i_a}, 'like', EV_local);
+                Apr_cells{i_a} = cast(Apr_cells{i_a}, 'like', EV_local);
             end
-            F_tensor = TensorReturnFn(D_eval{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
+            F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
             stride_z = length(a1prime_grid) * N_a1_other;
             ze_offset = reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]);
             L2_linear_idx = choice_idx_linear + ze_offset;
