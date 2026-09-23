@@ -57,6 +57,9 @@ else
     if ~isfield(vfoptions,'precision'); vfoptions.precision = underlyingType(a_grid); end
 end
 
+% Let VFIToolkit's native parser slice the grids and define l_a2 / l_d2
+vfoptions = SetupNonStandardEndoStates_FHorz(n_d, n_a, d_grid, a_grid, vfoptions);
+
 % --- SMART nargin PARSER ---
 if isempty(ReturnFnParamNames)
     if isfield(vfoptions, 'ReturnFnParamNames')
@@ -69,8 +72,8 @@ if isempty(ReturnFnParamNames)
         l_a_exp = 0;
         if vfoptions.experienceasset > 0; l_a_exp = vfoptions.experienceasset; end
         if vfoptions.experienceassetz > 0; l_a_exp = vfoptions.experienceassetz; end
-        num_a_exp = l_a_exp;
-        num_a_endo = length(n_a) - num_a_exp;
+        n_a2 = l_a_exp;
+        l_a1 = length(n_a) - n_a2;
 
         num_semiz_vars = 0; if isfield(vfoptions, 'n_semiz') && prod(vfoptions.n_semiz) > 0; num_semiz_vars = length(vfoptions.n_semiz); end
         num_e_vars = 0; if isfield(vfoptions, 'n_e') && prod(vfoptions.n_e) > 0; num_e_vars = length(vfoptions.n_e); end
@@ -81,7 +84,7 @@ if isempty(ReturnFnParamNames)
             num_d3 = 0; if length(vfoptions.refine_d) >= 3; num_d3 = vfoptions.refine_d(3); end
             num_prefix_args = num_d1 + num_d3 + 1 + num_semiz_vars + num_z_vars;
         else
-            num_prefix_args = num_d_vars + (2 * num_a_endo) + num_a_exp + num_semiz_vars + num_z_vars + num_e_vars + num_u_vars;
+            num_prefix_args = num_d_vars + (2 * l_a1) + n_a2 + num_semiz_vars + num_z_vars + num_e_vars + num_u_vars;
         end
         if length(temp) > num_prefix_args; ReturnFnParamNames = {temp{num_prefix_args + 1 : end}}; else; ReturnFnParamNames = {}; end
         ReturnFnParamNames = ReturnFnParamNames(isfield(Parameters, ReturnFnParamNames));
@@ -173,72 +176,130 @@ if strcmp(vfoptions.exoticpreferences, 'QuasiHyperbolic') || strcmp(vfoptions.ex
 end
 
 % ---------------------------------------------------------------------
-% MULTI-AXIS STATE PARSER: Unstack Endogenous, Experience & Exogenous Grids
+% MULTI-AXIS STATE PARSER: Leverage Native Split Grids & Counts
 % ---------------------------------------------------------------------
 has_e = isfield(vfoptions, 'n_e') && prod(vfoptions.n_e) > 0;
-n_e_pass = 0; e_grid_pass = [];
+n_e_pass = 0;
+e_grid_pass = [];
 if has_e; n_e_pass = vfoptions.n_e; e_grid_pass = vfoptions.e_grid; e_work = vfoptions.e_grid; else; e_work = ones(1, 1, 'like', a_grid); end
 
-l_a_exp = 0;
-if vfoptions.experienceasset > 0; l_a_exp = vfoptions.experienceasset; end
-if vfoptions.experienceassetz > 0; l_a_exp = vfoptions.experienceassetz; end
+% Extract active flags
+l_exp_base  = vfoptions.experienceasset >= 1;
+l_exp_u     = vfoptions.experienceassetu >= 1;
+l_exp_z     = vfoptions.experienceassetz >= 1;
+l_exp_e     = vfoptions.experienceassete >= 1;
+l_exp_ze    = vfoptions.experienceassetze >= 1;
+l_exp_semiz = vfoptions.experienceassetsemiz >= 1;
+is_exp_asset = l_exp_base || l_exp_u || l_exp_z || l_exp_e || l_exp_ze || l_exp_semiz;
 
-num_a_exp = l_a_exp;
-num_a_endo = length(n_a) - num_a_exp;
-
-% Dynamic Routing for Slicing and Interpolation
-n_a1_dc = n_a(1);
-if num_a_endo > 1; n_a2_endo = n_a(2:num_a_endo); else; n_a2_endo = []; end
-if num_a_exp > 0; n_a2_exp = n_a(end-num_a_exp+1:end); else; n_a2_exp = []; end
+% Trust SetupNonStandardEndoStates for all geometry bounds
+if is_exp_asset || vfoptions.riskyasset == 1 || vfoptions.residualasset == 1
+    a1_endo_grid_vals = vfoptions.a1_grid;
+    a2_exp_grid_vals  = vfoptions.a2_grid;
+    n_a1_dc = vfoptions.n_a1(1);
+    
+    if isequal(vfoptions.n_a1, 0); l_a1 = 0; else; l_a1 = length(vfoptions.n_a1); end
+    if isequal(vfoptions.n_d1, 0); l_d1 = 0; else; l_d1 = length(vfoptions.n_d1); end
+    
+    if l_a1 > 1; n_a2_endo = vfoptions.n_a1(2:end); else; n_a2_endo = []; end
+    n_a2 = vfoptions.n_a2;
+else
+    a1_endo_grid_vals = a_grid;
+    a2_exp_grid_vals  = [];
+    n_a1_dc = n_a(1);
+    
+    l_a1 = length(n_a);
+    l_d1 = length(n_d);
+    
+    if l_a1 > 1; n_a2_endo = n_a(2:end); else; n_a2_endo = []; end
+    n_a2 = [];
+end
 
 N_a1_dc = n_a1_dc;
 N_a2_endo = max(1, prod(n_a2_endo));
-N_a2_exp = max(1, prod(n_a2_exp));
+N_a2_exp = max(1, prod(n_a2));
 
-% Extract full grids
-a1_endo_grid_len = sum(n_a(1:num_a_endo));
-a1_endo_grid_vals = a_grid(1:a1_endo_grid_len);
-a2_exp_grid_vals = a_grid(a1_endo_grid_len+1:end);
-
-A1_grids_1d = cell(1, num_a_endo);
+A1_grids_1d = cell(1, l_a1);
+A1_grids_1d = cell(1, l_a1);
 offset = 0;
-for i = 1:num_a_endo
+for i = 1:l_a1
     A1_grids_1d{i} = a1_endo_grid_vals((offset + 1):(offset + n_a(i)));
     offset = offset + n_a(i);
 end
 
 % Universal Packing for full states (creates fully meshed arrays)
-[TensorReturnFn, D_cells_block, A1_cells, ~, ~] = CreateTensorFnAndCells(ReturnFn, n_d, n_a(1:num_a_endo), n_combined_z, n_e_pass, d_grid, a1_endo_grid_vals, [], []);
+[TensorReturnFn, D_cells_block, A1_cells, ~, ~] = CreateTensorFnAndCells(ReturnFn, n_d, n_a(1:l_a1), n_combined_z, n_e_pass, d_grid, a1_endo_grid_vals, [], []);
 
 if l_a_exp > 0
-    [TensoraprimeFn, ~, A2_cells, ~, ~] = CreateTensorFnAndCells(vfoptions.aprimeFn, 0, n_a2_exp, 0, 0, [], a2_exp_grid_vals, [], []);
+    [TensoraprimeFn, ~, A2_cells, ~, ~] = CreateTensorFnAndCells(vfoptions.aprimeFn, 0, n_a2, 0, 0, [], a2_exp_grid_vals, [], []);
 else
     TensoraprimeFn = []; A2_cells = {};
 end
 
-A1_mat = zeros(N_a1_dc * N_a2_endo, num_a_endo, 'like', a_grid);
-for i_a = 1:num_a_endo; A1_mat(:, i_a) = A1_cells{i_a}(:); end
+A1_mat = zeros(N_a1_dc * N_a2_endo, l_a1, 'like', a_grid);
+for i_a = 1:l_a1; A1_mat(:, i_a) = A1_cells{i_a}(:); end
 
-A2_mat = zeros(N_a2_exp, num_a_exp, 'like', a_grid); a2_grids_1d = cell(1, num_a_exp); offset = 0;
-for i_a = 1:num_a_exp
+A2_mat = zeros(N_a2_exp, n_a2, 'like', a_grid); a2_grids_1d = cell(1, n_a2); offset = 0;
+for i_a = 1:n_a2
     A2_mat(:, i_a) = A2_cells{i_a}(:);
-    a2_grids_1d{i_a} = a2_exp_grid_vals((offset + 1):(offset + n_a2_exp(i_a)));
-    offset = offset + n_a2_exp(i_a);
+    a2_grids_1d{i_a} = a2_exp_grid_vals((offset + 1):(offset + n_a2(i_a)));
+    offset = offset + n_a2(i_a);
 end
 
 for i_d = 1:length(D_cells_block); D_cells_block{i_d} = reshape(D_cells_block{i_d}, [max(1,prod(n_d)), 1, 1, 1, 1]); end
 
-if l_a_exp > 0 || vfoptions.riskyasset == 1
+if is_exp_asset || vfoptions.riskyasset == 1
     aprimeFn = vfoptions.aprimeFn;
-    if isfield(vfoptions, 'aprimeFnParamNames'); aprimeFnParamNames = vfoptions.aprimeFnParamNames;
+    if isfield(vfoptions, 'aprimeFnParamNames')
+        aprimeFnParamNames = vfoptions.aprimeFnParamNames;
     else
         temp = getAnonymousFnInputNames(aprimeFn);
-        num_prefix = length(n_d) + num_a_exp + length(n_z);
-        if length(temp) > num_prefix; aprimeFnParamNames = {temp{num_prefix+1:end}}; else; aprimeFnParamNames = {}; end
+        
+        num_extra = 0;
+        if l_exp_z;     num_extra = length(n_z); end
+        if l_exp_e;     num_extra = length(vfoptions.n_e); end
+        if l_exp_ze;    num_extra = length(n_z) + length(vfoptions.n_e); end
+        if l_exp_u;     num_extra = length(vfoptions.n_u); end
+        if l_exp_semiz; num_extra = length(vfoptions.n_semiz); end
+        
+        if vfoptions.riskyasset == 1
+            l_d_aprime = length(n_d);
+            l_a_aprime = 1;
+        else
+            l_d_aprime = vfoptions.l_d2;
+            l_a_aprime = vfoptions.l_a2;
+        end
+        
+        num_prefix = l_d_aprime + l_a_aprime + num_extra;
+        
+        if length(temp) > num_prefix
+            aprimeFnParamNames = {temp{num_prefix+1:end}};
+        else
+            aprimeFnParamNames = {};
+        end
     end
     aprimeFnParamNames = aprimeFnParamNames(isfield(Parameters, aprimeFnParamNames));
+    
+    % Smart Wrapper: Isolate the exact decisions that drive the non-standard asset
+    if is_exp_asset
+        d2_idx = (l_d1 + 1) : (l_d1 + vfoptions.l_d2);
+    else
+        d2_idx = 1:length(n_d); % Risky assets evaluate all decisions
+    end
+    
+    BaseTensoraprimeFn = TensoraprimeFn; 
+    if l_exp_ze
+        TensoraprimeFn = @(D, A, Z, E, P) BaseTensoraprimeFn(D{d2_idx}, A{:}, Z{:}, E{:}, P{:});
+    elseif l_exp_z
+        TensoraprimeFn = @(D, A, Z, E, P) BaseTensoraprimeFn(D{d2_idx}, A{:}, Z{:}, P{:});
+    elseif l_exp_e
+        TensoraprimeFn = @(D, A, Z, E, P) BaseTensoraprimeFn(D{d2_idx}, A{:}, E{:}, P{:});
+    else
+        TensoraprimeFn = @(D, A, Z, E, P) BaseTensoraprimeFn(D{d2_idx}, A{:}, P{:});
+    end
 else
-    aprimeFn = []; aprimeFnParamNames = {};
+    aprimeFn = [];
+    aprimeFnParamNames = {};
 end
 
 N_d_safe = max(1, prod(n_d)); n_a_work = prod(n_a);
@@ -269,8 +330,12 @@ if vfoptions.gridinterplayer(1) == 1
     a1prime_grid = interp1(1:1:N_a1_dc, a1_dc_grid, linspace(1, N_a1_dc, N_a1_dc + (N_a1_dc - 1) * n2short))';
     idx = discretize(a1prime_grid, a1_dc_grid); idx(isnan(idx) | idx == length(a1_dc_grid)) = length(a1_dc_grid) - 1;
     interp_left_idx = idx(:); interp_right_idx = idx(:) + 1;
-    a1_left = a1_dc_grid(interp_left_idx); a1_right = a1_dc_grid(interp_right_idx);
-    interp_weights = (a1prime_grid(:) - a1_left) ./ (a1_right - a1_left); interp_weights(a1_right == a1_left) = 0;
+    a1_left = a1_dc_grid(interp_left_idx);
+    a1_right = a1_dc_grid(interp_right_idx);
+    interp_weights = (a1prime_grid(:) - a1_left) ./ (a1_right - a1_left);
+    interp_weights(a1_right == a1_left) = 0;
+    interp_weights(abs(interp_weights) < 1e-12) = 0;
+    interp_weights(abs(interp_weights - 1) < 1e-12) = 1;
     if vfoptions.parallel == 2
         interp_left_idx = gpuArray(interp_left_idx); interp_right_idx = gpuArray(interp_right_idx); interp_weights = gpuArray(interp_weights);
     end
@@ -311,7 +376,7 @@ elseif vfoptions.lowmemory == 1
     end
 else; ze_chunks = num2cell(1:N_ze); end
 
-if ismember(vfoptions.lowmemory, [4, 5]) && num_a_exp > 0; a2_chunks = num2cell(1:N_a2_exp); else; a2_chunks = {1:N_a2_exp}; end
+if ismember(vfoptions.lowmemory, [4, 5]) && n_a2 > 0; a2_chunks = num2cell(1:N_a2_exp); else; a2_chunks = {1:N_a2_exp}; end
 
 chunk_meta = cell(1, length(ze_chunks));
 for i_ze = 1:length(ze_chunks)
@@ -552,7 +617,7 @@ for reverse_j = 0:N_j-1
                 end
             else
                 LocalBlockFn_Standard = @(state_idx, loweredge_matrix, maxgap_scalar) SlicerWrapper(state_idx, loweredge_matrix, maxgap_scalar, 0);
-                if num_a_endo == 1
+                if l_a1 == 1
                     [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC1_Slicer(N_a1_dc, N_a1_dc, max(1, N_a2_exp), N_ze_local, vfoptions, LocalBlockFn_Standard);
                 else
                     [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC2A_Slicer(N_a1_dc, N_a2_endo, N_a2_endo * max(1, N_a2_exp), N_a1_dc, N_ze_local, vfoptions, LocalBlockFn_Standard);
@@ -684,7 +749,7 @@ for reverse_j = 0:N_j-1
 end
 
 if N_z == 0; V = squeeze(V); end
-if N_d == 0; n_daprime = n_a(1:num_a_endo); else; n_daprime = [n_d, n_a(1:num_a_endo)]; end
+if N_d == 0; n_daprime = n_a(1:l_a1); else; n_daprime = [n_d, n_a(1:l_a1)]; end
 if vfoptions.gridinterplayer(1) ~= 1; PolicyKron = shiftdim(PolicyKron, -1); end
 
 if isfield(vfoptions, 'outputkron') && vfoptions.outputkron == 1
@@ -746,7 +811,7 @@ N_states = length(state_idx); num_a1_vars = length(A1_grids_1d);
 
 if N_a_exp > 1; [a1_sub, a2_sub] = ind2sub([N_a1_dc * N_a2_endo, N_a_exp], state_idx); else; a1_sub = state_idx; end
 A1_cells = cell(1, num_a1_vars); for ia = 1:num_a1_vars; A1_cells{ia} = reshape(A1_mat(a1_sub, ia), [1, 1, N_states, 1, 1]); end
-if N_a_exp > 1; num_a_exp_vars = size(A2_mat, 2); A2_cells = cell(1, num_a_exp_vars); for ia = 1:num_a_exp_vars; A2_cells{ia} = reshape(A2_mat(a2_sub, ia), [1, 1, N_states, 1, 1]); end; else; A2_cells = {}; end
+if N_a_exp > 1; n_a2_vars = size(A2_mat, 2); A2_cells = cell(1, n_a2_vars); for ia = 1:n_a2_vars; A2_cells{ia} = reshape(A2_mat(a2_sub, ia), [1, 1, N_states, 1, 1]); end; else; A2_cells = {}; end
 
 if isempty(loweredge_matrix)
     if gridinterplayer(1) == 0 || is_dc_mode == 2
@@ -760,11 +825,14 @@ if isempty(loweredge_matrix)
 
         if N_a_exp > 1
             F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
-            A2_prime = TensoraprimeFn(D_cells_block{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, aprimeFnParamsCell{:});
+            A2_prime = TensoraprimeFn(D_cells_block, A2_cells, Z_cells_block, E_cells_block, aprimeFnParamsCell);
             a2_grid_1d_vec = a2_grids_1d{1}; a2_prime_clipped = max(a2_grid_1d_vec(1), min(A2_prime, a2_grid_1d_vec(end)));
             idx = discretize(a2_prime_clipped, a2_grid_1d_vec); idx(isnan(idx)) = N_a_exp - 1; idx = max(1, min(idx, N_a_exp - 1));
             a2_left = reshape(a2_grid_1d_vec(idx), size(idx)); a2_right = reshape(a2_grid_1d_vec(idx+1), size(idx));
-            weight = (a2_prime_clipped - a2_left) ./ (a2_right - a2_left); weight(a2_right == a2_left) = 0;
+            weight = (a2_prime_clipped - a2_left) ./ (a2_right - a2_left);
+            weight(a2_right == a2_left) = 0;
+            weight(abs(weight) < 1e-12) = 0;
+            weight(abs(weight - 1) < 1e-12) = 1;
 
             A1pr_idx = reshape(1:(N_a1_dc * N_a2_endo), [1, (N_a1_dc * N_a2_endo), 1, 1, 1]); ZE_idx = reshape(1:N_ze_local, [1, 1, 1, n_z_loc, n_e_loc]);
             N_a2_global = max(1, prod(cellfun(@length, a2_grids_1d)));
@@ -826,7 +894,10 @@ if isempty(loweredge_matrix)
             a2_grid_1d_vec = a2_grids_1d{1}; a2_prime_clipped = max(a2_grid_1d_vec(1), min(A2_prime, a2_grid_1d_vec(end)));
             idx = discretize(a2_prime_clipped, a2_grid_1d_vec); idx(isnan(idx)) = N_a_exp - 1; idx = max(1, min(idx, N_a_exp - 1));
             a2_left = reshape(a2_grid_1d_vec(idx), size(idx)); a2_right = reshape(a2_grid_1d_vec(idx+1), size(idx));
-            weight = (a2_prime_clipped - a2_left) ./ (a2_right - a2_left); weight(a2_right == a2_left) = 0;
+            weight = (a2_prime_clipped - a2_left) ./ (a2_right - a2_left);
+            weight(a2_right == a2_left) = 0;
+            weight(abs(weight) < 1e-12) = 0;
+            weight(abs(weight - 1) < 1e-12) = 1;
 
             A1pr_idx = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
             ZE_offset = reshape((0:N_ze_local-1) * (length(a1prime_grid) * N_a2_endo * N_a_exp), [1, 1, 1, n_z_loc, n_e_loc]);
@@ -946,6 +1017,8 @@ else
             a2_right = reshape(a2_grid_1d_vec(idx+1), size(idx));
             weight = (a2_prime_clipped - a2_left) ./ (a2_right - a2_left);
             weight(a2_right == a2_left) = 0;
+            weight(abs(weight) < 1e-12) = 0;
+            weight(abs(weight - 1) < 1e-12) = 1;
 
             ZE_idx = reshape(1:N_ze_local, [1, 1, 1, n_z_loc, n_e_loc]);
             N_a2_global = max(1, prod(cellfun(@length, a2_grids_1d)));
@@ -1020,6 +1093,8 @@ else
             a2_right = reshape(a2_grid_1d_vec(idx+1), size(idx));
             weight = (a2_prime_clipped - a2_left) ./ (a2_right - a2_left);
             weight(a2_right == a2_left) = 0;
+            weight(abs(weight) < 1e-12) = 0;
+            weight(abs(weight - 1) < 1e-12) = 1;
 
             ZE_offset = reshape((0:N_ze_local-1) * (length(a1prime_grid) * N_a2_endo * N_a_exp), [1, 1, 1, n_z_loc, n_e_loc]);
             lin_idx_left = choice_idx_linear + (idx - 1) * (length(a1prime_grid) * N_a2_endo) + ZE_offset;
@@ -1035,7 +1110,7 @@ else
             EV_right = EV_interp_local(lin_idx_right);
             EV_bounded = EV_left + weight .* (EV_right - EV_left);
             clear EV_left EV_right; % Memory Hoist
-            
+
             weight_full = weight + zeros(1, num_choices_total, 1, n_z_loc, n_e_loc, 'like', weight);
             EV_bounded(weight_full == 0) = EV_interp_local(lin_idx_left(weight_full == 0));
             EV_bounded(weight_full == 1) = EV_interp_local(lin_idx_right(weight_full == 1));
