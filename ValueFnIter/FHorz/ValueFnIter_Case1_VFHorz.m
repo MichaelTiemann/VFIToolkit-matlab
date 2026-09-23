@@ -495,23 +495,25 @@ for reverse_j = 0:N_j-1
             SlicerWrapper = @(a1_idx, low_mat, mg, dc_mode) Helper_SlicerWrapper(a1_idx, low_mat, mg, dc_mode, N_a1_dc, N_a2_endo, max(1, N_a2_exp), N_ze_local, max(1, N_d_safe), LocalBlockFn);
 
             if vfoptions.gridinterplayer(1) == 1
-                temp_vfoptions = vfoptions;
-                temp_vfoptions.gridinterplayer = 0;
-                LocalBlockFn_Coarse = @(a1_idx, low_mat, mg) SlicerWrapper(a1_idx, low_mat, mg, 2);
+                % --- VRAM Protection: Cartesian Chunking for the COARSE Pass ---
+                flat_choices_coarse = max(1, N_d_safe) * N_a1_dc * N_a2_endo;
+                N_other = N_a2_endo * max(1, N_a2_exp);
+                max_a1_per_chunk_coarse = max(1, floor(5e8 / (flat_choices_coarse * N_other * N_ze_local)));
 
-                if num_a_endo == 1
-                    % Corrected Arg 2 (Choices = N_a1_dc) and Arg 3 (Other = N_a2_exp)
-                    [~, p_apr_coarse, ~, ~, ~] = ValueFnIter_DC1_Slicer(N_a1_dc, N_a1_dc, max(1, N_a2_exp), N_ze_local, temp_vfoptions, LocalBlockFn_Coarse);
-                    loweredge_pass = reshape(p_apr_coarse, [N_a1_dc * max(1, N_a2_exp), N_ze_local]);
-                else
-                    % Corrected Arg 3 (Other = N_a2_endo * N_a2_exp)
-                    [~, ~, ~, ~, ~, p_a1_per_a2] = ValueFnIter_DC2A_Slicer(N_a1_dc, N_a2_endo, N_a2_endo * max(1, N_a2_exp), N_a1_dc, N_ze_local, temp_vfoptions, LocalBlockFn_Coarse);
-                    loweredge_pass = reshape(p_a1_per_a2, [N_a2_endo, N_a1_dc * max(1, N_a2_exp), N_ze_local]);
+                loweredge_pass = zeros(max(1, N_d_safe), N_a2_endo, N_a1_dc * max(1, N_a2_exp), N_ze_local, 'like', EV_local);
+
+                for chunk_start = 1:max_a1_per_chunk_coarse:N_a1_dc
+                    chunk_end = min(N_a1_dc, chunk_start + max_a1_per_chunk_coarse - 1);
+                    a1_chunk = (chunk_start:chunk_end)';
+                    state_chunk_mat = a1_chunk + (0:N_other-1) * N_a1_dc;
+                    state_chunk = state_chunk_mat(:)';
+
+                    [~, ~, ~, ~, ~, p_a1_per_a2] = LocalBlockFn(state_chunk, [], 0, 0, 2);
+                    loweredge_pass(:, :, state_chunk, :) = reshape(p_a1_per_a2, [max(1, N_d_safe), N_a2_endo, length(state_chunk), N_ze_local]);
                 end
 
                 % --- VRAM Protection: Cartesian Chunking for the Grid Interp Fine Pass ---
                 flat_choices = max(1, N_d_safe) * n2long * max(1, N_a2_endo);
-                N_other = N_a2_endo * max(1, N_a2_exp);
                 max_a1_per_chunk = max(1, floor(5e8 / (flat_choices * N_other * N_ze_local)));
 
                 v = zeros(N_a, N_ze_local, 'like', EV_local);
@@ -527,13 +529,20 @@ for reverse_j = 0:N_j-1
                     state_chunk_mat = a1_chunk + (0:N_other-1) * N_a1_dc;
                     state_chunk = state_chunk_mat(:)';
 
-                    if num_a_endo == 1
-                        loweredge_chunk = loweredge_pass(state_chunk, :);
+                    loweredge_chunk = loweredge_pass(:, :, state_chunk, :);
+
+                    % Dynamically extract the bounding box across d for the Fine Pass
+                    if max(1, N_d_safe) > 1
+                        low_min = min(loweredge_chunk, [], 1);
+                        low_max = max(loweredge_chunk, [], 1);
+                        d_gap_val = double(max(low_max(:) - low_min(:)));
+                        loweredge_chunk_pass = low_min;
                     else
-                        loweredge_chunk = loweredge_pass(:, state_chunk, :);
+                        loweredge_chunk_pass = loweredge_chunk;
+                        d_gap_val = 0;
                     end
 
-                    [v_c, p_apr_c, p_d_c, p_l2idx_c, p_l2flag_c] = LocalBlockFn(state_chunk, loweredge_chunk, n2long - 1, 0, 1);
+                    [v_c, p_apr_c, p_d_c, p_l2idx_c, p_l2flag_c] = LocalBlockFn(state_chunk, loweredge_chunk_pass, n2long - 1, d_gap_val, 1);
 
                     v(state_chunk, :) = v_c;
                     p_apr(state_chunk, :) = p_apr_c;
@@ -629,9 +638,20 @@ for reverse_j = 0:N_j-1
                     chunk_end = min(total_states, chunk_start + max_states_per_chunk - 1);
                     state_chunk = state_list(chunk_start:chunk_end);
                     if vfoptions.gridinterplayer(1) == 1
-                        [~, p_apr_coarse, ~, ~, ~, p_a1_per_a2] = LocalBlockFn(state_chunk, [], 0, 0, 2);
-                        if num_a_endo == 1; loweredge_pass = p_apr_coarse; else; loweredge_pass = p_a1_per_a2; end
-                        [v_c, p_apr_c, p_d_c, p_l2idx_c, p_l2flag_c] = LocalBlockFn(state_chunk, loweredge_pass, n2long - 1, 0, 0);
+                        [~, ~, ~, ~, ~, p_a1_per_a2] = LocalBlockFn(state_chunk, [], 0, 0, 2);
+                        loweredge_chunk = reshape(p_a1_per_a2, [max(1, N_d_safe), N_a2_endo, length(state_chunk), N_ze_local]);
+
+                        if max(1, N_d_safe) > 1
+                            low_min = min(loweredge_chunk, [], 1);
+                            low_max = max(loweredge_chunk, [], 1);
+                            d_gap_val = double(max(low_max(:) - low_min(:)));
+                            loweredge_chunk_pass = low_min;
+                        else
+                            loweredge_chunk_pass = loweredge_chunk;
+                            d_gap_val = 0;
+                        end
+
+                        [v_c, p_apr_c, p_d_c, p_l2idx_c, p_l2flag_c] = LocalBlockFn(state_chunk, loweredge_chunk_pass, n2long - 1, d_gap_val, 0);
                     else
                         [v_c, p_apr_c, p_d_c, p_l2idx_c, p_l2flag_c] = LocalBlockFn(state_chunk, [], 0, 0, 0);
                     end
@@ -777,16 +797,9 @@ if isempty(loweredge_matrix)
 
         if nargout > 5
             RHS_for_d = reshape(RHS_flat, [max(1, N_d_safe), num_choices_total, FLAT_STATES]);
-            RHS_max_d = max(RHS_for_d, [], 1);
+            [~, max_a1_idx_per_d] = max(RHS_for_d, [], 2);
             clear RHS_for_d; % Memory Hoist
-
-            RHS_4D = reshape(RHS_max_d, [N_a1_dc, N_a2_endo, N_states, N_ze_local]);
-            clear RHS_max_d; % Memory Hoist
-
-            [~, max_a1_idx] = max(RHS_4D, [], 1);
-            clear RHS_4D; % Memory Hoist
-
-            Pol_a1_per_a2 = reshape(max_a1_idx, [N_a2_endo, N_states, N_ze_local]);
+            Pol_a1_per_a2 = reshape(max_a1_idx_per_d, [max(1, N_d_safe), N_a2_endo, N_states, N_ze_local]);
         else
             Pol_a1_per_a2 = [];
         end
@@ -826,7 +839,7 @@ if isempty(loweredge_matrix)
             EV_left = EV_interp_local(lin_idx_left); EV_right = EV_interp_local(lin_idx_right);
             EV_bounded = EV_left + weight .* (EV_right - EV_left);
             clear EV_left EV_right; % Memory Hoist
-            
+
             weight_full = repmat(weight, [1, num_choices_total, 1, 1, 1]);
             EV_bounded(weight_full == 0) = EV_interp_local(lin_idx_left(weight_full == 0));
             EV_bounded(weight_full == 1) = EV_interp_local(lin_idx_right(weight_full == 1));
@@ -1058,20 +1071,15 @@ else
 
     if nargout > 5
         RHS_for_d = reshape(RHS_flat, [max(1, N_d_safe), num_choices_total, FLAT_STATES]);
-        RHS_max_d = max(RHS_for_d, [], 1);
+        [~, max_a1_idx_rel] = max(RHS_for_d, [], 2);
         clear RHS_for_d; % Memory Hoist
 
         if gridinterplayer(1) == 0 || is_dc_mode == 2
-            RHS_4D = reshape(RHS_max_d, [total_gap + 1, N_a2_endo, N_states, N_ze_local]);
+            max_a1_idx_rel = reshape(max_a1_idx_rel, [max(1, N_d_safe), N_a2_endo, N_states, N_ze_local]);
+            Pol_a1_per_a2 = min(loweredge_matrix + max_a1_idx_rel - 1, N_a1_dc);
         else
-            RHS_4D = reshape(RHS_max_d, [num_choices_total_a1, N_a2_endo, N_states, N_ze_local]);
+            Pol_a1_per_a2 = [];
         end
-        clear RHS_max_d; % Memory Hoist
-
-        [~, max_a1_idx_rel] = max(RHS_4D, [], 1);
-        clear RHS_4D; % Memory Hoist
-        max_a1_idx_rel = reshape(max_a1_idx_rel, [N_a2_endo, N_states, N_ze_local]);
-        Pol_a1_per_a2 = min(loweredge_matrix + max_a1_idx_rel - 1, N_a1_dc);
     end
 
     d_idx_local = mod(Pol_sub_idx - 1, max(1, N_d_safe)) + 1;
