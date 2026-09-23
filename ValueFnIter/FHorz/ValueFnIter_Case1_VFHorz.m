@@ -472,10 +472,14 @@ for reverse_j = 0:N_j-1
             else; EV_interp_local = []; end
 
             if l_a_exp == 0
+                % Reshape to expose N_dsemiz, then slice by dsemiz_idx_tensor to safely
+                % broadcast EV across endogenous choices and semi-exogenous transitions
                 EV_reshaped = reshape(EV_local, [N_a1_dc * N_a2_endo, n_z_loc, n_e_loc, N_dsemiz]);
                 EV_d_sliced = EV_reshaped(:, :, :, dsemiz_idx_tensor(:));
                 EV_bounded_pre = beta_j .* permute(EV_d_sliced, [4, 1, 5, 2, 3]);
-                d_vec = reshape(0:N_d_safe-1, [N_d_safe, 1, 1, 1, 1]); z_vec = reshape((0:n_z_loc-1) * (N_d_safe * N_a1_dc * N_a2_endo), [1, 1, 1, n_z_loc, 1]);
+
+                d_vec = reshape(0:N_d_safe-1, [N_d_safe, 1, 1, 1, 1]);
+                z_vec = reshape((0:n_z_loc-1) * (N_d_safe * N_a1_dc * N_a2_endo), [1, 1, 1, n_z_loc, 1]);
                 e_vec = reshape((0:n_e_loc-1) * (N_d_safe * N_a1_dc * N_a2_endo * n_z_loc), [1, 1, 1, 1, n_e_loc]);
                 static_EV_offset = cast(d_vec + 1 + z_vec + e_vec, 'like', EV_bounded_pre);
             else; EV_bounded_pre = []; static_EV_offset = []; end
@@ -492,11 +496,13 @@ for reverse_j = 0:N_j-1
                 temp_vfoptions = vfoptions; temp_vfoptions.gridinterplayer = 0;
                 LocalBlockFn_Coarse = @(state_idx, loweredge_matrix, maxgap_scalar) LocalBlockFn(state_idx, loweredge_matrix, maxgap_scalar, 2);
                 if num_a_endo == 1
-                    [~, p_apr_coarse, ~, ~, ~] = ValueFnIter_DC1_Slicer(N_a1_dc * N_a2_exp, N_a, 1, N_ze_local, temp_vfoptions, LocalBlockFn_Coarse);
-                    loweredge_pass = p_apr_coarse;
+                    [~, p_apr_coarse, ~, ~, ~] = ValueFnIter_DC1_Slicer(N_a1_dc, N_a2_exp, N_a1_dc, N_ze_local, temp_vfoptions, LocalBlockFn_Coarse);
+                    % Flatten the 3D policy to 2D [states, shocks] to prevent MATLAB indexing collapse
+                    loweredge_pass = reshape(p_apr_coarse, [N_a1_dc * max(1, N_a2_exp), N_ze_local]);
                 else
                     [~, ~, ~, ~, ~, p_a1_per_a2] = ValueFnIter_DC2A_Slicer(N_a1_dc, N_a2_endo, N_a2_endo * N_a2_exp, N_a1_dc, N_ze_local, temp_vfoptions, LocalBlockFn_Coarse);
-                    loweredge_pass = p_a1_per_a2;
+                    % Flatten the 4D policy to 3D [a2, states, shocks] to prevent indexing collapse
+                    loweredge_pass = reshape(p_a1_per_a2, [N_a2_endo, N_a1_dc * max(1, N_a2_exp), N_ze_local]);
                 end
                 [v, p_apr, p_d, p_l2idx, p_l2flag] = LocalBlockFn(1:N_a, loweredge_pass, n2long - 1, 0);
             else
@@ -559,8 +565,14 @@ for reverse_j = 0:N_j-1
                 else; EV_interp_local = []; end
 
                 if l_a_exp == 0
-                    EV_bounded_pre = beta_j .* reshape(EV_local(:), [N_d_safe, N_a1_dc * N_a2_endo, 1, n_z_loc, n_e_loc]);
-                    d_vec = reshape(0:N_d_safe-1, [N_d_safe, 1, 1, 1, 1]); z_vec = reshape((0:n_z_loc-1) * (N_d_safe * N_a1_dc * N_a2_endo), [1, 1, 1, n_z_loc, 1]);
+                    % Reshape to expose N_dsemiz, then slice by dsemiz_idx_tensor to safely
+                    % broadcast EV across endogenous choices and semi-exogenous transitions
+                    EV_reshaped = reshape(EV_local, [N_a1_dc * N_a2_endo, n_z_loc, n_e_loc, N_dsemiz]);
+                    EV_d_sliced = EV_reshaped(:, :, :, dsemiz_idx_tensor(:));
+                    EV_bounded_pre = beta_j .* permute(EV_d_sliced, [4, 1, 5, 2, 3]);
+
+                    d_vec = reshape(0:N_d_safe-1, [N_d_safe, 1, 1, 1, 1]);
+                    z_vec = reshape((0:n_z_loc-1) * (N_d_safe * N_a1_dc * N_a2_endo), [1, 1, 1, n_z_loc, 1]);
                     e_vec = reshape((0:n_e_loc-1) * (N_d_safe * N_a1_dc * N_a2_endo * n_z_loc), [1, 1, 1, 1, n_e_loc]);
                     static_EV_offset = cast(d_vec + 1 + z_vec + e_vec, 'like', EV_bounded_pre);
                 else; EV_bounded_pre = []; static_EV_offset = []; end
