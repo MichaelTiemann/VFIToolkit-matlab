@@ -57,6 +57,74 @@ else
     if ~isfield(vfoptions,'precision'); vfoptions.precision = underlyingType(a_grid); end
 end
 
+if isempty(n_d)
+    error('If you have no d (decision) variables, set n_d=0;')
+end
+N_d=prod(n_d);
+N_a=prod(n_a);
+N_z=prod(n_z);
+N_e=prod(vfoptions.n_e);
+
+if ~all(size(d_grid)==[sum(n_d), 1])
+    if ~isempty(n_d) % Make sure d is being used before complaining about size of d_grid
+        if n_d~=0
+            error('d_grid is not the correct shape (should be of size sum(n_d)-by-1)')
+        end
+    end
+end
+if ~all(size(a_grid)==[sum(n_a), 1])
+    error('a_grid is not the correct shape (should be of size sum(n_a)-by-1; a (stacked) column vector)')
+end
+
+%% z_grid/pi_z/e_grid/pi_e shape validation is performed inside ExogShockSetup_FHorz (called below).
+
+if vfoptions.parallel<2
+    if N_e>0
+        error('Sorry but e (i.i.d) variables are not implemented for cpu, you will need a gpu to use them')
+    end
+    if prod(vfoptions.n_semiz)>0
+        error('Sorry but Semi-Exogenous states are not implemented for cpu, you will need a gpu to use them')
+    end
+    if ~vfoptions.divideandconquer==0
+        error('Sorry but divideandconquer is not implemented for cpu, you will need a gpu to use this algorithm')
+    end
+    if ~strcmp(vfoptions.exoticpreferences,'None')
+        error('Sorry but exoticpreferences are not implemented for cpu, you will need a gpu to use them')
+    end
+    if ~vfoptions.experienceasset==0 || ~vfoptions.experienceassetu==0  || ~vfoptions.experienceassetz==0  || ~vfoptions.experienceassete==0  || ~vfoptions.experienceassetze==0  || ~vfoptions.experienceassetsemiz==0
+        error('Sorry but experience assets are not implemented for cpu, you will need a gpu to use them')
+    end
+    if ~vfoptions.riskyasset==0
+        error('Sorry but riskyasset are not implemented for cpu, you will need a gpu to use them')
+    end
+    if ~vfoptions.residualasset==0
+        error('Sorry but residualasset are not implemented for cpu, you will need a gpu to use them')
+    end
+    if ~vfoptions.dynasty==0
+        error('Sorry but dynasty are not implemented for cpu, you will need a gpu to use them')
+    end
+end
+
+
+%%
+if vfoptions.parallel==2
+    % If using GPU make sure all the relevant inputs are GPU arrays (not standard arrays)
+    d_grid=gpuArray(d_grid);
+    a_grid=gpuArray(a_grid);
+    z_grid=gpuArray(z_grid);
+    pi_z=gpuArray(pi_z);
+    if size(d_grid,2)==1
+        d_gridvals=CreateGridvals(n_d,d_grid,1);
+    else % already d_gridvals
+        d_gridvals=d_grid;
+    end
+else
+    % CPU can be used, but only for the basics. Is kept separate here so that the rest of the codes can just assume you have GPU and work with it.
+    [V,Policy]=ValueFnIter_FHorz_CPU(n_d,n_a,n_z,N_j,d_grid, a_grid, z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, vfoptions);
+    varargout={V,Policy};
+    return
+end
+
 % Let VFIToolkit's native parser slice the grids and define l_a2 / l_d2
 vfoptions = SetupNonStandardEndoStates_FHorz(n_d, n_a, d_grid, a_grid, vfoptions);
 
@@ -125,13 +193,6 @@ if vfoptions.divideandconquer==1
             vfoptions.level1n=[vfoptions.level1n,n_a(2:end)];
         end
     end
-end
-
-if vfoptions.parallel == 2
-    if ~isempty(d_grid), d_grid = gpuArray(d_grid); end
-    if ~isempty(a_grid), a_grid = gpuArray(a_grid); end
-    if ~isempty(z_grid), z_grid = gpuArray(z_grid); end
-    if ~isempty(pi_z),   pi_z   = gpuArray(pi_z);   end
 end
 
 if vfoptions.alreadygridvals==0
@@ -265,7 +326,17 @@ if isfield(vfoptions, 'gpu') && vfoptions.gpu == 1
 end
 
 if l_a2 > 0
-    [TensoraprimeFn, ~, A2_cells, ~, ~] = CreateTensorFnAndCells(vfoptions.aprimeFn, 0, n_a2, 0, 0, [], a2_exp_grid_vals, [], []);
+    n_z_pass_exp = 0; 
+    if l_exp_z || l_exp_ze
+        n_z_pass_exp = n_z; 
+    end
+    
+    n_e_pass_exp = 0; 
+    if l_exp_e || l_exp_ze
+        n_e_pass_exp = n_e_pass; 
+    end
+    
+    [TensoraprimeFn, ~, A2_cells, ~, ~] = CreateTensorFnAndCells(vfoptions.aprimeFn, vfoptions.n_d2, n_a2, n_z_pass_exp, n_e_pass_exp, [], a2_exp_grid_vals, [], []);
 else
     TensoraprimeFn = [];
     A2_cells = {};
@@ -375,8 +446,13 @@ if vfoptions.gridinterplayer(1) == 1
     interp_weights(a1_right == a1_left) = 0;
     interp_weights(abs(interp_weights) < 1e-12) = 0;
     interp_weights(abs(interp_weights - 1) < 1e-12) = 1;
-    if vfoptions.parallel == 2
-        interp_left_idx = gpuArray(interp_left_idx); interp_right_idx = gpuArray(interp_right_idx); interp_weights = gpuArray(interp_weights);
+    interp_left_idx = gpuArray(interp_left_idx);
+    interp_right_idx = gpuArray(interp_right_idx);
+    interp_weights = gpuArray(interp_weights);
+    a1prime_grid = gpuArray(a1prime_grid);
+    for i = 1:l_a1; A1_grids_1d{i} = gpuArray(A1_grids_1d{i}); end
+    if l_a2 > 0
+        for i = 1:l_a2; a2_grids_1d{i} = gpuArray(a2_grids_1d{i}); end
     end
 else
     n2short = 0; n2long  = 0; a1prime_grid = []; interp_left_idx = []; interp_right_idx = []; interp_weights = [];
@@ -432,7 +508,7 @@ base_ReturnFnParamsCell = CreateCellFromParams(Parameters, ReturnFnParamNames, 1
 is_age_dependent = false(1, length(ReturnFnParamNames));
 for ip = 1:length(ReturnFnParamNames)
     if numel(Parameters.(ReturnFnParamNames{ip})) == N_j; is_age_dependent(ip) = true; end
-    if vfoptions.parallel == 2 && isnumeric(base_ReturnFnParamsCell{ip}) && ~isa(base_ReturnFnParamsCell{ip}, 'gpuArray'); base_ReturnFnParamsCell{ip} = gpuArray(base_ReturnFnParamsCell{ip}); end
+    if isnumeric(base_ReturnFnParamsCell{ip}) && ~isa(base_ReturnFnParamsCell{ip}, 'gpuArray'); base_ReturnFnParamsCell{ip} = gpuArray(base_ReturnFnParamsCell{ip}); end
 end
 
 N_semiz_local = 1; N_dsemiz = 1;
@@ -447,15 +523,14 @@ for reverse_j = 0:N_j-1
     if vfoptions.verbose==1; fprintf('Finite horizon: %i of %i \n',jj, N_j); end
     ReturnFnParamsCell = base_ReturnFnParamsCell; pi_z_j = pi_z_J(:, :, min(jj, size(pi_z_J, 3)));
     for ip = find(is_age_dependent)
-        val = cast(Parameters.(ReturnFnParamNames{ip})(jj), vfoptions.precision);
-        if vfoptions.parallel == 2; ReturnFnParamsCell{ip} = gpuArray(val); else; ReturnFnParamsCell{ip} = val; end
+        ReturnFnParamsCell{ip} = cast(Parameters.(ReturnFnParamNames{ip})(jj), 'like', a_grid);
     end
     DiscountFactorParamsVec = CreateVectorFromParams(Parameters, DiscountFactorParamNames, jj, vfoptions.precision); beta_j = prod(DiscountFactorParamsVec);
     if l_a_exp > 0; aprimeFnParamsCell = CreateCellFromParams(Parameters, aprimeFnParamNames, jj); else; aprimeFnParamsCell = {}; end
 
     if jj == N_j && isfield(vfoptions, 'V_Jplus1') && ~isempty(vfoptions.V_Jplus1)
         V_next = reshape(vfoptions.V_Jplus1, [n_a_work, n_z_work, n_e_work]);
-        if vfoptions.parallel == 2 && ~isa(V_next, 'gpuArray'); V_next = gpuArray(V_next); end
+        V_next = gpuArray(V_next);
     end
 
     if jj == N_j && (~isfield(vfoptions, 'V_Jplus1') || isempty(vfoptions.V_Jplus1))
@@ -481,7 +556,7 @@ for reverse_j = 0:N_j-1
 
         if has_e
             if isfield(vfoptions, 'pi_e_J'); pi_e_j = vfoptions.pi_e_J(:, min(jj + 1, size(vfoptions.pi_e_J, 2))); else; pi_e_j = vfoptions.pi_e; end
-            if vfoptions.parallel == 2 && ~isa(pi_e_j, 'gpuArray'); pi_e_j = gpuArray(pi_e_j); end
+            pi_e_j = gpuArray(pi_e_j);
             V_trans_flat = reshape(V_transformed, [N_a * n_z_work, n_e_work]);
             V_inf_mask = (V_trans_flat == -Inf); V_safe = V_trans_flat; V_safe(V_inf_mask) = -1e250;
             V_expected_e = V_safe * pi_e_j(:);
@@ -847,6 +922,13 @@ function [V_j_max, Pol_apr_max, Pol_d_max, Pol_L2idx_max, Pol_L2flag_max, Pol_a1
     TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, is_dc_mode)
 
 N_states = length(state_idx);
+
+% Cast indices to GPU to lock all memory extraction on the device (Prevents PCIe thrashing)
+state_idx = cast(state_idx, 'like', EV_local);
+if ~isempty(loweredge_matrix)
+    loweredge_matrix = cast(loweredge_matrix, 'like', EV_local);
+end
+
 l_a1 = length(A1_grids_1d);
 l_a2 = sum(size(A2_mat)>1);
 
@@ -898,9 +980,10 @@ if isempty(loweredge_matrix)
             N_a2_global = max(1, prod(cellfun(@length, a2_grids_1d)));
             idx_left  = A1pr_idx + (idx - 1) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
             idx_right = A1pr_idx + (idx) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
-            max_idx_row = size(EV_local, 1);
-            linear_idx_left  = min(max_idx_row, max(1, idx_left  + (dsemiz_idx_tensor - 1) * max_idx_row));
-            linear_idx_right = min(max_idx_row, max(1, idx_right + (dsemiz_idx_tensor - 1) * max_idx_row));
+            max_idx = numel(EV_local);
+            dsemiz_stride = size(EV_local, 1) * size(EV_local, 2);
+            linear_idx_left  = min(max_idx, max(1, idx_left  + (dsemiz_idx_tensor - 1) * dsemiz_stride));
+            linear_idx_right = min(max_idx, max(1, idx_right + (dsemiz_idx_tensor - 1) * dsemiz_stride));
 
             EV_bounded = EV_local(linear_idx_left) + weight .* (EV_local(linear_idx_right) - EV_local(linear_idx_left));
             weight_full = weight + zeros(1, num_choices_total, 1, n_z_loc, n_e_loc, 'like', weight);
@@ -1094,9 +1177,10 @@ else
             idx_left  = choice_idx_linear + (idx - 1) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
             idx_right = choice_idx_linear + (idx) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
 
-            max_idx_row = size(EV_local, 1);
-            linear_idx_left  = min(max_idx_row, max(1, idx_left  + (dsemiz_idx_tensor - 1) * max_idx_row));
-            linear_idx_right = min(max_idx_row, max(1, idx_right + (dsemiz_idx_tensor - 1) * max_idx_row));
+            max_idx = numel(EV_local);
+            dsemiz_stride = size(EV_local, 1) * size(EV_local, 2);
+            linear_idx_left  = min(max_idx, max(1, idx_left  + (dsemiz_idx_tensor - 1) * dsemiz_stride));
+            linear_idx_right = min(max_idx, max(1, idx_right + (dsemiz_idx_tensor - 1) * dsemiz_stride));
 
             EV_bounded = EV_local(linear_idx_left) + weight .* (EV_local(linear_idx_right) - EV_local(linear_idx_left));
             weight_full = weight + zeros(1, num_choices_total, 1, n_z_loc, n_e_loc, 'like', weight);
