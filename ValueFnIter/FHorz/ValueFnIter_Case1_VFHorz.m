@@ -247,13 +247,21 @@ for i = 1:l_a1
     offset = offset + n_a(i);
 end
 
-% Universal Packing for full states (creates fully meshed arrays)
-[TensorReturnFn, D_cells_block, A1_cells, ~, ~] = CreateTensorFnAndCells(ReturnFn, n_d, n_a(1:l_a1), n_combined_z, n_e_pass, d_grid, a1_endo_grid_vals, [], []);
+% Create master TensorReturnFn with ALL assets so the signature aligns perfectly
+[TensorReturnFn, D_cells_block, A_cells_master, Z_cells_block, E_cells_block] = CreateTensorFnAndCells(ReturnFn, n_d, n_a, n_combined_z, n_e_pass, d_grid, a_grid, [], []);
+
+% Extract just the A1 cells for A1_mat generation
+A1_cells = A_cells_master(1:l_a1);
+
+if isfield(vfoptions, 'gpu') && vfoptions.gpu == 1
+    for i = 1:length(D_cells_block); D_cells_block{i} = gpuArray(D_cells_block{i}); end
+    for i = 1:length(Z_cells_block); Z_cells_block{i} = gpuArray(Z_cells_block{i}); end
+    for i = 1:length(E_cells_block); E_cells_block{i} = gpuArray(E_cells_block{i}); end
+end
 
 if l_a2 > 0
-    [TensoraprimeFn, ~, A2_cells, ~, ~] = CreateTensorFnAndCells(vfoptions.aprimeFn, 0, n_a2, 0, 0, [], a2_exp_grid_vals, [], []);
+    [~, ~, A2_cells, ~, ~] = CreateTensorFnAndCells(vfoptions.aprimeFn, 0, n_a2, 0, 0, [], a2_exp_grid_vals, [], []);
 else
-    TensoraprimeFn = [];
     A2_cells = {};
 end
 
@@ -843,14 +851,13 @@ end
 
 A1_cells = cell(1, l_a1);
 for ia = 1:l_a1
-    A1_cells{ia} = reshape(A1_mat(a1_sub, ia), [1, 1, N_states, 1, 1]);
+    A1_cells{ia} = cast(reshape(A1_mat(a1_sub, ia), [1, 1, N_states, 1, 1]), 'like', EV_local);
 end
 
-if N_a2 > 1
-    l_a2 = size(A2_mat, 2);
+if l_a2 > 0
     A2_cells = cell(1, l_a2);
     for ia = 1:l_a2
-        A2_cells{ia} = reshape(A2_mat(a2_sub, ia), [1, 1, N_states, 1, 1]);
+        A2_cells{ia} = cast(reshape(A2_mat(a2_sub, ia), [1, 1, N_states, 1, 1]), 'like', EV_local);
     end
 else
     A2_cells = {};
@@ -933,7 +940,7 @@ if isempty(loweredge_matrix)
 
         if N_a2 > 1
             F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
-            A2_prime = TensoraprimeFn(D_cells_block{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, aprimeFnParamsCell{:});
+            A2_prime = TensoraprimeFn(D_cells_block, A2_cells, Z_cells_block, E_cells_block, aprimeFnParamsCell);
             a2_grid_1d_vec = a2_grids_1d{1}; a2_prime_clipped = max(a2_grid_1d_vec(1), min(A2_prime, a2_grid_1d_vec(end)));
             idx = discretize(a2_prime_clipped, a2_grid_1d_vec); idx(isnan(idx)) = N_a2 - 1; idx = max(1, min(idx, N_a2 - 1));
             a2_left = reshape(a2_grid_1d_vec(idx), size(idx)); a2_right = reshape(a2_grid_1d_vec(idx+1), size(idx));
@@ -1049,7 +1056,7 @@ else
 
         if N_a2 > 1
             F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
-            A2_prime = TensoraprimeFn(D_cells_block{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, aprimeFnParamsCell{:});
+            A2_prime = TensoraprimeFn(D_cells_block, A2_cells, Z_cells_block, E_cells_block, aprimeFnParamsCell);
 
             a2_grid_1d_vec = a2_grids_1d{1};
             a2_prime_clipped = max(a2_grid_1d_vec(1), min(A2_prime, a2_grid_1d_vec(end)));
@@ -1125,7 +1132,7 @@ else
 
         if N_a2 > 1
             F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
-            A2_prime = TensoraprimeFn(D_cells_block{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, aprimeFnParamsCell{:});
+            A2_prime = TensoraprimeFn(D_cells_block, A2_cells, Z_cells_block, E_cells_block, aprimeFnParamsCell);
 
             a2_grid_1d_vec = a2_grids_1d{1};
             a2_prime_clipped = max(a2_grid_1d_vec(1), min(A2_prime, a2_grid_1d_vec(end)));
