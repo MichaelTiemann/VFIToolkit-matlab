@@ -843,6 +843,7 @@ function [V_j_max, Pol_apr_max, Pol_d_max, Pol_L2idx_max, Pol_L2flag_max, Pol_a1
 
 N_states = length(state_idx);
 l_a1 = length(A1_grids_1d);
+l_a2 = sum(size(A2_mat)>1);
 
 if N_a2 > 1
     [a1_sub, a2_sub] = ind2sub([N_a1_dc * N_a1_other, N_a2], state_idx);
