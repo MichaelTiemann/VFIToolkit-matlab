@@ -221,11 +221,7 @@ for reverse_j = 0:N_j-1
             EV_base = EV_base * sj_val + (1 - sj_val) * reshape(WG_transformed, [N_a, 1, 1, 1]);
         end
 
-        % Reverse EZ transform
-        valid_EV = isfinite(EV_base) & (EV_base ~= 0);
-        if ezc6(jj) ~= 1; EV_base(valid_EV) = max(EV_base(valid_EV), 0).^ezc6(jj); end
-        if ezc8(jj) ~= 1; EV_base(valid_EV) = max(EV_base(valid_EV), 0).^ezc8(jj); end
-
+        % DO NOT apply reverse EZ transforms here! Linear interpolation must happen first.
         EV_pack{i_ev} = reshape(EV_base, [N_a, N_ze, N_dsemiz]);
     end
 
@@ -281,7 +277,32 @@ for reverse_j = 0:N_j-1
                 EV_interp_flat_v(zero_weights, :) = EV_left_v(zero_weights, :); EV_interp_flat_v(one_weights, :) = EV_right_v(one_weights, :);
                 EV_interp_flat_v(isnan(EV_interp_flat_v)) = -Inf; EV_Valt_interp = reshape(EV_interp_flat_v, [length(a1prime_grid), N_ze_local, N_dsemiz]);
             else
-                EV_belief_interp = []; EV_Valt_interp = [];
+                EV_belief_interp = [];
+                EV_Valt_interp = [];
+            end
+
+            % --- Apply Reverse EZ Transforms (Post-Interpolation) ---
+            valid_local_b = isfinite(EV_belief_local) & (EV_belief_local ~= 0);
+            valid_local_v = isfinite(EV_Valt_local) & (EV_Valt_local ~= 0);
+            if ezc6(jj) ~= 1
+                EV_belief_local(valid_local_b) = max(EV_belief_local(valid_local_b), 0).^ezc6(jj);
+                EV_Valt_local(valid_local_v) = max(EV_Valt_local(valid_local_v), 0).^ezc6(jj);
+            end
+            if ezc8(jj) ~= 1
+                EV_belief_local(valid_local_b) = max(EV_belief_local(valid_local_b), 0).^ezc8(jj);
+                EV_Valt_local(valid_local_v) = max(EV_Valt_local(valid_local_v), 0).^ezc8(jj);
+            end
+            if vfoptions.gridinterplayer(1) == 1
+                valid_interp_b = isfinite(EV_belief_interp) & (EV_belief_interp ~= 0);
+                valid_interp_v = isfinite(EV_Valt_interp) & (EV_Valt_interp ~= 0);
+                if ezc6(jj) ~= 1
+                    EV_belief_interp(valid_interp_b) = max(EV_belief_interp(valid_interp_b), 0).^ezc6(jj);
+                    EV_Valt_interp(valid_interp_v) = max(EV_Valt_interp(valid_interp_v), 0).^ezc6(jj);
+                end
+                if ezc8(jj) ~= 1
+                    EV_belief_interp(valid_interp_b) = max(EV_belief_interp(valid_interp_b), 0).^ezc8(jj);
+                    EV_Valt_interp(valid_interp_v) = max(EV_Valt_interp(valid_interp_v), 0).^ezc8(jj);
+                end
             end
 
             if l_a2 == 0
@@ -418,7 +439,32 @@ for reverse_j = 0:N_j-1
                         EV_Valt_interp = reshape(EV_interp_flat_v, [length(a1prime_grid), N_ze_local, N_dsemiz]);
                     end
                 else
-                    EV_belief_interp = []; EV_Valt_interp = [];
+                    EV_belief_interp = [];
+                    EV_Valt_interp = [];
+                end
+
+                % --- Apply Reverse EZ Transforms (Post-Interpolation) ---
+                valid_local_b = isfinite(EV_belief_local) & (EV_belief_local ~= 0);
+                valid_local_v = isfinite(EV_Valt_local) & (EV_Valt_local ~= 0);
+                if ezc6(jj) ~= 1
+                    EV_belief_local(valid_local_b) = max(EV_belief_local(valid_local_b), 0).^ezc6(jj);
+                    EV_Valt_local(valid_local_v) = max(EV_Valt_local(valid_local_v), 0).^ezc6(jj);
+                end
+                if ezc8(jj) ~= 1
+                    EV_belief_local(valid_local_b) = max(EV_belief_local(valid_local_b), 0).^ezc8(jj);
+                    EV_Valt_local(valid_local_v) = max(EV_Valt_local(valid_local_v), 0).^ezc8(jj);
+                end
+                if vfoptions.gridinterplayer(1) == 1
+                    valid_interp_b = isfinite(EV_belief_interp) & (EV_belief_interp ~= 0);
+                    valid_interp_v = isfinite(EV_Valt_interp) & (EV_Valt_interp ~= 0);
+                    if ezc6(jj) ~= 1
+                        EV_belief_interp(valid_interp_b) = max(EV_belief_interp(valid_interp_b), 0).^ezc6(jj);
+                        EV_Valt_interp(valid_interp_v) = max(EV_Valt_interp(valid_interp_v), 0).^ezc6(jj);
+                    end
+                    if ezc8(jj) ~= 1
+                        EV_belief_interp(valid_interp_b) = max(EV_belief_interp(valid_interp_b), 0).^ezc8(jj);
+                        EV_Valt_interp(valid_interp_v) = max(EV_Valt_interp(valid_interp_v), 0).^ezc8(jj);
+                    end
                 end
 
                 if l_a2 == 0
