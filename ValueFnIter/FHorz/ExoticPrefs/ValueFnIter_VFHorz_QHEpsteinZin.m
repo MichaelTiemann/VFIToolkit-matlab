@@ -300,7 +300,7 @@ for reverse_j = 0:N_j-1
 
             % --- PASS 1: The Exponential Belief Pass ---
             if is_naive
-                LocalBlockFn_Exp = @(state_idx, loweredge_matrix, maxgap_scalar) Evaluate_QHEZ_TensorBlock(...
+                LocalBlockFn_Exp = @(state_idx, loweredge_matrix, maxgap_scalar) QHEZ_SlicerWrapper(...
                     state_idx, loweredge_matrix, maxgap_scalar, N_a1, N_a2, N_d_safe, N_ze_local, ...
                     Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_mat, a2_grids_1d, l_a2, ...
                     0, n2short, n2long, 1.0, delta_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
@@ -313,16 +313,7 @@ for reverse_j = 0:N_j-1
             end
 
             % --- PASS 2: The Actual Reality Pass ---
-            temp_vfoptions = vfoptions; temp_vfoptions.gridinterplayer = 0;
-            LocalBlockFn_Actual_Coarse = @(state_idx, loweredge_matrix, maxgap_scalar) Evaluate_QHEZ_TensorBlock(...
-                state_idx, loweredge_matrix, maxgap_scalar, N_a1, N_a2, N_d_safe, N_ze_local, ...
-                Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_mat, a2_grids_1d, l_a2, ...
-                0, n2short, n2long, beta0_j(jj), delta_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
-                EV_Valt_local, EV_Valt_pre, EV_Valt_interp, a1prime_grid, ...
-                TensorReturnFn, ReturnFnParamsCell, ezc2(jj), ezc3, ezc4, ezc7(jj), ...
-                TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, 1);
-
-            LocalBlockFn_Actual_Zoom = @(state_idx, loweredge_matrix, maxgap_scalar) Evaluate_QHEZ_TensorBlock(...
+            LocalBlockFn_Actual = @(state_idx, loweredge_matrix, maxgap_scalar) QHEZ_SlicerWrapper(...
                 state_idx, loweredge_matrix, maxgap_scalar, N_a1, N_a2, N_d_safe, N_ze_local, ...
                 Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_mat, a2_grids_1d, l_a2, ...
                 vfoptions.gridinterplayer, n2short, n2long, beta0_j(jj), delta_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
@@ -331,13 +322,12 @@ for reverse_j = 0:N_j-1
                 TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, 1);
 
             full_state_chunk = 1:(N_a1 * N_a2);
-            if vfoptions.gridinterplayer(1) == 1
-                [~, p_apr_coarse] = ValueFnIter_DC1_Slicer(N_a1 * N_a2, N_a, 1, N_ze_local, temp_vfoptions, LocalBlockFn_Actual_Coarse);
-                [v, p_apr, p_d, p_l2idx, p_l2flag, valt] = LocalBlockFn_Actual_Zoom(full_state_chunk, p_apr_coarse, n2long - 1);
-            else
-                [v, p_apr, p_d] = ValueFnIter_DC1_Slicer(N_a1 * N_a2, N_a, 1, N_ze_local, vfoptions, LocalBlockFn_Actual_Coarse);
-                [~, ~, ~, p_l2idx, p_l2flag, valt] = LocalBlockFn_Actual_Coarse(full_state_chunk, p_apr, 0);
-            end
+
+            % Slicer securely evaluates the fine grid bounds to guarantee the global peak
+            [~, p_apr_coarse] = ValueFnIter_DC1_Slicer(N_a1 * N_a2, N_a, 1, N_ze_local, vfoptions, LocalBlockFn_Actual);
+
+            % A final, targeted pass extracts Valt and identical policy variables
+            [v, p_apr, p_d, p_l2idx, p_l2flag, valt] = LocalBlockFn_Actual(full_state_chunk, p_apr_coarse, 0);
 
             V_j_max(:, curr_ze)     = reshape(v,     [N_a1 * N_a2, N_ze_local]);
             Valt_j_max(:, curr_ze)  = reshape(valt,  [N_a1 * N_a2, N_ze_local]);
@@ -670,7 +660,7 @@ else
         % -------------------------------------------------------------
         % SCENARIO 2B: Fine Grid Zoom (Interpolation)
         % -------------------------------------------------------------
-        num_choices = (n2short * 2 + 3);
+        num_choices = maxgap_scalar * (n2short + 1) + (n2short * 2 + 3);
 
         % --- MAP COARSE INDEX TO FINE GRID INDEX ---
         fine_base_idx = (base_idx - 1) * (n2short + 1) + 1;
@@ -850,23 +840,72 @@ else
         Pol_L2idx_max = [];
         Pol_L2flag_max = [];
     else
-        loweredge_matrix_flat = reshape(loweredge_matrix, [1, FLAT_STATES]);
+        loweredge_matrix_flat = reshape(base_idx, [1, FLAT_STATES]);
         % Shift the absolute index back by the window offset and safely clamp to the grid edge
         fine_base_idx_flat = (loweredge_matrix_flat - 1) * (n2short + 1) + 1;
         abs_fine_idx_flat = fine_base_idx_flat + apr_offset(:)' - (n2short + 1) - 1;
         abs_fine_idx_flat = max(1, min(abs_fine_idx_flat, length(a1prime_grid)));
+
         Pol_apr_max = floor((abs_fine_idx_flat - 1) / (n2short + 1)) + 1;
         Pol_apr_max = min(Pol_apr_max, N_a1 - 1);
         Pol_L2idx_max = reshape(abs_fine_idx_flat - (Pol_apr_max - 1) * (n2short + 1), [N_states, N_ze_local]);
         Pol_apr_max = reshape(Pol_apr_max, [N_states, N_ze_local]);
 
         inLowerStrict = (apr_offset(:)' >= 2) & (apr_offset(:)' <= n2short + 1);
-        inUpperStrict = (apr_offset(:)' >= n2short + 3) & (apr_offset(:)' <= n2long - 1);
+        inUpperStrict = (apr_offset(:)' >= n2short + 3 + maxgap_scalar * (n2short + 1)) & (apr_offset(:)' <= num_choices - 1);
+
         Pol_L2flag_max = 2 * ones(1, FLAT_STATES, 'like', V_j_max);
-        Pol_L2flag_max(inLowerStrict) = 2;
-        Pol_L2flag_max(inUpperStrict) = 2;
+        Pol_L2flag_max(inLowerStrict) = 3;
+        Pol_L2flag_max(inUpperStrict) = 1;
         Pol_L2flag_max = reshape(Pol_L2flag_max, [N_states, N_ze_local]);
     end
+end
+
+
+end
+
+
+function [v, p_apr, p_d, p_l2idx, p_l2flag, valt] = QHEZ_SlicerWrapper(state_idx, loweredge_matrix, maxgap_scalar, N_a1, N_a2, N_d_safe, N_ze_local, Z_cells_block, E_cells_block, D_cells_block, A1_mat, A2_mat, a2_grids_1d, l_a2, gridinterplayer, n2short, n2long, beta_j, delta_j, EV_belief_local, EV_belief_pre, EV_belief_interp, EV_Valt_local, EV_Valt_pre, EV_Valt_interp, a1prime_grid, TensorReturnFn, ReturnFnParamsCell, ezc2_j, ezc3, ezc4, ezc7_j, TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, is_dc_mode)
+valt = []; p_l2idx = []; p_l2flag = [];
+
+if nargout > 5
+    [v, p_apr, p_d, p_l2idx, p_l2flag, valt] = Evaluate_QHEZ_TensorBlock(...
+        state_idx, loweredge_matrix, maxgap_scalar, N_a1, N_a2, N_d_safe, N_ze_local, ...
+        Z_cells_block, E_cells_block, D_cells_block, A1_mat, A2_mat, a2_grids_1d, l_a2, ...
+        gridinterplayer, n2short, n2long, beta_j, delta_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
+        EV_Valt_local, EV_Valt_pre, EV_Valt_interp, a1prime_grid, ...
+        TensorReturnFn, ReturnFnParamsCell, ezc2_j, ezc3, ezc4, ezc7_j, ...
+        TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, is_dc_mode);
+elseif nargout > 3
+    [v, p_apr, p_d, p_l2idx, p_l2flag] = Evaluate_QHEZ_TensorBlock(...
+        state_idx, loweredge_matrix, maxgap_scalar, N_a1, N_a2, N_d_safe, N_ze_local, ...
+        Z_cells_block, E_cells_block, D_cells_block, A1_mat, A2_mat, a2_grids_1d, l_a2, ...
+        gridinterplayer, n2short, n2long, beta_j, delta_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
+        EV_Valt_local, EV_Valt_pre, EV_Valt_interp, a1prime_grid, ...
+        TensorReturnFn, ReturnFnParamsCell, ezc2_j, ezc3, ezc4, ezc7_j, ...
+        TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, is_dc_mode);
+else
+    [v, p_apr, p_d] = Evaluate_QHEZ_TensorBlock(...
+        state_idx, loweredge_matrix, maxgap_scalar, N_a1, N_a2, N_d_safe, N_ze_local, ...
+        Z_cells_block, E_cells_block, D_cells_block, A1_mat, A2_mat, a2_grids_1d, l_a2, ...
+        gridinterplayer, n2short, n2long, beta_j, delta_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
+        EV_Valt_local, EV_Valt_pre, EV_Valt_interp, a1prime_grid, ...
+        TensorReturnFn, ReturnFnParamsCell, ezc2_j, ezc3, ezc4, ezc7_j, ...
+        TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, is_dc_mode);
+end
+
+% Inflate the outputs to [1, N_states, 1, N_ze_local] for the DC Slicer
+N_s = length(state_idx);
+v = reshape(v, [1, N_s, 1, N_ze_local]);
+p_apr = reshape(p_apr, [1, N_s, 1, N_ze_local]);
+p_d = reshape(p_d, [1, N_s, 1, N_ze_local]);
+
+if ~isempty(p_l2idx)
+    p_l2idx = reshape(p_l2idx, [1, N_s, 1, N_ze_local]);
+    p_l2flag = reshape(p_l2flag, [1, N_s, 1, N_ze_local]);
+end
+if ~isempty(valt)
+    valt = reshape(valt, [1, N_s, 1, N_ze_local]);
 end
 
 
