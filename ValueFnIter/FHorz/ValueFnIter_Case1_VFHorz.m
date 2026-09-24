@@ -423,19 +423,28 @@ if is_exp_asset || vfoptions.riskyasset == 1
 
     aprimeFnParamNames = aprimeFnParamNames(isfield(Parameters, aprimeFnParamNames));
     BaseTensoraprimeFn = TensoraprimeFn;
-
     if l_exp_ze
         TensoraprimeFn = @(D, A, Z, E, P) BaseTensoraprimeFn(D{d2_idx}, A{:}, Z{:}, E{:}, P{:});
     elseif l_exp_z
         TensoraprimeFn = @(D, A, Z, E, P) BaseTensoraprimeFn(D{d2_idx}, A{:}, Z{:}, P{:});
     elseif l_exp_e
         TensoraprimeFn = @(D, A, Z, E, P) BaseTensoraprimeFn(D{d2_idx}, A{:}, E{:}, P{:});
+    elseif l_exp_u
+        U_mesh = cast(reshape(vfoptions.u_grid, [1, 1, 1, 1, 1, length(vfoptions.u_grid)]), 'like', a_grid);
+        TensoraprimeFn = @(D, A, Z, E, P) BaseTensoraprimeFn(D{d2_idx}, A{:}, U_mesh, P{:});
     else
         TensoraprimeFn = @(D, A, Z, E, P) BaseTensoraprimeFn(D{d2_idx}, A{:}, P{:});
     end
 else
     aprimeFn = [];
     aprimeFnParamNames = {};
+end
+
+if l_exp_u
+    pi_u_shape = cast(reshape(vfoptions.pi_u, [1, 1, 1, 1, 1, length(vfoptions.pi_u)]), 'like', a_grid);
+    CollapseEV = @(EV_b) sum(EV_b .* pi_u_shape, 6);
+else
+    CollapseEV = @(EV_b) EV_b;
 end
 
 N_d_safe = max(1, prod(n_d)); n_a_work = prod(n_a);
@@ -563,7 +572,7 @@ for reverse_j = 0:N_j-1
         ReturnFnParamsCell{ip} = cast(Parameters.(ReturnFnParamNames{ip})(jj), 'like', a_grid);
     end
     DiscountFactorParamsVec = CreateVectorFromParams(Parameters, DiscountFactorParamNames, jj, vfoptions.precision); beta_j = prod(DiscountFactorParamsVec);
-    if l_a_exp > 0; aprimeFnParamsCell = CreateCellFromParams(Parameters, aprimeFnParamNames, jj); else; aprimeFnParamsCell = {}; end
+    if is_exp_asset; aprimeFnParamsCell = CreateCellFromParams(Parameters, aprimeFnParamNames, jj); else; aprimeFnParamsCell = {}; end
 
     if jj == N_j && isfield(vfoptions, 'V_Jplus1') && ~isempty(vfoptions.V_Jplus1)
         V_next = reshape(vfoptions.V_Jplus1, [n_a_work, n_z_work, n_e_work]);
@@ -687,7 +696,7 @@ for reverse_j = 0:N_j-1
                 EV_interp_local = reshape(EV_interp_flat, [length(a1prime_grid), N_a2_rem, N_ze_local, N_dsemiz]);
             else; EV_interp_local = []; end
 
-            if l_a_exp == 0
+            if ~is_exp_asset
                 % Reshape to expose N_dsemiz, then slice by dsemiz_idx_tensor to safely
                 % broadcast EV across endogenous choices and semi-exogenous transitions
                 EV_reshaped = reshape(EV_local, [N_a1_dc * N_a1_other, n_z_loc, n_e_loc, N_dsemiz]);
@@ -707,7 +716,7 @@ for reverse_j = 0:N_j-1
                 Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_mat, A1_grids_1d, a2_grids_1d, ...
                 vfoptions.gridinterplayer, n2short, n2long, beta_j, EV_local, EV_bounded_pre, EV_interp_local, a1prime_grid, ...
                 TensorReturnFn, ReturnFnParamsCell, ezc2(jj), ezc3, ezc4, ezc7(jj), ...
-                TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, dc_mode_override);
+                TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, dc_mode_override, CollapseEV);
 
             SlicerWrapper = @(a1_idx, low_mat, mg, dc_mode) Helper_SlicerWrapper(a1_idx, low_mat, mg, dc_mode, N_a1_dc, N_a1_other, max(1, N_a2), N_ze_local, max(1, N_d_safe), LocalBlockFn);
 
@@ -779,7 +788,7 @@ for reverse_j = 0:N_j-1
             for i_ze = 1:length(ze_chunks)
                 curr_ze = ze_chunks{i_ze}; N_ze_local = length(curr_ze);
                 meta = chunk_meta{i_ze}; n_z_loc = meta.n_z_loc; n_e_loc = meta.n_e_loc;
-                if l_a_exp > 0; A2_local = A2_mat(curr_a2, :); else; A2_local = []; end
+                if is_exp_asset; A2_local = A2_mat(curr_a2, :); else; A2_local = []; end
                 EV_local = EV_flat_ze(:, curr_ze, :);
                 if has_semiz || has_z
                     num_z_vars = length(n_combined_z); Z_cells_local = cell(1, num_z_vars);
@@ -797,7 +806,7 @@ for reverse_j = 0:N_j-1
 
                 if vfoptions.gridinterplayer(1) == 1
                     N_cols = N_ze_local * N_dsemiz; zero_weights = (interp_weights == 0); one_weights = (interp_weights == 1);
-                    if l_a_exp > 0
+                    if is_exp_asset
                         EV_2d = reshape(EV_local, [N_a1_dc, N_a1_other * N_a2_local * N_cols]);
                         EV_left_val = EV_2d(interp_left_idx, :); EV_right_val = EV_2d(interp_right_idx, :);
                         EV_interp_flat = EV_left_val + interp_weights .* (EV_right_val - EV_left_val);
@@ -814,7 +823,7 @@ for reverse_j = 0:N_j-1
                     end
                 else; EV_interp_local = []; end
 
-                if l_a_exp == 0
+                if ~is_exp_asset
                     % Reshape to expose N_dsemiz, then slice by dsemiz_idx_tensor to safely
                     % broadcast EV across endogenous choices and semi-exogenous transitions
                     EV_reshaped = reshape(EV_local, [N_a1_dc * N_a1_other, n_z_loc, n_e_loc, N_dsemiz]);
@@ -833,7 +842,7 @@ for reverse_j = 0:N_j-1
                     Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_local, A1_grids_1d, a2_grids_1d, ...
                     vfoptions.gridinterplayer, n2short, n2long, beta_j, EV_local, EV_bounded_pre, EV_interp_local, a1prime_grid, ...
                     TensorReturnFn, ReturnFnParamsCell, ezc2(jj), ezc3, ezc4, ezc7(jj), ...
-                    TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, dc_mode_override);
+                    TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, dc_mode_override, CollapseEV);
 
                 state_list = start_a_idx:end_a_idx;
                 total_states = length(state_list);
@@ -937,9 +946,10 @@ function [V_j_max, Pol_apr_max, Pol_d_max, Pol_L2idx_max, Pol_L2flag_max, Pol_a1
     Z_cells_block, E_cells_block, D_cells_block, A1_mat, A2_mat, A1_grids_1d, a2_grids_1d, ...
     gridinterplayer, n2short, n2long, beta_j, EV_local, EV_bounded_pre, EV_interp_local, a1prime_grid, ...
     TensorReturnFn, ReturnFnParamsCell, ezc2_j, ezc3, ezc4, ezc7_j, ...
-    TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, is_dc_mode, d_override)
+    TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, is_dc_mode, d_override, CollapseEV)
 
 if nargin < 39 || isempty(d_override); d_override = 0; end
+if nargin < 40 || isempty(CollapseEV); CollapseEV = @(x) x; end
 
 if d_override > 0
     N_d_safe_local = 1;
@@ -1026,6 +1036,7 @@ if isempty(loweredge_matrix)
             EV_bounded(weight_full == 1) = EV_local(linear_idx_right(weight_full == 1));
             EV_bounded(isnan(EV_bounded)) = -Inf;
             EV_bounded = beta_j .* EV_bounded;
+            EV_bounded = CollapseEV(EV_bounded);
         else
             F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
             choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
@@ -1122,6 +1133,7 @@ if isempty(loweredge_matrix)
             EV_bounded(weight_full == 1) = EV_local(linear_idx_right(weight_full == 1));
             EV_bounded(isnan(EV_bounded)) = -Inf;
             EV_bounded = beta_j .* EV_bounded;
+            EV_bounded = CollapseEV(EV_bounded);
         else
             for i_a = 1:length(Apr_cells)
                 Apr_cells{i_a} = cast(Apr_cells{i_a}, 'like', EV_local);
@@ -1274,6 +1286,7 @@ else
             EV_bounded(weight_full == 1) = EV_local(linear_idx_right(weight_full == 1));
             EV_bounded(isnan(EV_bounded)) = -Inf;
             EV_bounded = beta_j .* EV_bounded;
+            EV_bounded = CollapseEV(EV_bounded);
         else
             for i_a = 1:length(Apr_cells)
                 Apr_cells{i_a} = cast(Apr_cells{i_a}, 'like', EV_local);
@@ -1364,6 +1377,7 @@ else
             EV_bounded(weight_full == 1) = EV_interp_local(lin_idx_right(weight_full == 1));
             EV_bounded(isnan(EV_bounded)) = -Inf;
             EV_bounded = beta_j .* EV_bounded;
+            EV_bounded = CollapseEV(EV_bounded);
         else
             for i_a = 1:length(Apr_cells)
                 Apr_cells{i_a} = cast(Apr_cells{i_a}, 'like', EV_local);
@@ -1376,6 +1390,7 @@ else
             EV_bounded = EV_interp_local(L2_linear_idx);
             EV_bounded(out_of_bounds) = -Inf;
             EV_bounded = beta_j .* EV_bounded;
+            EV_bounded = CollapseEV(EV_bounded);
         end
     end
 

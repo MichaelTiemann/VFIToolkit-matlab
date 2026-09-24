@@ -1,16 +1,27 @@
-function [harnessFn] = CreateTensorBridge(userReturnFn)
-funcInfo = functions(userReturnFn);
+function TensorFn = CreateTensorBridge(InputFn)
 
-if strcmp(funcInfo.type, 'anonymous')
-    tokens = regexp(funcInfo.function, '\)\s*([a-zA-Z0-9_]+)\s*\(', 'tokens');
-    if ~isempty(tokens)
-        baseName = tokens{1}{1};
-    else
-        error('TensorBridge:ParseError', 'Could not extract base function name from: %s', funcInfo.function);
-    end
-else
-    baseName = funcInfo.function;
+% --- 1. Handle Anonymous Functions ---
+info = functions(InputFn);
+if strcmp(info.type, 'anonymous')
+    fn_str = info.function;
+
+    % Strip any existing dots to prevent double-dotting (e.g., ..*)
+    fn_str = strrep(fn_str, '.*', '*');
+    fn_str = strrep(fn_str, './', '/');
+    fn_str = strrep(fn_str, '.^', '^');
+
+    % Apply universal element-wise operators for tensor math
+    fn_str = strrep(fn_str, '*', '.*');
+    fn_str = strrep(fn_str, '/', './');
+    fn_str = strrep(fn_str, '^', '.^');
+
+    TensorFn = str2func(fn_str);
+    return;
 end
+
+% --- 2. Handle Named Functions (Existing Logic) ---
+
+baseName = info.function;
 
 num_base_args = nargin(baseName);
 wrapperName = [baseName, '_AutoBridge'];
