@@ -880,7 +880,7 @@ for reverse_j = 0:N_j-1
                         state_chunk_mat_L2 = curraindex + (0:N_other-1) * N_a1_dc;
                         [~, ~, ~, ~, ~, p_a1_per_a2_L2] = LocalBlockFn(state_chunk_mat_L2(:)', loweredge_rep(:), maxgap(ii), 0, 2);
                         maxindex_L2 = reshape(p_a1_per_a2_L2, [max(1, N_d_safe), N_a1_other, length(curraindex), max(1, N_a2), N_ze_local]);
-                        loweredge_pass(:, :, curraindex, :, :) = maxindex_L2 + (loweredge - 1);
+                        loweredge_pass(:, :, curraindex, :, :) = maxindex_L2; % Removed double-add of (loweredge - 1)
                     else
                         loweredge_pass(:, :, curraindex, :, :) = repmat(maxindex1(:, :, ii, :, :), [1, 1, level1iidiff(ii), 1, 1]);
                     end
@@ -1358,15 +1358,19 @@ if isempty(loweredge_matrix)
         end
 
         choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
-        a1_offset = (choice_idx_linear - 1) * N_d_stride;
-        if N_a2 > 1
-            a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * length(a1prime_grid) * N_a1_other);
-        else
-            a2_offset = 0;
-        end
 
-        lin_idx_compact = static_EV_offset_fine + a1_offset + a2_offset;
-        EV_bounded = EV_interp_local(lin_idx_compact);
+        if N_a2 > 1
+            a1_offset = (choice_idx_linear - 1) * N_d_stride;
+            a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * length(a1prime_grid) * N_a1_other);
+            lin_idx_compact = static_EV_offset_fine + a1_offset + a2_offset;
+            EV_bounded = EV_interp_local(lin_idx_compact);
+        else
+            stride_z = length(a1prime_grid) * N_a1_other;
+            ze_offset = reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]);
+            L2_linear_idx = choice_idx_linear + ze_offset;
+            if N_dsemiz > 1; L2_linear_idx = L2_linear_idx + (dsemiz_idx_tensor - 1) * (stride_z * N_ze_local); end
+            EV_bounded = beta_j .* EV_interp_local(L2_linear_idx);
+        end
     end
 else
     Pol_a1_per_a2 = [];
@@ -1499,15 +1503,18 @@ else
             end
         end
 
-        a1_offset = (choice_idx_linear - 1) * N_d_stride;
         if N_a2 > 1
+            a1_offset = (choice_idx_linear - 1) * N_d_stride;
             a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * length(a1prime_grid) * N_a1_other);
+            lin_idx_compact = static_EV_offset_fine + a1_offset + a2_offset;
+            EV_bounded = EV_interp_local(lin_idx_compact);
         else
-            a2_offset = 0;
+            stride_z = length(a1prime_grid) * N_a1_other;
+            ze_offset = reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]);
+            L2_linear_idx = choice_idx_linear + ze_offset;
+            if N_dsemiz > 1; L2_linear_idx = L2_linear_idx + (dsemiz_idx_tensor - 1) * (stride_z * N_ze_local); end
+            EV_bounded = beta_j .* EV_interp_local(L2_linear_idx);
         end
-
-        lin_idx_compact = static_EV_offset_fine + a1_offset + a2_offset;
-        EV_bounded = EV_interp_local(lin_idx_compact);
         EV_bounded(out_of_bounds) = -Inf;
     end
 end
@@ -1516,6 +1523,8 @@ end
 FLAT_CHOICES = N_d_safe_local * num_choices_total;
 FLAT_STATES  = N_states * N_ze_local;
 RHS = Evaluate_Universal_RHS_VFHorz(F_tensor, EV_bounded, 1, 1, ezc2_j, ezc3, ezc4, ezc7_j);
+
+F_is_inf_flat = reshape((F_tensor == -Inf), [FLAT_CHOICES, FLAT_STATES]); % Capture F_tensor Inf states for L2flag
 clear F_tensor EV_bounded; % Memory Hoist
 
 RHS_flat = reshape(RHS, [FLAT_CHOICES, FLAT_STATES]);
@@ -1637,9 +1646,9 @@ else
 
             lin_lower = d_idx_local(:)' + (1 - 1) * N_d_safe_local + (a2_offset_factor(:)' - 1) * (num_choices_total_a1 * N_d_safe_local) + (0:FLAT_STATES-1) * size(RHS_flat, 1);
             lin_upper = d_idx_local(:)' + (num_choices_total_a1 - 1) * N_d_safe_local + (a2_offset_factor(:)' - 1) * (num_choices_total_a1 * N_d_safe_local) + (0:FLAT_STATES-1) * size(RHS_flat, 1);
-            isInfLower = (RHS_flat(lin_lower) == -Inf);
-            isInfUpper = (RHS_flat(lin_upper) == -Inf);
-            clear RHS_flat; % Memory Hoist
+            isInfLower = F_is_inf_flat(lin_lower);
+            isInfUpper = F_is_inf_flat(lin_upper);
+            clear RHS_flat F_is_inf_flat; % Memory Hoist
 
             inLowerStrict = (a1_apr_offset(:)' >= 2) & (a1_apr_offset(:)' <= n2short + 1);
             inUpperStrict = (a1_apr_offset(:)' >= n2short + 3 + d_gap * (n2short + 1)) & (a1_apr_offset(:)' <= num_choices_total_a1 - 1);
@@ -1653,7 +1662,6 @@ end
 
 
 end
-
 
 
 function [v, p_apr, p_d, p_l2, p_l2f, p_a1] = Helper_SlicerWrapper(a1_idx, low_mat, mg, dc_mode, N_a1_dc, N_a1_other, N_a2, N_ze, N_d, CoreFn)
