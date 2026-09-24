@@ -446,9 +446,8 @@ end
 
 if l_exp_u
     pi_u_shape = cast(reshape(vfoptions.pi_u, [1, 1, 1, 1, 1, length(vfoptions.pi_u)]), 'like', a_grid);
-    CollapseEV = @(EV_b) sum(EV_b .* pi_u_shape, 6);
 else
-    CollapseEV = @(EV_b) EV_b;
+    pi_u_shape = [];
 end
 
 N_d_safe = max(1, prod(n_d)); n_a_work = prod(n_a);
@@ -561,7 +560,7 @@ N_z_exog = max(1, n_z_work / N_semiz_local);
 % --- Dynamic VRAM Profiling (Hoisted) ---
 if vfoptions.parallel == 2
     gpu_device_info = gpuDevice();
-    % Divide by 8 bytes (double precision) and apply an 8x safety factor 
+    % Divide by 8 bytes (double precision) and apply an 8x safety factor
     % to absorb all intermediate tensors inside Evaluate_Universal_RHS
     safe_elements = max(1e7, floor((gpu_device_info.AvailableMemory / 8) / 8));
 else
@@ -715,12 +714,12 @@ for reverse_j = 0:N_j-1
 
             vfoptions.level1n = vfoptions.level1n(1);
             % The DC Block takes 5 arguments
-            LocalBlockFn = @(state_idx, loweredge_matrix, maxgap_scalar, d_gap, dc_mode_override, CollapseEV) Evaluate_Case1_TensorBlock(...
+            LocalBlockFn = @(state_idx, loweredge_matrix, maxgap_scalar, d_gap, dc_mode_override) Evaluate_Case1_TensorBlock(...
                 state_idx, loweredge_matrix, maxgap_scalar, d_gap, N_a1_dc, N_a1_other, max(1, N_a2), N_d_safe, N_ze_local, ...
                 Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_mat, A1_grids_1d, a2_grids_1d, ...
                 vfoptions.gridinterplayer, n2short, n2long, beta_j, EV_local, EV_bounded_pre, EV_interp_local, a1prime_grid, ...
                 TensorReturnFn, ReturnFnParamsCell, ezc2(jj), ezc3, ezc4, ezc7(jj), ...
-                TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, dc_mode_override);
+                TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, dc_mode_override, 0, pi_u_shape);
 
             SlicerWrapper = @(a1_idx, low_mat, mg, dc_mode) Helper_SlicerWrapper(a1_idx, low_mat, mg, dc_mode, N_a1_dc, N_a1_other, max(1, N_a2), N_ze_local, max(1, N_d_safe), LocalBlockFn);
 
@@ -841,12 +840,12 @@ for reverse_j = 0:N_j-1
                 else; EV_bounded_pre = []; static_EV_offset = []; end
 
                 % The non-DC Block takes 5 arguments
-                LocalBlockFn = @(state_idx, loweredge_matrix, maxgap_scalar, d_gap, dc_mode_override, CollapseEV) Evaluate_Case1_TensorBlock(...
+                LocalBlockFn = @(state_idx, loweredge_matrix, maxgap_scalar, d_gap, dc_mode_override) Evaluate_Case1_TensorBlock(...
                     state_idx, loweredge_matrix, maxgap_scalar, d_gap, N_a1_dc, N_a1_other, max(1, N_a2_local), N_d_safe, N_ze_local, ...
                     Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_local, A1_grids_1d, a2_grids_1d, ...
                     vfoptions.gridinterplayer, n2short, n2long, beta_j, EV_local, EV_bounded_pre, EV_interp_local, a1prime_grid, ...
                     TensorReturnFn, ReturnFnParamsCell, ezc2(jj), ezc3, ezc4, ezc7(jj), ...
-                    TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, dc_mode_override);
+                    TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, dc_mode_override, 0, pi_u_shape);
 
                 state_list = start_a_idx:end_a_idx;
                 total_states = length(state_list);
@@ -950,10 +949,10 @@ function [V_j_max, Pol_apr_max, Pol_d_max, Pol_L2idx_max, Pol_L2flag_max, Pol_a1
     Z_cells_block, E_cells_block, D_cells_block, A1_mat, A2_mat, A1_grids_1d, a2_grids_1d, ...
     gridinterplayer, n2short, n2long, beta_j, EV_local, EV_bounded_pre, EV_interp_local, a1prime_grid, ...
     TensorReturnFn, ReturnFnParamsCell, ezc2_j, ezc3, ezc4, ezc7_j, ...
-    TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, is_dc_mode, d_override, CollapseEV)
+    TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, is_dc_mode, d_override, pi_u_shape)
 
 if nargin < 39 || isempty(d_override); d_override = 0; end
-if nargin < 40 || isempty(CollapseEV); CollapseEV = @(x) x; end
+if nargin < 40 || isempty(pi_u_shape); pi_u_shape = []; end
 
 if d_override > 0
     N_d_safe_local = 1;
@@ -1025,22 +1024,49 @@ if isempty(loweredge_matrix)
             weight(abs(weight) < 1e-12) = 0;
             weight(abs(weight - 1) < 1e-12) = 1;
 
-            A1pr_idx = reshape(1:(N_a1_dc * N_a1_other), [1, (N_a1_dc * N_a1_other), 1, 1, 1]); ZE_idx = reshape(1:N_ze_local, [1, 1, 1, n_z_loc, n_e_loc]);
+            A1pr_idx = reshape(1:(N_a1_dc * N_a1_other), [1, (N_a1_dc * N_a1_other), 1, 1, 1]);
+            ZE_idx = reshape(1:N_ze_local, [1, 1, 1, n_z_loc, n_e_loc]);
             N_a2_global = max(1, prod(cellfun(@length, a2_grids_1d)));
-            idx_left  = A1pr_idx + (idx - 1) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
-            idx_right = A1pr_idx + (idx) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
-            max_idx = numel(EV_local);
-            dsemiz_stride = size(EV_local, 1) * size(EV_local, 2);
-            linear_idx_left  = min(max_idx, max(1, idx_left  + (dsemiz_idx_tensor - 1) * dsemiz_stride));
-            linear_idx_right = min(max_idx, max(1, idx_right + (dsemiz_idx_tensor - 1) * dsemiz_stride));
 
-            EV_bounded = EV_local(linear_idx_left) + weight .* (EV_local(linear_idx_right) - EV_local(linear_idx_left));
-            weight_full = weight + zeros(1, num_choices_total, 1, n_z_loc, n_e_loc, 'like', weight);
-            EV_bounded(weight_full == 0) = EV_local(linear_idx_left(weight_full == 0));
-            EV_bounded(weight_full == 1) = EV_local(linear_idx_right(weight_full == 1));
-            EV_bounded(isnan(EV_bounded)) = -Inf;
-            EV_bounded = beta_j .* EV_bounded;
-            EV_bounded = CollapseEV(EV_bounded);
+            if ~isempty(pi_u_shape)
+                EV_bounded = 0;
+                for iu = 1:size(pi_u_shape, 6)
+                    idx_u = idx(:, :, :, :, :, iu);
+                    weight_u = weight(:, :, :, :, :, iu);
+
+                    idx_left_u  = A1pr_idx + (idx_u - 1) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
+                    idx_right_u = A1pr_idx + (idx_u) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
+
+                    max_idx = numel(EV_local);
+                    dsemiz_stride = size(EV_local, 1) * size(EV_local, 2);
+                    linear_idx_left_u  = min(max_idx, max(1, idx_left_u  + (dsemiz_idx_tensor - 1) * dsemiz_stride));
+                    linear_idx_right_u = min(max_idx, max(1, idx_right_u + (dsemiz_idx_tensor - 1) * dsemiz_stride));
+
+                    EV_bounded_u = EV_local(linear_idx_left_u) + weight_u .* (EV_local(linear_idx_right_u) - EV_local(linear_idx_left_u));
+                    weight_full_u = weight_u + zeros(1, num_choices_total, 1, n_z_loc, n_e_loc, 'like', weight_u);
+                    EV_bounded_u(weight_full_u == 0) = EV_local(linear_idx_left_u(weight_full_u == 0));
+                    EV_bounded_u(weight_full_u == 1) = EV_local(linear_idx_right_u(weight_full_u == 1));
+
+                    EV_bounded = EV_bounded + EV_bounded_u .* pi_u_shape(1,1,1,1,1,iu);
+                end
+                EV_bounded(isnan(EV_bounded)) = -Inf;
+                EV_bounded = beta_j .* EV_bounded;
+            else
+                idx_left  = A1pr_idx + (idx - 1) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
+                idx_right = A1pr_idx + (idx) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
+
+                max_idx = numel(EV_local);
+                dsemiz_stride = size(EV_local, 1) * size(EV_local, 2);
+                linear_idx_left  = min(max_idx, max(1, idx_left  + (dsemiz_idx_tensor - 1) * dsemiz_stride));
+                linear_idx_right = min(max_idx, max(1, idx_right + (dsemiz_idx_tensor - 1) * dsemiz_stride));
+
+                EV_bounded = EV_local(linear_idx_left) + weight .* (EV_local(linear_idx_right) - EV_local(linear_idx_left));
+                weight_full = weight + zeros(1, num_choices_total, 1, n_z_loc, n_e_loc, 'like', weight);
+                EV_bounded(weight_full == 0) = EV_local(linear_idx_left(weight_full == 0));
+                EV_bounded(weight_full == 1) = EV_local(linear_idx_right(weight_full == 1));
+                EV_bounded(isnan(EV_bounded)) = -Inf;
+                EV_bounded = beta_j .* EV_bounded;
+            end
         else
             F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
             choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
@@ -1124,20 +1150,52 @@ if isempty(loweredge_matrix)
 
             A1pr_idx = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
             ZE_offset = reshape((0:N_ze_local-1) * (length(a1prime_grid) * N_a1_other * N_a2), [1, 1, 1, n_z_loc, n_e_loc]);
-            lin_idx_left = A1pr_idx + (idx - 1) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
-            lin_idx_right = A1pr_idx + (idx) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
-            if N_dsemiz > 1
-                dsemiz_offset = (dsemiz_idx_tensor - 1) * (length(a1prime_grid) * N_a1_other * N_a2 * N_ze_local);
-                lin_idx_left = lin_idx_left + dsemiz_offset; lin_idx_right = lin_idx_right + dsemiz_offset;
+
+            if ~isempty(pi_u_shape)
+                EV_bounded = 0;
+                for iu = 1:size(pi_u_shape, 6)
+                    idx_u = idx(:, :, :, :, :, iu);
+                    weight_u = weight(:, :, :, :, :, iu);
+
+                    lin_idx_left_u = A1pr_idx + (idx_u - 1) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
+                    lin_idx_right_u = A1pr_idx + (idx_u) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
+                    if N_dsemiz > 1
+                        dsemiz_offset = (dsemiz_idx_tensor - 1) * (length(a1prime_grid) * N_a1_other * N_a2 * N_ze_local);
+                        lin_idx_left_u = lin_idx_left_u + dsemiz_offset;
+                        lin_idx_right_u = lin_idx_right_u + dsemiz_offset;
+                    end
+
+                    EV_left_u = EV_interp_local(lin_idx_left_u);
+                    EV_right_u = EV_interp_local(lin_idx_right_u);
+                    EV_bounded_u = EV_left_u + weight_u .* (EV_right_u - EV_left_u);
+
+                    weight_full_u = weight_u + zeros(1, num_choices_total, 1, n_z_loc, n_e_loc, 'like', weight_u);
+                    EV_bounded_u(weight_full_u == 0) = EV_interp_local(lin_idx_left_u(weight_full_u == 0));
+                    EV_bounded_u(weight_full_u == 1) = EV_interp_local(lin_idx_right_u(weight_full_u == 1));
+
+                    EV_bounded = EV_bounded + EV_bounded_u .* pi_u_shape(1,1,1,1,1,iu);
+                end
+                EV_bounded(isnan(EV_bounded)) = -Inf;
+                EV_bounded = beta_j .* EV_bounded;
+            else
+                lin_idx_left = A1pr_idx + (idx - 1) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
+                lin_idx_right = A1pr_idx + (idx) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
+                if N_dsemiz > 1
+                    dsemiz_offset = (dsemiz_idx_tensor - 1) * (length(a1prime_grid) * N_a1_other * N_a2 * N_ze_local);
+                    lin_idx_left = lin_idx_left + dsemiz_offset;
+                    lin_idx_right = lin_idx_right + dsemiz_offset;
+                end
+                EV_left = EV_interp_local(lin_idx_left);
+                EV_right = EV_interp_local(lin_idx_right);
+                EV_bounded = EV_left + weight .* (EV_right - EV_left);
+                clear EV_left EV_right; % Memory Hoist
+
+                weight_full = weight + zeros(1, num_choices_total, 1, n_z_loc, n_e_loc, 'like', weight);
+                EV_bounded(weight_full == 0) = EV_interp_local(lin_idx_left(weight_full == 0));
+                EV_bounded(weight_full == 1) = EV_interp_local(lin_idx_right(weight_full == 1));
+                EV_bounded(isnan(EV_bounded)) = -Inf;
+                EV_bounded = beta_j .* EV_bounded;
             end
-            EV_left = EV_interp_local(lin_idx_left); EV_right = EV_interp_local(lin_idx_right);
-            EV_bounded = EV_local(linear_idx_left) + weight .* (EV_local(linear_idx_right) - EV_local(linear_idx_left));
-            weight_full = weight + zeros(1, num_choices_total, 1, n_z_loc, n_e_loc, 'like', weight);
-            EV_bounded(weight_full == 0) = EV_local(linear_idx_left(weight_full == 0));
-            EV_bounded(weight_full == 1) = EV_local(linear_idx_right(weight_full == 1));
-            EV_bounded(isnan(EV_bounded)) = -Inf;
-            EV_bounded = beta_j .* EV_bounded;
-            EV_bounded = CollapseEV(EV_bounded);
         else
             for i_a = 1:length(Apr_cells)
                 Apr_cells{i_a} = cast(Apr_cells{i_a}, 'like', EV_local);
@@ -1276,21 +1334,46 @@ else
 
             ZE_idx = reshape(1:N_ze_local, [1, 1, 1, n_z_loc, n_e_loc]);
             N_a2_global = max(1, prod(cellfun(@length, a2_grids_1d)));
-            idx_left  = choice_idx_linear + (idx - 1) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
-            idx_right = choice_idx_linear + (idx) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
 
-            max_idx = numel(EV_local);
-            dsemiz_stride = size(EV_local, 1) * size(EV_local, 2);
-            linear_idx_left  = min(max_idx, max(1, idx_left  + (dsemiz_idx_tensor - 1) * dsemiz_stride));
-            linear_idx_right = min(max_idx, max(1, idx_right + (dsemiz_idx_tensor - 1) * dsemiz_stride));
+            if ~isempty(pi_u_shape)
+                EV_bounded = 0;
+                for iu = 1:size(pi_u_shape, 6)
+                    idx_u = idx(:, :, :, :, :, iu);
+                    weight_u = weight(:, :, :, :, :, iu);
 
-            EV_bounded = EV_local(linear_idx_left) + weight .* (EV_local(linear_idx_right) - EV_local(linear_idx_left));
-            weight_full = weight + zeros(1, num_choices_total, 1, n_z_loc, n_e_loc, 'like', weight);
-            EV_bounded(weight_full == 0) = EV_local(linear_idx_left(weight_full == 0));
-            EV_bounded(weight_full == 1) = EV_local(linear_idx_right(weight_full == 1));
-            EV_bounded(isnan(EV_bounded)) = -Inf;
-            EV_bounded = beta_j .* EV_bounded;
-            EV_bounded = CollapseEV(EV_bounded);
+                    idx_left_u  = choice_idx_linear + (idx_u - 1) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
+                    idx_right_u = choice_idx_linear + (idx_u) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
+
+                    max_idx = numel(EV_local);
+                    dsemiz_stride = size(EV_local, 1) * size(EV_local, 2);
+                    linear_idx_left_u  = min(max_idx, max(1, idx_left_u  + (dsemiz_idx_tensor - 1) * dsemiz_stride));
+                    linear_idx_right_u = min(max_idx, max(1, idx_right_u + (dsemiz_idx_tensor - 1) * dsemiz_stride));
+
+                    EV_bounded_u = EV_local(linear_idx_left_u) + weight_u .* (EV_local(linear_idx_right_u) - EV_local(linear_idx_left_u));
+                    weight_full_u = weight_u + zeros(1, num_choices_total, 1, n_z_loc, n_e_loc, 'like', weight_u);
+                    EV_bounded_u(weight_full_u == 0) = EV_local(linear_idx_left_u(weight_full_u == 0));
+                    EV_bounded_u(weight_full_u == 1) = EV_local(linear_idx_right_u(weight_full_u == 1));
+
+                    EV_bounded = EV_bounded + EV_bounded_u .* pi_u_shape(1,1,1,1,1,iu);
+                end
+                EV_bounded(isnan(EV_bounded)) = -Inf;
+                EV_bounded = beta_j .* EV_bounded;
+            else
+                idx_left  = choice_idx_linear + (idx - 1) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
+                idx_right = choice_idx_linear + (idx) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
+
+                max_idx = numel(EV_local);
+                dsemiz_stride = size(EV_local, 1) * size(EV_local, 2);
+                linear_idx_left  = min(max_idx, max(1, idx_left  + (dsemiz_idx_tensor - 1) * dsemiz_stride));
+                linear_idx_right = min(max_idx, max(1, idx_right + (dsemiz_idx_tensor - 1) * dsemiz_stride));
+
+                EV_bounded = EV_local(linear_idx_left) + weight .* (EV_local(linear_idx_right) - EV_local(linear_idx_left));
+                weight_full = weight + zeros(1, num_choices_total, 1, n_z_loc, n_e_loc, 'like', weight);
+                EV_bounded(weight_full == 0) = EV_local(linear_idx_left(weight_full == 0));
+                EV_bounded(weight_full == 1) = EV_local(linear_idx_right(weight_full == 1));
+                EV_bounded(isnan(EV_bounded)) = -Inf;
+                EV_bounded = beta_j .* EV_bounded;
+            end
         else
             for i_a = 1:length(Apr_cells)
                 Apr_cells{i_a} = cast(Apr_cells{i_a}, 'like', EV_local);
@@ -1362,26 +1445,52 @@ else
             weight(abs(weight - 1) < 1e-12) = 1;
 
             ZE_offset = reshape((0:N_ze_local-1) * (length(a1prime_grid) * N_a1_other * N_a2), [1, 1, 1, n_z_loc, n_e_loc]);
-            lin_idx_left = choice_idx_linear + (idx - 1) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
-            lin_idx_right = choice_idx_linear + (idx) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
 
-            if N_dsemiz > 1
-                dsemiz_offset = (dsemiz_idx_tensor - 1) * (length(a1prime_grid) * N_a1_other * N_a2 * N_ze_local);
-                lin_idx_left = lin_idx_left + dsemiz_offset;
-                lin_idx_right = lin_idx_right + dsemiz_offset;
+            if ~isempty(pi_u_shape)
+                EV_bounded = 0;
+                for iu = 1:size(pi_u_shape, 6)
+                    idx_u = idx(:, :, :, :, :, iu);
+                    weight_u = weight(:, :, :, :, :, iu);
+
+                    lin_idx_left_u = choice_idx_linear + (idx_u - 1) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
+                    lin_idx_right_u = choice_idx_linear + (idx_u) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
+                    if N_dsemiz > 1
+                        dsemiz_offset = (dsemiz_idx_tensor - 1) * (length(a1prime_grid) * N_a1_other * N_a2 * N_ze_local);
+                        lin_idx_left_u = lin_idx_left_u + dsemiz_offset;
+                        lin_idx_right_u = lin_idx_right_u + dsemiz_offset;
+                    end
+
+                    EV_left_u = EV_interp_local(lin_idx_left_u);
+                    EV_right_u = EV_interp_local(lin_idx_right_u);
+                    EV_bounded_u = EV_left_u + weight_u .* (EV_right_u - EV_left_u);
+
+                    weight_full_u = weight_u + zeros(1, num_choices_total, 1, n_z_loc, n_e_loc, 'like', weight_u);
+                    EV_bounded_u(weight_full_u == 0) = EV_interp_local(lin_idx_left_u(weight_full_u == 0));
+                    EV_bounded_u(weight_full_u == 1) = EV_interp_local(lin_idx_right_u(weight_full_u == 1));
+
+                    EV_bounded = EV_bounded + EV_bounded_u .* pi_u_shape(1,1,1,1,1,iu);
+                end
+                EV_bounded(isnan(EV_bounded)) = -Inf;
+                EV_bounded = beta_j .* EV_bounded;
+            else
+                lin_idx_left = choice_idx_linear + (idx - 1) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
+                lin_idx_right = choice_idx_linear + (idx) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
+                if N_dsemiz > 1
+                    dsemiz_offset = (dsemiz_idx_tensor - 1) * (length(a1prime_grid) * N_a1_other * N_a2 * N_ze_local);
+                    lin_idx_left = lin_idx_left + dsemiz_offset;
+                    lin_idx_right = lin_idx_right + dsemiz_offset;
+                end
+                EV_left = EV_interp_local(lin_idx_left);
+                EV_right = EV_interp_local(lin_idx_right);
+                EV_bounded = EV_left + weight .* (EV_right - EV_left);
+                clear EV_left EV_right; % Memory Hoist
+
+                weight_full = weight + zeros(1, num_choices_total, 1, n_z_loc, n_e_loc, 'like', weight);
+                EV_bounded(weight_full == 0) = EV_interp_local(lin_idx_left(weight_full == 0));
+                EV_bounded(weight_full == 1) = EV_interp_local(lin_idx_right(weight_full == 1));
+                EV_bounded(isnan(EV_bounded)) = -Inf;
+                EV_bounded = beta_j .* EV_bounded;
             end
-
-            EV_left = EV_interp_local(lin_idx_left);
-            EV_right = EV_interp_local(lin_idx_right);
-            EV_bounded = EV_left + weight .* (EV_right - EV_left);
-            clear EV_left EV_right; % Memory Hoist
-
-            weight_full = weight + zeros(1, num_choices_total, 1, n_z_loc, n_e_loc, 'like', weight);
-            EV_bounded(weight_full == 0) = EV_interp_local(lin_idx_left(weight_full == 0));
-            EV_bounded(weight_full == 1) = EV_interp_local(lin_idx_right(weight_full == 1));
-            EV_bounded(isnan(EV_bounded)) = -Inf;
-            EV_bounded = beta_j .* EV_bounded;
-            EV_bounded = CollapseEV(EV_bounded);
         else
             for i_a = 1:length(Apr_cells)
                 Apr_cells{i_a} = cast(Apr_cells{i_a}, 'like', EV_local);
