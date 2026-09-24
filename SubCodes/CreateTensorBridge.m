@@ -1,30 +1,36 @@
 function TensorFn = CreateTensorBridge(InputFn)
 
-% --- 1. Handle Anonymous Functions ---
 info = functions(InputFn);
+func_name = '';
+
 if strcmp(info.type, 'anonymous')
     fn_str = info.function;
-
-    % Strip any existing dots to prevent double-dotting (e.g., ..*)
-    fn_str = strrep(fn_str, '.*', '*');
-    fn_str = strrep(fn_str, './', '/');
-    fn_str = strrep(fn_str, '.^', '^');
-
-    % Apply universal element-wise operators for tensor math
-    fn_str = strrep(fn_str, '*', '.*');
-    fn_str = strrep(fn_str, '/', './');
-    fn_str = strrep(fn_str, '^', '.^');
-
-    TensorFn = str2func(fn_str);
-    return;
+    
+    % Look for a pattern like @(...) FunctionName(...)
+    % Captures the word immediately following the closing parenthesis of the input arguments
+    tokens = regexp(fn_str, '@\([^)]*\)\s*([a-zA-Z]\w*)\s*\(', 'tokens');
+    
+    if ~isempty(tokens)
+        extracted_name = tokens{1}{1};
+        % Verify the extracted name actually corresponds to an existing .m file
+        if exist(extracted_name, 'file') == 2 || exist([extracted_name, '.m'], 'file')
+            func_name = extracted_name;
+        end
+    end
+    
+    % If it's a pure math expression (no wrapped function file found), use the fallback
+    if isempty(func_name)
+        % Wrap true anonymous functions in arrayfun to preserve scalar execution logic
+        TensorFn = @(varargin) arrayfun(InputFn, varargin{:});
+        return;
+    end
+else
+    % Standard named function handle
+    func_name = info.function;
 end
 
-% --- 2. Handle Named Functions (Existing Logic) ---
-
-baseName = info.function;
-
-num_base_args = nargin(baseName);
-wrapperName = [baseName, '_AutoBridge'];
+num_base_args = nargin(func_name);
+wrapperName = [func_name, '_AutoBridge'];
 fileName = [wrapperName, '.m'];
 
 fid = fopen(fileName, 'w');
@@ -40,19 +46,19 @@ fprintf(fid, '    num_provided = length(varargin);\n\n');
 fprintf(fid, '    if num_provided > num_expected\n');
 fprintf(fid, '        args_to_pass = varargin(1:num_expected);\n');
 fprintf(fid, '    elseif num_provided < num_expected\n');
-fprintf(fid, '        warning(''TensorBridge:MissingArgs'', ''%%s expected %%d arguments but received %%d. Padding with zeros. Check parameter introspection!'', ''%s'', num_expected, num_provided);\n', baseName);
+fprintf(fid, '        warning(''TensorBridge:MissingArgs'', ''%%s expected %%d arguments but received %%d. Padding with zeros. Check parameter introspection!'', ''%s'', num_expected, num_provided);\n', func_name);
 fprintf(fid, '        padding = num2cell(zeros(1, num_expected - num_provided));\n');
 fprintf(fid, '        args_to_pass = [varargin, padding];\n');
 fprintf(fid, '    else\n');
 fprintf(fid, '        args_to_pass = varargin;\n');
 fprintf(fid, '    end\n\n');
 
-fprintf(fid, '    F = arrayfun(@%s, args_to_pass{:});\n', baseName);
+fprintf(fid, '    F = arrayfun(@%s, args_to_pass{:});\n', func_name);
 fprintf(fid, 'end\n');
 fclose(fid);
 
 rehash;
-harnessFn = str2func(wrapperName);
+TensorFn = str2func(wrapperName);
 
 
 end
