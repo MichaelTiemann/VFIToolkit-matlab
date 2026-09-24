@@ -274,11 +274,7 @@ if is_exp_asset || vfoptions.riskyasset == 1 || vfoptions.residualasset == 1
         l_a1 = length(vfoptions.n_a1);
     end
 
-    if isequal(vfoptions.n_d1, 0)
-        l_d1 = 0;
-    else
-        l_d1 = length(vfoptions.n_d1);
-    end
+    l_d1 = vfoptions.refine_d(1);
 
     if l_a1 > 1
         n_a1_other = vfoptions.n_a1(2:end);
@@ -345,7 +341,27 @@ if l_a2 > 0
         n_e_pass_exp = n_e_pass;
     end
 
-    [TensoraprimeFn, ~, A2_cells, ~, ~] = CreateTensorFnAndCells(vfoptions.aprimeFn, vfoptions.n_d2, n_a2, n_z_pass_exp, n_e_pass_exp, [], a2_exp_grid_vals, [], []);
+    % Smart Wrapper: Isolate the exact decisions that drive the non-standard asset
+    if is_exp_asset
+        if isfield(vfoptions, 'refine_d') && length(vfoptions.refine_d) >= 2
+            l_da2prime = sum(vfoptions.refine_d(2:end));
+        elseif isfield(vfoptions, 'l_d2')
+            l_da2prime = length(vfoptions.l_d2);
+        else
+            l_da2prime = max(0, length(n_d) - l_d1);
+        end
+        d2_idx = (l_d1 + 1) : (l_d1 + l_da2prime);
+    else
+        d2_idx = 1:length(n_d); % Risky assets evaluate all decisions
+    end
+
+    if isempty(n_d) || isequal(n_d, 0) || isempty(d2_idx)
+        n_d_aprime_pass = 0;
+    else
+        n_d_aprime_pass = n_d(d2_idx);
+    end
+
+    [TensoraprimeFn, ~, A2_cells, ~, ~] = CreateTensorFnAndCells(vfoptions.aprimeFn, n_d_aprime_pass, n_a2, n_z_pass_exp, n_e_pass_exp, [], a2_exp_grid_vals, [], []);
 else
     TensoraprimeFn = [];
     A2_cells = {};
@@ -382,14 +398,17 @@ if is_exp_asset || vfoptions.riskyasset == 1
         if l_exp_semiz; num_extra = length(vfoptions.n_semiz); end
 
         if vfoptions.riskyasset == 1
-            l_d_aprime = length(n_d);
-            l_a_aprime = 1;
+            num_prefix = length(n_d) + 1 + num_extra;
         else
-            l_d_aprime = vfoptions.l_d2;
-            l_a_aprime = vfoptions.l_a2;
+            % Experience Asset: Use refine_d to find total decisions passed to aprimeFn
+            if isfield(vfoptions, 'refine_d') && length(vfoptions.refine_d) >= 2
+                l_da2prime = sum(vfoptions.refine_d(2:end));
+            else
+                l_da2prime = vfoptions.l_d2;
+            end
+            % Align with FHorz_ExpAsset: Extra input argument if l_a2 >= 2
+            num_prefix = l_da2prime + l_a2 + (l_a2 >= 2) + num_extra;
         end
-
-        num_prefix = l_d_aprime + l_a_aprime + num_extra;
 
         if length(temp) > num_prefix
             aprimeFnParamNames = {temp{num_prefix+1:end}};
@@ -397,16 +416,10 @@ if is_exp_asset || vfoptions.riskyasset == 1
             aprimeFnParamNames = {};
         end
     end
+
     aprimeFnParamNames = aprimeFnParamNames(isfield(Parameters, aprimeFnParamNames));
-
-    % Smart Wrapper: Isolate the exact decisions that drive the non-standard asset
-    if is_exp_asset
-        d2_idx = (l_d1 + 1) : (l_d1 + vfoptions.l_d2);
-    else
-        d2_idx = 1:length(n_d); % Risky assets evaluate all decisions
-    end
-
     BaseTensoraprimeFn = TensoraprimeFn;
+
     if l_exp_ze
         TensoraprimeFn = @(D, A, Z, E, P) BaseTensoraprimeFn(D{d2_idx}, A{:}, Z{:}, E{:}, P{:});
     elseif l_exp_z
@@ -527,6 +540,16 @@ if has_semiz && length(n_d) > 0
     if isfield(vfoptions, 'l_dsemiz'); N_dsemiz = prod(n_d(end-vfoptions.l_dsemiz+1:end)); else; N_dsemiz = n_d(end); end
 end
 N_z_exog = max(1, n_z_work / N_semiz_local);
+
+% --- Dynamic VRAM Profiling (Hoisted) ---
+if vfoptions.parallel == 2
+    gpu_device_info = gpuDevice();
+    % Divide by 8 bytes (double precision) and apply an 8x safety factor 
+    % to absorb all intermediate tensors inside Evaluate_Universal_RHS
+    safe_elements = max(1e7, floor((gpu_device_info.AvailableMemory / 8) / 8));
+else
+    safe_elements = 50000000; % CPU fallback
+end
 
 for reverse_j = 0:N_j-1
     jj = N_j - reverse_j;
@@ -688,9 +711,8 @@ for reverse_j = 0:N_j-1
                 % --- VRAM Protection: Cartesian Chunking for the COARSE Pass ---
                 flat_choices_coarse = max(1, N_d_safe) * N_a1_dc * N_a1_other;
                 N_other = N_a1_other * max(1, N_a2);
-                max_a1_per_chunk_coarse = max(1, floor(5e8 / (flat_choices_coarse * N_other * N_ze_local)));
+                max_a1_per_chunk_coarse = max(1, floor(safe_elements / (flat_choices_coarse * N_other * N_ze_local)));
                 loweredge_pass = zeros(max(1, N_d_safe), N_a1_other, N_a1_dc * max(1, N_a2), N_ze_local, 'like', EV_local);
-
                 for chunk_start = 1:max_a1_per_chunk_coarse:N_a1_dc
                     chunk_end = min(N_a1_dc, chunk_start + max_a1_per_chunk_coarse - 1);
                     a1_chunk = (chunk_start:chunk_end)';
@@ -703,7 +725,7 @@ for reverse_j = 0:N_j-1
 
                 % --- VRAM Protection: Cartesian Chunking for the Grid Interp Fine Pass ---
                 flat_choices = max(1, N_d_safe) * n2long * max(1, N_a1_other);
-                max_a1_per_chunk = max(1, floor(5e8 / (flat_choices * N_other * N_ze_local)));
+                max_a1_per_chunk = max(1, floor(safe_elements / (flat_choices * N_other * N_ze_local)));
 
                 v = zeros(N_a, N_ze_local, 'like', EV_local);
                 p_apr = zeros(N_a, N_ze_local, 'like', EV_local);
@@ -809,15 +831,18 @@ for reverse_j = 0:N_j-1
                     TensorReturnFn, ReturnFnParamsCell, ezc2(jj), ezc3, ezc4, ezc7(jj), ...
                     TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, dc_mode_override);
 
-                state_list = start_a_idx:end_a_idx; total_states = length(state_list);
+                state_list = start_a_idx:end_a_idx;
+                total_states = length(state_list);
                 flat_choices = max(1, N_d_safe) * N_a1_dc * N_a1_other;
-                max_states_per_chunk = max(1, floor(50000000 / (flat_choices * n_z_loc * n_e_loc)));
+
+                % --- Dynamic VRAM Protection ---
+                max_states_per_chunk = max(1, floor(safe_elements / (flat_choices * n_z_loc * n_e_loc)));
                 v_concat = []; p_apr_concat = []; p_d_concat = []; p_l2idx_concat = []; p_l2flag_concat = [];
                 for chunk_start = 1:max_states_per_chunk:total_states
                     chunk_end = min(total_states, chunk_start + max_states_per_chunk - 1);
                     state_chunk = state_list(chunk_start:chunk_end);
                     if vfoptions.gridinterplayer(1) == 1
-                        [~, ~, ~, ~, ~, p_a1_per_a2] = LocalBlockFn(state_chunk, [], 0, 0, 2, 0);
+                        [~, ~, ~, ~, ~, p_a1_per_a2] = LocalBlockFn(state_chunk, [], 0, 0, 2);
                         loweredge_chunk = reshape(p_a1_per_a2, [max(1, N_d_safe), N_a1_other, length(state_chunk), N_ze_local]);
                         [v_c, p_apr_c, p_d_c, p_l2idx_c, p_l2flag_c] = LocalBlockFn(state_chunk, loweredge_chunk, n2long - 1, 0, 0);
                     else
