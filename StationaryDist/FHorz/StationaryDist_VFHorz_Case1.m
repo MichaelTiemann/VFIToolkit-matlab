@@ -1,13 +1,12 @@
-function StationaryDist_new = StationaryDist_VFHorz_Case1(jequaloneDist, AgeWeightParamNames, Policy, n_d, n_a, n_z, N_j, pi_z_J, Parameters, simoptions)
-
+function StationaryDist_new = StationaryDist_VFHorz_Case1(jequaloneDist, AgeWeightParamNames, Policy, n_d, n_a, n_z, N_j, pi_z, Parameters, simoptions)
 % STATIONARYDIST_VFHORZ_CASE1
 % Master Orchestrator for V-World Forward Simulation.
 % Inspects the model structure and dispatches to the correct vectorized tensor engine.
 
 % --- 1. Identify Model Features from simoptions ---
-
 if exist('simoptions','var')==0
     simoptions.gridinterplayer=0; % =1 Policy interpolates between grid points (must match vfoptions.interpgridlayer)
+
     % Alternative endo states
     simoptions.experienceasset=0;
     simoptions.experienceassetu=0;
@@ -17,9 +16,11 @@ if exist('simoptions','var')==0
     simoptions.experienceassetsemiz=0;
     simoptions.riskyasset=0;
     simoptions.residualasset=0;
+
     % Exogenous shocks
     simoptions.n_e=0;
     simoptions.n_semiz=0;
+
     % Things that are really just for internal usage
     simoptions.parallel=1+(gpuDeviceCount>0);
     simoptions.outputkron=0; % If 1 then leave output in Kron form
@@ -37,6 +38,7 @@ else
             error('When using simoptions.gridinterplayer=1 you must set simoptions.ngridinterp (number of points to interpolate for aprime between each consecutive pair of points in a_grid)')
         end
     end
+
     % Alternative endo states
     if ~isfield(simoptions,'experienceasset')
         simoptions.experienceasset=0;
@@ -62,6 +64,7 @@ else
     if ~isfield(simoptions,'residualasset')
         simoptions.residualasset=0;
     end
+
     % Exogenous shocks
     if ~isfield(simoptions,'n_e')
         simoptions.n_e=0;
@@ -69,6 +72,7 @@ else
     if ~isfield(simoptions,'n_semiz')
         simoptions.n_semiz=0;
     end
+
     % Things that are really just for internal usage
     if ~isfield(simoptions,'parallel')
         simoptions.parallel=1+(gpuDeviceCount>0);
@@ -85,6 +89,7 @@ else
     if ~isfield(simoptions,'jequaloneDistAge')
         simoptions.jequaloneDistAge=1; % jequaloneDist is the distribution at this age (=1 is the standard first period)
     end
+
     % Some options require certain other inputs, and these have to be on the GPU
     if isfield(simoptions,'d_grid')
         simoptions.d_grid=gpuArray(simoptions.d_grid);
@@ -113,6 +118,7 @@ else
             z_gridvals_J=[];
         end
     end
+
     if ~isfield(simoptions, 'optimize_nProbs')
         simoptions.optimize_nProbs = 0;
     end
@@ -123,37 +129,64 @@ end
 
 %% Check for the age weights parameter, and make sure it is a row vector
 if size(Parameters.(AgeWeightParamNames{1}),2)==1 % Seems like column vector
-    Parameters.(AgeWeightParamNames{1})=Parameters.(AgeWeightParamNames{1})';
-    % Note: assumed there is only one AgeWeightParamNames
+    Parameters.(AgeWeightParamNames{1})=Parameters.(AgeWeightParamNames{1})'; % Note: assumed there is only one AgeWeightParamNames
 end
+
 % And check that the age weights sum to one
-if abs((sum(Parameters.(AgeWeightParamNames{1}))-1))>10^(-15)
-    warning('StationaryDist: The age-weights do not sum to one')
+if simoptions.jequaloneDistAge==1
+    if abs((sum(Parameters.(AgeWeightParamNames{1}))-1))>10^(-15)
+        warning('StationaryDist: The age-weights do not sum to one')
+    end
 end
 
 %%
 if simoptions.parallel<2
-   % CPU can be used, but only for the basics. Is kept separate here so that the rest of the codes can just assume you have GPU and work with it.
-   StationaryDist=StationaryDist_FHorz_CPU(jequaloneDist,AgeWeightParamNames,Policy,n_d,n_a,n_z,N_j,pi_z,Parameters,simoptions);
-   return
+    % CPU can be used, but only for the basics. Is kept separate here so that the rest of the codes can just assume you have GPU and work with it.
+    StationaryDist_new=StationaryDist_FHorz_CPU(jequaloneDist,AgeWeightParamNames,Policy,n_d,n_a,n_z,N_j,pi_z,Parameters,simoptions);
+    return
 end
 
-has_expasset  = simoptions.experienceasset == 1;
-has_expassetz = simoptions.experienceassetz == 1;
-has_semiz     = prod(simoptions.n_semiz)>0;
-
-if has_semiz
-    % Unpack Semi-Exo requirements
-    n_semiz = simoptions.n_semiz;
-
-    % Fetch the pre-calculated transition tensor
-    if isfield(simoptions, 'pi_semiz_J')
-        pi_semiz_J = simoptions.pi_semiz_J;
+%% Exogenous shock grids
+if simoptions.alreadygridvals==0
+    if isfield(simoptions,'z_grid')
+        % things like experienceassetz and experienceassetze require z_gridvals_J
+        [z_gridvals_J, pi_z_J, simoptions]=ExogShockSetup_FHorz(n_z,simoptions.z_grid,pi_z,N_j,Parameters,simoptions,3,0);
+    elseif simoptions.experienceassete>=1
+        [~, pi_z_J, simoptions]=ExogShockSetup_FHorz(n_z,[],pi_z,N_j,Parameters,simoptions,2,0);
+        [~, ~, simoptions]=ExogShockSetup_FHorz(0,[],pi_z,N_j,Parameters,simoptions,3,0);
     else
-        %% Semi-exogenous shock gridvals and pi
-        % Internally, only ever use age-dependent joint-grids
-        % Would be great to get these from vfoptions already calculated...
-        simoptions = SemiExogShockSetup_FHorz(n_d, N_j, simoptions.d_grid, Parameters, simoptions, 3);
+        % This is the default
+        [~, pi_z_J, simoptions]=ExogShockSetup_FHorz(n_z,[],pi_z,N_j,Parameters,simoptions,2,0);
+    end
+elseif simoptions.alreadygridvals==1
+    if isfield(simoptions,'z_grid')
+        z_gridvals_J=simoptions.z_grid;
+    end
+    pi_z_J=pi_z;
+end
+
+%% Ensure z_gridvals_J is defined if N_z == 0 to prevent downstream undeclared variable errors
+if ~exist('z_gridvals_J', 'var')
+    z_gridvals_J = [];
+end
+
+%% Semi-exogenous shock gridvals and pi
+N_semiz=prod(simoptions.n_semiz);
+if simoptions.alreadygridvals_semiexo==0
+    if N_semiz>0
+        if simoptions.experienceassetsemiz>=1
+            simoptions=SemiExogShockSetup_FHorz(n_d,N_j,simoptions.d_grid,Parameters,simoptions,3);
+            simoptions.pi_semiz_J=gather(simoptions.pi_semiz_J);
+        else
+            simoptions=SemiExogShockSetup_FHorz(n_d,N_j,simoptions.d_grid,Parameters,simoptions,2);
+        end
+    end
+end
+
+has_semiz = N_semiz > 0;
+if has_semiz
+    n_semiz = simoptions.n_semiz;
+    if isfield(simoptions, 'pi_semiz_J')
         pi_semiz_J = simoptions.pi_semiz_J;
     end
 else
@@ -161,37 +194,52 @@ else
     pi_semiz_J = [];
 end
 
-% --- 1.5. Legacy Compatibility: Inflate pi_z_J to 3D ---
-% Legacy iteration functions (e.g., StationaryDist_FHorz_SemiExo) 
-% strictly index pi_z_J(:,:,jj) without checking dimensions.
-if size(pi_z_J, 3) == 1 && N_j > 1
-    pi_z_J = repmat(pi_z_J, [1, 1, N_j]);
+%% If age one distribution is input as a function, then evaluate it
+if isa(jequaloneDist, 'function_handle')
+    jequaloneDistFn=jequaloneDist;
+    clear jequaloneDist
+    % figure out any parameters
+    temp=getAnonymousFnInputNames(jequaloneDistFn);
+    if length(temp)>4
+        jequaloneDistFnParamNames={temp{5:end}};
+    else
+        jequaloneDistFnParamNames={};
+    end
+    jequaloneParamsCell={};
+    for pp=1:length(jequaloneDistFnParamNames)
+        jequaloneParamsCell{pp}=Parameters.(jequaloneDistFnParamNames{pp});
+    end
+    jequaloneDist=jequaloneDistFn(simoptions.a_grid,simoptions.z_grid,n_a,n_z,jequaloneParamsCell{:});
 end
 
-% --- 2. Dispatch to Specific Orchestrators ---
+if abs(sum(jequaloneDist(:))-1)>10^(-9)
+    error('The jequaloneDist must be of mass one')
+end
+
+%% --- 2. Dispatch to Specific Orchestrators ---
+has_expasset  = simoptions.experienceasset >= 1;
+has_expassetz = simoptions.experienceassetz >= 1;
+
 if (has_expasset || has_expassetz)
+    % Route to Universal StationaryDist_VFHorz_ExpAsset
+    tic;
+    StationaryDist_new = StationaryDist_VFHorz_ExpAsset(...
+        jequaloneDist, AgeWeightParamNames, Policy, n_d, n_a, n_z, ...
+        N_j, z_gridvals_J, pi_z_J, Parameters, simoptions);
+    time_new=toc;
+
+    % Route to the reference StationaryDist_FHorz functions as required...
     if has_semiz
-        % Route to the Universal ExpAssetSemiZ Simulator
-        tic;
-        StationaryDist_new = StationaryDist_VFHorz_ExpAssetsemiz(...
-            jequaloneDist, AgeWeightParamNames, Policy, n_d, n_a, n_semiz, n_z, ...
-            N_j, pi_semiz_J, pi_z_J, Parameters, simoptions);
-        time_new=toc;
         tic;
         StationaryDist_ref = StationaryDist_FHorz_ExpAssetsemiz(...
             jequaloneDist, AgeWeightParamNames, Policy, n_d, n_a, n_semiz, n_z, ...
             N_j, pi_semiz_J, pi_z_J, Parameters, simoptions);
         time_ref=toc;
+
         if any(StationaryDist_new ~= StationaryDist_ref)
             error("StationaryDist_new ~= StationaryDist_ref")
         end
     else
-        % Route to StationaryDist_VFHorz_ExpAsset
-        tic;
-        StationaryDist_new = StationaryDist_VFHorz_ExpAsset(...
-            jequaloneDist, AgeWeightParamNames, Policy, n_d, n_a, n_z, ...
-            N_j, simoptions.z_gridvals_J, pi_z_J, Parameters, simoptions);
-        time_new=toc;
         StationaryDist_ref = StationaryDist_VFHorz_ExpAsset(...
             jequaloneDist, AgeWeightParamNames, Policy, n_d, n_a, n_z, ...
             N_j, simoptions.z_gridvals_J, pi_z_J, Parameters, simoptions);
@@ -216,10 +264,10 @@ else
 
     if isempty(original_func)
         % Get the name of this file (e.g., 'my_shadowing_function.m')
-        this_file = 'StationaryDist_FHorz_Case1.m'; 
+        this_file = 'StationaryDist_FHorz_Case1.m';
 
         % Find all instances on the MATLAB path
-        all_paths = which(this_file, '-all'); 
+        all_paths = which(this_file, '-all');
 
         % If the shadowing file is in IntroToLifeCycleModels, skip past that
         shadowed_file_path = all_paths{1 + logical(strfind(all_paths{1},'IntroToLifeCycleModels'))};
@@ -229,7 +277,7 @@ else
 
         % Temporarily change directories to get a clean handle to it
         current_dir = cd(shadowed_dir);
-        original_func = str2func(this_file(1:end-2)); % chop off the .m at the end 
+        original_func = str2func(this_file(1:end-2)); % chop off the .m at the end
         cd(current_dir); % Go back safely
     end
 
@@ -238,14 +286,13 @@ else
     % Call the shadowed function using the saved handle
     StationaryDist_new = original_func( ...
         jequaloneDist,AgeWeightParamNames,Policy,n_d,n_a,n_z, ...
-        N_j,pi_z_J,Parameters,simoptions);
-
+        N_j,pi_z,Parameters,simoptions);
     return
 
     % When no longer testing double-barrel style, just call the function directly
     StationaryDist_new=StationaryDist_FHorz_Case1( ...
         jequaloneDist,AgeWeightParamNames,Policy,n_d,n_a,n_z, ...
-        N_j,pi_z_J,Parameters,simoptions);
+        N_j,pi_z,Parameters,simoptions);
 end
 
 
