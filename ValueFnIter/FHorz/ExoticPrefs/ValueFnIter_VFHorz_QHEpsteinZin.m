@@ -313,7 +313,7 @@ for reverse_j = 0:N_j-1
             end
 
             % --- PASS 2: The Actual Reality Pass ---
-            LocalBlockFn_Actual = @(state_idx, loweredge_matrix, maxgap_scalar) QHEZ_SlicerWrapper(...
+            LocalBlockFn_Actual = @(state_idx, loweredge_matrix, maxgap_scalar) Evaluate_QHEZ_TensorBlock(...
                 state_idx, loweredge_matrix, maxgap_scalar, N_a1, N_a2, N_d_safe, N_ze_local, ...
                 Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_mat, a2_grids_1d, l_a2, ...
                 vfoptions.gridinterplayer, n2short, n2long, beta0_j(jj), delta_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
@@ -322,12 +322,15 @@ for reverse_j = 0:N_j-1
                 TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, 1);
 
             full_state_chunk = 1:(N_a1 * N_a2);
-
-            % Slicer securely evaluates the fine grid bounds to guarantee the global peak
-            [~, p_apr_coarse] = ValueFnIter_DC1_Slicer(N_a1 * N_a2, N_a, 1, N_ze_local, vfoptions, LocalBlockFn_Actual);
-
-            % A final, targeted pass extracts Valt and identical policy variables
-            [v, p_apr, p_d, p_l2idx, p_l2flag, valt] = LocalBlockFn_Actual(full_state_chunk, p_apr_coarse, 0);
+            if vfoptions.gridinterplayer(1) == 1
+                % Slicer dynamically tracks the peak directly on the fine grid!
+                [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC1_Slicer(N_a1 * N_a2, length(a1prime_grid), 1, N_ze_local, vfoptions, LocalBlockFn_Actual);
+                % One final targeted pass strictly to extract Valt
+                [~, ~, ~, ~, ~, valt] = LocalBlockFn_Actual(full_state_chunk, p_apr, 0);
+            else
+                [v, p_apr, p_d] = ValueFnIter_DC1_Slicer(N_a1 * N_a2, N_a, 1, N_ze_local, vfoptions, LocalBlockFn_Actual);
+                [~, ~, ~, p_l2idx, p_l2flag, valt] = LocalBlockFn_Actual(full_state_chunk, p_apr, 0);
+            end
 
             V_j_max(:, curr_ze)     = reshape(v,     [N_a1 * N_a2, N_ze_local]);
             Valt_j_max(:, curr_ze)  = reshape(valt,  [N_a1 * N_a2, N_ze_local]);
@@ -858,6 +861,19 @@ else
         Pol_L2flag_max(inLowerStrict) = 3;
         Pol_L2flag_max(inUpperStrict) = 1;
         Pol_L2flag_max = reshape(Pol_L2flag_max, [N_states, N_ze_local]);
+    end
+end
+
+if is_dc_mode == 1
+    V_j_max = reshape(V_j_max, [1, N_states, 1, N_ze_local]);
+    Pol_apr_max = reshape(Pol_apr_max, [1, N_states, 1, N_ze_local]);
+    Pol_d_max = reshape(Pol_d_max, [1, N_states, 1, N_ze_local]);
+    if ~isempty(Pol_L2idx_max)
+        Pol_L2idx_max = reshape(Pol_L2idx_max, [1, N_states, 1, N_ze_local]);
+        Pol_L2flag_max = reshape(Pol_L2flag_max, [1, N_states, 1, N_ze_local]);
+    end
+    if ~isempty(Valt_j_max)
+        Valt_j_max = reshape(Valt_j_max, [1, N_states, 1, N_ze_local]);
     end
 end
 
