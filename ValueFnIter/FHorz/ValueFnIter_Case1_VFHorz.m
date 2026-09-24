@@ -1042,54 +1042,65 @@ if isempty(loweredge_matrix)
             N_a1_total = N_a1_dc * N_a1_other;
             EV_3D = reshape(EV_local, [N_a1_total, N_a2_global * N_ze_local * N_dsemiz]);
 
-            idx_2d_left  = idx + (ZE_idx - 1) * N_a2_global + (dsemiz_idx_tensor - 1) * (N_a2_global * N_ze_local);
-            idx_2d_right = idx + 1 + (ZE_idx - 1) * N_a2_global + (dsemiz_idx_tensor - 1) * (N_a2_global * N_ze_local);
-            idx_2d_left = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_left));
-            idx_2d_right = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_right));
-
-            EV_left_raw = EV_3D(:, idx_2d_left(:));
-            EV_right_raw = EV_3D(:, idx_2d_right(:));
-
-            target_shape = zeros(1, 1, 1, n_z_loc, n_e_loc, 1, 'like', EV_left_raw);
-
             if ~isempty(pi_u_shape)
-                n_u_loc = size(pi_u_shape, 6);
-                W_left = (1 - weight) .* pi_u_shape;
-                W_right = weight .* pi_u_shape;
+                EV_compact = 0;
+                for iu = 1:size(pi_u_shape, 6)
+                    idx_u = idx(:, :, :, :, :, iu);
+                    weight_u = weight(:, :, :, :, :, iu);
 
-                W_left_exp = W_left + target_shape;
-                W_right_exp = W_right + target_shape;
+                    idx_2d_left  = idx_u + (ZE_idx - 1) * N_a2_global + (dsemiz_idx_tensor - 1) * (N_a2_global * N_ze_local);
+                    idx_2d_right = idx_u + 1 + (ZE_idx - 1) * N_a2_global + (dsemiz_idx_tensor - 1) * (N_a2_global * N_ze_local);
+                    idx_2d_left = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_left));
+                    idx_2d_right = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_right));
 
-                term_left = EV_left_raw .* W_left_exp(:)';
-                term_right = EV_right_raw .* W_right_exp(:)';
+                    EV_left_raw = EV_3D(:, idx_2d_left(:));
+                    EV_right_raw = EV_3D(:, idx_2d_right(:));
 
-                term_left(isnan(term_left)) = 0;
-                term_right(isnan(term_right)) = 0;
+                    EV_left_u = reshape(EV_left_raw, [N_a1_total, N_d_safe_local, N_a2_global, n_z_loc, n_e_loc]);
+                    EV_left_u = permute(EV_left_u, [2, 1, 3, 4, 5]);
 
-                EV_compact_u_raw = term_left + term_right;
-                EV_compact_u = reshape(EV_compact_u_raw, [N_a1_total, N_d_safe_local, N_a2_global, n_z_loc, n_e_loc, n_u_loc]);
-                EV_compact = sum(EV_compact_u, 6);
+                    EV_right_u = reshape(EV_right_raw, [N_a1_total, N_d_safe_local, N_a2_global, n_z_loc, n_e_loc]);
+                    EV_right_u = permute(EV_right_u, [2, 1, 3, 4, 5]);
+
+                    weight_u_reshaped = permute(weight_u, [2, 1, 3, 4, 5]);
+
+                    EV_left_u(EV_left_u == -Inf) = -1e250;
+                    EV_right_u(EV_right_u == -Inf) = -1e250;
+
+                    EV_bounded_u = EV_left_u + weight_u_reshaped .* (EV_right_u - EV_left_u);
+                    EV_bounded_u(EV_bounded_u < -1e200) = -Inf;
+
+                    pi_u_scalar = cast(pi_u_shape(1,1,1,1,1,iu), 'like', EV_bounded_u);
+                    EV_compact = EV_compact + EV_bounded_u .* pi_u_scalar;
+                end
             else
-                W_left_exp = (1 - weight) + target_shape;
-                W_right_exp = weight + target_shape;
+                idx_2d_left  = idx + (ZE_idx - 1) * N_a2_global + (dsemiz_idx_tensor - 1) * (N_a2_global * N_ze_local);
+                idx_2d_right = idx + 1 + (ZE_idx - 1) * N_a2_global + (dsemiz_idx_tensor - 1) * (N_a2_global * N_ze_local);
+                idx_2d_left = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_left));
+                idx_2d_right = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_right));
 
-                term_left = EV_left_raw .* W_left_exp(:)';
-                term_right = EV_right_raw .* W_right_exp(:)';
+                EV_left_raw = EV_3D(:, idx_2d_left(:));
+                EV_right_raw = EV_3D(:, idx_2d_right(:));
 
-                term_left(isnan(term_left)) = 0;
-                term_right(isnan(term_right)) = 0;
+                EV_left_u = reshape(EV_left_raw, [N_a1_total, N_d_safe_local, N_a2_global, n_z_loc, n_e_loc]);
+                EV_left_u = permute(EV_left_u, [2, 1, 3, 4, 5]);
 
-                EV_compact_raw = term_left + term_right;
-                EV_compact = reshape(EV_compact_raw, [N_a1_total, N_d_safe_local, N_a2_global, n_z_loc, n_e_loc]);
+                EV_right_u = reshape(EV_right_raw, [N_a1_total, N_d_safe_local, N_a2_global, n_z_loc, n_e_loc]);
+                EV_right_u = permute(EV_right_u, [2, 1, 3, 4, 5]);
+
+                weight_reshaped = permute(weight, [2, 1, 3, 4, 5]);
+
+                EV_left_u(EV_left_u == -Inf) = -1e250;
+                EV_right_u(EV_right_u == -Inf) = -1e250;
+
+                EV_compact = EV_left_u + weight_reshaped .* (EV_right_u - EV_left_u);
+                EV_compact(EV_compact < -1e200) = -Inf;
             end
             EV_compact(isnan(EV_compact)) = -Inf;
             EV_compact = beta_j .* EV_compact;
-            EV_compact = permute(EV_compact, [2, 1, 3, 4, 5]); % [N_d_safe_local, N_a1_total, N_a2_global, n_z_loc, n_e_loc]
 
-            % Scatter directly to full evaluation space via clean integer mapping
             choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
             if N_a2 > 1; a2_sub_eval = a2_sub; else; a2_sub_eval = 1; end
-
             d_idx = reshape(1:N_d_safe_local, [N_d_safe_local, 1, 1, 1, 1]);
             a1_offset = (choice_idx_linear - 1) * N_d_safe_local;
             a2_offset = reshape(a2_sub_eval - 1, [1, 1, N_states, 1, 1]) * (N_d_safe_local * N_a1_total);
@@ -1195,48 +1206,65 @@ if isempty(loweredge_matrix)
             N_a1_total = length(a1prime_grid) * N_a1_other;
             EV_3D = reshape(EV_interp_local, [N_a1_total, N_a2_global * N_ze_local * N_dsemiz]);
 
-            idx_2d_left  = idx + (ZE_idx - 1) * N_a2_global + (dsemiz_idx_tensor - 1) * (N_a2_global * N_ze_local);
-            idx_2d_right = idx + 1 + (ZE_idx - 1) * N_a2_global + (dsemiz_idx_tensor - 1) * (N_a2_global * N_ze_local);
-            idx_2d_left = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_left));
-            idx_2d_right = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_right));
-
-            EV_left_raw = EV_3D(:, idx_2d_left(:));
-            EV_right_raw = EV_3D(:, idx_2d_right(:));
-
             if ~isempty(pi_u_shape)
-                n_u_loc = size(pi_u_shape, 6);
-                EV_left_u = reshape(EV_left_raw, [N_a1_total, N_d_safe_local, N_a2_global, n_z_loc, n_e_loc, n_u_loc]);
-                EV_right_u = reshape(EV_right_raw, [N_a1_total, N_d_safe_local, N_a2_global, n_z_loc, n_e_loc, n_u_loc]);
+                EV_compact = 0;
+                for iu = 1:size(pi_u_shape, 6)
+                    idx_u = idx(:, :, :, :, :, iu);
+                    weight_u = weight(:, :, :, :, :, iu);
 
-                EV_left_u(EV_left_u == -Inf) = -1e250;
-                EV_right_u(EV_right_u == -Inf) = -1e250;
+                    idx_2d_left  = idx_u + (ZE_idx - 1) * N_a2_global + (dsemiz_idx_tensor - 1) * (N_a2_global * N_ze_local);
+                    idx_2d_right = idx_u + 1 + (ZE_idx - 1) * N_a2_global + (dsemiz_idx_tensor - 1) * (N_a2_global * N_ze_local);
+                    idx_2d_left = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_left));
+                    idx_2d_right = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_right));
 
-                weight_reshaped = permute(weight, [2, 1, 3, 4, 5, 6]);
+                    EV_left_raw = EV_3D(:, idx_2d_left(:));
+                    EV_right_raw = EV_3D(:, idx_2d_right(:));
 
-                EV_compact_u = EV_left_u + weight_reshaped .* (EV_right_u - EV_left_u);
-                EV_compact_u(EV_compact_u < -1e200) = -Inf;
+                    EV_left_u = reshape(EV_left_raw, [N_a1_total, N_d_safe_local, N_a2_global, n_z_loc, n_e_loc]);
+                    EV_left_u = permute(EV_left_u, [2, 1, 3, 4, 5]);
 
-                pi_u_scalar = cast(reshape(pi_u_shape, [1,1,1,1,1,n_u_loc]), 'like', EV_compact_u);
-                EV_compact = sum(EV_compact_u .* pi_u_scalar, 6);
+                    EV_right_u = reshape(EV_right_raw, [N_a1_total, N_d_safe_local, N_a2_global, n_z_loc, n_e_loc]);
+                    EV_right_u = permute(EV_right_u, [2, 1, 3, 4, 5]);
+
+                    weight_u_reshaped = permute(weight_u, [2, 1, 3, 4, 5]);
+
+                    EV_left_u(EV_left_u == -Inf) = -1e250;
+                    EV_right_u(EV_right_u == -Inf) = -1e250;
+
+                    EV_bounded_u = EV_left_u + weight_u_reshaped .* (EV_right_u - EV_left_u);
+                    EV_bounded_u(EV_bounded_u < -1e200) = -Inf;
+
+                    pi_u_scalar = cast(pi_u_shape(1,1,1,1,1,iu), 'like', EV_bounded_u);
+                    EV_compact = EV_compact + EV_bounded_u .* pi_u_scalar;
+                end
             else
-                EV_left_u = reshape(EV_left_raw, [N_a1_total, N_d_safe_local, N_a2_global, n_z_loc, n_e_loc]);
-                EV_right_u = reshape(EV_right_raw, [N_a1_total, N_d_safe_local, N_a2_global, n_z_loc, n_e_loc]);
+                idx_2d_left  = idx + (ZE_idx - 1) * N_a2_global + (dsemiz_idx_tensor - 1) * (N_a2_global * N_ze_local);
+                idx_2d_right = idx + 1 + (ZE_idx - 1) * N_a2_global + (dsemiz_idx_tensor - 1) * (N_a2_global * N_ze_local);
+                idx_2d_left = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_left));
+                idx_2d_right = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_right));
 
-                EV_left_u(EV_left_u == -Inf) = -1e250;
-                EV_right_u(EV_right_u == -Inf) = -1e250;
+                EV_left_raw = EV_3D(:, idx_2d_left(:));
+                EV_right_raw = EV_3D(:, idx_2d_right(:));
+
+                EV_left_u = reshape(EV_left_raw, [N_a1_total, N_d_safe_local, N_a2_global, n_z_loc, n_e_loc]);
+                EV_left_u = permute(EV_left_u, [2, 1, 3, 4, 5]);
+
+                EV_right_u = reshape(EV_right_raw, [N_a1_total, N_d_safe_local, N_a2_global, n_z_loc, n_e_loc]);
+                EV_right_u = permute(EV_right_u, [2, 1, 3, 4, 5]);
 
                 weight_reshaped = permute(weight, [2, 1, 3, 4, 5]);
+
+                EV_left_u(EV_left_u == -Inf) = -1e250;
+                EV_right_u(EV_right_u == -Inf) = -1e250;
 
                 EV_compact = EV_left_u + weight_reshaped .* (EV_right_u - EV_left_u);
                 EV_compact(EV_compact < -1e200) = -Inf;
             end
             EV_compact(isnan(EV_compact)) = -Inf;
             EV_compact = beta_j .* EV_compact;
-            EV_compact = permute(EV_compact, [2, 1, 3, 4, 5]);
 
             choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
             if N_a2 > 1; a2_sub_eval = a2_sub; else; a2_sub_eval = 1; end
-
             d_idx = reshape(1:N_d_safe_local, [N_d_safe_local, 1, 1, 1, 1]);
             a1_offset = (choice_idx_linear - 1) * N_d_safe_local;
             a2_offset = reshape(a2_sub_eval - 1, [1, 1, N_states, 1, 1]) * (N_d_safe_local * N_a1_total);
@@ -1389,49 +1417,62 @@ else
             weight(abs(weight - 1) < 1e-12) = 1;
 
             ZE_idx = reshape(1:N_ze_local, [1, 1, 1, n_z_loc, n_e_loc]);
+            N_a1_total = N_a1_dc * N_a1_other;
+            EV_3D = reshape(EV_local, [N_a1_total, N_a2_global * N_ze_local * N_dsemiz]);
 
-            if N_a2 > 1
-                a2_sub_eval = a2_sub;
-            else
-                a2_sub_eval = 1;
-            end
-            idx_mapped = idx(:, :, a2_sub_eval, :, :, :);
-            weight_mapped = weight(:, :, a2_sub_eval, :, :, :);
+            idx_2d_left  = idx + (ZE_idx - 1) * N_a2_global + (dsemiz_idx_tensor - 1) * (N_a2_global * N_ze_local);
+            idx_2d_right = idx + 1 + (ZE_idx - 1) * N_a2_global + (dsemiz_idx_tensor - 1) * (N_a2_global * N_ze_local);
+            idx_2d_left = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_left));
+            idx_2d_right = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_right));
 
-            idx_left  = choice_idx_linear + (idx_mapped - 1) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
-            idx_right = choice_idx_linear + (idx_mapped) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
+            EV_left_raw = EV_3D(:, idx_2d_left(:));
+            EV_right_raw = EV_3D(:, idx_2d_right(:));
 
-            max_idx = numel(EV_local);
-            dsemiz_stride = size(EV_local, 1) * size(EV_local, 2);
-            linear_idx_left  = min(max_idx, max(1, idx_left  + (dsemiz_idx_tensor - 1) * dsemiz_stride));
-            linear_idx_right = min(max_idx, max(1, idx_right + (dsemiz_idx_tensor - 1) * dsemiz_stride));
-
-            EV_left_u = EV_local(linear_idx_left);
-            EV_right_u = EV_local(linear_idx_right);
+            target_shape = zeros(1, 1, 1, n_z_loc, n_e_loc, 1, 'like', EV_left_raw);
 
             if ~isempty(pi_u_shape)
-                W_left = (1 - weight_mapped) .* pi_u_shape;
-                W_right = weight_mapped .* pi_u_shape;
+                n_u_loc = size(pi_u_shape, 6);
+                W_left = (1 - weight) .* pi_u_shape;
+                W_right = weight .* pi_u_shape;
 
-                term_left = EV_left_u .* W_left;
-                term_right = EV_right_u .* W_right;
+                W_left_exp = W_left + target_shape;
+                W_right_exp = W_right + target_shape;
+
+                term_left = EV_left_raw .* W_left_exp(:)';
+                term_right = EV_right_raw .* W_right_exp(:)';
 
                 term_left(isnan(term_left)) = 0;
                 term_right(isnan(term_right)) = 0;
 
-                EV_bounded_u = term_left + term_right;
-                EV_bounded = sum(EV_bounded_u, 6);
+                EV_compact_u_raw = term_left + term_right;
+                EV_compact_u = reshape(EV_compact_u_raw, [N_a1_total, N_d_safe_local, N_a2_global, n_z_loc, n_e_loc, n_u_loc]);
+                EV_compact = sum(EV_compact_u, 6);
             else
-                term_left = EV_left_u .* (1 - weight_mapped);
-                term_right = EV_right_u .* weight_mapped;
+                W_left_exp = (1 - weight) + target_shape;
+                W_right_exp = weight + target_shape;
+
+                term_left = EV_left_raw .* W_left_exp(:)';
+                term_right = EV_right_raw .* W_right_exp(:)';
 
                 term_left(isnan(term_left)) = 0;
                 term_right(isnan(term_right)) = 0;
 
-                EV_bounded = term_left + term_right;
+                EV_compact_raw = term_left + term_right;
+                EV_compact = reshape(EV_compact_raw, [N_a1_total, N_d_safe_local, N_a2_global, n_z_loc, n_e_loc]);
             end
-            EV_bounded(isnan(EV_bounded)) = -Inf;
-            EV_bounded = beta_j .* EV_bounded;
+            EV_compact(isnan(EV_compact)) = -Inf;
+            EV_compact = beta_j .* EV_compact;
+            EV_compact = permute(EV_compact, [2, 1, 3, 4, 5]);
+
+            if N_a2 > 1; a2_sub_eval = a2_sub; else; a2_sub_eval = 1; end
+
+            d_idx = reshape(1:N_d_safe_local, [N_d_safe_local, 1, 1, 1, 1]);
+            a1_offset = (choice_idx_linear - 1) * N_d_safe_local;
+            a2_offset = reshape(a2_sub_eval - 1, [1, 1, N_states, 1, 1]) * (N_d_safe_local * N_a1_total);
+            ze_offset = reshape(0:N_ze_local-1, [1, 1, 1, n_z_loc, n_e_loc]) * (N_d_safe_local * N_a1_total * N_a2_global);
+
+            lin_idx_compact = d_idx + a1_offset + a2_offset + ze_offset;
+            EV_bounded = EV_compact(lin_idx_compact);
         else
             for i_a = 1:length(Apr_cells)
                 Apr_cells{i_a} = cast(Apr_cells{i_a}, 'like', EV_local);
@@ -1510,50 +1551,63 @@ else
             weight(abs(weight) < 1e-12) = 0;
             weight(abs(weight - 1) < 1e-12) = 1;
 
-            if N_a2 > 1
-                a2_sub_eval = a2_sub;
-            else
-                a2_sub_eval = 1;
-            end
-            idx_mapped = idx(:, :, a2_sub_eval, :, :, :);
-            weight_mapped = weight(:, :, a2_sub_eval, :, :, :);
+            ZE_idx = reshape(1:N_ze_local, [1, 1, 1, n_z_loc, n_e_loc]);
+            N_a1_total = length(a1prime_grid) * N_a1_other;
+            EV_3D = reshape(EV_interp_local, [N_a1_total, N_a2_global * N_ze_local * N_dsemiz]);
 
-            ZE_offset = reshape((0:N_ze_local-1) * (length(a1prime_grid) * N_a1_other * N_a2), [1, 1, 1, n_z_loc, n_e_loc]);
+            idx_2d_left  = idx + (ZE_idx - 1) * N_a2_global + (dsemiz_idx_tensor - 1) * (N_a2_global * N_ze_local);
+            idx_2d_right = idx + 1 + (ZE_idx - 1) * N_a2_global + (dsemiz_idx_tensor - 1) * (N_a2_global * N_ze_local);
+            idx_2d_left = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_left));
+            idx_2d_right = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_right));
 
-            lin_idx_left = choice_idx_linear + (idx_mapped - 1) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
-            lin_idx_right = choice_idx_linear + (idx_mapped) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
-            if N_dsemiz > 1
-                dsemiz_offset = (dsemiz_idx_tensor - 1) * (length(a1prime_grid) * N_a1_other * N_a2 * N_ze_local);
-                lin_idx_left = lin_idx_left + dsemiz_offset;
-                lin_idx_right = lin_idx_right + dsemiz_offset;
-            end
+            EV_left_raw = EV_3D(:, idx_2d_left(:));
+            EV_right_raw = EV_3D(:, idx_2d_right(:));
 
-            EV_left_u = EV_interp_local(lin_idx_left);
-            EV_right_u = EV_interp_local(lin_idx_right);
+            target_shape = zeros(1, 1, 1, n_z_loc, n_e_loc, 1, 'like', EV_left_raw);
 
             if ~isempty(pi_u_shape)
-                W_left = (1 - weight_mapped) .* pi_u_shape;
-                W_right = weight_mapped .* pi_u_shape;
+                n_u_loc = size(pi_u_shape, 6);
+                W_left = (1 - weight) .* pi_u_shape;
+                W_right = weight .* pi_u_shape;
 
-                term_left = EV_left_u .* W_left;
-                term_right = EV_right_u .* W_right;
+                W_left_exp = W_left + target_shape;
+                W_right_exp = W_right + target_shape;
+
+                term_left = EV_left_raw .* W_left_exp(:)';
+                term_right = EV_right_raw .* W_right_exp(:)';
 
                 term_left(isnan(term_left)) = 0;
                 term_right(isnan(term_right)) = 0;
 
-                EV_bounded_u = term_left + term_right;
-                EV_bounded = sum(EV_bounded_u, 6);
+                EV_compact_u_raw = term_left + term_right;
+                EV_compact_u = reshape(EV_compact_u_raw, [N_a1_total, N_d_safe_local, N_a2_global, n_z_loc, n_e_loc, n_u_loc]);
+                EV_compact = sum(EV_compact_u, 6);
             else
-                term_left = EV_left_u .* (1 - weight_mapped);
-                term_right = EV_right_u .* weight_mapped;
+                W_left_exp = (1 - weight) + target_shape;
+                W_right_exp = weight + target_shape;
+
+                term_left = EV_left_raw .* W_left_exp(:)';
+                term_right = EV_right_raw .* W_right_exp(:)';
 
                 term_left(isnan(term_left)) = 0;
                 term_right(isnan(term_right)) = 0;
 
-                EV_bounded = term_left + term_right;
+                EV_compact_raw = term_left + term_right;
+                EV_compact = reshape(EV_compact_raw, [N_a1_total, N_d_safe_local, N_a2_global, n_z_loc, n_e_loc]);
             end
-            EV_bounded(isnan(EV_bounded)) = -Inf;
-            EV_bounded = beta_j .* EV_bounded;
+            EV_compact(isnan(EV_compact)) = -Inf;
+            EV_compact = beta_j .* EV_compact;
+            EV_compact = permute(EV_compact, [2, 1, 3, 4, 5]);
+
+            if N_a2 > 1; a2_sub_eval = a2_sub; else; a2_sub_eval = 1; end
+
+            d_idx = reshape(1:N_d_safe_local, [N_d_safe_local, 1, 1, 1, 1]);
+            a1_offset = (choice_idx_linear - 1) * N_d_safe_local;
+            a2_offset = reshape(a2_sub_eval - 1, [1, 1, N_states, 1, 1]) * (N_d_safe_local * N_a1_total);
+            ze_offset = reshape(0:N_ze_local-1, [1, 1, 1, n_z_loc, n_e_loc]) * (N_d_safe_local * N_a1_total * N_a2_global);
+
+            lin_idx_compact = d_idx + a1_offset + a2_offset + ze_offset;
+            EV_bounded = EV_compact(lin_idx_compact);
         else
             for i_a = 1:length(Apr_cells)
                 Apr_cells{i_a} = cast(Apr_cells{i_a}, 'like', EV_local);
