@@ -353,12 +353,14 @@ if l_a2 > 0
     if is_exp_asset
         if isfield(vfoptions, 'refine_d') && length(vfoptions.refine_d) >= 2
             l_da2prime = sum(vfoptions.refine_d(2:end));
+            d2_idx = (l_d1 + 1) : (l_d1 + l_da2prime);
         elseif isfield(vfoptions, 'l_d2')
             l_da2prime = length(vfoptions.l_d2);
+            d2_idx = (length(n_d) - l_da2prime + 1) : length(n_d);
         else
-            l_da2prime = max(0, length(n_d) - l_d1);
+            l_da2prime = 1;
+            d2_idx = length(n_d); % Default is the last decision variable
         end
-        d2_idx = (l_d1 + 1) : (l_d1 + l_da2prime);
     else
         d2_idx = 1:length(n_d); % Risky assets evaluate all decisions
     end
@@ -411,8 +413,10 @@ if is_exp_asset || vfoptions.riskyasset == 1
             % Experience Asset: Use refine_d to find total decisions passed to aprimeFn
             if isfield(vfoptions, 'refine_d') && length(vfoptions.refine_d) >= 2
                 l_da2prime = sum(vfoptions.refine_d(2:end));
+            elseif isfield(vfoptions, 'l_d2')
+                l_da2prime = length(vfoptions.l_d2);
             else
-                l_da2prime = vfoptions.l_d2;
+                l_da2prime = 1;
             end
             % Align with FHorz_ExpAsset: Extra input argument if l_a2 >= 2
             num_prefix = l_da2prime + l_a2 + (l_a2 >= 2) + num_extra;
@@ -1246,7 +1250,7 @@ if ~isempty(loweredge_matrix); loweredge_matrix = cast(loweredge_matrix, 'like',
 l_a1 = length(A1_grids_1d);
 l_a2 = sum(size(A2_mat)>1);
 
-% --- ALWAYS EXTRACT SUB-INDICES (Required for EV_bounded mapping later) ---
+% --- ALWAYS EXTRACT SUB-INDICES (Required for EV_bounded mapping) ---
 if N_a2 > 1
     [a1_sub, a2_sub] = ind2sub([N_a1_dc * N_a1_other, N_a2], state_idx);
 else
@@ -1320,9 +1324,12 @@ if isempty(loweredge_matrix)
         end
 
         choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
-        if N_a2 > 1; a2_sub_eval = a2_sub; else; a2_sub_eval = 1; end
         a1_offset = (choice_idx_linear - 1) * N_d_stride;
-        a2_offset = reshape(a2_sub_eval - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * N_a1_dc * N_a1_other);
+        if N_a2 > 1
+            a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * N_a1_dc * N_a1_other);
+        else
+            a2_offset = 0;
+        end
 
         lin_idx_compact = static_EV_offset + a1_offset + a2_offset;
         EV_bounded = EV_bounded_pre(lin_idx_compact);
@@ -1351,9 +1358,12 @@ if isempty(loweredge_matrix)
         end
 
         choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
-        if N_a2 > 1; a2_sub_eval = a2_sub; else; a2_sub_eval = 1; end
         a1_offset = (choice_idx_linear - 1) * N_d_stride;
-        a2_offset = reshape(a2_sub_eval - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * length(a1prime_grid) * N_a1_other);
+        if N_a2 > 1
+            a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * length(a1prime_grid) * N_a1_other);
+        else
+            a2_offset = 0;
+        end
 
         lin_idx_compact = static_EV_offset_fine + a1_offset + a2_offset;
         EV_bounded = EV_interp_local(lin_idx_compact);
@@ -1426,9 +1436,12 @@ else
             end
         end
 
-        if N_a2 > 1; a2_sub_eval = a2_sub; else; a2_sub_eval = 1; end
         a1_offset = (choice_idx_linear - 1) * N_d_stride;
-        a2_offset = reshape(a2_sub_eval - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * N_a1_dc * N_a1_other);
+        if N_a2 > 1
+            a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * N_a1_dc * N_a1_other);
+        else
+            a2_offset = 0;
+        end
 
         lin_idx_compact = static_EV_offset + a1_offset + a2_offset;
         EV_bounded = EV_bounded_pre(lin_idx_compact);
@@ -1486,9 +1499,12 @@ else
             end
         end
 
-        if N_a2 > 1; a2_sub_eval = a2_sub; else; a2_sub_eval = 1; end
         a1_offset = (choice_idx_linear - 1) * N_d_stride;
-        a2_offset = reshape(a2_sub_eval - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * length(a1prime_grid) * N_a1_other);
+        if N_a2 > 1
+            a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * length(a1prime_grid) * N_a1_other);
+        else
+            a2_offset = 0;
+        end
 
         lin_idx_compact = static_EV_offset_fine + a1_offset + a2_offset;
         EV_bounded = EV_interp_local(lin_idx_compact);
@@ -1637,6 +1653,7 @@ end
 
 
 end
+
 
 
 function [v, p_apr, p_d, p_l2, p_l2f, p_a1] = Helper_SlicerWrapper(a1_idx, low_mat, mg, dc_mode, N_a1_dc, N_a1_other, N_a2, N_ze, N_d, CoreFn)
