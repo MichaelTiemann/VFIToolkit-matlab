@@ -1058,7 +1058,8 @@ if isempty(loweredge_matrix)
                 EV_left_u(EV_left_u == -Inf) = -1e250;
                 EV_right_u(EV_right_u == -Inf) = -1e250;
 
-                weight_reshaped = reshape(weight, [1, N_d_safe_local, N_a2_global, n_z_loc, n_e_loc, n_u_loc]);
+                % Safely transpose D and A1 to align singleton dimensions for native broadcasting
+                weight_reshaped = permute(weight, [2, 1, 3, 4, 5, 6]);
 
                 EV_bounded_u = EV_left_u + weight_reshaped .* (EV_right_u - EV_left_u);
                 EV_bounded_u(EV_bounded_u < -1e200) = -Inf;
@@ -1076,7 +1077,8 @@ if isempty(loweredge_matrix)
                 EV_left_u(EV_left_u == -Inf) = -1e250;
                 EV_right_u(EV_right_u == -Inf) = -1e250;
 
-                weight_reshaped = reshape(weight, [1, N_d_safe_local, N_a2_global, n_z_loc, n_e_loc]);
+                % Safely transpose D and A1 to align singleton dimensions for native broadcasting
+                weight_reshaped = permute(weight, [2, 1, 3, 4, 5]);
 
                 EV_bounded = EV_left_u + weight_reshaped .* (EV_right_u - EV_left_u);
                 EV_bounded(EV_bounded < -1e200) = -Inf;
@@ -1086,7 +1088,10 @@ if isempty(loweredge_matrix)
                 EV_bounded = beta_j .* EV_bounded;
             end
 
-            EV_bounded = reshape(EV_bounded, [N_d_safe_local, num_choices_total, N_states, n_z_loc, n_e_loc]);
+            EV_bounded_reshaped = reshape(EV_bounded, [N_d_safe_local, num_choices_total, 1, 1, N_a2_global, n_z_loc, n_e_loc]);
+            N_a1_chunk = N_states / (N_a1_other * N_a2_global);
+            EV_bounded_expanded = repmat(EV_bounded_reshaped, [1, 1, N_a1_chunk, N_a1_other, 1, 1, 1]);
+            EV_bounded = reshape(EV_bounded_expanded, [N_d_safe_local, num_choices_total, N_states, n_z_loc, n_e_loc]);
         else
             F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
             choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
@@ -1201,7 +1206,8 @@ if isempty(loweredge_matrix)
                 EV_left_u(EV_left_u == -Inf) = -1e250;
                 EV_right_u(EV_right_u == -Inf) = -1e250;
 
-                weight_reshaped = reshape(weight, [1, N_d_safe_local, N_a2_global, n_z_loc, n_e_loc, n_u_loc]);
+                % Safely transpose D and A1 to align singleton dimensions for native broadcasting
+                weight_reshaped = permute(weight, [2, 1, 3, 4, 5, 6]);
 
                 EV_bounded_u = EV_left_u + weight_reshaped .* (EV_right_u - EV_left_u);
                 EV_bounded_u(EV_bounded_u < -1e200) = -Inf;
@@ -1219,7 +1225,8 @@ if isempty(loweredge_matrix)
                 EV_left_u(EV_left_u == -Inf) = -1e250;
                 EV_right_u(EV_right_u == -Inf) = -1e250;
 
-                weight_reshaped = reshape(weight, [1, N_d_safe_local, N_a2_global, n_z_loc, n_e_loc]);
+                % Safely transpose D and A1 to align singleton dimensions for native broadcasting
+                weight_reshaped = permute(weight, [2, 1, 3, 4, 5]);
 
                 EV_bounded = EV_left_u + weight_reshaped .* (EV_right_u - EV_left_u);
                 EV_bounded(EV_bounded < -1e200) = -Inf;
@@ -1229,8 +1236,9 @@ if isempty(loweredge_matrix)
                 EV_bounded = beta_j .* EV_bounded;
             end
 
-            EV_bounded_reshaped = reshape(EV_bounded, [N_d_safe_local, num_choices_total, 1, N_a1_other, N_a2_global, n_z_loc, n_e_loc]);
-            EV_bounded_expanded = repmat(EV_bounded_reshaped, [1, 1, N_a1_dc, 1, 1, 1, 1]);
+            EV_bounded_reshaped = reshape(EV_bounded, [N_d_safe_local, num_choices_total, 1, 1, N_a2_global, n_z_loc, n_e_loc]);
+            N_a1_chunk = N_states / (N_a1_other * N_a2_global);
+            EV_bounded_expanded = repmat(EV_bounded_reshaped, [1, 1, N_a1_chunk, N_a1_other, 1, 1, 1]);
             EV_bounded = reshape(EV_bounded_expanded, [N_d_safe_local, num_choices_total, N_states, n_z_loc, n_e_loc]);
         else
             for i_a = 1:length(Apr_cells)
