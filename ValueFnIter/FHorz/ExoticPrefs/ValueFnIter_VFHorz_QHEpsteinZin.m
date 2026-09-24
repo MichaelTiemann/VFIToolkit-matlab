@@ -628,32 +628,28 @@ else
     % BRANCH 2: ZOOM PHASE (loweredge_matrix provided)
     % =================================================================
     num_states_lower = size(loweredge_matrix, 1);
-    if num_states_lower == 1 && N_states > 1; loweredge_matrix = repmat(loweredge_matrix, N_states, 1); end
+    if num_states_lower == 1 && N_states > 1
+        loweredge_matrix = repmat(loweredge_matrix, [N_states, 1, 1]);
+    end
+
+    % --- Unified Robust Geometry Normalization ---
+    target_states_ze = N_states * n_z_loc * n_e_loc;
+    num_val = numel(loweredge_matrix);
+
+    if num_val == target_states_ze
+        base_idx = reshape(loweredge_matrix, [1, 1, N_states, n_z_loc, n_e_loc]);
+    elseif exist('N_d_safe', 'var') && num_val == N_d_safe * target_states_ze
+        base_idx = reshape(loweredge_matrix, [N_d_safe, 1, N_states, n_z_loc, n_e_loc]);
+    else
+        % Ultimate Fallback: Broadcast the first element to avert a crash
+        base_idx = loweredge_matrix(1) * ones(1, 1, N_states, n_z_loc, n_e_loc, 'like', EV_local);
+    end
 
     if gridinterplayer(1) == 0
         % -------------------------------------------------------------
         % SCENARIO 2A: Standard DC Segment Zoom (No Interpolation)
         % -------------------------------------------------------------
         num_choices = maxgap_scalar + 1;
-        % --- Robust Geometry Normalization ---
-        % Explicitly expand the singleton state dimension FIRST to prevent MATLAB
-        % from column-major scrambling the shocks into the state coordinates.
-        if size(loweredge_matrix, 3) == 1 && N_states > 1
-            loweredge_matrix = repmat(loweredge_matrix, [1, 1, N_states, 1, 1]);
-        end
-
-        target_states_ze = N_states * n_z_loc * n_e_loc;
-        num_val = numel(loweredge_matrix);
-
-        if num_val == target_states_ze
-            base_idx = reshape(loweredge_matrix, [1, 1, N_states, n_z_loc, n_e_loc]);
-        elseif exist('N_d_safe', 'var') && num_val == N_d_safe * target_states_ze
-            base_idx = reshape(loweredge_matrix, [N_d_safe, 1, N_states, n_z_loc, n_e_loc]);
-        else
-            % Safe Fallback: Force shape using structural tiling without flattening
-            low_reshaped = reshape(loweredge_matrix(1:n_z_loc*n_e_loc), [1, 1, 1, n_z_loc, n_e_loc]);
-            base_idx = repmat(low_reshaped, [1, 1, N_states, 1, 1]);
-        end
         choice_idx = max(1, min(base_idx + reshape(0:maxgap_scalar, [1, num_choices, 1, 1, 1]), N_a1));
 
         Apr_cells = cell(1, num_a1);
@@ -661,27 +657,17 @@ else
             grid_col = A1_mat(:, ia);
             Apr_cells{ia} = reshape(grid_col(choice_idx), [1, num_choices, N_states, n_z_loc, n_e_loc]);
         end
-
-        F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
-
-        EV_Index_Tensor = static_EV_offset + (choice_idx - 1) * N_d_safe;
-        EV_bounded_base = EV_belief_pre(EV_Index_Tensor);
-
     else
         % -------------------------------------------------------------
-        % SCENARIO 2B: Grid Interpolation Zoom (a1prime_grid)
+        % SCENARIO 2B: Fine Grid Zoom (Interpolation)
         % -------------------------------------------------------------
-        num_choices = n2long;
-        loweredge_matrix = max(2, min(loweredge_matrix, N_a1 - 1));
-        base_idx = reshape((loweredge_matrix - 1) * (n2short + 1) + 1, [1, 1, N_states, n_z_loc, n_e_loc]);
-        start_offset = -(n2short + 1);
-
-        raw_choice_idx = base_idx + reshape(start_offset:(n2short + 1), [1, num_choices, 1, 1, 1]);
-        out_of_bounds = (raw_choice_idx < 1) | (raw_choice_idx > length(a1prime_grid));
-        choice_idx = max(1, min(raw_choice_idx, length(a1prime_grid)));
+        num_choices = (n2short * 2 + 3);
+        choice_idx = max(1, min(base_idx + reshape(0:(num_choices-1), [1, num_choices, 1, 1, 1]) - (n2short + 1), length(a1prime_grid)));
 
         Apr_cells = cell(1, num_a1);
-        for ia = 1:num_a1; Apr_cells{ia} = reshape(a1prime_grid(choice_idx), [1, num_choices, N_states, n_z_loc, n_e_loc]); end
+        for ia = 1:num_a1
+            Apr_cells{ia} = reshape(a1prime_grid(choice_idx), [1, num_choices, N_states, n_z_loc, n_e_loc]);
+        end
 
         F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
 
