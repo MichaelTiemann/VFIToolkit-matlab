@@ -594,8 +594,8 @@ if isempty(loweredge_matrix)
         Apr_cells = cell(1, num_a1);
         for ia = 1:num_a1; Apr_cells{ia} = reshape(A1_mat(:, ia), [1, N_a1, 1, 1, 1]); end
         F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
-        EV_bounded_base = EV_belief_pre;
         EV_Index_Tensor = []; % Fast-tracked native collapse
+        EV_bounded_base = EV_belief_pre;
         FLAT_CHOICES = max(1, N_d_safe) * N_a1;
         FLAT_STATES = N_states * N_ze_local;
     else
@@ -614,8 +614,8 @@ if isempty(loweredge_matrix)
         L2_linear_idx = choice_idx + ze_offset;
         if N_dsemiz > 1; L2_linear_idx = L2_linear_idx + (dsemiz_idx_tensor - 1) * (length(a1prime_grid) * N_ze_local); end
 
-        EV_bounded_base = EV_belief_interp(L2_linear_idx);
         EV_Index_Tensor = L2_linear_idx;
+        EV_bounded_base = EV_belief_interp(EV_Index_Tensor);
 
         FLAT_CHOICES = max(1, N_d_safe) * num_choices;
         FLAT_STATES = N_states * N_ze_local;
@@ -658,10 +658,10 @@ else
 
         % --- Extract Belief and Reality EVs for Scenario 2A ---
         a_offset = (choice_idx - 1) * max(1, N_d_safe);
-        EV_bounded_base = EV_belief_pre(static_EV_offset + a_offset);
-        EV_Index_Tensor = []; % Fast-tracked native collapse
+        EV_Index_Tensor = static_EV_offset + a_offset;
+        EV_bounded_base = EV_belief_pre(EV_Index_Tensor);
         if compute_valt
-            EV_bounded_V = EV_Valt_pre(static_EV_offset + a_offset);
+            EV_bounded_V = EV_Valt_pre(EV_Index_Tensor);
         else
             EV_bounded_V = [];
         end
@@ -671,7 +671,10 @@ else
         % SCENARIO 2B: Fine Grid Zoom (Interpolation)
         % -------------------------------------------------------------
         num_choices = (n2short * 2 + 3);
-        choice_idx = max(1, min(base_idx + reshape(0:(num_choices-1), [1, num_choices, 1, 1, 1]) - (n2short + 1), length(a1prime_grid)));
+
+        % --- MAP COARSE INDEX TO FINE GRID INDEX ---
+        fine_base_idx = (base_idx - 1) * (n2short + 1) + 1;
+        choice_idx = max(1, min(fine_base_idx + reshape(0:(num_choices-1), [1, num_choices, 1, 1, 1]) - (n2short + 1), length(a1prime_grid)));
 
         Apr_cells = cell(1, num_a1);
         for ia = 1:num_a1
@@ -685,10 +688,10 @@ else
         if N_dsemiz > 1
             L2_linear_idx = L2_linear_idx + (dsemiz_idx_tensor - 1) * (stride_z * N_ze_local);
         end
-        EV_bounded_base = EV_belief_interp(L2_linear_idx);
         EV_Index_Tensor = L2_linear_idx;
+        EV_bounded_base = EV_belief_interp(EV_Index_Tensor);
         if compute_valt
-            EV_bounded_V = EV_Valt_interp(L2_linear_idx);
+            EV_bounded_V = EV_Valt_interp(EV_Index_Tensor);
         else
             EV_bounded_V = [];
         end
@@ -848,7 +851,10 @@ else
         Pol_L2flag_max = [];
     else
         loweredge_matrix_flat = reshape(loweredge_matrix, [1, FLAT_STATES]);
-        abs_fine_idx_flat = (loweredge_matrix_flat - 1) * (n2short + 1) + 1 + apr_offset - 1;
+        % Shift the absolute index back by the window offset and safely clamp to the grid edge
+        fine_base_idx_flat = (loweredge_matrix_flat - 1) * (n2short + 1) + 1;
+        abs_fine_idx_flat = fine_base_idx_flat + apr_offset(:)' - (n2short + 1) - 1;
+        abs_fine_idx_flat = max(1, min(abs_fine_idx_flat, length(a1prime_grid)));
         Pol_apr_max = floor((abs_fine_idx_flat - 1) / (n2short + 1)) + 1;
         Pol_apr_max = min(Pol_apr_max, N_a1 - 1);
         Pol_L2idx_max = reshape(abs_fine_idx_flat - (Pol_apr_max - 1) * (n2short + 1), [N_states, N_ze_local]);
