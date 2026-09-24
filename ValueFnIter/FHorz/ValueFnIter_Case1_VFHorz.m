@@ -274,7 +274,11 @@ if is_exp_asset || vfoptions.riskyasset == 1 || vfoptions.residualasset == 1
         l_a1 = length(vfoptions.n_a1);
     end
 
-    l_d1 = vfoptions.refine_d(1);
+    if isfield(vfoptions, 'refine_d')
+        l_d1 = vfoptions.refine_d(1);
+    else
+        l_d1 = 0;
+    end
 
     if l_a1 > 1
         n_a1_other = vfoptions.n_a1(2:end);
