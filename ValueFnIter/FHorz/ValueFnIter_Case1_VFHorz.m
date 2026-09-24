@@ -674,12 +674,13 @@ for reverse_j = 0:N_j-1
             else; EV_bounded_pre = []; static_EV_offset = []; end
 
             vfoptions.level1n = vfoptions.level1n(1);
-            LocalBlockFn = @(state_idx, loweredge_matrix, maxgap_scalar, d_gap, dc_mode_override) Evaluate_Case1_TensorBlock(...
+            % The DC Block takes 6 arguments
+            LocalBlockFn = @(state_idx, loweredge_matrix, maxgap_scalar, d_gap, dc_mode_override, d_override) Evaluate_Case1_TensorBlock(...
                 state_idx, loweredge_matrix, maxgap_scalar, d_gap, N_a1_dc, N_a1_other, max(1, N_a2), N_d_safe, N_ze_local, ...
                 Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_mat, A1_grids_1d, a2_grids_1d, ...
                 vfoptions.gridinterplayer, n2short, n2long, beta_j, EV_local, EV_bounded_pre, EV_interp_local, a1prime_grid, ...
                 TensorReturnFn, ReturnFnParamsCell, ezc2(jj), ezc3, ezc4, ezc7(jj), ...
-                TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, dc_mode_override);
+                TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, dc_mode_override, d_override);
 
             SlicerWrapper = @(a1_idx, low_mat, mg, dc_mode, d_override) Helper_SlicerWrapper(a1_idx, low_mat, mg, dc_mode, N_a1_dc, N_a1_other, max(1, N_a2), N_ze_local, max(1, N_d_safe), LocalBlockFn, d_override);
 
@@ -719,7 +720,7 @@ for reverse_j = 0:N_j-1
                     state_chunk = state_chunk_mat(:)';
 
                     loweredge_chunk = loweredge_pass(:, :, state_chunk, :);
-                    [v_c, p_apr_c, p_d_c, p_l2idx_c, p_l2flag_c] = LocalBlockFn(state_chunk, loweredge_chunk, n2long - 1, 0, 1);
+                    [v_c, p_apr_c, p_d_c, p_l2idx_c, p_l2flag_c] = LocalBlockFn(state_chunk, loweredge_chunk, n2long - 1, 0, 1, 0);
 
                     v(state_chunk, :) = v_c;
                     p_apr(state_chunk, :) = p_apr_c;
@@ -732,22 +733,30 @@ for reverse_j = 0:N_j-1
 
                 if N_d_safe > 1
                     % We must loop over D to preserve conditional monotonicity for the legacy DC Slicers
-                    v_concat = zeros(N_a, N_ze_local, 'like', EV_local) - Inf;
-                    p_apr_concat = zeros(N_a, N_ze_local, 'like', EV_local);
-                    p_d_concat = ones(N_a, N_ze_local, 'like', EV_local);
-
                     for id = 1:N_d_safe
                         LocalBlockFn_D = @(state_idx, loweredge_matrix, maxgap_scalar) LocalBlockFn_Standard(state_idx, loweredge_matrix, maxgap_scalar, id);
                         if l_a1 == 1
-                            [v_d, p_apr_d, ~, p_l2idx, p_l2flag] = ValueFnIter_DC1_Slicer(N_a1_dc, N_a1_dc, max(1, N_a2), N_ze_local, vfoptions, LocalBlockFn_D);
+                            [v_d, p_apr_d, ~, p_l2idx_d, p_l2flag_d] = ValueFnIter_DC1_Slicer(N_a1_dc, N_a1_dc, max(1, N_a2), N_ze_local, vfoptions, LocalBlockFn_D);
                         else
-                            [v_d, p_apr_d, ~, p_l2idx, p_l2flag] = ValueFnIter_DC2A_Slicer(N_a1_dc, N_a1_other, N_a1_other * max(1, N_a2), N_a1_dc, N_ze_local, vfoptions, LocalBlockFn_D);
+                            [v_d, p_apr_d, ~, p_l2idx_d, p_l2flag_d] = ValueFnIter_DC2A_Slicer(N_a1_dc, N_a1_other, N_a1_other * max(1, N_a2), N_a1_dc, N_ze_local, vfoptions, LocalBlockFn_D);
                         end
 
-                        update_mask = (v_d > v_concat);
-                        v_concat(update_mask) = v_d(update_mask);
-                        p_apr_concat(update_mask) = p_apr_d(update_mask);
-                        p_d_concat(update_mask) = id;
+                        if id == 1
+                            v_concat = v_d;
+                            p_apr_concat = p_apr_d;
+                            p_d_concat = id * ones(size(v_d), 'like', v_d);
+                            p_l2idx = p_l2idx_d;
+                            p_l2flag = p_l2flag_d;
+                        else
+                            update_mask = (v_d > v_concat);
+                            v_concat(update_mask) = v_d(update_mask);
+                            p_apr_concat(update_mask) = p_apr_d(update_mask);
+                            p_d_concat(update_mask) = id;
+                            if vfoptions.gridinterplayer(1) == 1
+                                p_l2idx(update_mask) = p_l2idx_d(update_mask);
+                                p_l2flag(update_mask) = p_l2flag_d(update_mask);
+                            end
+                        end
                     end
                     v = v_concat;
                     p_apr = p_apr_concat;
@@ -826,6 +835,7 @@ for reverse_j = 0:N_j-1
                     static_EV_offset = cast(d_vec + 1 + z_vec + e_vec, 'like', EV_bounded_pre);
                 else; EV_bounded_pre = []; static_EV_offset = []; end
 
+                % The non-DC Block takes 5 arguments
                 LocalBlockFn = @(state_idx, loweredge_matrix, maxgap_scalar, d_gap, dc_mode_override) Evaluate_Case1_TensorBlock(...
                     state_idx, loweredge_matrix, maxgap_scalar, d_gap, N_a1_dc, N_a1_other, max(1, N_a2_local), N_d_safe, N_ze_local, ...
                     Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_local, A1_grids_1d, a2_grids_1d, ...
@@ -841,7 +851,7 @@ for reverse_j = 0:N_j-1
                     chunk_end = min(total_states, chunk_start + max_states_per_chunk - 1);
                     state_chunk = state_list(chunk_start:chunk_end);
                     if vfoptions.gridinterplayer(1) == 1
-                        [~, ~, ~, ~, ~, p_a1_per_a2] = LocalBlockFn(state_chunk, [], 0, 0, 2);
+                        [~, ~, ~, ~, ~, p_a1_per_a2] = LocalBlockFn(state_chunk, [], 0, 0, 2, 0);
                         loweredge_chunk = reshape(p_a1_per_a2, [max(1, N_d_safe), N_a1_other, length(state_chunk), N_ze_local]);
                         [v_c, p_apr_c, p_d_c, p_l2idx_c, p_l2flag_c] = LocalBlockFn(state_chunk, loweredge_chunk, n2long - 1, 0, 0);
                     else
@@ -1048,13 +1058,14 @@ if isempty(loweredge_matrix)
         clear RHS_flat;
 
         d_idx_local = mod(Pol_sub_idx - 1, N_d_safe_local) + 1;
-        if d_override > 0
-            d_idx_local(:) = d_override;
-        end
         apr_idx_local  = ceil(Pol_sub_idx / N_d_safe_local);
+
         V_j_max        = reshape(V_sub_coarse,  [N_states, N_ze_local]);
         Pol_apr_max    = reshape(apr_idx_local, [N_states, N_ze_local]);
         Pol_d_max      = reshape(d_idx_local,   [N_states, N_ze_local]);
+        if d_override > 0
+            Pol_d_max(:) = d_override;
+        end
         Pol_L2idx_max  = []; Pol_L2flag_max = [];
 
     else
@@ -1375,13 +1386,13 @@ else
     end
 
     d_idx_local = mod(Pol_sub_idx - 1, N_d_safe_local) + 1;
-    if d_override > 0
-        d_idx_local(:) = d_override;
-    end
     apr_offset  = ceil(Pol_sub_idx / N_d_safe_local);
 
     V_j_max   = reshape(V_sub_fine,  [N_states, N_ze_local]);
     Pol_d_max = reshape(d_idx_local, [N_states, N_ze_local]);
+    if d_override > 0
+        Pol_d_max(:) = d_override;
+    end
 
     if gridinterplayer(1) == 0 || is_dc_mode == 2
         clear RHS_flat; % Memory Hoist
