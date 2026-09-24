@@ -1004,56 +1004,56 @@ if isempty(loweredge_matrix)
             EV_bounded = EV_bounded_pre(static_EV_offset + a_offset);
         end
         FLAT_CHOICES = N_d_safe_local * num_choices_total;
-    FLAT_STATES  = N_states * N_ze_local;
-    RHS = Evaluate_Universal_RHS_VFHorz(F_tensor, EV_bounded, 1, 1, ezc2_j, ezc3, ezc4, ezc7_j);
-    clear F_tensor EV_bounded; % Memory Hoist
+        FLAT_STATES  = N_states * N_ze_local;
+        RHS = Evaluate_Universal_RHS_VFHorz(F_tensor, EV_bounded, 1, 1, ezc2_j, ezc3, ezc4, ezc7_j);
+        clear F_tensor EV_bounded; % Memory Hoist
 
-    RHS_flat = reshape(RHS, [FLAT_CHOICES, FLAT_STATES]);
-    clear RHS; % Memory Hoist
+        RHS_flat = reshape(RHS, [FLAT_CHOICES, FLAT_STATES]);
+        clear RHS; % Memory Hoist
 
-    if is_dc_mode == 3
-        RHS_for_d = reshape(RHS_flat, [N_d_safe_local, num_choices_total, FLAT_STATES]);
-        [V_sub_coarse, apr_idx_local] = max(RHS_for_d, [], 2);
-        d_idx_local = repmat(reshape(1:N_d_safe_local, [N_d_safe_local, 1]), [1, FLAT_STATES]);
+        if is_dc_mode == 3
+            RHS_for_d = reshape(RHS_flat, [N_d_safe_local, num_choices_total, FLAT_STATES]);
+            [V_sub_coarse, apr_idx_local] = max(RHS_for_d, [], 2);
+            d_idx_local = repmat(reshape(1:N_d_safe_local, [N_d_safe_local, 1]), [1, FLAT_STATES]);
 
-        V_j_max     = reshape(V_sub_coarse,  [N_d_safe_local, N_states, N_ze_local]);
-        Pol_apr_max = reshape(apr_idx_local, [N_d_safe_local, N_states, N_ze_local]);
-        Pol_d_max   = reshape(d_idx_local,   [N_d_safe_local, N_states, N_ze_local]);
-        Pol_L2idx_max  = []; Pol_L2flag_max = [];
+            V_j_max     = reshape(V_sub_coarse,  [N_d_safe_local, N_states, N_ze_local]);
+            Pol_apr_max = reshape(apr_idx_local, [N_d_safe_local, N_states, N_ze_local]);
+            Pol_d_max   = reshape(d_idx_local,   [N_d_safe_local, N_states, N_ze_local]);
+            Pol_L2idx_max  = []; Pol_L2flag_max = [];
 
-        if nargout > 5
-            num_choices_a1 = num_choices_total / N_a1_other;
-            RHS_a1 = reshape(RHS_flat, [N_d_safe_local, num_choices_a1, N_a1_other, FLAT_STATES]);
-            [~, max_a1_idx_per_d] = max(RHS_a1, [], 2);
-            Pol_a1_per_a2 = reshape(max_a1_idx_per_d, [N_d_safe_local, N_a1_other, N_states, N_ze_local]);
+            if nargout > 5
+                num_choices_a1 = num_choices_total / N_a1_other;
+                RHS_a1 = reshape(RHS_flat, [N_d_safe_local, num_choices_a1, N_a1_other, FLAT_STATES]);
+                [~, max_a1_idx_per_d] = max(RHS_a1, [], 2);
+                Pol_a1_per_a2 = reshape(max_a1_idx_per_d, [N_d_safe_local, N_a1_other, N_states, N_ze_local]);
+            else
+                Pol_a1_per_a2 = [];
+            end
+            clear RHS_flat;
         else
-            Pol_a1_per_a2 = [];
-        end
-        clear RHS_flat;
-    else
-        [V_sub_coarse, Pol_sub_idx] = max(RHS_flat, [], 1);
-        if nargout > 5
-            num_choices_a1 = num_choices_total / N_a1_other;
-            RHS_for_d = reshape(RHS_flat, [N_d_safe_local, num_choices_a1, N_a1_other, FLAT_STATES]);
-            [~, max_a1_idx_per_d] = max(RHS_for_d, [], 2);
-            clear RHS_for_d; % Memory Hoist
-            Pol_a1_per_a2 = reshape(max_a1_idx_per_d, [N_d_safe_local, N_a1_other, N_states, N_ze_local]);
-        else
-            Pol_a1_per_a2 = [];
-        end
-        clear RHS_flat;
+            [V_sub_coarse, Pol_sub_idx] = max(RHS_flat, [], 1);
+            if nargout > 5
+                num_choices_a1 = num_choices_total / N_a1_other;
+                RHS_for_d = reshape(RHS_flat, [N_d_safe_local, num_choices_a1, N_a1_other, FLAT_STATES]);
+                [~, max_a1_idx_per_d] = max(RHS_for_d, [], 2);
+                clear RHS_for_d; % Memory Hoist
+                Pol_a1_per_a2 = reshape(max_a1_idx_per_d, [N_d_safe_local, N_a1_other, N_states, N_ze_local]);
+            else
+                Pol_a1_per_a2 = [];
+            end
+            clear RHS_flat;
 
-        d_idx_local = mod(Pol_sub_idx - 1, N_d_safe_local) + 1;
-        apr_idx_local  = ceil(Pol_sub_idx / N_d_safe_local);
+            d_idx_local = mod(Pol_sub_idx - 1, N_d_safe_local) + 1;
+            apr_idx_local  = ceil(Pol_sub_idx / N_d_safe_local);
 
-        V_j_max        = reshape(V_sub_coarse,  [N_states, N_ze_local]);
-        Pol_apr_max    = reshape(apr_idx_local, [N_states, N_ze_local]);
-        Pol_d_max      = reshape(d_idx_local,   [N_states, N_ze_local]);
-        if d_override > 0
-            Pol_d_max(:) = d_override;
+            V_j_max        = reshape(V_sub_coarse,  [N_states, N_ze_local]);
+            Pol_apr_max    = reshape(apr_idx_local, [N_states, N_ze_local]);
+            Pol_d_max      = reshape(d_idx_local,   [N_states, N_ze_local]);
+            if d_override > 0
+                Pol_d_max(:) = d_override;
+            end
+            Pol_L2idx_max  = []; Pol_L2flag_max = [];
         end
-        Pol_L2idx_max  = []; Pol_L2flag_max = [];
-    end
 
     else
         % =================================================================
@@ -1357,6 +1357,7 @@ else
 
     RHS_flat = reshape(RHS, [N_d_safe_local * num_choices_total, FLAT_STATES]);
     clear RHS; % Memory Hoist
+
     [V_sub_fine, Pol_sub_idx] = max(RHS_flat, [], 1);
 
     if nargout > 5
@@ -1385,17 +1386,14 @@ else
         clear RHS_flat; % Memory Hoist
         a1_apr_offset = mod(apr_offset(:)' - 1, total_gap + 1) + 1;
         a2_offset_factor = ceil(apr_offset(:)' / (total_gap + 1));
-
         loweredge_matrix_2d = reshape(loweredge_matrix, [N_d_safe_local, N_a1_other, FLAT_STATES]);
         lin_idx_loweredge = d_idx_local(:)' + (a2_offset_factor(:)' - 1) * N_d_safe_local + (0:FLAT_STATES-1) * (N_d_safe_local * N_a1_other);
         chosen_loweredge = loweredge_matrix_2d(lin_idx_loweredge);
-
         a1_Pol_apr = chosen_loweredge(:)' + a1_apr_offset(:)' - 1;
         a1_Pol_apr = min(a1_Pol_apr, N_a1_dc); % Clip to ensure out-of-bound evaluations aren't returned as policy
         Pol_apr_max = a1_Pol_apr(:)' + (a2_offset_factor(:)' - 1) * N_a1_dc;
         Pol_apr_max = reshape(Pol_apr_max, [N_states, N_ze_local]);
-        Pol_L2idx_max = [];
-        Pol_L2flag_max = [];
+        Pol_L2idx_max = []; Pol_L2flag_max = [];
     else
         a1_apr_offset = mod(apr_offset(:)' - 1, num_choices_total_a1) + 1;
         a2_offset_factor = ceil(apr_offset(:)' / num_choices_total_a1);
@@ -1459,22 +1457,31 @@ else
 end
 
 if dc_mode == 3
-    out_shape = [max(1, N_d), [], max(1, N_other), max(1, N_ze)];
+    v     = reshape(v_c, max(1, N_d), [], max(1, N_other), max(1, N_ze));
+    p_apr = reshape(p_apr_c, max(1, N_d), [], max(1, N_other), max(1, N_ze));
+    p_d   = reshape(p_d_c, max(1, N_d), [], max(1, N_other), max(1, N_ze));
+
+    if ~isempty(p_l2_c)
+        p_l2  = reshape(p_l2_c, max(1, N_d), [], max(1, N_other), max(1, N_ze));
+        p_l2f = reshape(p_l2f_c, max(1, N_d), [], max(1, N_other), max(1, N_ze));
+    else
+        p_l2  = [];
+        p_l2f = [];
+    end
 else
-    out_shape = [[], max(1, N_other), max(1, N_ze)];
+    v     = reshape(v_c, [], max(1, N_other), max(1, N_ze));
+    p_apr = reshape(p_apr_c, [], max(1, N_other), max(1, N_ze));
+    p_d   = reshape(p_d_c, [], max(1, N_other), max(1, N_ze));
+
+    if ~isempty(p_l2_c)
+        p_l2  = reshape(p_l2_c, [], max(1, N_other), max(1, N_ze));
+        p_l2f = reshape(p_l2f_c, [], max(1, N_other), max(1, N_ze));
+    else
+        p_l2  = [];
+        p_l2f = [];
+    end
 end
 
-v     = reshape(v_c, out_shape);
-p_apr = reshape(p_apr_c, out_shape);
-p_d   = reshape(p_d_c, out_shape);
-
-if ~isempty(p_l2_c)
-    p_l2  = reshape(p_l2_c, out_shape);
-    p_l2f = reshape(p_l2f_c, out_shape);
-else
-    p_l2  = [];
-    p_l2f = [];
-end
 p_a1 = p_a1_c;
 
 
