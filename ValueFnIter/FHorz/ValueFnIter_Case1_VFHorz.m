@@ -1034,7 +1034,7 @@ if isempty(loweredge_matrix)
         else
             F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
             choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
-            a_offset = (choice_idx_linear - 1) * N_d_safe_local;
+            a_offset = (choice_idx_linear - 1) * max(1, N_d_safe); % Global stride required
             EV_bounded = EV_bounded_pre(static_EV_offset + a_offset);
         end
         FLAT_CHOICES = N_d_safe_local * num_choices_total; FLAT_STATES  = N_states * N_ze_local;
@@ -1263,7 +1263,7 @@ else
                 Apr_cells{i_a} = cast(Apr_cells{i_a}, 'like', EV_local);
             end
             F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
-            EV_bounded = EV_bounded_pre(static_EV_offset + (choice_idx_linear - 1) * N_d_safe_local);
+            EV_bounded = EV_bounded_pre(static_EV_offset + (choice_idx_linear - 1) * max(1, N_d_safe)); % Global stride required
         end
 
     else
