@@ -1577,7 +1577,6 @@ else
             EV_bounded = EV_interp_local(L2_linear_idx);
             EV_bounded(out_of_bounds) = -Inf;
             EV_bounded = beta_j .* EV_bounded;
-            EV_bounded = CollapseEV(EV_bounded);
         end
     end
 
