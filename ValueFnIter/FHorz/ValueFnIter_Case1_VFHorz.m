@@ -1054,7 +1054,6 @@ if isempty(loweredge_matrix)
                     idx_2d_left = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_left));
                     idx_2d_right = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_right));
 
-                    % 2. Extract strictly in 2D to bypass 5D Cartesian expansions (20 MB Peak Memory)
                     EV_left_raw = EV_3D(:, idx_2d_left(:));
                     EV_right_raw = EV_3D(:, idx_2d_right(:));
 
@@ -1064,12 +1063,11 @@ if isempty(loweredge_matrix)
                     EV_right_u = reshape(EV_right_raw, [N_a1_total, N_d_safe_local, N_a2_global, n_z_loc, n_e_loc]);
                     EV_right_u = permute(EV_right_u, [2, 1, 3, 4, 5]);
 
-                    weight_u_reshaped = reshape(weight_u, [N_d_safe_local, 1, N_a2_global, n_z_loc, n_e_loc]);
-
                     EV_left_u(EV_left_u == -Inf) = -1e250;
                     EV_right_u(EV_right_u == -Inf) = -1e250;
 
-                    EV_bounded_u = EV_left_u + weight_u_reshaped .* (EV_right_u - EV_left_u);
+                    % Safe implicit expansion directly on weight_u
+                    EV_bounded_u = EV_left_u + weight_u .* (EV_right_u - EV_left_u);
                     EV_bounded_u(EV_bounded_u < -1e200) = -Inf;
 
                     pi_u_scalar = cast(pi_u_shape(1,1,1,1,1,iu), 'like', EV_bounded_u);
@@ -1092,18 +1090,17 @@ if isempty(loweredge_matrix)
                 EV_right_u = reshape(EV_right_raw, [N_a1_total, N_d_safe_local, N_a2_global, n_z_loc, n_e_loc]);
                 EV_right_u = permute(EV_right_u, [2, 1, 3, 4, 5]);
 
-                weight_reshaped = reshape(weight, [N_d_safe_local, 1, N_a2_global, n_z_loc, n_e_loc]);
-
                 EV_left_u(EV_left_u == -Inf) = -1e250;
                 EV_right_u(EV_right_u == -Inf) = -1e250;
 
-                EV_bounded = EV_left_u + weight_reshaped .* (EV_right_u - EV_left_u);
+                % Safe implicit expansion directly on weight
+                EV_bounded = EV_left_u + weight .* (EV_right_u - EV_left_u);
                 EV_bounded(EV_bounded < -1e200) = -Inf;
                 EV_bounded(isnan(EV_bounded)) = -Inf;
                 EV_bounded = beta_j .* EV_bounded;
             end
 
-            % 3. Replicate across current states just-in-time to match F_tensor
+            % Replicate across current states just-in-time to match F_tensor
             EV_bounded_reshaped = reshape(EV_bounded, [N_d_safe_local, num_choices_total, 1, 1, N_a2_global, n_z_loc, n_e_loc]);
             EV_bounded_expanded = repmat(EV_bounded_reshaped, [1, 1, N_a1_chunk, N_a1_other, 1, 1, 1]);
             EV_bounded = reshape(EV_bounded_expanded, [N_d_safe_local, num_choices_total, N_states, n_z_loc, n_e_loc]);
@@ -1226,12 +1223,10 @@ if isempty(loweredge_matrix)
                     EV_right_u = reshape(EV_right_raw, [N_a1_total, N_d_safe_local, N_a2_global, n_z_loc, n_e_loc]);
                     EV_right_u = permute(EV_right_u, [2, 1, 3, 4, 5]);
 
-                    weight_u_reshaped = reshape(weight_u, [N_d_safe_local, 1, N_a2_global, n_z_loc, n_e_loc]);
-
                     EV_left_u(EV_left_u == -Inf) = -1e250;
                     EV_right_u(EV_right_u == -Inf) = -1e250;
 
-                    EV_bounded_u = EV_left_u + weight_u_reshaped .* (EV_right_u - EV_left_u);
+                    EV_bounded_u = EV_left_u + weight_u .* (EV_right_u - EV_left_u);
                     EV_bounded_u(EV_bounded_u < -1e200) = -Inf;
 
                     pi_u_scalar = cast(pi_u_shape(1,1,1,1,1,iu), 'like', EV_bounded_u);
@@ -1254,12 +1249,10 @@ if isempty(loweredge_matrix)
                 EV_right_u = reshape(EV_right_raw, [N_a1_total, N_d_safe_local, N_a2_global, n_z_loc, n_e_loc]);
                 EV_right_u = permute(EV_right_u, [2, 1, 3, 4, 5]);
 
-                weight_reshaped = reshape(weight, [N_d_safe_local, 1, N_a2_global, n_z_loc, n_e_loc]);
-
                 EV_left_u(EV_left_u == -Inf) = -1e250;
                 EV_right_u(EV_right_u == -Inf) = -1e250;
 
-                EV_bounded = EV_left_u + weight_reshaped .* (EV_right_u - EV_left_u);
+                EV_bounded = EV_left_u + weight .* (EV_right_u - EV_left_u);
                 EV_bounded(EV_bounded < -1e200) = -Inf;
                 EV_bounded(isnan(EV_bounded)) = -Inf;
                 EV_bounded = beta_j .* EV_bounded;
@@ -1412,22 +1405,22 @@ else
             weight(abs(weight) < 1e-12) = 0;
             weight(abs(weight - 1) < 1e-12) = 1;
 
-            N_a1_chunk = N_states / (N_a1_other * N_a2_global);
-            idx_reshaped = reshape(idx, [N_d_safe_local, 1, 1, 1, N_a2_global, n_z_loc, n_e_loc, size(idx,6)]);
-            idx_full = repmat(idx_reshaped, [1, 1, N_a1_chunk, N_a1_other, 1, 1, 1, 1]);
-            idx_full = reshape(idx_full, [N_d_safe_local, 1, N_states, n_z_loc, n_e_loc, size(idx,6)]);
-
-            weight_reshaped = reshape(weight, [N_d_safe_local, 1, 1, 1, N_a2_global, n_z_loc, n_e_loc, size(weight,6)]);
-            weight_full = repmat(weight_reshaped, [1, 1, N_a1_chunk, N_a1_other, 1, 1, 1, 1]);
-            weight_full = reshape(weight_full, [N_d_safe_local, 1, N_states, n_z_loc, n_e_loc, size(weight,6)]);
-
             ZE_idx = reshape(1:N_ze_local, [1, 1, 1, n_z_loc, n_e_loc]);
+
+            % Map the compact grid directly to the scattered state chunk
+            if N_a2 > 1
+                a2_sub_eval = a2_sub;
+            else
+                a2_sub_eval = 1;
+            end
+            idx_mapped = idx(:, :, a2_sub_eval, :, :, :);
+            weight_mapped = weight(:, :, a2_sub_eval, :, :, :);
 
             if ~isempty(pi_u_shape)
                 EV_bounded = 0;
                 for iu = 1:size(pi_u_shape, 6)
-                    idx_u = idx_full(:, :, :, :, :, iu);
-                    weight_u = weight_full(:, :, :, :, :, iu);
+                    idx_u = idx_mapped(:, :, :, :, :, iu);
+                    weight_u = weight_mapped(:, :, :, :, :, iu);
 
                     idx_left_u  = choice_idx_linear + (idx_u - 1) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
                     idx_right_u = choice_idx_linear + (idx_u) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
@@ -1451,8 +1444,8 @@ else
                 EV_bounded(isnan(EV_bounded)) = -Inf;
                 EV_bounded = beta_j .* EV_bounded;
             else
-                idx_left  = choice_idx_linear + (idx_full - 1) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
-                idx_right = choice_idx_linear + (idx_full) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
+                idx_left  = choice_idx_linear + (idx_mapped - 1) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
+                idx_right = choice_idx_linear + (idx_mapped) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
 
                 max_idx = numel(EV_local);
                 dsemiz_stride = size(EV_local, 1) * size(EV_local, 2);
@@ -1464,7 +1457,7 @@ else
                 EV_left_u(EV_left_u == -Inf) = -1e250;
                 EV_right_u(EV_right_u == -Inf) = -1e250;
 
-                EV_bounded = EV_left_u + weight_full .* (EV_right_u - EV_left_u);
+                EV_bounded = EV_left_u + weight_mapped .* (EV_right_u - EV_left_u);
                 EV_bounded(EV_bounded < -1e200) = -Inf;
                 EV_bounded(isnan(EV_bounded)) = -Inf;
                 EV_bounded = beta_j .* EV_bounded;
@@ -1549,20 +1542,21 @@ else
 
             N_a1_chunk = N_states / (N_a1_other * N_a2_global);
             idx_reshaped = reshape(idx, [N_d_safe_local, 1, 1, 1, N_a2_global, n_z_loc, n_e_loc, size(idx,6)]);
-            idx_full = repmat(idx_reshaped, [1, 1, N_a1_chunk, N_a1_other, 1, 1, 1, 1]);
-            idx_full = reshape(idx_full, [N_d_safe_local, 1, N_states, n_z_loc, n_e_loc, size(idx,6)]);
-
-            weight_reshaped = reshape(weight, [N_d_safe_local, 1, 1, 1, N_a2_global, n_z_loc, n_e_loc, size(weight,6)]);
-            weight_full = repmat(weight_reshaped, [1, 1, N_a1_chunk, N_a1_other, 1, 1, 1, 1]);
-            weight_full = reshape(weight_full, [N_d_safe_local, 1, N_states, n_z_loc, n_e_loc, size(weight,6)]);
+            if N_a2 > 1
+                a2_sub_eval = a2_sub;
+            else
+                a2_sub_eval = 1;
+            end
+            idx_mapped = idx(:, :, a2_sub_eval, :, :, :);
+            weight_mapped = weight(:, :, a2_sub_eval, :, :, :);
 
             ZE_offset = reshape((0:N_ze_local-1) * (length(a1prime_grid) * N_a1_other * N_a2), [1, 1, 1, n_z_loc, n_e_loc]);
 
             if ~isempty(pi_u_shape)
                 EV_bounded = 0;
                 for iu = 1:size(pi_u_shape, 6)
-                    idx_u = idx_full(:, :, :, :, :, iu);
-                    weight_u = weight_full(:, :, :, :, :, iu);
+                    idx_u = idx_mapped(:, :, :, :, :, iu);
+                    weight_u = weight_mapped(:, :, :, :, :, iu);
 
                     lin_idx_left_u = choice_idx_linear + (idx_u - 1) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
                     lin_idx_right_u = choice_idx_linear + (idx_u) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
@@ -1586,8 +1580,8 @@ else
                 EV_bounded(isnan(EV_bounded)) = -Inf;
                 EV_bounded = beta_j .* EV_bounded;
             else
-                lin_idx_left = choice_idx_linear + (idx_full - 1) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
-                lin_idx_right = choice_idx_linear + (idx_full) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
+                lin_idx_left = choice_idx_linear + (idx_mapped - 1) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
+                lin_idx_right = choice_idx_linear + (idx_mapped) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
                 if N_dsemiz > 1
                     dsemiz_offset = (dsemiz_idx_tensor - 1) * (length(a1prime_grid) * N_a1_other * N_a2 * N_ze_local);
                     lin_idx_left = lin_idx_left + dsemiz_offset;
@@ -1599,7 +1593,7 @@ else
                 EV_left_u(EV_left_u == -Inf) = -1e250;
                 EV_right_u(EV_right_u == -Inf) = -1e250;
 
-                EV_bounded = EV_left_u + weight_full .* (EV_right_u - EV_left_u);
+                EV_bounded = EV_left_u + weight_mapped .* (EV_right_u - EV_left_u);
                 EV_bounded(EV_bounded < -1e200) = -Inf;
                 EV_bounded(isnan(EV_bounded)) = -Inf;
                 EV_bounded = beta_j .* EV_bounded;
