@@ -139,7 +139,11 @@ if isempty(ReturnFnParamNames)
 
         l_a_exp = 0;
         if vfoptions.experienceasset > 0; l_a_exp = vfoptions.experienceasset; end
+        if vfoptions.experienceassetu > 0; l_a_exp = vfoptions.experienceassetu; end
+        if vfoptions.experienceassete > 0; l_a_exp = vfoptions.experienceassete; end
         if vfoptions.experienceassetz > 0; l_a_exp = vfoptions.experienceassetz; end
+        if vfoptions.experienceassetze > 0; l_a_exp = vfoptions.experienceassetze; end
+        if vfoptions.experienceassetsemiz > 0; l_a_exp = vfoptions.experienceassetsemiz; end
         n_a2 = l_a_exp;
         l_a1 = length(n_a) - n_a2;
 
