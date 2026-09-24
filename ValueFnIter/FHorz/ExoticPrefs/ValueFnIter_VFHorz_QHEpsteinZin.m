@@ -303,7 +303,7 @@ for reverse_j = 0:N_j-1
                 LocalBlockFn_Exp = @(state_idx, loweredge_matrix, maxgap_scalar) QHEZ_SlicerWrapper(...
                     state_idx, loweredge_matrix, maxgap_scalar, N_a1, N_a2, N_d_safe, N_ze_local, ...
                     Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_mat, a2_grids_1d, l_a2, ...
-                    0, n2short, n2long, 1.0, delta_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
+                    vfoptions.gridinterplayer, n2short, n2long, 1.0, delta_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
                     EV_belief_local, EV_belief_pre, EV_belief_interp, a1prime_grid, ...
                     TensorReturnFn, ReturnFnParamsCell, ezc2(jj), ezc3, ezc4, ezc7(jj), ...
                     TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, 1);
@@ -325,11 +325,12 @@ for reverse_j = 0:N_j-1
             if vfoptions.gridinterplayer(1) == 1
                 % Slicer dynamically tracks the peak directly on the coarse grid!
                 [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC1_Slicer(N_a1 * N_a2, N_a, 1, N_ze_local, vfoptions, LocalBlockFn_Actual);
-                % One final targeted pass strictly to extract Valt
-                [~, ~, ~, ~, ~, valt] = LocalBlockFn_Actual(full_state_chunk, p_apr, 0);
+                % Force Valt extraction at the EXACT fine grid index to perfectly preserve tie-breaking
+                abs_fine_idx = (p_apr - 1) * (n2short + 1) + p_l2idx;
+                [~, ~, ~, ~, ~, valt] = LocalBlockFn_Actual(full_state_chunk, abs_fine_idx, -1);
             else
                 [v, p_apr, p_d] = ValueFnIter_DC1_Slicer(N_a1 * N_a2, N_a, 1, N_ze_local, vfoptions, LocalBlockFn_Actual);
-                [~, ~, ~, p_l2idx, p_l2flag, valt] = LocalBlockFn_Actual(full_state_chunk, p_apr, 0);
+                [~, ~, ~, p_l2idx, p_l2flag, valt] = LocalBlockFn_Actual(full_state_chunk, p_apr, -1);
             end
 
             V_j_max(:, curr_ze)     = reshape(v,     [N_a1 * N_a2, N_ze_local]);
@@ -636,7 +637,40 @@ else
         base_idx = loweredge_matrix(1) * ones(1, 1, N_states, n_z_loc, n_e_loc, 'like', EV_belief_local);
     end
 
-    if gridinterplayer(1) == 0
+    if maxgap_scalar == -1
+        % --- EXACT POLICY BYPASS (Extract Valt directly at Slicer's chosen peak) ---
+        num_choices = 1;
+        choice_idx = max(1, min(base_idx, length(a1prime_grid)));
+        if gridinterplayer(1) == 0; choice_idx = max(1, min(base_idx, N_a1)); end
+
+        Apr_cells = cell(1, num_a1);
+        for ia = 1:num_a1
+            if gridinterplayer(1) == 0
+                grid_col = A1_mat(:, ia);
+                Apr_cells{ia} = reshape(grid_col(choice_idx), [1, 1, N_states, n_z_loc, n_e_loc]);
+            else
+                Apr_cells{ia} = reshape(a1prime_grid(choice_idx), [1, 1, N_states, n_z_loc, n_e_loc]);
+            end
+        end
+
+        if gridinterplayer(1) == 0
+            a_offset = (choice_idx - 1) * max(1, N_d_safe);
+            EV_Index_Tensor = static_EV_offset + a_offset;
+            EV_bounded_base = EV_belief_pre(EV_Index_Tensor);
+            if compute_valt; EV_bounded_V = EV_Valt_pre(EV_Index_Tensor); else; EV_bounded_V = []; end
+        else
+            stride_z = length(a1prime_grid);
+            ze_offset = reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]);
+            L2_linear_idx = choice_idx + ze_offset;
+            if N_dsemiz > 1
+                L2_linear_idx = L2_linear_idx + (dsemiz_idx_tensor - 1) * (stride_z * N_ze_local);
+            end
+            EV_Index_Tensor = L2_linear_idx;
+            EV_bounded_base = EV_belief_interp(EV_Index_Tensor);
+            if compute_valt; EV_bounded_V = EV_Valt_interp(EV_Index_Tensor); else; EV_bounded_V = []; end
+        end
+
+    elseif gridinterplayer(1) == 0
         % -------------------------------------------------------------
         % SCENARIO 2A: Standard DC Segment Zoom (No Interpolation)
         % -------------------------------------------------------------
@@ -821,7 +855,12 @@ apr_offset = ceil(Pol_sub_idx / max(1, N_d_safe));
 V_j_max    = reshape(V_sub_max, [N_states, N_ze_local]);
 Pol_d_max  = reshape(d_idx_local, [N_states, N_ze_local]);
 
-if isempty(loweredge_matrix)
+if maxgap_scalar == -1
+    % Policy is already known globally; format safe dummy arrays
+    Pol_apr_max = zeros(N_states, N_ze_local, 'like', V_j_max);
+    Pol_L2idx_max = [];
+    Pol_L2flag_max = [];
+elseif isempty(loweredge_matrix)
     if gridinterplayer(1) == 0 || is_dc_mode == 2
         Pol_apr_max = reshape(apr_offset, [N_states, N_ze_local]);
         Pol_L2idx_max = [];
