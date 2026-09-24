@@ -1540,8 +1540,9 @@ else
             weight(abs(weight) < 1e-12) = 0;
             weight(abs(weight - 1) < 1e-12) = 1;
 
-            N_a1_chunk = N_states / (N_a1_other * N_a2_global);
-            idx_reshaped = reshape(idx, [N_d_safe_local, 1, 1, 1, N_a2_global, n_z_loc, n_e_loc, size(idx,6)]);
+            ZE_idx = reshape(1:N_ze_local, [1, 1, 1, n_z_loc, n_e_loc]);
+
+            % Map the compact grid directly to the scattered state chunk
             if N_a2 > 1
                 a2_sub_eval = a2_sub;
             else
@@ -1550,24 +1551,22 @@ else
             idx_mapped = idx(:, :, a2_sub_eval, :, :, :);
             weight_mapped = weight(:, :, a2_sub_eval, :, :, :);
 
-            ZE_offset = reshape((0:N_ze_local-1) * (length(a1prime_grid) * N_a1_other * N_a2), [1, 1, 1, n_z_loc, n_e_loc]);
-
             if ~isempty(pi_u_shape)
                 EV_bounded = 0;
                 for iu = 1:size(pi_u_shape, 6)
                     idx_u = idx_mapped(:, :, :, :, :, iu);
                     weight_u = weight_mapped(:, :, :, :, :, iu);
 
-                    lin_idx_left_u = choice_idx_linear + (idx_u - 1) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
-                    lin_idx_right_u = choice_idx_linear + (idx_u) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
-                    if N_dsemiz > 1
-                        dsemiz_offset = (dsemiz_idx_tensor - 1) * (length(a1prime_grid) * N_a1_other * N_a2 * N_ze_local);
-                        lin_idx_left_u = lin_idx_left_u + dsemiz_offset;
-                        lin_idx_right_u = lin_idx_right_u + dsemiz_offset;
-                    end
+                    idx_left_u  = choice_idx_linear + (idx_u - 1) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
+                    idx_right_u = choice_idx_linear + (idx_u) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
 
-                    EV_left_u = EV_interp_local(lin_idx_left_u);
-                    EV_right_u = EV_interp_local(lin_idx_right_u);
+                    max_idx = numel(EV_local);
+                    dsemiz_stride = size(EV_local, 1) * size(EV_local, 2);
+                    linear_idx_left_u  = min(max_idx, max(1, idx_left_u  + (dsemiz_idx_tensor - 1) * dsemiz_stride));
+                    linear_idx_right_u = min(max_idx, max(1, idx_right_u + (dsemiz_idx_tensor - 1) * dsemiz_stride));
+
+                    EV_left_u = EV_local(linear_idx_left_u);
+                    EV_right_u = EV_local(linear_idx_right_u);
                     EV_left_u(EV_left_u == -Inf) = -1e250;
                     EV_right_u(EV_right_u == -Inf) = -1e250;
 
@@ -1580,16 +1579,16 @@ else
                 EV_bounded(isnan(EV_bounded)) = -Inf;
                 EV_bounded = beta_j .* EV_bounded;
             else
-                lin_idx_left = choice_idx_linear + (idx_mapped - 1) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
-                lin_idx_right = choice_idx_linear + (idx_mapped) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
-                if N_dsemiz > 1
-                    dsemiz_offset = (dsemiz_idx_tensor - 1) * (length(a1prime_grid) * N_a1_other * N_a2 * N_ze_local);
-                    lin_idx_left = lin_idx_left + dsemiz_offset;
-                    lin_idx_right = lin_idx_right + dsemiz_offset;
-                end
+                idx_left  = choice_idx_linear + (idx_mapped - 1) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
+                idx_right = choice_idx_linear + (idx_mapped) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
 
-                EV_left_u = EV_interp_local(lin_idx_left);
-                EV_right_u = EV_interp_local(lin_idx_right);
+                max_idx = numel(EV_local);
+                dsemiz_stride = size(EV_local, 1) * size(EV_local, 2);
+                linear_idx_left  = min(max_idx, max(1, idx_left  + (dsemiz_idx_tensor - 1) * dsemiz_stride));
+                linear_idx_right = min(max_idx, max(1, idx_right + (dsemiz_idx_tensor - 1) * dsemiz_stride));
+
+                EV_left_u = EV_local(linear_idx_left);
+                EV_right_u = EV_local(linear_idx_right);
                 EV_left_u(EV_left_u == -Inf) = -1e250;
                 EV_right_u(EV_right_u == -Inf) = -1e250;
 
