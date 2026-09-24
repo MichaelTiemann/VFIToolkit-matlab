@@ -1602,7 +1602,8 @@ else
             clear RHS_for_d; % Memory Hoist
             if gridinterplayer(1) == 0 || is_dc_mode == 2
                 max_a1_idx_rel = reshape(max_a1_idx_rel, [N_d_safe_local, N_a1_other, N_states, N_ze_local]);
-                Pol_a1_per_a2 = min(loweredge_matrix + max_a1_idx_rel - 1, N_a1_dc);
+                low_mat_4d = reshape(loweredge_matrix, [N_d_safe_local, N_a1_other, N_states, N_ze_local]);
+                Pol_a1_per_a2 = min(low_mat_4d + max_a1_idx_rel - 1, N_a1_dc);
             else
                 Pol_a1_per_a2 = [];
             end
