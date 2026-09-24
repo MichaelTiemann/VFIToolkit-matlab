@@ -9,27 +9,23 @@ end
 
 % --- 1. Dimension Extraction ---
 l_dexperienceasset = 1;
-if isfield(simoptions, 'l_dexperienceasset')
-    l_dexperienceasset = simoptions.l_dexperienceasset;
-end
-if isfield(simoptions, 'l_dexperienceassetz')
-    l_dexperienceasset = simoptions.l_dexperienceassetz;
-end
-if isfield(simoptions, 'l_dexperienceassetsemiz')
-    l_dexperienceasset = simoptions.l_dexperienceassetsemiz;
+if isfield(simoptions, 'l_dexperienceasset'), l_dexperienceasset = simoptions.l_dexperienceasset; end
+if isfield(simoptions, 'l_dexperienceassetz'), l_dexperienceasset = simoptions.l_dexperienceassetz; end
+if isfield(simoptions, 'l_dexperienceassetsemiz'), l_dexperienceasset = simoptions.l_dexperienceassetsemiz; end
+
+l_dsemiz = 0;
+if isfield(simoptions, 'l_dsemiz') && any(n_semiz > 0)
+    l_dsemiz = simoptions.l_dsemiz;
 end
 
-n_d2 = n_d(end - l_dexperienceasset + 1 : end);
-if length(n_d) > l_dexperienceasset
-    % If semiz is present, it might shift where the experience asset decisions are
-    % Adjust this indexing based on specific semi-exogenous model needs if l_dsemiz > 0.
-    n_d1 = n_d(1 : end - l_dexperienceasset);
-    l_d1 = length(n_d1);
-else
-    n_d1 = [];
-    l_d1 = 0;
-end
+% Split decision variables
+n_d3 = n_d(end - l_dsemiz + 1 : end); % Semi-exogenous decisions
+n_d2 = n_d(end - l_dsemiz - l_dexperienceasset + 1 : end - l_dsemiz); % ExpAsset decisions
+n_d1 = n_d(1 : end - l_dsemiz - l_dexperienceasset); % Standard decisions
+
+l_d1 = length(n_d1);
 l_d2 = length(n_d2);
+l_d3 = length(n_d3);
 
 l_a2 = simoptions.experienceasset + simoptions.experienceassetz + simoptions.experienceassetsemiz + simoptions.experienceassetze;
 if l_a2 == 0, l_a2 = 1; end % Fallback
@@ -73,7 +69,7 @@ if isscalar(n_a)
 else
     n_a_out = [n_a1, n_a2];
 end
-StationaryDist = zeros([N_a1, N_a2, N_semiz, N_z, N_e, N_j], simoptions.precision);
+StationaryDist = zeros([N_a1, N_a2, N_semiz, N_z, N_e, N_j], simoptions.precision, 'gpuArray');
 Dist_curr = reshape(jequaloneDist, [N_a * N_bothze, 1]);
 
 % Construct full-size state coordinate vectors
@@ -278,5 +274,12 @@ end
 % =========================================================
 % OUTPUT UNPACKING
 % =========================================================
-StationaryDist = reshape(StationaryDist, [n_a_out, n_semiz, n_z, simoptions.n_e, N_j]);
+% Dynamically filter out 0-dimensions to collapse the tensor naturally
+n_semiz_out = n_semiz(n_semiz > 0);
+n_z_out     = n_z(n_z > 0);
+n_e_out     = simoptions.n_e(simoptions.n_e > 0);
+
+StationaryDist = reshape(StationaryDist, [n_a_out, n_semiz_out, n_z_out, n_e_out, N_j]);
+
+
 end

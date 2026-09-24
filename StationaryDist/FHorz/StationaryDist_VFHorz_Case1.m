@@ -216,6 +216,56 @@ if abs(sum(jequaloneDist(:))-1)>10^(-9)
     error('The jequaloneDist must be of mass one')
 end
 
+%% Initialize simoptions as if called through main VFHorz_Case1 orchestrator
+N_semiz = prod(n_semiz);
+if N_semiz>0
+    if ~isfield(simoptions,'l_dsemiz')
+        simoptions.l_dsemiz=1; % by default, just one decision variable is used for the semi-exo state
+    end
+end
+
+
+%% Non-standard endogenous states
+if simoptions.experienceasset>=1 && ~isfield(simoptions,'l_dexperienceasset')
+    simoptions.l_dexperienceasset=1; % by default, only one decision variable influences the experienceasset
+end
+if simoptions.experienceassetu>=1 && ~isfield(simoptions,'l_dexperienceassetu')
+    simoptions.l_dexperienceassetu=1; % by default, only one decision variable influences the experienceasset
+end
+if simoptions.experienceassete>=1 && ~isfield(simoptions,'l_dexperienceassete')
+    simoptions.l_dexperienceassete=1; % by default, only one decision variable influences the experienceassete
+end
+if simoptions.experienceassetz>=1 && ~isfield(simoptions,'l_dexperienceassetz')
+    simoptions.l_dexperienceassetz=1; % by default, only one decision variable influences the experienceassetz
+end
+if simoptions.experienceassetsemiz>=1 && ~isfield(simoptions,'l_dexperienceassetsemiz')
+    % semiz is always present (it drives the experience asset)
+    simoptions.l_dexperienceassetsemiz=1; % by default, only one decision variable influences the experienceassetsemiz
+end
+if simoptions.experienceassetze>=1 && ~isfield(simoptions,'l_dexperienceassetze')
+    simoptions.l_dexperienceassetze=1; % by default, only one decision variable influences the experienceassetze
+end
+if simoptions.riskyasset==1
+    if ~isfield(simoptions,'refine_d')
+        warning('Using simoptions.riskyasset=1 without setting simoptions.refine_d is outdated behaviour, it is strongly recommended you set simoptions.refine_d')
+    end
+end
+if simoptions.residualasset==1
+    error("not yet implemented in VFHorz world")
+    return
+end
+
+% Setup simoptions for possible use by reference orchestrators
+l_dexperienceasset = 1;
+if isfield(simoptions, 'l_dexperienceasset'), l_dexperienceasset = simoptions.l_dexperienceasset; end
+if isfield(simoptions, 'l_dexperienceassetz'), l_dexperienceasset = simoptions.l_dexperienceassetz; end
+if isfield(simoptions, 'l_dexperienceassetsemiz'), l_dexperienceasset = simoptions.l_dexperienceassetsemiz; end
+
+l_dsemiz = 0;
+if isfield(simoptions, 'l_dsemiz') && any(n_semiz > 0)
+    l_dsemiz = simoptions.l_dsemiz;
+end
+
 %% --- 2. Dispatch to Specific Orchestrators ---
 has_expasset  = simoptions.experienceasset >= 1;
 has_expassetz = simoptions.experienceassetz >= 1;
@@ -240,9 +290,9 @@ if (has_expasset || has_expassetz)
             error("StationaryDist_new ~= StationaryDist_ref")
         end
     else
-        StationaryDist_ref = StationaryDist_VFHorz_ExpAsset(...
+        StationaryDist_ref = StationaryDist_FHorz_ExpAsset(...
             jequaloneDist, AgeWeightParamNames, Policy, n_d, n_a, n_z, ...
-            N_j, simoptions.z_gridvals_J, pi_z_J, Parameters, simoptions);
+            N_j, pi_z_J, Parameters, simoptions);
         time_ref=toc;
         if any(StationaryDist_new ~= StationaryDist_ref)
             error("StationaryDist_new ~= StationaryDist_ref")
