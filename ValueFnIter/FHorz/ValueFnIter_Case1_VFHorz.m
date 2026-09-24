@@ -1459,9 +1459,9 @@ else
 end
 
 if dc_mode == 3
-    out_shape = [max(1, N_d), num_a1, N_other, N_ze];
+    out_shape = [max(1, N_d), [], max(1, N_other), max(1, N_ze)];
 else
-    out_shape = [num_a1, N_other, N_ze];
+    out_shape = [[], max(1, N_other), max(1, N_ze)];
 end
 
 v     = reshape(v_c, out_shape);
@@ -1476,4 +1476,6 @@ else
     p_l2f = [];
 end
 p_a1 = p_a1_c;
+
+
 end
