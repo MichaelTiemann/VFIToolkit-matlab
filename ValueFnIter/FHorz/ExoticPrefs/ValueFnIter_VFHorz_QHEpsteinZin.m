@@ -593,11 +593,9 @@ if isempty(loweredge_matrix)
         % =================================================================
         Apr_cells = cell(1, num_a1);
         for ia = 1:num_a1; Apr_cells{ia} = reshape(A1_mat(:, ia), [1, N_a1, 1, 1, 1]); end
-
         F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
         EV_bounded_base = EV_belief_pre;
         EV_Index_Tensor = []; % Fast-tracked native collapse
-
         FLAT_CHOICES = max(1, N_d_safe) * N_a1;
         FLAT_STATES = N_states * N_ze_local;
     else
@@ -642,7 +640,7 @@ else
         base_idx = reshape(loweredge_matrix, [N_d_safe, 1, N_states, n_z_loc, n_e_loc]);
     else
         % Ultimate Fallback: Broadcast the first element to avert a crash
-        base_idx = loweredge_matrix(1) * ones(1, 1, N_states, n_z_loc, n_e_loc, 'like', EV_local);
+        base_idx = loweredge_matrix(1) * ones(1, 1, N_states, n_z_loc, n_e_loc, 'like', EV_belief_local);
     end
 
     if gridinterplayer(1) == 0
@@ -657,6 +655,16 @@ else
             grid_col = A1_mat(:, ia);
             Apr_cells{ia} = reshape(grid_col(choice_idx), [1, num_choices, N_states, n_z_loc, n_e_loc]);
         end
+
+        % --- Extract Belief and Reality EVs for Scenario 2A ---
+        a_offset = (choice_idx - 1) * max(1, N_d_safe);
+        EV_bounded_base = EV_belief_pre(static_EV_offset + a_offset);
+        if compute_valt
+            EV_bounded_V = EV_Valt_pre(static_EV_offset + a_offset);
+        else
+            EV_bounded_V = [];
+        end
+
     else
         % -------------------------------------------------------------
         % SCENARIO 2B: Fine Grid Zoom (Interpolation)
@@ -669,23 +677,30 @@ else
             Apr_cells{ia} = reshape(a1prime_grid(choice_idx), [1, num_choices, N_states, n_z_loc, n_e_loc]);
         end
 
-        F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
-
-        ze_offset = reshape((0:N_ze_local-1) * length(a1prime_grid), [1, 1, 1, n_z_loc, n_e_loc]);
+        % --- Extract Belief and Reality EVs for Scenario 2B ---
+        stride_z = length(a1prime_grid);
+        ze_offset = reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]);
         L2_linear_idx = choice_idx + ze_offset;
         if N_dsemiz > 1
-            dsemiz_stride = (dsemiz_idx_tensor - 1) * (length(a1prime_grid) * N_ze_local);
-            L2_linear_idx = L2_linear_idx + dsemiz_stride;
+            L2_linear_idx = L2_linear_idx + (dsemiz_idx_tensor - 1) * (stride_z * N_ze_local);
         end
-
         EV_bounded_base = EV_belief_interp(L2_linear_idx);
-        EV_Index_Tensor = L2_linear_idx;
-
-        if N_dsemiz > 1
-            out_of_bounds_exp = repmat(out_of_bounds, [N_d_safe, 1, 1, 1, 1]);
-            EV_bounded_base(out_of_bounds_exp) = -Inf;
+        if compute_valt
+            EV_bounded_V = EV_Valt_interp(L2_linear_idx);
         else
-            EV_bounded_base(out_of_bounds) = -Inf;
+            EV_bounded_V = [];
+        end
+    end
+
+    % --- Ensure F_tensor is Computed ---
+    if ~exist('F_tensor', 'var')
+        for i_a = 1:num_a1
+            Apr_cells{i_a} = cast(Apr_cells{i_a}, 'like', EV_belief_local);
+        end
+        if l_a2 > 0
+            F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
+        else
+            F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
         end
     end
 
