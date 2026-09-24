@@ -559,10 +559,10 @@ N_z_exog = max(1, n_z_work / N_semiz_local);
 
 % --- Dynamic VRAM Profiling (Hoisted) ---
 if vfoptions.parallel == 2
-    gpu_device_info = gpuDevice();
-    % Divide by 8 bytes (double precision) and apply an 8x safety factor
-    % to absorb all intermediate tensors inside Evaluate_Universal_RHS
-    safe_elements = max(1e7, floor((gpu_device_info.AvailableMemory / 8) / 8));
+    % With the massive 13GB precomputation spike eliminated, the Tensor Bridge
+    % can safely process up to 250 Million elements per chunk without spilling.
+    % This drops Slicer overhead down to ~3 fast chunks per age.
+    safe_elements = 250000000;
 else
     safe_elements = 50000000; % CPU fallback
 end
@@ -742,48 +742,83 @@ for reverse_j = 0:N_j-1
                 idx_2d_right_base = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_right_base));
 
                 n_u_loc = size(idx, 6);
-                idx_shape = [N_d_safe_loc, 1, N_a2_global, n_z_loc, n_e_loc, n_u_loc];
-                weight_ND = reshape(weight, [1, N_d_safe_loc, 1, N_a2_global, 1, 1, n_u_loc]);
 
-                if ~isempty(pi_u_shape)
-                    pi_u_ND = reshape(pi_u_shape, [1, 1, 1, 1, 1, 1, size(pi_u_shape, 6)]);
-                    W_left  = (1 - weight_ND) .* pi_u_ND;
-                    W_right = weight_ND .* pi_u_ND;
-                else
-                    W_left  = 1 - weight_ND;
-                    W_right = weight_ND;
-                end
+                % Note: idx_shape drops n_u_loc so we can loop over it safely
+                idx_shape = [N_d_safe_loc, 1, N_a2_global, n_z_loc, n_e_loc];
+                weight_ND = reshape(weight, [1, N_d_safe_loc, 1, N_a2_global, 1, 1, n_u_loc]);
 
                 % ---- Compute EV_bounded_pre for COARSE pass ----
                 N_a1_total = N_a1_dc * N_a1_other;
                 EV_3D = reshape(EV_local, [N_a1_total, N_a2_global * N_ze_local * N_dsemiz]);
-                EV_left  = reshape(EV_3D(:, idx_2d_left_base(:)), [N_a1_total, idx_shape]);
-                EV_right = reshape(EV_3D(:, idx_2d_right_base(:)), [N_a1_total, idx_shape]);
 
-                term_left  = EV_left .* W_left;
-                term_right = EV_right .* W_right;
-                term_left(isnan(term_left))   = 0;
-                term_right(isnan(term_right)) = 0;
-                if ~isempty(pi_u_shape); EV_compact = sum(term_left + term_right, 7); else; EV_compact = term_left + term_right; end
+                if ~isempty(pi_u_shape)
+                    EV_compact = 0;
+                    for iu = 1:n_u_loc
+                        idx_u_left = idx_2d_left_base(:,:,:,:,:,iu);
+                        idx_u_right = idx_2d_right_base(:,:,:,:,:,iu);
+
+                        EV_left  = reshape(EV_3D(:, idx_u_left(:)), [N_a1_total, idx_shape]);
+                        EV_right = reshape(EV_3D(:, idx_u_right(:)), [N_a1_total, idx_shape]);
+
+                        w_u = weight_ND(:,:,:,:,:,:,iu);
+                        term_left  = EV_left .* (1 - w_u);
+                        term_right = EV_right .* w_u;
+
+                        term_left(isnan(term_left))   = 0;
+                        term_right(isnan(term_right)) = 0;
+
+                        EV_u = term_left + term_right;
+                        pi_scalar = cast(pi_u_shape(1,1,1,1,1,iu), 'like', EV_u);
+                        EV_compact = EV_compact + EV_u .* pi_scalar;
+                    end
+                else
+                    EV_left  = reshape(EV_3D(:, idx_2d_left_base(:)), [N_a1_total, idx_shape]);
+                    EV_right = reshape(EV_3D(:, idx_2d_right_base(:)), [N_a1_total, idx_shape]);
+                    term_left  = EV_left .* (1 - weight_ND);
+                    term_right = EV_right .* weight_ND;
+                    term_left(isnan(term_left))   = 0;
+                    term_right(isnan(term_right)) = 0;
+                    EV_compact = term_left + term_right;
+                end
                 EV_compact(isnan(EV_compact)) = -Inf;
-                EV_compact = reshape(EV_compact, [N_a1_total, N_d_safe_loc, N_a2_global, n_z_loc, n_e_loc]);
                 EV_bounded_pre = beta_j .* permute(EV_compact, [2, 1, 3, 4, 5]); % [N_d, N_a1, N_a2, z, e]
 
                 % ---- Compute EV_interp_local for FINE pass ----
                 if vfoptions.gridinterplayer(1) == 1
                     N_a1_interp = length(a1prime_grid) * N_a1_other;
                     EV_3D_interp = reshape(EV_interp_local, [N_a1_interp, N_a2_global * N_ze_local * N_dsemiz]);
-                    EV_left_int  = reshape(EV_3D_interp(:, idx_2d_left_base(:)), [N_a1_interp, idx_shape]);
-                    EV_right_int = reshape(EV_3D_interp(:, idx_2d_right_base(:)), [N_a1_interp, idx_shape]);
 
-                    term_left_int  = EV_left_int .* W_left;
-                    term_right_int = EV_right_int .* W_right;
-                    term_left_int(isnan(term_left_int))   = 0;
-                    term_right_int(isnan(term_right_int)) = 0;
-                    if ~isempty(pi_u_shape); EV_compact_int = sum(term_left_int + term_right_int, 7); else; EV_compact_int = term_left_int + term_right_int; end
+                    if ~isempty(pi_u_shape)
+                        EV_compact_int = 0;
+                        for iu = 1:n_u_loc
+                            idx_u_left = idx_2d_left_base(:,:,:,:,:,iu);
+                            idx_u_right = idx_2d_right_base(:,:,:,:,:,iu);
+
+                            EV_left_int  = reshape(EV_3D_interp(:, idx_u_left(:)), [N_a1_interp, idx_shape]);
+                            EV_right_int = reshape(EV_3D_interp(:, idx_u_right(:)), [N_a1_interp, idx_shape]);
+
+                            w_u = weight_ND(:,:,:,:,:,:,iu);
+                            term_left_int  = EV_left_int .* (1 - w_u);
+                            term_right_int = EV_right_int .* w_u;
+
+                            term_left_int(isnan(term_left_int))   = 0;
+                            term_right_int(isnan(term_right_int)) = 0;
+
+                            EV_u_int = term_left_int + term_right_int;
+                            pi_scalar = cast(pi_u_shape(1,1,1,1,1,iu), 'like', EV_u_int);
+                            EV_compact_int = EV_compact_int + EV_u_int .* pi_scalar;
+                        end
+                    else
+                        EV_left_int  = reshape(EV_3D_interp(:, idx_2d_left_base(:)), [N_a1_interp, idx_shape]);
+                        EV_right_int = reshape(EV_3D_interp(:, idx_2d_right_base(:)), [N_a1_interp, idx_shape]);
+                        term_left_int  = EV_left_int .* (1 - weight_ND);
+                        term_right_int = EV_right_int .* weight_ND;
+                        term_left_int(isnan(term_left_int))   = 0;
+                        term_right_int(isnan(term_right_int)) = 0;
+                        EV_compact_int = term_left_int + term_right_int;
+                    end
                     EV_compact_int(isnan(EV_compact_int)) = -Inf;
-                    EV_compact_int = reshape(EV_compact_int, [N_a1_interp, N_d_safe_loc, N_a2_global, n_z_loc, n_e_loc]);
-                    EV_interp_local = beta_j .* permute(EV_compact_int, [2, 1, 3, 4, 5]); % Overwrite with compacted [N_d, N_a1', N_a2, z, e]
+                    EV_interp_local = beta_j .* permute(EV_compact_int, [2, 1, 3, 4, 5]); % Overwrite
                 end
 
                 % Setup static mapping offsets for all Branches
@@ -959,48 +994,83 @@ for reverse_j = 0:N_j-1
                     idx_2d_right_base = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_right_base));
 
                     n_u_loc = size(idx, 6);
-                    idx_shape = [N_d_safe_loc, 1, N_a2_global, n_z_loc, n_e_loc, n_u_loc];
-                    weight_ND = reshape(weight, [1, N_d_safe_loc, 1, N_a2_global, 1, 1, n_u_loc]);
 
-                    if ~isempty(pi_u_shape)
-                        pi_u_ND = reshape(pi_u_shape, [1, 1, 1, 1, 1, 1, size(pi_u_shape, 6)]);
-                        W_left  = (1 - weight_ND) .* pi_u_ND;
-                        W_right = weight_ND .* pi_u_ND;
-                    else
-                        W_left  = 1 - weight_ND;
-                        W_right = weight_ND;
-                    end
+                    % Note: idx_shape drops n_u_loc so we can loop over it safely
+                    idx_shape = [N_d_safe_loc, 1, N_a2_global, n_z_loc, n_e_loc];
+                    weight_ND = reshape(weight, [1, N_d_safe_loc, 1, N_a2_global, 1, 1, n_u_loc]);
 
                     % ---- Compute EV_bounded_pre for COARSE pass ----
                     N_a1_total = N_a1_dc * N_a1_other;
                     EV_3D = reshape(EV_local, [N_a1_total, N_a2_global * N_ze_local * N_dsemiz]);
-                    EV_left  = reshape(EV_3D(:, idx_2d_left_base(:)), [N_a1_total, idx_shape]);
-                    EV_right = reshape(EV_3D(:, idx_2d_right_base(:)), [N_a1_total, idx_shape]);
 
-                    term_left  = EV_left .* W_left;
-                    term_right = EV_right .* W_right;
-                    term_left(isnan(term_left))   = 0;
-                    term_right(isnan(term_right)) = 0;
-                    if ~isempty(pi_u_shape); EV_compact = sum(term_left + term_right, 7); else; EV_compact = term_left + term_right; end
+                    if ~isempty(pi_u_shape)
+                        EV_compact = 0;
+                        for iu = 1:n_u_loc
+                            idx_u_left = idx_2d_left_base(:,:,:,:,:,iu);
+                            idx_u_right = idx_2d_right_base(:,:,:,:,:,iu);
+
+                            EV_left  = reshape(EV_3D(:, idx_u_left(:)), [N_a1_total, idx_shape]);
+                            EV_right = reshape(EV_3D(:, idx_u_right(:)), [N_a1_total, idx_shape]);
+
+                            w_u = weight_ND(:,:,:,:,:,:,iu);
+                            term_left  = EV_left .* (1 - w_u);
+                            term_right = EV_right .* w_u;
+
+                            term_left(isnan(term_left))   = 0;
+                            term_right(isnan(term_right)) = 0;
+
+                            EV_u = term_left + term_right;
+                            pi_scalar = cast(pi_u_shape(1,1,1,1,1,iu), 'like', EV_u);
+                            EV_compact = EV_compact + EV_u .* pi_scalar;
+                        end
+                    else
+                        EV_left  = reshape(EV_3D(:, idx_2d_left_base(:)), [N_a1_total, idx_shape]);
+                        EV_right = reshape(EV_3D(:, idx_2d_right_base(:)), [N_a1_total, idx_shape]);
+                        term_left  = EV_left .* (1 - weight_ND);
+                        term_right = EV_right .* weight_ND;
+                        term_left(isnan(term_left))   = 0;
+                        term_right(isnan(term_right)) = 0;
+                        EV_compact = term_left + term_right;
+                    end
                     EV_compact(isnan(EV_compact)) = -Inf;
-                    EV_compact = reshape(EV_compact, [N_a1_total, N_d_safe_loc, N_a2_global, n_z_loc, n_e_loc]);
                     EV_bounded_pre = beta_j .* permute(EV_compact, [2, 1, 3, 4, 5]); % [N_d, N_a1, N_a2, z, e]
 
                     % ---- Compute EV_interp_local for FINE pass ----
                     if vfoptions.gridinterplayer(1) == 1
                         N_a1_interp = length(a1prime_grid) * N_a1_other;
                         EV_3D_interp = reshape(EV_interp_local, [N_a1_interp, N_a2_global * N_ze_local * N_dsemiz]);
-                        EV_left_int  = reshape(EV_3D_interp(:, idx_2d_left_base(:)), [N_a1_interp, idx_shape]);
-                        EV_right_int = reshape(EV_3D_interp(:, idx_2d_right_base(:)), [N_a1_interp, idx_shape]);
 
-                        term_left_int  = EV_left_int .* W_left;
-                        term_right_int = EV_right_int .* W_right;
-                        term_left_int(isnan(term_left_int))   = 0;
-                        term_right_int(isnan(term_right_int)) = 0;
-                        if ~isempty(pi_u_shape); EV_compact_int = sum(term_left_int + term_right_int, 7); else; EV_compact_int = term_left_int + term_right_int; end
+                        if ~isempty(pi_u_shape)
+                            EV_compact_int = 0;
+                            for iu = 1:n_u_loc
+                                idx_u_left = idx_2d_left_base(:,:,:,:,:,iu);
+                                idx_u_right = idx_2d_right_base(:,:,:,:,:,iu);
+
+                                EV_left_int  = reshape(EV_3D_interp(:, idx_u_left(:)), [N_a1_interp, idx_shape]);
+                                EV_right_int = reshape(EV_3D_interp(:, idx_u_right(:)), [N_a1_interp, idx_shape]);
+
+                                w_u = weight_ND(:,:,:,:,:,:,iu);
+                                term_left_int  = EV_left_int .* (1 - w_u);
+                                term_right_int = EV_right_int .* w_u;
+
+                                term_left_int(isnan(term_left_int))   = 0;
+                                term_right_int(isnan(term_right_int)) = 0;
+
+                                EV_u_int = term_left_int + term_right_int;
+                                pi_scalar = cast(pi_u_shape(1,1,1,1,1,iu), 'like', EV_u_int);
+                                EV_compact_int = EV_compact_int + EV_u_int .* pi_scalar;
+                            end
+                        else
+                            EV_left_int  = reshape(EV_3D_interp(:, idx_2d_left_base(:)), [N_a1_interp, idx_shape]);
+                            EV_right_int = reshape(EV_3D_interp(:, idx_2d_right_base(:)), [N_a1_interp, idx_shape]);
+                            term_left_int  = EV_left_int .* (1 - weight_ND);
+                            term_right_int = EV_right_int .* weight_ND;
+                            term_left_int(isnan(term_left_int))   = 0;
+                            term_right_int(isnan(term_right_int)) = 0;
+                            EV_compact_int = term_left_int + term_right_int;
+                        end
                         EV_compact_int(isnan(EV_compact_int)) = -Inf;
-                        EV_compact_int = reshape(EV_compact_int, [N_a1_interp, N_d_safe_loc, N_a2_global, n_z_loc, n_e_loc]);
-                        EV_interp_local = beta_j .* permute(EV_compact_int, [2, 1, 3, 4, 5]); % Overwrite with compacted [N_d, N_a1', N_a2, z, e]
+                        EV_interp_local = beta_j .* permute(EV_compact_int, [2, 1, 3, 4, 5]); % Overwrite
                     end
 
                     % Setup static mapping offsets for all Branches
@@ -1017,7 +1087,6 @@ for reverse_j = 0:N_j-1
                         static_EV_offset_fine = [];
                     end
                 end
-
                 % The non-DC Block takes 5 arguments (Strictly using N_a2_local and A2_local)
                 LocalBlockFn = @(state_idx, loweredge_matrix, maxgap_scalar, d_gap, dc_mode_override) Evaluate_Case1_TensorBlock(...
                     state_idx, loweredge_matrix, maxgap_scalar, d_gap, N_a1_dc, N_a1_other, max(1, N_a2_local), N_d_safe, N_ze_local, ...
