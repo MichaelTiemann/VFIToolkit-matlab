@@ -125,6 +125,15 @@ N_dsemiz = 1; if has_semiz && N_d > 0; N_dsemiz = n_d(end); end
 % =========================================================================
 % PHASE 2: REVERSE TIME LOOP (j = N_j down to 1)
 % =========================================================================
+
+% --- Dynamic VRAM Profiling (Hoisted) ---
+if vfoptions.parallel == 2
+    gpu_device_info = gpuDevice();
+    safe_elements = max(1e7, floor((gpu_device_info.AvailableMemory / 8) / 8));
+else
+    safe_elements = 50000000; % CPU fallback
+end
+
 for reverse_j = 0:N_j-1
     jj = N_j - reverse_j;
     if vfoptions.verbose == 1; fprintf('Finite horizon QHEZ: %i of %i \n', jj, N_j); end
@@ -437,7 +446,7 @@ for reverse_j = 0:N_j-1
                 state_list = start_a_idx:end_a_idx;
                 total_states = length(state_list);
                 flat_choices = max(1, N_d_safe) * N_a1;
-                max_states_per_chunk = max(1, floor(50000000 / (flat_choices * n_z_loc * n_e_loc)));
+                max_states_per_chunk = max(1, floor(safe_elements / (flat_choices * n_z_loc * n_e_loc)));
 
                 v_concat = []; p_apr_concat = []; p_d_concat = []; valt_concat = [];
                 p_l2idx_concat = []; p_l2flag_concat = [];
@@ -626,7 +635,25 @@ else
         % SCENARIO 2A: Standard DC Segment Zoom (No Interpolation)
         % -------------------------------------------------------------
         num_choices = maxgap_scalar + 1;
-        base_idx = reshape(loweredge_matrix, [1, 1, N_states, n_z_loc, n_e_loc]);
+        % --- Robust Geometry Normalization ---
+        % Explicitly expand the singleton state dimension FIRST to prevent MATLAB
+        % from column-major scrambling the shocks into the state coordinates.
+        if size(loweredge_matrix, 3) == 1 && N_states > 1
+            loweredge_matrix = repmat(loweredge_matrix, [1, 1, N_states, 1, 1]);
+        end
+
+        target_states_ze = N_states * n_z_loc * n_e_loc;
+        num_val = numel(loweredge_matrix);
+
+        if num_val == target_states_ze
+            base_idx = reshape(loweredge_matrix, [1, 1, N_states, n_z_loc, n_e_loc]);
+        elseif exist('N_d_safe', 'var') && num_val == N_d_safe * target_states_ze
+            base_idx = reshape(loweredge_matrix, [N_d_safe, 1, N_states, n_z_loc, n_e_loc]);
+        else
+            % Safe Fallback: Force shape using structural tiling without flattening
+            low_reshaped = reshape(loweredge_matrix(1:n_z_loc*n_e_loc), [1, 1, 1, n_z_loc, n_e_loc]);
+            base_idx = repmat(low_reshaped, [1, 1, N_states, 1, 1]);
+        end
         choice_idx = max(1, min(base_idx + reshape(0:maxgap_scalar, [1, num_choices, 1, 1, 1]), N_a1));
 
         Apr_cells = cell(1, num_a1);
