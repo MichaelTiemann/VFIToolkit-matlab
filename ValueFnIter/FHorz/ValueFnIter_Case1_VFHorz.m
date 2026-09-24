@@ -1015,70 +1015,83 @@ if isempty(loweredge_matrix)
                 Apr_cells{i_a} = cast(Apr_cells{i_a}, 'like', EV_local);
             end
             F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
-            A2_prime = TensoraprimeFn(D_cells_block, A2_cells, Z_cells_block, E_cells_block, aprimeFnParamsCell);
-            a2_grid_1d_vec = a2_grids_1d{1}; a2_prime_clipped = max(a2_grid_1d_vec(1), min(A2_prime, a2_grid_1d_vec(end)));
-            idx = discretize(a2_prime_clipped, a2_grid_1d_vec); idx(isnan(idx)) = N_a2 - 1; idx = max(1, min(idx, N_a2 - 1));
-            a2_left = reshape(a2_grid_1d_vec(idx), size(idx)); a2_right = reshape(a2_grid_1d_vec(idx+1), size(idx));
+
+            % 1. Evaluate A2_prime compactly to prevent Cartesian memory duplication
+            N_a2_global = max(1, prod(cellfun(@length, a2_grids_1d)));
+            A2_cells_compact = cell(1, l_a2);
+            for ia = 1:l_a2; A2_cells_compact{ia} = cast(reshape(a2_grids_1d{ia}, [1, 1, N_a2_global, 1, 1]), 'like', EV_local); end
+            Z_cells_compact = cell(1, length(Z_cells_block));
+            for iz = 1:length(Z_cells_block); Z_cells_compact{iz} = cast(reshape(Z_cells_block{iz}(1,1,1,:,1), [1, 1, 1, n_z_loc, 1]), 'like', EV_local); end
+            E_cells_compact = cell(1, length(E_cells_block));
+            for ie = 1:length(E_cells_block); E_cells_compact{ie} = cast(reshape(E_cells_block{ie}(1,1,1,1,:), [1, 1, 1, 1, n_e_loc]), 'like', EV_local); end
+
+            A2_prime = TensoraprimeFn(D_cells_block, A2_cells_compact, Z_cells_compact, E_cells_compact, aprimeFnParamsCell);
+            a2_grid_1d_vec = a2_grids_1d{1};
+            a2_prime_clipped = max(a2_grid_1d_vec(1), min(A2_prime, a2_grid_1d_vec(end)));
+            idx = discretize(a2_prime_clipped, a2_grid_1d_vec);
+            idx(isnan(idx)) = N_a2_global - 1;
+            idx = max(1, min(idx, N_a2_global - 1));
+            a2_left = reshape(a2_grid_1d_vec(idx), size(idx));
+            a2_right = reshape(a2_grid_1d_vec(idx+1), size(idx));
             weight = (a2_prime_clipped - a2_left) ./ (a2_right - a2_left);
             weight(a2_right == a2_left) = 0;
             weight(abs(weight) < 1e-12) = 0;
             weight(abs(weight - 1) < 1e-12) = 1;
 
             ZE_idx = reshape(1:N_ze_local, [1, 1, 1, n_z_loc, n_e_loc]);
-            N_a2_global = max(1, prod(cellfun(@length, a2_grids_1d)));
             N_a1_total = N_a1_dc * N_a1_other;
-
-            % Decouple a1prime from a2 lookup to slash memory by 90%
             EV_3D = reshape(EV_local, [N_a1_total, N_a2_global * N_ze_local * N_dsemiz]);
 
             if ~isempty(pi_u_shape)
-                EV_bounded = 0;
+                EV_bounded_raw = zeros(N_a1_total, numel(idx(:,:,:,:,:,1)), 'like', EV_3D);
                 for iu = 1:size(pi_u_shape, 6)
                     idx_u = idx(:, :, :, :, :, iu);
                     weight_u = weight(:, :, :, :, :, iu);
 
                     idx_2d_left  = idx_u + (ZE_idx - 1) * N_a2_global + (dsemiz_idx_tensor - 1) * (N_a2_global * N_ze_local);
                     idx_2d_right = idx_u + 1 + (ZE_idx - 1) * N_a2_global + (dsemiz_idx_tensor - 1) * (N_a2_global * N_ze_local);
-
                     idx_2d_left = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_left));
                     idx_2d_right = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_right));
 
+                    % 2. Extract strictly in 2D to bypass 5D Cartesian expansions
                     EV_left_raw = EV_3D(:, idx_2d_left(:));
                     EV_right_raw = EV_3D(:, idx_2d_right(:));
+                    EV_left_raw(EV_left_raw == -Inf) = -1e250;
+                    EV_right_raw(EV_right_raw == -Inf) = -1e250;
 
-                    EV_left_u = permute(reshape(EV_left_raw, [N_a1_total, size(idx_2d_left)]), [2, 1, 3, 4, 5, 6]);
-                    EV_right_u = permute(reshape(EV_right_raw, [N_a1_total, size(idx_2d_right)]), [2, 1, 3, 4, 5, 6]);
-
-                    % NaN-Safe Memory-Optimized Interpolation
-                    EV_left_u(EV_left_u == -Inf) = -1e250;
-                    EV_right_u(EV_right_u == -Inf) = -1e250;
-
-                    EV_bounded_u = EV_left_u + weight_u .* (EV_right_u - EV_left_u);
+                    weight_flat = weight_u(:)';
+                    EV_bounded_u = EV_left_raw + weight_flat .* (EV_right_raw - EV_left_raw);
                     EV_bounded_u(EV_bounded_u < -1e200) = -Inf;
 
-                    EV_bounded = EV_bounded + EV_bounded_u .* pi_u_shape(1,1,1,1,1,iu);
+                    pi_u_scalar = cast(pi_u_shape(1,1,1,1,1,iu), 'like', EV_bounded_u);
+                    EV_bounded_raw = EV_bounded_raw + EV_bounded_u .* pi_u_scalar;
                 end
-                EV_bounded(isnan(EV_bounded)) = -Inf;
+                EV_bounded_raw(isnan(EV_bounded_raw)) = -Inf;
+
+                % 3. Reshape safely to F_tensor dimensions
+                EV_bounded = reshape(EV_bounded_raw, [N_a1_total, N_d_safe_local, 1, N_a2_global, n_z_loc, n_e_loc]);
+                EV_bounded = permute(EV_bounded, [2, 3, 1, 4, 5, 6]);
+                EV_bounded = reshape(EV_bounded, [N_d_safe_local, 1, N_states, n_z_loc, n_e_loc]);
                 EV_bounded = beta_j .* EV_bounded;
             else
                 idx_2d_left  = idx + (ZE_idx - 1) * N_a2_global + (dsemiz_idx_tensor - 1) * (N_a2_global * N_ze_local);
                 idx_2d_right = idx + 1 + (ZE_idx - 1) * N_a2_global + (dsemiz_idx_tensor - 1) * (N_a2_global * N_ze_local);
-
                 idx_2d_left = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_left));
                 idx_2d_right = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_right));
 
                 EV_left_raw = EV_3D(:, idx_2d_left(:));
                 EV_right_raw = EV_3D(:, idx_2d_right(:));
+                EV_left_raw(EV_left_raw == -Inf) = -1e250;
+                EV_right_raw(EV_right_raw == -Inf) = -1e250;
 
-                EV_left_u = permute(reshape(EV_left_raw, [N_a1_total, size(idx_2d_left)]), [2, 1, 3, 4, 5, 6]);
-                EV_right_u = permute(reshape(EV_right_raw, [N_a1_total, size(idx_2d_right)]), [2, 1, 3, 4, 5, 6]);
+                weight_flat = weight(:)';
+                EV_bounded_raw = EV_left_raw + weight_flat .* (EV_right_raw - EV_left_raw);
+                EV_bounded_raw(EV_bounded_raw < -1e200) = -Inf;
+                EV_bounded_raw(isnan(EV_bounded_raw)) = -Inf;
 
-                EV_left_u(EV_left_u == -Inf) = -1e250;
-                EV_right_u(EV_right_u == -Inf) = -1e250;
-
-                EV_bounded = EV_left_u + weight .* (EV_right_u - EV_left_u);
-                EV_bounded(EV_bounded < -1e200) = -Inf;
-                EV_bounded(isnan(EV_bounded)) = -Inf;
+                EV_bounded = reshape(EV_bounded_raw, [N_a1_total, N_d_safe_local, 1, N_a2_global, n_z_loc, n_e_loc]);
+                EV_bounded = permute(EV_bounded, [2, 3, 1, 4, 5, 6]);
+                EV_bounded = reshape(EV_bounded, [N_d_safe_local, 1, N_states, n_z_loc, n_e_loc]);
                 EV_bounded = beta_j .* EV_bounded;
             end
         else
@@ -1153,10 +1166,23 @@ if isempty(loweredge_matrix)
                 Apr_cells{i_a} = cast(Apr_cells{i_a}, 'like', EV_local);
             end
             F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
-            A2_prime = TensoraprimeFn(D_cells_block, A2_cells, Z_cells_block, E_cells_block, aprimeFnParamsCell);
-            a2_grid_1d_vec = a2_grids_1d{1}; a2_prime_clipped = max(a2_grid_1d_vec(1), min(A2_prime, a2_grid_1d_vec(end)));
-            idx = discretize(a2_prime_clipped, a2_grid_1d_vec); idx(isnan(idx)) = N_a2 - 1; idx = max(1, min(idx, N_a2 - 1));
-            a2_left = reshape(a2_grid_1d_vec(idx), size(idx)); a2_right = reshape(a2_grid_1d_vec(idx+1), size(idx));
+
+            N_a2_global = max(1, prod(cellfun(@length, a2_grids_1d)));
+            A2_cells_compact = cell(1, l_a2);
+            for ia = 1:l_a2; A2_cells_compact{ia} = cast(reshape(a2_grids_1d{ia}, [1, 1, N_a2_global, 1, 1]), 'like', EV_local); end
+            Z_cells_compact = cell(1, length(Z_cells_block));
+            for iz = 1:length(Z_cells_block); Z_cells_compact{iz} = cast(reshape(Z_cells_block{iz}(1,1,1,:,1), [1, 1, 1, n_z_loc, 1]), 'like', EV_local); end
+            E_cells_compact = cell(1, length(E_cells_block));
+            for ie = 1:length(E_cells_block); E_cells_compact{ie} = cast(reshape(E_cells_block{ie}(1,1,1,1,:), [1, 1, 1, 1, n_e_loc]), 'like', EV_local); end
+
+            A2_prime = TensoraprimeFn(D_cells_block, A2_cells_compact, Z_cells_compact, E_cells_compact, aprimeFnParamsCell);
+            a2_grid_1d_vec = a2_grids_1d{1};
+            a2_prime_clipped = max(a2_grid_1d_vec(1), min(A2_prime, a2_grid_1d_vec(end)));
+            idx = discretize(a2_prime_clipped, a2_grid_1d_vec);
+            idx(isnan(idx)) = N_a2_global - 1;
+            idx = max(1, min(idx, N_a2_global - 1));
+            a2_left = reshape(a2_grid_1d_vec(idx), size(idx));
+            a2_right = reshape(a2_grid_1d_vec(idx+1), size(idx));
             weight = (a2_prime_clipped - a2_left) ./ (a2_right - a2_left);
             weight(a2_right == a2_left) = 0;
             weight(abs(weight) < 1e-12) = 0;
@@ -1164,59 +1190,59 @@ if isempty(loweredge_matrix)
 
             ZE_idx = reshape(1:N_ze_local, [1, 1, 1, n_z_loc, n_e_loc]);
             N_a1_total = length(a1prime_grid) * N_a1_other;
-            N_a2_global = max(1, prod(cellfun(@length, a2_grids_1d)));
-
-            % Decouple a1prime from a2 lookup to slash memory
             EV_3D = reshape(EV_interp_local, [N_a1_total, N_a2_global * N_ze_local * N_dsemiz]);
 
             if ~isempty(pi_u_shape)
-                EV_bounded = 0;
+                EV_bounded_raw = zeros(N_a1_total, numel(idx(:,:,:,:,:,1)), 'like', EV_3D);
                 for iu = 1:size(pi_u_shape, 6)
                     idx_u = idx(:, :, :, :, :, iu);
                     weight_u = weight(:, :, :, :, :, iu);
 
                     idx_2d_left  = idx_u + (ZE_idx - 1) * N_a2_global + (dsemiz_idx_tensor - 1) * (N_a2_global * N_ze_local);
                     idx_2d_right = idx_u + 1 + (ZE_idx - 1) * N_a2_global + (dsemiz_idx_tensor - 1) * (N_a2_global * N_ze_local);
-
                     idx_2d_left = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_left));
                     idx_2d_right = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_right));
 
                     EV_left_raw = EV_3D(:, idx_2d_left(:));
                     EV_right_raw = EV_3D(:, idx_2d_right(:));
+                    EV_left_raw(EV_left_raw == -Inf) = -1e250;
+                    EV_right_raw(EV_right_raw == -Inf) = -1e250;
 
-                    EV_left_u = permute(reshape(EV_left_raw, [N_a1_total, size(idx_2d_left)]), [2, 1, 3, 4, 5, 6]);
-                    EV_right_u = permute(reshape(EV_right_raw, [N_a1_total, size(idx_2d_right)]), [2, 1, 3, 4, 5, 6]);
-
-                    % NaN-Safe Memory-Optimized Interpolation
-                    EV_left_u(EV_left_u == -Inf) = -1e250;
-                    EV_right_u(EV_right_u == -Inf) = -1e250;
-
-                    EV_bounded_u = EV_left_u + weight_u .* (EV_right_u - EV_left_u);
+                    weight_flat = weight_u(:)';
+                    EV_bounded_u = EV_left_raw + weight_flat .* (EV_right_raw - EV_left_raw);
                     EV_bounded_u(EV_bounded_u < -1e200) = -Inf;
 
-                    EV_bounded = EV_bounded + EV_bounded_u .* pi_u_shape(1,1,1,1,1,iu);
+                    pi_u_scalar = cast(pi_u_shape(1,1,1,1,1,iu), 'like', EV_bounded_u);
+                    EV_bounded_raw = EV_bounded_raw + EV_bounded_u .* pi_u_scalar;
                 end
-                EV_bounded(isnan(EV_bounded)) = -Inf;
+                EV_bounded_raw(isnan(EV_bounded_raw)) = -Inf;
+
+                % Broadcast a1 across the states because EV_interp_local decoupled it
+                EV_bounded = reshape(EV_bounded_raw, [N_a1_total, N_d_safe_local, 1, N_a2_global, n_z_loc, n_e_loc]);
+                EV_bounded = permute(EV_bounded, [2, 1, 3, 4, 5, 6]);
+                EV_bounded = repmat(EV_bounded, [1, 1, N_a1_dc * N_a1_other, 1, 1, 1]);
+                EV_bounded = reshape(EV_bounded, [N_d_safe_local, num_choices_total, N_states, n_z_loc, n_e_loc]);
                 EV_bounded = beta_j .* EV_bounded;
             else
                 idx_2d_left  = idx + (ZE_idx - 1) * N_a2_global + (dsemiz_idx_tensor - 1) * (N_a2_global * N_ze_local);
                 idx_2d_right = idx + 1 + (ZE_idx - 1) * N_a2_global + (dsemiz_idx_tensor - 1) * (N_a2_global * N_ze_local);
-
                 idx_2d_left = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_left));
                 idx_2d_right = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_right));
 
                 EV_left_raw = EV_3D(:, idx_2d_left(:));
                 EV_right_raw = EV_3D(:, idx_2d_right(:));
+                EV_left_raw(EV_left_raw == -Inf) = -1e250;
+                EV_right_raw(EV_right_raw == -Inf) = -1e250;
 
-                EV_left_u = permute(reshape(EV_left_raw, [N_a1_total, size(idx_2d_left)]), [2, 1, 3, 4, 5, 6]);
-                EV_right_u = permute(reshape(EV_right_raw, [N_a1_total, size(idx_2d_right)]), [2, 1, 3, 4, 5, 6]);
+                weight_flat = weight(:)';
+                EV_bounded_raw = EV_left_raw + weight_flat .* (EV_right_raw - EV_left_raw);
+                EV_bounded_raw(EV_bounded_raw < -1e200) = -Inf;
+                EV_bounded_raw(isnan(EV_bounded_raw)) = -Inf;
 
-                EV_left_u(EV_left_u == -Inf) = -1e250;
-                EV_right_u(EV_right_u == -Inf) = -1e250;
-
-                EV_bounded = EV_left_u + weight .* (EV_right_u - EV_left_u);
-                EV_bounded(EV_bounded < -1e200) = -Inf;
-                EV_bounded(isnan(EV_bounded)) = -Inf;
+                EV_bounded = reshape(EV_bounded_raw, [N_a1_total, N_d_safe_local, 1, N_a2_global, n_z_loc, n_e_loc]);
+                EV_bounded = permute(EV_bounded, [2, 1, 3, 4, 5, 6]);
+                EV_bounded = repmat(EV_bounded, [1, 1, N_a1_dc * N_a1_other, 1, 1, 1]);
+                EV_bounded = reshape(EV_bounded, [N_d_safe_local, num_choices_total, N_states, n_z_loc, n_e_loc]);
                 EV_bounded = beta_j .* EV_bounded;
             end
         else
@@ -1341,13 +1367,21 @@ else
                 Apr_cells{i_a} = cast(Apr_cells{i_a}, 'like', EV_local);
             end
             F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
-            A2_prime = TensoraprimeFn(D_cells_block, A2_cells, Z_cells_block, E_cells_block, aprimeFnParamsCell);
 
+            N_a2_global = max(1, prod(cellfun(@length, a2_grids_1d)));
+            A2_cells_compact = cell(1, l_a2);
+            for ia = 1:l_a2; A2_cells_compact{ia} = cast(reshape(a2_grids_1d{ia}, [1, 1, N_a2_global, 1, 1]), 'like', EV_local); end
+            Z_cells_compact = cell(1, length(Z_cells_block));
+            for iz = 1:length(Z_cells_block); Z_cells_compact{iz} = cast(reshape(Z_cells_block{iz}(1,1,1,:,1), [1, 1, 1, n_z_loc, 1]), 'like', EV_local); end
+            E_cells_compact = cell(1, length(E_cells_block));
+            for ie = 1:length(E_cells_block); E_cells_compact{ie} = cast(reshape(E_cells_block{ie}(1,1,1,1,:), [1, 1, 1, 1, n_e_loc]), 'like', EV_local); end
+
+            A2_prime = TensoraprimeFn(D_cells_block, A2_cells_compact, Z_cells_compact, E_cells_compact, aprimeFnParamsCell);
             a2_grid_1d_vec = a2_grids_1d{1};
             a2_prime_clipped = max(a2_grid_1d_vec(1), min(A2_prime, a2_grid_1d_vec(end)));
             idx = discretize(a2_prime_clipped, a2_grid_1d_vec);
-            idx(isnan(idx)) = N_a2 - 1;
-            idx = max(1, min(idx, N_a2 - 1));
+            idx(isnan(idx)) = N_a2_global - 1;
+            idx = max(1, min(idx, N_a2_global - 1));
             a2_left = reshape(a2_grid_1d_vec(idx), size(idx));
             a2_right = reshape(a2_grid_1d_vec(idx+1), size(idx));
             weight = (a2_prime_clipped - a2_left) ./ (a2_right - a2_left);
@@ -1355,14 +1389,18 @@ else
             weight(abs(weight) < 1e-12) = 0;
             weight(abs(weight - 1) < 1e-12) = 1;
 
-            ZE_idx = reshape(1:N_ze_local, [1, 1, 1, n_z_loc, n_e_loc]);
-            N_a2_global = max(1, prod(cellfun(@length, a2_grids_1d)));
+            % Expand the compact array to match choice_idx_linear
+            idx_full = repmat(reshape(idx, [N_d_safe_local, 1, 1, N_a2_global, n_z_loc, n_e_loc, size(idx,6)]), [1, 1, N_a1_dc * N_a1_other, 1, 1, 1, 1]);
+            idx_full = reshape(idx_full, [N_d_safe_local, 1, N_states, n_z_loc, n_e_loc, size(idx,6)]);
+            weight_full = repmat(reshape(weight, [N_d_safe_local, 1, 1, N_a2_global, n_z_loc, n_e_loc, size(weight,6)]), [1, 1, N_a1_dc * N_a1_other, 1, 1, 1, 1]);
+            weight_full = reshape(weight_full, [N_d_safe_local, 1, N_states, n_z_loc, n_e_loc, size(weight,6)]);
 
+            ZE_idx = reshape(1:N_ze_local, [1, 1, 1, n_z_loc, n_e_loc]);
             if ~isempty(pi_u_shape)
                 EV_bounded = 0;
                 for iu = 1:size(pi_u_shape, 6)
-                    idx_u = idx(:, :, :, :, :, iu);
-                    weight_u = weight(:, :, :, :, :, iu);
+                    idx_u = idx_full(:, :, :, :, :, iu);
+                    weight_u = weight_full(:, :, :, :, :, iu);
 
                     idx_left_u  = choice_idx_linear + (idx_u - 1) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
                     idx_right_u = choice_idx_linear + (idx_u) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
@@ -1380,13 +1418,14 @@ else
                     EV_bounded_u = EV_left_u + weight_u .* (EV_right_u - EV_left_u);
                     EV_bounded_u(EV_bounded_u < -1e200) = -Inf;
 
-                    EV_bounded = EV_bounded + EV_bounded_u .* pi_u_shape(1,1,1,1,1,iu);
+                    pi_u_scalar = cast(pi_u_shape(1,1,1,1,1,iu), 'like', EV_bounded_u);
+                    EV_bounded = EV_bounded + EV_bounded_u .* pi_u_scalar;
                 end
                 EV_bounded(isnan(EV_bounded)) = -Inf;
                 EV_bounded = beta_j .* EV_bounded;
             else
-                idx_left  = choice_idx_linear + (idx - 1) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
-                idx_right = choice_idx_linear + (idx) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
+                idx_left  = choice_idx_linear + (idx_full - 1) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
+                idx_right = choice_idx_linear + (idx_full) * (N_a1_dc * N_a1_other) + (ZE_idx - 1) * (N_a1_dc * N_a1_other * N_a2_global);
 
                 max_idx = numel(EV_local);
                 dsemiz_stride = size(EV_local, 1) * size(EV_local, 2);
@@ -1398,7 +1437,7 @@ else
                 EV_left_u(EV_left_u == -Inf) = -1e250;
                 EV_right_u(EV_right_u == -Inf) = -1e250;
 
-                EV_bounded = EV_left_u + weight .* (EV_right_u - EV_left_u);
+                EV_bounded = EV_left_u + weight_full .* (EV_right_u - EV_left_u);
                 EV_bounded(EV_bounded < -1e200) = -Inf;
                 EV_bounded(isnan(EV_bounded)) = -Inf;
                 EV_bounded = beta_j .* EV_bounded;
@@ -1459,13 +1498,21 @@ else
                 Apr_cells{i_a} = cast(Apr_cells{i_a}, 'like', EV_local);
             end
             F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
-            A2_prime = TensoraprimeFn(D_cells_block, A2_cells, Z_cells_block, E_cells_block, aprimeFnParamsCell);
 
+            N_a2_global = max(1, prod(cellfun(@length, a2_grids_1d)));
+            A2_cells_compact = cell(1, l_a2);
+            for ia = 1:l_a2; A2_cells_compact{ia} = cast(reshape(a2_grids_1d{ia}, [1, 1, N_a2_global, 1, 1]), 'like', EV_local); end
+            Z_cells_compact = cell(1, length(Z_cells_block));
+            for iz = 1:length(Z_cells_block); Z_cells_compact{iz} = cast(reshape(Z_cells_block{iz}(1,1,1,:,1), [1, 1, 1, n_z_loc, 1]), 'like', EV_local); end
+            E_cells_compact = cell(1, length(E_cells_block));
+            for ie = 1:length(E_cells_block); E_cells_compact{ie} = cast(reshape(E_cells_block{ie}(1,1,1,1,:), [1, 1, 1, 1, n_e_loc]), 'like', EV_local); end
+
+            A2_prime = TensoraprimeFn(D_cells_block, A2_cells_compact, Z_cells_compact, E_cells_compact, aprimeFnParamsCell);
             a2_grid_1d_vec = a2_grids_1d{1};
             a2_prime_clipped = max(a2_grid_1d_vec(1), min(A2_prime, a2_grid_1d_vec(end)));
             idx = discretize(a2_prime_clipped, a2_grid_1d_vec);
-            idx(isnan(idx)) = N_a2 - 1;
-            idx = max(1, min(idx, N_a2 - 1));
+            idx(isnan(idx)) = N_a2_global - 1;
+            idx = max(1, min(idx, N_a2_global - 1));
             a2_left = reshape(a2_grid_1d_vec(idx), size(idx));
             a2_right = reshape(a2_grid_1d_vec(idx+1), size(idx));
             weight = (a2_prime_clipped - a2_left) ./ (a2_right - a2_left);
@@ -1473,13 +1520,18 @@ else
             weight(abs(weight) < 1e-12) = 0;
             weight(abs(weight - 1) < 1e-12) = 1;
 
+            idx_full = repmat(reshape(idx, [N_d_safe_local, 1, 1, N_a2_global, n_z_loc, n_e_loc, size(idx,6)]), [1, 1, N_a1_dc * N_a1_other, 1, 1, 1, 1]);
+            idx_full = reshape(idx_full, [N_d_safe_local, 1, N_states, n_z_loc, n_e_loc, size(idx,6)]);
+            weight_full = repmat(reshape(weight, [N_d_safe_local, 1, 1, N_a2_global, n_z_loc, n_e_loc, size(weight,6)]), [1, 1, N_a1_dc * N_a1_other, 1, 1, 1, 1]);
+            weight_full = reshape(weight_full, [N_d_safe_local, 1, N_states, n_z_loc, n_e_loc, size(weight,6)]);
+
             ZE_offset = reshape((0:N_ze_local-1) * (length(a1prime_grid) * N_a1_other * N_a2), [1, 1, 1, n_z_loc, n_e_loc]);
 
             if ~isempty(pi_u_shape)
                 EV_bounded = 0;
                 for iu = 1:size(pi_u_shape, 6)
-                    idx_u = idx(:, :, :, :, :, iu);
-                    weight_u = weight(:, :, :, :, :, iu);
+                    idx_u = idx_full(:, :, :, :, :, iu);
+                    weight_u = weight_full(:, :, :, :, :, iu);
 
                     lin_idx_left_u = choice_idx_linear + (idx_u - 1) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
                     lin_idx_right_u = choice_idx_linear + (idx_u) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
@@ -1497,13 +1549,14 @@ else
                     EV_bounded_u = EV_left_u + weight_u .* (EV_right_u - EV_left_u);
                     EV_bounded_u(EV_bounded_u < -1e200) = -Inf;
 
-                    EV_bounded = EV_bounded + EV_bounded_u .* pi_u_shape(1,1,1,1,1,iu);
+                    pi_u_scalar = cast(pi_u_shape(1,1,1,1,1,iu), 'like', EV_bounded_u);
+                    EV_bounded = EV_bounded + EV_bounded_u .* pi_u_scalar;
                 end
                 EV_bounded(isnan(EV_bounded)) = -Inf;
                 EV_bounded = beta_j .* EV_bounded;
             else
-                lin_idx_left = choice_idx_linear + (idx - 1) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
-                lin_idx_right = choice_idx_linear + (idx) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
+                lin_idx_left = choice_idx_linear + (idx_full - 1) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
+                lin_idx_right = choice_idx_linear + (idx_full) * (length(a1prime_grid) * N_a1_other) + ZE_offset;
                 if N_dsemiz > 1
                     dsemiz_offset = (dsemiz_idx_tensor - 1) * (length(a1prime_grid) * N_a1_other * N_a2 * N_ze_local);
                     lin_idx_left = lin_idx_left + dsemiz_offset;
@@ -1515,7 +1568,7 @@ else
                 EV_left_u(EV_left_u == -Inf) = -1e250;
                 EV_right_u(EV_right_u == -Inf) = -1e250;
 
-                EV_bounded = EV_left_u + weight .* (EV_right_u - EV_left_u);
+                EV_bounded = EV_left_u + weight_full .* (EV_right_u - EV_left_u);
                 EV_bounded(EV_bounded < -1e200) = -Inf;
                 EV_bounded(isnan(EV_bounded)) = -Inf;
                 EV_bounded = beta_j .* EV_bounded;
