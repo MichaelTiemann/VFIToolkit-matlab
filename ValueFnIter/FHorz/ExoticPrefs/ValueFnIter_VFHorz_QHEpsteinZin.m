@@ -323,8 +323,8 @@ for reverse_j = 0:N_j-1
 
             full_state_chunk = 1:(N_a1 * N_a2);
             if vfoptions.gridinterplayer(1) == 1
-                % Slicer dynamically tracks the peak directly on the fine grid!
-                [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC1_Slicer(N_a1 * N_a2, length(a1prime_grid), 1, N_ze_local, vfoptions, LocalBlockFn_Actual);
+                % Slicer dynamically tracks the peak directly on the coarse grid!
+                [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC1_Slicer(N_a1 * N_a2, N_a, 1, N_ze_local, vfoptions, LocalBlockFn_Actual);
                 % One final targeted pass strictly to extract Valt
                 [~, ~, ~, ~, ~, valt] = LocalBlockFn_Actual(full_state_chunk, p_apr, 0);
             else
@@ -663,11 +663,12 @@ else
         % -------------------------------------------------------------
         % SCENARIO 2B: Fine Grid Zoom (Interpolation)
         % -------------------------------------------------------------
-        num_choices = maxgap_scalar * (n2short + 1) + (n2short * 2 + 3);
+        search_radius = 2;
+        num_choices = maxgap_scalar * (n2short + 1) + (search_radius * 2 * (n2short + 1) + 1);
 
         % --- MAP COARSE INDEX TO FINE GRID INDEX ---
         fine_base_idx = (base_idx - 1) * (n2short + 1) + 1;
-        choice_idx = max(1, min(fine_base_idx + reshape(0:(num_choices-1), [1, num_choices, 1, 1, 1]) - (n2short + 1), length(a1prime_grid)));
+        choice_idx = max(1, min(fine_base_idx + reshape(0:(num_choices-1), [1, num_choices, 1, 1, 1]) - search_radius * (n2short + 1), length(a1prime_grid)));
 
         Apr_cells = cell(1, num_a1);
         for ia = 1:num_a1
@@ -843,10 +844,11 @@ else
         Pol_L2idx_max = [];
         Pol_L2flag_max = [];
     else
+        search_radius = 2;
         loweredge_matrix_flat = reshape(base_idx, [1, FLAT_STATES]);
-        % Shift the absolute index back by the window offset and safely clamp to the grid edge
+        % Shift the absolute index back by the widened window offset and safely clamp
         fine_base_idx_flat = (loweredge_matrix_flat - 1) * (n2short + 1) + 1;
-        abs_fine_idx_flat = fine_base_idx_flat + apr_offset(:)' - (n2short + 1) - 1;
+        abs_fine_idx_flat = fine_base_idx_flat + apr_offset(:)' - search_radius * (n2short + 1) - 1;
         abs_fine_idx_flat = max(1, min(abs_fine_idx_flat, length(a1prime_grid)));
 
         Pol_apr_max = floor((abs_fine_idx_flat - 1) / (n2short + 1)) + 1;
@@ -854,12 +856,7 @@ else
         Pol_L2idx_max = reshape(abs_fine_idx_flat - (Pol_apr_max - 1) * (n2short + 1), [N_states, N_ze_local]);
         Pol_apr_max = reshape(Pol_apr_max, [N_states, N_ze_local]);
 
-        inLowerStrict = (apr_offset(:)' >= 2) & (apr_offset(:)' <= n2short + 1);
-        inUpperStrict = (apr_offset(:)' >= n2short + 3 + maxgap_scalar * (n2short + 1)) & (apr_offset(:)' <= num_choices - 1);
-
         Pol_L2flag_max = 2 * ones(1, FLAT_STATES, 'like', V_j_max);
-        Pol_L2flag_max(inLowerStrict) = 3;
-        Pol_L2flag_max(inUpperStrict) = 1;
         Pol_L2flag_max = reshape(Pol_L2flag_max, [N_states, N_ze_local]);
     end
 end
