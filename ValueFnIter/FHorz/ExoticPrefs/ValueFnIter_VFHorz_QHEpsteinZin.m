@@ -659,6 +659,7 @@ else
         % --- Extract Belief and Reality EVs for Scenario 2A ---
         a_offset = (choice_idx - 1) * max(1, N_d_safe);
         EV_bounded_base = EV_belief_pre(static_EV_offset + a_offset);
+        EV_Index_Tensor = []; % Fast-tracked native collapse
         if compute_valt
             EV_bounded_V = EV_Valt_pre(static_EV_offset + a_offset);
         else
@@ -685,6 +686,7 @@ else
             L2_linear_idx = L2_linear_idx + (dsemiz_idx_tensor - 1) * (stride_z * N_ze_local);
         end
         EV_bounded_base = EV_belief_interp(L2_linear_idx);
+        EV_Index_Tensor = L2_linear_idx;
         if compute_valt
             EV_bounded_V = EV_Valt_interp(L2_linear_idx);
         else
@@ -846,7 +848,7 @@ else
         Pol_L2flag_max = [];
     else
         loweredge_matrix_flat = reshape(loweredge_matrix, [1, FLAT_STATES]);
-        abs_fine_idx_flat = (loweredge_matrix_flat - 1) * (n2short + 1) + 1 + start_offset + apr_offset - 1;
+        abs_fine_idx_flat = (loweredge_matrix_flat - 1) * (n2short + 1) + 1 + apr_offset - 1;
         Pol_apr_max = floor((abs_fine_idx_flat - 1) / (n2short + 1)) + 1;
         Pol_apr_max = min(Pol_apr_max, N_a1 - 1);
         Pol_L2idx_max = reshape(abs_fine_idx_flat - (Pol_apr_max - 1) * (n2short + 1), [N_states, N_ze_local]);
