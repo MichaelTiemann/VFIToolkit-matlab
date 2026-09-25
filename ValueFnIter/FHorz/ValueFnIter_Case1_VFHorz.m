@@ -1405,10 +1405,16 @@ else
             num_choices_total = total_gap + 1;
         else
             num_choices_total = (total_gap + 1) * N_a1_other;
-            base_idx_a1 = reshape(loweredge_matrix, [N_d_safe_local, N_a1_other, N_states, n_z_loc, n_e_loc]);
-            offsets_a1 = reshape(0:total_gap, [1, 1, 1, 1, 1, total_gap + 1]);
+            FLAT_STATES = N_states * n_z_loc * n_e_loc;
+
+            % CRITICAL FIX: 4D Geometric Collapse (Eliminates 6D Permute VRAM Shuffle)
+            % By placing N_a1_other in dim 3 and the gap in dim 2, implicit expansion
+            % perfectly aligns the choices in memory without requiring a permute.
+            base_idx_a1 = reshape(loweredge_matrix, [N_d_safe_local, 1, N_a1_other, FLAT_STATES]);
+            offsets_a1 = reshape(0:total_gap, [1, total_gap + 1, 1, 1]);
+
+            % Native 4D broadcast instantly aligns the memory geometry
             choice_idx_a1_matrix = max(1, min(base_idx_a1 + offsets_a1, length(A1_grids_1d{1})));
-            choice_idx_a1_matrix = permute(choice_idx_a1_matrix, [1, 6, 2, 3, 4, 5]);
             choice_idx_a1 = reshape(choice_idx_a1_matrix, [N_d_safe_local, num_choices_total, N_states, n_z_loc, n_e_loc]);
 
             a2_base_vec = reshape(1:N_a1_other, [1, 1, N_a1_other]);
@@ -1454,10 +1460,13 @@ else
             num_choices_total = num_choices_total_a1;
         else
             num_choices_total = num_choices_total_a1 * N_a1_other;
-            base_idx_a1 = reshape(L2_base, [N_d_safe_local, N_a1_other, N_states, n_z_loc, n_e_loc]);
-            offsets_a1 = reshape(start_offset:end_offset, [1, 1, 1, 1, 1, num_choices_total_a1]);
+            FLAT_STATES = N_states * n_z_loc * n_e_loc;
+
+            % CRITICAL FIX: 4D Geometric Collapse for Grid Interp
+            base_idx_a1 = reshape(L2_base, [N_d_safe_local, 1, N_a1_other, FLAT_STATES]);
+            offsets_a1 = reshape(start_offset:end_offset, [1, num_choices_total_a1, 1, 1]);
+
             raw_choice_idx_a1_matrix = base_idx_a1 + offsets_a1;
-            raw_choice_idx_a1_matrix = permute(raw_choice_idx_a1_matrix, [1, 6, 2, 3, 4, 5]);
             raw_choice_idx_a1 = reshape(raw_choice_idx_a1_matrix, [N_d_safe_local, num_choices_total, N_states, n_z_loc, n_e_loc]);
 
             out_of_bounds = (raw_choice_idx_a1 < 1) | (raw_choice_idx_a1 > length(a1prime_grid));
