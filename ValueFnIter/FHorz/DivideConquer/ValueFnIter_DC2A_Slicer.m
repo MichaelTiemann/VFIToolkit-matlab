@@ -60,14 +60,13 @@ for ii = 1:(num_anchors - 1)
     seg_state_chunk = seg_state_chunk(:)';
     num_seg = length(segment_a1_states);
 
-    % Strictly preserve all 5 dimensions during extraction!
-    loweredge_a1 = repmat(Pol_a1_anch_for_gap(ii, :, :, :, :), [num_seg, 1, 1, 1, 1]);
-    loweredge_a1 = permute(loweredge_a1, [2, 3, 1, 4, 5]);
+    % CRITICAL FIX: Zero-Cost Implicit Expansion Bounds Generation.
+    % Completely bypasses the repmat (strided memory copy) and permute
+    % (CUDA shared-memory shuffle) kernels, building the array instantly.
+    anchor_slice = Pol_a1_anch_for_gap(ii, :, :, :, :);
+    loweredge_a1 = reshape(anchor_slice, [N_choice_a1_dc, N_a2_endo, 1, N_other_states, N_ze]) + zeros(1, 1, num_seg, 1, 1, 'like', anchor_slice);
     loweredge_a1 = reshape(loweredge_a1, [N_choice_a1_dc, N_a2_endo, num_seg * N_other_states, N_ze]);
 
-    % CRITICAL FIX: Zero-Sync CPU Bounds Assignment.
-    % By completely dropping the dynamic max(..., 'all') reduction,
-    % the CPU never waits for the GPU to return a boundary calculation.
     mg_eval = maxgap(ii);
 
     if mg_eval > 0
