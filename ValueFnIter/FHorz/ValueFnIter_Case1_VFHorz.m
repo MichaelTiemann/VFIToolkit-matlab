@@ -872,12 +872,12 @@ for reverse_j = 0:N_j-1
                 level1ii = round(linspace(1, N_a1_dc, vfoptions.level1n));
                 level1iidiff = level1ii(2:end) - level1ii(1:end-1) - 1;
                 N_other = N_a1_other * max(1, N_a2);
-
                 state_chunk_mat_L1 = level1ii(:) + (0:N_other-1) * N_a1_dc;
                 [~, ~, ~, ~, ~, p_a1_per_a2_L1] = LocalBlockFn(state_chunk_mat_L1(:)', [], 0, 0, 2);
 
-                maxindex1 = reshape(p_a1_per_a2_L1, [max(1, N_d_safe), N_a1_other, length(level1ii), max(1, N_a2), N_ze_local]);
-                loweredge_pass = zeros(max(1, N_d_safe), N_a1_other, N_a1_dc, max(1, N_a2), N_ze_local, 'like', EV_local);
+                % Fix: Use N_other instead of max(1, N_a2) to properly include all N_a1_other states
+                maxindex1 = reshape(p_a1_per_a2_L1, [max(1, N_d_safe), N_a1_other, length(level1ii), N_other, N_ze_local]);
+                loweredge_pass = zeros(max(1, N_d_safe), N_a1_other, N_a1_dc, N_other, N_ze_local, 'like', EV_local);
                 loweredge_pass(:, :, level1ii, :, :) = maxindex1;
 
                 maxgap = squeeze(max(max(max(max(maxindex1(:,:,2:end,:,:) - maxindex1(:,:,1:end-1,:,:), [], 5), [], 4), [], 2), [], 1));
@@ -886,6 +886,7 @@ for reverse_j = 0:N_j-1
                 for ii = 1:(vfoptions.level1n - 1)
                     curraindex = (level1ii(ii)+1 : level1ii(ii+1)-1)';
                     if isempty(curraindex); continue; end
+
                     if maxgap(ii) > 0
                         % Unlocked tensor boundaries to prevent peak clipping
                         loweredge = min(maxindex1(:, :, ii, :, :), N_a1_dc);
@@ -900,13 +901,17 @@ for reverse_j = 0:N_j-1
 
                         % Pass mg_eval instead of maxgap(ii) to dynamically size the tensor block
                         [~, ~, ~, ~, ~, p_a1_per_a2_L2] = LocalBlockFn(state_chunk_mat_L2(:)', loweredge_rep(:), mg_eval, 0, 2);
-                        maxindex_L2 = reshape(p_a1_per_a2_L2, [max(1, N_d_safe), N_a1_other, length(curraindex), max(1, N_a2), N_ze_local]);
+
+                        % Fix: Use N_other instead of max(1, N_a2)
+                        maxindex_L2 = reshape(p_a1_per_a2_L2, [max(1, N_d_safe), N_a1_other, length(curraindex), N_other, N_ze_local]);
                         loweredge_pass(:, :, curraindex, :, :) = maxindex_L2;
                     else
                         loweredge_pass(:, :, curraindex, :, :) = repmat(maxindex1(:, :, ii, :, :), [1, 1, level1iidiff(ii), 1, 1]);
                     end
                 end
-                loweredge_pass = reshape(loweredge_pass, [max(1, N_d_safe), N_a1_other, N_a1_dc * max(1, N_a2), N_ze_local]);
+
+                % Flatten state space for the ZOOM pass (Fix: Use N_other instead of max(1, N_a2))
+                loweredge_pass = reshape(loweredge_pass, [max(1, N_d_safe), N_a1_other, N_a1_dc * N_other, N_ze_local]);
 
                 % --- VRAM Protection: Cartesian Chunking for the Grid Interp Fine Pass ---
                 flat_choices = max(1, N_d_safe) * n2long * max(1, N_a1_other);
@@ -923,8 +928,8 @@ for reverse_j = 0:N_j-1
                     a1_chunk = (chunk_start:chunk_end)';
                     state_chunk_mat = a1_chunk + (0:N_other-1) * N_a1_dc;
                     state_chunk = state_chunk_mat(:)';
-
                     loweredge_chunk = loweredge_pass(:, :, state_chunk, :);
+
                     [v_c, p_apr_c, p_d_c, p_l2idx_c, p_l2flag_c] = LocalBlockFn(state_chunk, loweredge_chunk, n2long - 1, 0, 1);
 
                     v(state_chunk, :) = v_c;

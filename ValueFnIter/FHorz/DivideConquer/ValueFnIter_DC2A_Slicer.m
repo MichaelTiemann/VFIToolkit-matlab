@@ -57,8 +57,16 @@ for ii = 1:(num_anchors - 1)
     loweredge_a1 = reshape(loweredge_a1, [N_a2_endo, num_seg * N_other_states, N_ze]);
 
     if maxgap(ii) > 0
-        loweredge_a1 = min(loweredge_a1, N_choice_a1_dc - maxgap(ii));
-        [V_seg, Pol_apr_seg, Pol_d1_seg, L2idx_seg, L2flag_seg, Pol_a1_per_a2_seg] = EvalBlockFn(seg_state_chunk, loweredge_a1, maxgap(ii));
+        % Unlocked tensor boundaries to prevent peak clipping
+        loweredge_a1 = min(loweredge_a1, N_choice_a1_dc);
+        upper_bound_req = loweredge_a1 + maxgap(ii);
+        mg_eval = max(maxgap(ii), max(upper_bound_req - loweredge_a1, [], 'all'));
+
+        % Cap the evaluation window so it doesn't physically exceed the grid
+        mg_eval = min(mg_eval, N_choice_a1_dc - 1);
+        loweredge_a1 = min(loweredge_a1, N_choice_a1_dc - mg_eval);
+
+        [V_seg, Pol_apr_seg, Pol_d1_seg, L2idx_seg, L2flag_seg, Pol_a1_per_a2_seg] = EvalBlockFn(seg_state_chunk, loweredge_a1, mg_eval);
     else
         [V_seg, Pol_apr_seg, Pol_d1_seg, L2idx_seg, L2flag_seg, Pol_a1_per_a2_seg] = EvalBlockFn(seg_state_chunk, loweredge_a1, 0);
     end
