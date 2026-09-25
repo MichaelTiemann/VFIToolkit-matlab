@@ -147,6 +147,7 @@ if simoptions.parallel<2
 end
 
 %% Exogenous shock grids
+simoptions_for_delegation = simoptions; % Preserve intact options for legacy delegation
 if simoptions.alreadygridvals==0
     if isfield(simoptions,'z_grid')
         % things like experienceassetz and experienceassetze require z_gridvals_J
@@ -306,25 +307,19 @@ elseif has_semiz
     fprintf("StationaryDist_VFHorz_Case1 deferring to reference StationaryDist_FHorz_SemiExo\n");
     StationaryDist_new=StationaryDist_FHorz_SemiExo( ...
         jequaloneDist,AgeWeightParamNames,Policy,n_d,n_a,n_semiz,n_z, ...
-        N_j,pi_semiz_J,pi_z_J,Parameters,simoptions);
-
+        N_j,pi_semiz_J,pi_z_J,Parameters,simoptions_for_delegation);
 else
     % Future: Route to standard StationaryDist_VFHorz (Base Model)
     persistent original_func
-
     if isempty(original_func)
         % Get the name of this file (e.g., 'my_shadowing_function.m')
         this_file = 'StationaryDist_FHorz_Case1.m';
-
         % Find all instances on the MATLAB path
         all_paths = which(this_file, '-all');
-
         % If the shadowing file is in IntroToLifeCycleModels, skip past that
         shadowed_file_path = all_paths{1 + logical(strfind(all_paths{1},'IntroToLifeCycleModels'))};
-
         % Extract the directory containing the shadowed function
         shadowed_dir = fileparts(shadowed_file_path);
-
         % Temporarily change directories to get a clean handle to it
         current_dir = cd(shadowed_dir);
         original_func = str2func(this_file(1:end-2)); % chop off the .m at the end
@@ -333,16 +328,17 @@ else
 
     % Your custom wrapper code goes here...
     fprintf("StationaryDist_VFHorz_Case1 deferring to reference StationaryDist_FHorz_Case1\n");
+
     % Call the shadowed function using the saved handle
     StationaryDist_new = original_func( ...
         jequaloneDist,AgeWeightParamNames,Policy,n_d,n_a,n_z, ...
-        N_j,pi_z,Parameters,simoptions);
+        N_j,pi_z,Parameters,simoptions_for_delegation);
     return
 
     % When no longer testing double-barrel style, just call the function directly
     StationaryDist_new=StationaryDist_FHorz_Case1( ...
         jequaloneDist,AgeWeightParamNames,Policy,n_d,n_a,n_z, ...
-        N_j,pi_z,Parameters,simoptions);
+        N_j,pi_z,Parameters,simoptions_for_delegation);
 end
 
 
