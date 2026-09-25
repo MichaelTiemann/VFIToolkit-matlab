@@ -944,7 +944,8 @@ for reverse_j = 0:N_j-1
                 if l_a1 == 1
                     [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC1_Slicer(N_a1_dc, N_a1_dc, max(1, N_a2), N_ze_local, vfoptions, LocalBlockFn_Base, max(1, N_d_safe));
                 else
-                    [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC2A_Slicer(N_a1_dc, N_a1_other, max(1, N_a2), max(1, N_d_safe), N_ze_local, vfoptions, LocalBlockFn_Base);
+                    % CRITICAL FIX: Pass N_a1_other * max(1, N_a2) as N_other_states so V_max allocates correctly
+                    [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC2A_Slicer(N_a1_dc, N_a1_other, N_a1_other * max(1, N_a2), max(1, N_d_safe), N_ze_local, vfoptions, LocalBlockFn_Base);
                 end
             end
 
@@ -1682,56 +1683,26 @@ end
 
 end
 
-function [v, p_apr, p_d, p_l2, p_l2f, p_a1] = Helper_SlicerWrapper(a1_idx, low_mat, mg, dc_mode, N_a1_dc, N_a1_other, N_a2, N_ze, N_d, CoreFn)
-% DC2A_Slicer passes a linear index already spanning both N_a1_dc and N_a1_other.
-% We only need to broadcast this across the N_a2 dimension.
-N_a1_total = N_a1_dc * N_a1_other;
-state_chunk = reshape(a1_idx(:) + (0:max(1, N_a2)-1) * N_a1_total, 1, []);
+function [v, p_apr, p_d, p_l2, p_l2f, p_a1] = Helper_SlicerWrapper(state_chunk_idx, low_mat, mg, dc_mode, N_a1_dc, N_a1_other, N_a2, N_ze, N_d, CoreFn)
+% The slicer natively generates the full linear state index because we passed
+% N_other_states = N_a1_other * max(1, N_a2). No manual broadcasting needed!
+state_chunk = state_chunk_idx(:)';
 
-num_a1 = length(a1_idx);
 if isempty(low_mat)
     low_chunk = [];
-    d_gap = 0;
 else
-    if size(low_mat, 2) == 1 && num_a1 > 1
-        low_chunk = repmat(low_mat, [1, num_a1, 1, 1]);
-    else
-        low_chunk = low_mat;
-    end
-    d_gap = 0;
+    % DC2A_Slicer already sizes the loweredge matrix perfectly for the chunk:
+    % [N_a2_endo, num_seg * N_other_states, N_ze].
+    % We pass it straight into the tensor block.
+    low_chunk = low_mat;
 end
 
 if nargout > 5
-    [v_c, p_apr_c, p_d_c, p_l2_c, p_l2f_c, p_a1_c] = CoreFn(state_chunk, low_chunk, mg, d_gap, dc_mode);
+    [v, p_apr, p_d, p_l2, p_l2f, p_a1] = CoreFn(state_chunk, low_chunk, mg, 0, dc_mode);
 else
-    [v_c, p_apr_c, p_d_c, p_l2_c, p_l2f_c] = CoreFn(state_chunk, low_chunk, mg, d_gap, dc_mode);
-    p_a1_c = [];
+    [v, p_apr, p_d, p_l2, p_l2f] = CoreFn(state_chunk, low_chunk, mg, 0, dc_mode);
+    p_a1 = [];
 end
-
-if dc_mode == 3
-    v     = reshape(v_c, max(1, N_d), [], max(1, N_a2), max(1, N_ze));
-    p_apr = reshape(p_apr_c, max(1, N_d), [], max(1, N_a2), max(1, N_ze));
-    p_d   = reshape(p_d_c, max(1, N_d), [], max(1, N_a2), max(1, N_ze));
-    if ~isempty(p_l2_c)
-        p_l2  = reshape(p_l2_c, max(1, N_d), [], max(1, N_a2), max(1, N_ze));
-        p_l2f = reshape(p_l2f_c, max(1, N_d), [], max(1, N_a2), max(1, N_ze));
-    else
-        p_l2  = [];
-        p_l2f = [];
-    end
-else
-    v     = reshape(v_c, [], max(1, N_a2), max(1, N_ze));
-    p_apr = reshape(p_apr_c, [], max(1, N_a2), max(1, N_ze));
-    p_d   = reshape(p_d_c, [], max(1, N_a2), max(1, N_ze));
-    if ~isempty(p_l2_c)
-        p_l2  = reshape(p_l2_c, [], max(1, N_a2), max(1, N_ze));
-        p_l2f = reshape(p_l2f_c, [], max(1, N_a2), max(1, N_ze));
-    else
-        p_l2  = [];
-        p_l2f = [];
-    end
-end
-p_a1 = p_a1_c;
 
 
 end
@@ -1771,7 +1742,13 @@ D_flat = cell(1, length(D_cells));
 for id = 1:length(D_cells); D_flat{id} = reshape(D_cells{id}, [N_d, 1, 1]); end
 
 Apr_flat = cell(1, l_a1);
-for ia = 1:l_a1; Apr_flat{ia} = cast(reshape(Apr_cells{ia}, [1, N_apr, 1]), 'like', EV_local); end
+for ia = 1:l_a1
+    % Dynamically collapse Dims 3, 4, 5 (States/Z/E) into the 3rd dimension.
+    % This cleanly handles both Coarse Pass (1 x N_apr x 1) and DC Zoom Pass (N_d x N_apr x States)
+    s1 = size(Apr_cells{ia}, 1);
+    s_states = numel(Apr_cells{ia}) / (s1 * N_apr);
+    Apr_flat{ia} = cast(reshape(Apr_cells{ia}, [s1, N_apr, s_states]), 'like', EV_local);
+end
 
 % 4. Execute 3D Broadcast PTX Kernel (Zero explicit Cartesian allocation)
 if N_a2 > 1
