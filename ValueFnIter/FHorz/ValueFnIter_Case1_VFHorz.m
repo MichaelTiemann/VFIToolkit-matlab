@@ -1311,47 +1311,27 @@ if isempty(loweredge_matrix)
 
         F_tensor = Execute_3D_Core(Apr_cells, num_choices_total);
 
-        % === PHASE 2 (REVISED): SINGLETON-PRESERVING 3D COLLAPSE ===
-        choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
-        a1_offset = (choice_idx_linear - 1) * N_d_stride;
-
-        if N_a2 > 1
-            a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * N_a1_dc * N_a1_other);
-        else
-            a2_offset = 0; % CRITICAL: Preserves the missing N_states dimension!
-        end
-
-        % 1. Fetch EV_bounded in its highly compressed 5D state (Zero extra memory)
-        lin_idx_compact = static_EV_offset + a1_offset + a2_offset;
-        EV_bounded = EV_bounded_pre(lin_idx_compact);
-
-        % 2. Deflate geometry to pure 3D for warp-speed arithmetic
+        % === PHASE 2 (FINAL): ZERO-COPY 3D COLLAPSE ===
         FLAT_CHOICES = N_d_safe_local * num_choices_total;
 
         % F_tensor becomes [Choices, States, Shocks]
         F_tensor = reshape(F_tensor, [FLAT_CHOICES, N_states, N_ze_local]);
 
         if N_a2 > 1
+            % Complex state-dependent offset requires physical gathering
+            choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
+            a1_offset = (choice_idx_linear - 1) * N_d_stride;
+            a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * N_a1_dc * N_a1_other);
+
+            lin_idx_compact = static_EV_offset + a1_offset + a2_offset;
+            EV_bounded = EV_bounded_pre(lin_idx_compact);
             EV_bounded = reshape(EV_bounded, [FLAT_CHOICES, N_states, N_ze_local]);
         else
-            % EV_bounded becomes [Choices, 1, Shocks], retaining zero-memory implicit expansion!
-            EV_bounded = reshape(EV_bounded, [FLAT_CHOICES, 1, N_ze_local]);
+            % ZERO-COPY SHORTCUT!
+            % EV_bounded_pre is already perfectly aligned: [N_d, N_a1, 1, z, e].
+            % We completely bypass the 5D index array allocation and the gather step.
+            EV_bounded = reshape(EV_bounded_pre, [FLAT_CHOICES, 1, N_ze_local]);
         end
-
-        % 1. Extract 1D Column for Choices (d, a1_prime)
-        d_vec_extracted = static_EV_offset(:, 1, 1, 1, 1) - 1;
-        Choice_Offsets_2D = reshape(d_vec_extracted + a1_offset, [FLAT_CHOICES, 1]);
-
-        % 2. Extract 1D Row for States (a2_prime, z, e)
-        base_state_offsets = static_EV_offset(1, 1, 1, :, :);
-        State_Offsets_2D = reshape(base_state_offsets + reshape(a2_offset, [1, 1, N_states, 1, 1]), [1, FLAT_STATES]);
-
-        % 3. Pure 2D Broadcast (Bypasses all 5D VRAM allocations!)
-        lin_idx_compact_2D = Choice_Offsets_2D + State_Offsets_2D;
-
-        % 4. Fetch EV directly into 2D and format F_tensor for the RHS
-        EV_bounded = EV_bounded_pre(lin_idx_compact_2D);
-        F_tensor = reshape(F_tensor, [FLAT_CHOICES, FLAT_STATES]);
 
     else
         % =================================================================
