@@ -1287,11 +1287,20 @@ else
     a2_sub = [];
 end
 
-% Define the 3D Tensor Core Router
-Execute_3D_Core = @(Apr_cells_in, num_choices_in) Helper_3D_Core(...
-    D_cells_block, Apr_cells_in, A1_mat, A2_mat, Z_cells_block, E_cells_block, ...
-    a1_sub, a2_sub, N_d_safe_local, num_choices_in, ...
-    N_states, n_z_loc, n_e_loc, l_a1, l_a2, N_a2, EV_local, TensorReturnFn, ReturnFnParamsCell);
+% --- REBUILD LOCAL 5D ORTHOGONAL STATE CELLS FOR NATIVE EXECUTION ---
+A1_cells = cell(1, l_a1);
+for ia = 1:l_a1
+    A1_cells{ia} = cast(reshape(A1_mat(a1_sub, ia), [1, 1, N_states, 1, 1]), 'like', EV_local);
+end
+
+if N_a2 > 1
+    A2_cells = cell(1, l_a2);
+    for ia = 1:l_a2
+        A2_cells{ia} = cast(reshape(A2_mat(a2_sub, ia), [1, 1, N_states, 1, 1]), 'like', EV_local);
+    end
+else
+    A2_cells = {};
+end
 
 % =========================================================================
 % PHASE 1: EVALUATION (CHOICE MATRIX GENERATION)
@@ -1309,7 +1318,11 @@ if isempty(loweredge_matrix)
         Apr_cells = cell(1, l_a1);
         for ia = 1:l_a1; Apr_cells{ia} = cast(reshape(mesh_out{ia}(:), [1, num_choices_total, 1, 1, 1]), 'like', EV_local); end
 
-        F_tensor = Execute_3D_Core(Apr_cells, num_choices_total);
+        if N_a2 > 1
+            F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
+        else
+            F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
+        end
 
         % === PHASE 2 (FINAL): ZERO-COPY 3D COLLAPSE ===
         FLAT_CHOICES = N_d_safe_local * num_choices_total;
@@ -1393,7 +1406,6 @@ else
     if gridinterplayer(1) == 0 || is_dc_mode == 2
         % -------------------------------------------------------------
         % SCENARIO 2A: Standard DC Segment Zoom (No Interpolation)
-        % Searches a constrained window of the native linear grid.
         % -------------------------------------------------------------
         total_gap = maxgap_scalar;
         if l_a1 == 1
@@ -1405,16 +1417,10 @@ else
             num_choices_total = total_gap + 1;
         else
             num_choices_total = (total_gap + 1) * N_a1_other;
-            FLAT_STATES = N_states * n_z_loc * n_e_loc;
-
-            % CRITICAL FIX: 4D Geometric Collapse (Eliminates 6D Permute VRAM Shuffle)
-            % By placing N_a1_other in dim 3 and the gap in dim 2, implicit expansion
-            % perfectly aligns the choices in memory without requiring a permute.
-            base_idx_a1 = reshape(loweredge_matrix, [N_d_safe_local, 1, N_a1_other, FLAT_STATES]);
-            offsets_a1 = reshape(0:total_gap, [1, total_gap + 1, 1, 1]);
-
-            % Native 4D broadcast instantly aligns the memory geometry
+            base_idx_a1 = reshape(loweredge_matrix, [N_d_safe_local, N_a1_other, N_states, n_z_loc, n_e_loc]);
+            offsets_a1 = reshape(0:total_gap, [1, 1, 1, 1, 1, total_gap + 1]);
             choice_idx_a1_matrix = max(1, min(base_idx_a1 + offsets_a1, length(A1_grids_1d{1})));
+            choice_idx_a1_matrix = permute(choice_idx_a1_matrix, [1, 6, 2, 3, 4, 5]);
             choice_idx_a1 = reshape(choice_idx_a1_matrix, [N_d_safe_local, num_choices_total, N_states, n_z_loc, n_e_loc]);
 
             a2_base_vec = reshape(1:N_a1_other, [1, 1, N_a1_other]);
@@ -1431,7 +1437,11 @@ else
             choice_idx_linear = choice_idx_a1 + (choice_idx_a2 - 1) * length(A1_grids_1d{1});
         end
 
-        F_tensor = Execute_3D_Core(Apr_cells, num_choices_total);
+        if N_a2 > 1
+            F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
+        else
+            F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
+        end
 
         a1_offset = (choice_idx_linear - 1) * N_d_stride;
         if N_a2 > 1; a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * N_a1_dc * N_a1_other); else; a2_offset = 0; end
@@ -1441,7 +1451,6 @@ else
     else
         % -------------------------------------------------------------
         % SCENARIO 2B: Grid Interpolation Zoom (a1prime_grid)
-        % Searches the expanded dense grid surrounding the chosen anchor.
         % -------------------------------------------------------------
         loweredge_matrix_bounds = max(2, min(loweredge_matrix, length(A1_grids_1d{1}) - 1));
         L2_base = (loweredge_matrix_bounds - 1) * (n2short + 1) + 1;
@@ -1460,15 +1469,11 @@ else
             num_choices_total = num_choices_total_a1;
         else
             num_choices_total = num_choices_total_a1 * N_a1_other;
-            FLAT_STATES = N_states * n_z_loc * n_e_loc;
-
-            % CRITICAL FIX: 4D Geometric Collapse for Grid Interp
-            base_idx_a1 = reshape(L2_base, [N_d_safe_local, 1, N_a1_other, FLAT_STATES]);
-            offsets_a1 = reshape(start_offset:end_offset, [1, num_choices_total_a1, 1, 1]);
-
+            base_idx_a1 = reshape(L2_base, [N_d_safe_local, N_a1_other, N_states, n_z_loc, n_e_loc]);
+            offsets_a1 = reshape(start_offset:end_offset, [1, 1, 1, 1, 1, num_choices_total_a1]);
             raw_choice_idx_a1_matrix = base_idx_a1 + offsets_a1;
+            raw_choice_idx_a1_matrix = permute(raw_choice_idx_a1_matrix, [1, 6, 2, 3, 4, 5]);
             raw_choice_idx_a1 = reshape(raw_choice_idx_a1_matrix, [N_d_safe_local, num_choices_total, N_states, n_z_loc, n_e_loc]);
-
             out_of_bounds = (raw_choice_idx_a1 < 1) | (raw_choice_idx_a1 > length(a1prime_grid));
             choice_idx_a1 = max(1, min(raw_choice_idx_a1, length(a1prime_grid)));
 
@@ -1486,7 +1491,11 @@ else
             choice_idx_linear = choice_idx_a1 + (choice_idx_a2 - 1) * length(a1prime_grid);
         end
 
-        F_tensor = Execute_3D_Core(Apr_cells, num_choices_total);
+        if N_a2 > 1
+            F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
+        else
+            F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
+        end
 
         if N_a2 > 1
             a1_offset = (choice_idx_linear - 1) * N_d_stride;
@@ -1620,7 +1629,6 @@ else
             num_choices_a1 = num_choices_total / N_a1_other;
             RHS_for_d = reshape(RHS_flat, [N_d_safe_local, num_choices_a1, N_a1_other, FLAT_STATES]);
             [~, max_a1_idx_rel] = max(RHS_for_d, [], 2);
-            % clear RHS_for_d; % Memory Hoist
             if gridinterplayer(1) == 0 || is_dc_mode == 2
                 max_a1_idx_rel = reshape(max_a1_idx_rel, [N_d_safe_local, N_a1_other, N_states, N_ze_local]);
                 low_mat_4d = reshape(loweredge_matrix, [N_d_safe_local, N_a1_other, N_states, N_ze_local]);
@@ -1629,58 +1637,51 @@ else
                 Pol_a1_per_a2 = [];
             end
         end
-
         d_idx_local = mod(Pol_sub_idx - 1, N_d_safe_local) + 1;
         apr_offset  = ceil(Pol_sub_idx / N_d_safe_local);
-
         V_j_max   = reshape(V_sub_fine,  [N_states, N_ze_local]);
         Pol_d_max = reshape(d_idx_local, [N_states, N_ze_local]);
         if d_override > 0; Pol_d_max(:) = d_override; end
 
         if gridinterplayer(1) == 0 || is_dc_mode == 2
-            % clear RHS_flat; % Memory Hoist
-            a1_apr_offset = mod(apr_offset(:)' - 1, total_gap + 1) + 1;
-            a2_offset_factor = ceil(apr_offset(:)' / (total_gap + 1));
-
+            % CRITICAL FIX: Stripped out all (:)_transpose operators to eliminate command queue flooding.
+            a1_apr_offset = mod(apr_offset(:) - 1, total_gap + 1) + 1;
+            a2_offset_factor = ceil(apr_offset(:) / (total_gap + 1));
             loweredge_matrix_2d = reshape(loweredge_matrix, [N_d_safe_local, N_a1_other, FLAT_STATES]);
-            lin_idx_loweredge = d_idx_local(:)' + (a2_offset_factor(:)' - 1) * N_d_safe_local + (0:FLAT_STATES-1) * (N_d_safe_local * N_a1_other);
+            lin_idx_loweredge = d_idx_local(:) + (a2_offset_factor(:) - 1) * N_d_safe_local + (0:FLAT_STATES-1)' * (N_d_safe_local * N_a1_other);
             chosen_loweredge = loweredge_matrix_2d(lin_idx_loweredge);
 
-            a1_Pol_apr = chosen_loweredge(:)' + a1_apr_offset(:)' - 1;
-            a1_Pol_apr = min(a1_Pol_apr, N_a1_dc); % Clip to ensure out-of-bound evaluations aren't returned as policy
-
-            Pol_apr_max = a1_Pol_apr(:)' + (a2_offset_factor(:)' - 1) * N_a1_dc;
+            a1_Pol_apr = chosen_loweredge(:) + a1_apr_offset(:) - 1;
+            a1_Pol_apr = min(a1_Pol_apr, N_a1_dc);
+            Pol_apr_max = a1_Pol_apr(:) + (a2_offset_factor(:) - 1) * N_a1_dc;
             Pol_apr_max = reshape(Pol_apr_max, [N_states, N_ze_local]);
-            Pol_L2idx_max = []; Pol_L2flag_max = [];
+            Pol_L2idx_max = [];
+            Pol_L2flag_max = [];
         else
-            a1_apr_offset = mod(apr_offset(:)' - 1, num_choices_total_a1) + 1;
-            a2_offset_factor = ceil(apr_offset(:)' / num_choices_total_a1);
-            chosen_offset = start_offset + a1_apr_offset(:)' - 1;
-
+            a1_apr_offset = mod(apr_offset(:) - 1, num_choices_total_a1) + 1;
+            a2_offset_factor = ceil(apr_offset(:) / num_choices_total_a1);
+            chosen_offset = start_offset + a1_apr_offset(:) - 1;
             loweredge_matrix_2d = reshape(loweredge_matrix_bounds, [N_d_safe_local, N_a1_other, FLAT_STATES]);
-            lin_idx_loweredge = d_idx_local(:)' + (a2_offset_factor(:)' - 1) * N_d_safe_local + (0:FLAT_STATES-1) * (N_d_safe_local * N_a1_other);
+            lin_idx_loweredge = d_idx_local(:) + (a2_offset_factor(:) - 1) * N_d_safe_local + (0:FLAT_STATES-1)' * (N_d_safe_local * N_a1_other);
             chosen_loweredge = loweredge_matrix_2d(lin_idx_loweredge);
 
-            abs_fine_idx_flat = (chosen_loweredge(:)' - 1) * (n2short + 1) + 1 + chosen_offset(:)';
-            a1_Pol_apr = floor((abs_fine_idx_flat(:)' - 1) / (n2short + 1)) + 1;
+            abs_fine_idx_flat = (chosen_loweredge(:) - 1) * (n2short + 1) + 1 + chosen_offset(:);
+            a1_Pol_apr = floor((abs_fine_idx_flat(:) - 1) / (n2short + 1)) + 1;
             a1_Pol_apr = min(a1_Pol_apr, N_a1_dc - 1);
+            Pol_L2idx_max = abs_fine_idx_flat(:) - (a1_Pol_apr(:) - 1) * (n2short + 1);
 
-            Pol_L2idx_max = abs_fine_idx_flat(:)' - (a1_Pol_apr(:)' - 1) * (n2short + 1);
-            Pol_apr_max = a1_Pol_apr(:)' + (a2_offset_factor(:)' - 1) * N_a1_dc;
-
+            Pol_apr_max = a1_Pol_apr(:) + (a2_offset_factor(:) - 1) * N_a1_dc;
             Pol_apr_max = reshape(Pol_apr_max, [N_states, N_ze_local]);
             Pol_L2idx_max = reshape(Pol_L2idx_max, [N_states, N_ze_local]);
 
-            lin_lower = d_idx_local(:)' + (1 - 1) * N_d_safe_local + (a2_offset_factor(:)' - 1) * (num_choices_total_a1 * N_d_safe_local) + (0:FLAT_STATES-1) * size(RHS_flat, 1);
-            lin_upper = d_idx_local(:)' + (num_choices_total_a1 - 1) * N_d_safe_local + (a2_offset_factor(:)' - 1) * (num_choices_total_a1 * N_d_safe_local) + (0:FLAT_STATES-1) * size(RHS_flat, 1);
+            lin_lower = d_idx_local(:) + (1 - 1) * N_d_safe_local + (a2_offset_factor(:) - 1) * (num_choices_total_a1 * N_d_safe_local) + (0:FLAT_STATES-1)' * size(RHS_flat, 1);
+            lin_upper = d_idx_local(:) + (num_choices_total_a1 - 1) * N_d_safe_local + (a2_offset_factor(:) - 1) * (num_choices_total_a1 * N_d_safe_local) + (0:FLAT_STATES-1)' * size(RHS_flat, 1);
+
             isInfLower = F_is_inf_flat(lin_lower);
             isInfUpper = F_is_inf_flat(lin_upper);
 
-            % clear RHS_flat F_is_inf_flat; % Memory Hoist
-
-            inLowerStrict = (a1_apr_offset(:)' >= 2) & (a1_apr_offset(:)' <= n2short + 1);
-            inUpperStrict = (a1_apr_offset(:)' >= n2short + 3 + d_gap * (n2short + 1)) & (a1_apr_offset(:)' <= num_choices_total_a1 - 1);
-
+            inLowerStrict = (a1_apr_offset(:) >= 2) & (a1_apr_offset(:) <= n2short + 1);
+            inUpperStrict = (a1_apr_offset(:) >= n2short + 3 + d_gap * (n2short + 1)) & (a1_apr_offset(:) <= num_choices_total_a1 - 1);
             Pol_L2flag_max = 2 * ones(1, FLAT_STATES, 'like', V_j_max);
             Pol_L2flag_max(inLowerStrict & isInfLower) = 3;
             Pol_L2flag_max(inUpperStrict & isInfUpper) = 1;
@@ -1712,62 +1713,6 @@ else
     [v, p_apr, p_d, p_l2, p_l2f] = CoreFn(state_chunk, low_chunk, mg, 0, dc_mode);
     p_a1 = [];
 end
-
-
-end
-
-
-function F_tensor = Helper_3D_Core(D_cells, Apr_cells, A1_mat, A2_mat, Z_cells, E_cells, ...
-    a1_sub, a2_sub, N_d, N_apr, N_states, n_z, n_e, l_a1, l_a2, N_a2, EV_local, TensorReturnFn, Params)
-
-% 1. Extract 1D State vectors directly from sub-indices
-A1_cells_3D = cell(1, l_a1);
-for ia = 1:l_a1; A1_cells_3D{ia} = cast(reshape(A1_mat(a1_sub, ia), [1, 1, N_states, 1, 1]), 'like', EV_local); end
-
-if N_a2 > 1
-    A2_cells_3D = cell(1, l_a2);
-    for ia = 1:l_a2; A2_cells_3D{ia} = cast(reshape(A2_mat(a2_sub, ia), [1, 1, N_states, 1, 1]), 'like', EV_local); end
-end
-
-% 2. Explicitly expand ONLY the states into Dim 3 (FLAT_STATES)
-% This forces the GPU kernel to execute in a highly efficient 3D geometry
-FLAT_STATES = N_states * n_z * n_e;
-state_shape_5D = [1, 1, N_states, n_z, n_e];
-expand_to_3D = @(x) reshape(x + zeros(state_shape_5D, 'like', EV_local), [1, 1, FLAT_STATES]);
-
-A1_flat = cellfun(expand_to_3D, A1_cells_3D, 'UniformOutput', false);
-if N_a2 > 1; A2_flat = cellfun(expand_to_3D, A2_cells_3D, 'UniformOutput', false); end
-
-Z_cells_5D = cell(1, length(Z_cells));
-for iz = 1:length(Z_cells); Z_cells_5D{iz} = reshape(Z_cells{iz}, [1, 1, 1, n_z, 1]); end
-Z_flat = cellfun(expand_to_3D, Z_cells_5D, 'UniformOutput', false);
-
-E_cells_5D = cell(1, length(E_cells));
-for ie = 1:length(E_cells); E_cells_5D{ie} = reshape(E_cells{ie}, [1, 1, 1, 1, n_e]); end
-E_flat = cellfun(expand_to_3D, E_cells_5D, 'UniformOutput', false);
-
-% 3. Format Choices for Dim 1 and Dim 2
-D_flat = cell(1, length(D_cells));
-for id = 1:length(D_cells); D_flat{id} = reshape(D_cells{id}, [N_d, 1, 1]); end
-
-Apr_flat = cell(1, l_a1);
-for ia = 1:l_a1
-    % Dynamically collapse Dims 3, 4, 5 (States/Z/E) into the 3rd dimension.
-    % This cleanly handles both Coarse Pass (1 x N_apr x 1) and DC Zoom Pass (N_d x N_apr x States)
-    s1 = size(Apr_cells{ia}, 1);
-    s_states = numel(Apr_cells{ia}) / (s1 * N_apr);
-    Apr_flat{ia} = cast(reshape(Apr_cells{ia}, [s1, N_apr, s_states]), 'like', EV_local);
-end
-
-% 4. Execute 3D Broadcast PTX Kernel (Zero explicit Cartesian allocation)
-if N_a2 > 1
-    F_3D = TensorReturnFn(D_flat{:}, Apr_flat{:}, A1_flat{:}, A2_flat{:}, Z_flat{:}, E_flat{:}, Params{:});
-else
-    F_3D = TensorReturnFn(D_flat{:}, Apr_flat{:}, A1_flat{:}, Z_flat{:}, E_flat{:}, Params{:});
-end
-
-% 5. Restore 5D Geometry for downstream operations
-F_tensor = reshape(F_3D, [N_d, N_apr, N_states, n_z, n_e]);
 
 
 end

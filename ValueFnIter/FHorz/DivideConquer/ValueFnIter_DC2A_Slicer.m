@@ -43,9 +43,11 @@ end
 Pol_a1_per_a2_reshaped = reshape(Pol_a1_per_a2, [N_choice_a1_dc, N_a2_endo, num_anchors, N_other_states, N_ze]);
 Pol_a1_anch_for_gap = permute(Pol_a1_per_a2_reshaped, [3, 1, 2, 4, 5]); % [num_anchors, N_choice_a1_dc, N_a2_endo, N_other_states, N_ze]
 
-% Max across everything except num_anchors
 maxgap = max(max(max(max(Pol_a1_anch_for_gap(2:end,:,:,:,:) - Pol_a1_anch_for_gap(1:end-1,:,:,:,:), [], 5), [], 4), [], 3), [], 2);
-maxgap = squeeze(maxgap);
+
+% CRITICAL FIX: Gather maxgap to the CPU to prevent 700+ pipeline flushes in the loop below
+maxgap = gather(squeeze(maxgap));
+
 if iscolumn(maxgap); maxgap = maxgap'; end
 if isempty(maxgap) && num_anchors == 1; maxgap = 0; end
 
