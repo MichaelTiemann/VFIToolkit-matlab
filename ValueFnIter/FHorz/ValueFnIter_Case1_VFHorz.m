@@ -255,7 +255,19 @@ end
 has_e = isfield(vfoptions, 'n_e') && prod(vfoptions.n_e) > 0;
 n_e_pass = 0;
 e_grid_pass = [];
-if has_e; n_e_pass = vfoptions.n_e; e_grid_pass = vfoptions.e_grid; e_work = vfoptions.e_grid; else; e_work = ones(1, 1, 'like', a_grid); end
+if has_e
+    n_e_pass = vfoptions.n_e;
+    e_grid_pass = vfoptions.e_grid;
+
+    % Expand stacked vector grids into proper Cartesian coordinates for Tensor Broadcasting
+    if size(vfoptions.e_grid, 1) == sum(n_e_pass) && length(n_e_pass) > 1
+        e_work = CreateGridvals(n_e_pass, vfoptions.e_grid, 1);
+    else
+        e_work = vfoptions.e_grid;
+    end
+else
+    e_work = ones(1, 1, 'like', a_grid);
+end
 
 % Extract active flags
 l_exp_base  = vfoptions.experienceasset >= 1;
@@ -875,12 +887,21 @@ for reverse_j = 0:N_j-1
                     curraindex = (level1ii(ii)+1 : level1ii(ii+1)-1)';
                     if isempty(curraindex); continue; end
                     if maxgap(ii) > 0
-                        loweredge = min(maxindex1(:, :, ii, :, :), N_a1_dc - maxgap(ii));
+                        % Unlocked tensor boundaries to prevent peak clipping
+                        loweredge = min(maxindex1(:, :, ii, :, :), N_a1_dc);
+                        upper_bound_req = loweredge + maxgap(ii);
+                        mg_eval = max(maxgap(ii), max(upper_bound_req - loweredge, [], 'all'));
+
+                        mg_eval = min(mg_eval, N_a1_dc - 1);
+                        loweredge = min(loweredge, N_a1_dc - mg_eval);
+
                         loweredge_rep = repmat(loweredge, [1, 1, length(curraindex), 1, 1]);
                         state_chunk_mat_L2 = curraindex + (0:N_other-1) * N_a1_dc;
-                        [~, ~, ~, ~, ~, p_a1_per_a2_L2] = LocalBlockFn(state_chunk_mat_L2(:)', loweredge_rep(:), maxgap(ii), 0, 2);
+
+                        % Pass mg_eval instead of maxgap(ii) to dynamically size the tensor block
+                        [~, ~, ~, ~, ~, p_a1_per_a2_L2] = LocalBlockFn(state_chunk_mat_L2(:)', loweredge_rep(:), mg_eval, 0, 2);
                         maxindex_L2 = reshape(p_a1_per_a2_L2, [max(1, N_d_safe), N_a1_other, length(curraindex), max(1, N_a2), N_ze_local]);
-                        loweredge_pass(:, :, curraindex, :, :) = maxindex_L2; % Removed double-add of (loweredge - 1)
+                        loweredge_pass(:, :, curraindex, :, :) = maxindex_L2;
                     else
                         loweredge_pass(:, :, curraindex, :, :) = repmat(maxindex1(:, :, ii, :, :), [1, 1, level1iidiff(ii), 1, 1]);
                     end
