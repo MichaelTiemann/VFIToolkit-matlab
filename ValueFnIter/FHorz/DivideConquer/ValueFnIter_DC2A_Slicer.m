@@ -58,25 +58,24 @@ for ii = 1:(num_anchors - 1)
     seg_state_chunk = seg_state_chunk(:)';
     num_seg = length(segment_a1_states);
 
-    % Replicate the anchor down the segments, preserving the N_choice_a1_dc dimension
-    loweredge_a1 = repmat(Pol_a1_anch_for_gap(ii, :, :, :, :), [num_seg, 1, 1, 1, 1]);
-    loweredge_a1 = permute(loweredge_a1, [2, 3, 1, 4, 5]); % [N_choice_a1_dc, N_a2_endo, num_seg, N_other_states, N_ze]
-    loweredge_a1 = reshape(loweredge_a1, [N_choice_a1_dc, N_a2_endo, num_seg * N_other_states, N_ze]);
+    loweredge_a1 = repmat(Pol_a1_anch_for_gap(ii, :, :, :), [num_seg, 1, 1, 1]);
+    loweredge_a1 = permute(loweredge_a1, [2, 1, 3, 4]); % [N_a2_endo, num_seg, N_other_states, N_ze]
+    loweredge_a1 = reshape(loweredge_a1, [N_a2_endo, num_seg * N_other_states, N_ze]);
 
     if maxgap(ii) > 0
-        % Unlocked tensor boundaries to prevent peak clipping
-        loweredge_a1 = min(loweredge_a1, N_choice_a1_dc);
+        % CRITICAL FIX: Bound the grid against N_a1_dc (the actual grid length),
+        % NOT N_choice_a1_dc (which we repurposed to carry N_d_safe = 1).
+        loweredge_a1 = min(loweredge_a1, N_a1_dc);
         upper_bound_req = loweredge_a1 + maxgap(ii);
         mg_eval = max(maxgap(ii), max(upper_bound_req - loweredge_a1, [], 'all'));
 
         % Cap the evaluation window so it doesn't physically exceed the grid
-        mg_eval = min(mg_eval, N_choice_a1_dc - 1);
-        loweredge_a1 = min(loweredge_a1, N_choice_a1_dc - mg_eval);
+        mg_eval = min(mg_eval, N_a1_dc - 1);
+        loweredge_a1 = min(loweredge_a1, N_a1_dc - mg_eval);
 
-        % Drop the 6th output request
+        % Evaluate exactly 5 arguments (dropping the anchor tracker for the zoom pass)
         [V_seg, Pol_apr_seg, Pol_d1_seg, L2idx_seg, L2flag_seg] = EvalBlockFn(seg_state_chunk, loweredge_a1, mg_eval);
     else
-        % Drop the 6th output request
         [V_seg, Pol_apr_seg, Pol_d1_seg, L2idx_seg, L2flag_seg] = EvalBlockFn(seg_state_chunk, loweredge_a1, 0);
     end
 
