@@ -60,23 +60,22 @@ for ii = 1:(num_anchors - 1)
     seg_state_chunk = seg_state_chunk(:)';
     num_seg = length(segment_a1_states);
 
-    % CRITICAL FIX: Strictly preserve all 5 dimensions during extraction!
-    % Pol_a1_anch_for_gap is [num_anchors, N_choice_a1_dc, N_a2_endo, N_other_states, N_ze]
+    % Strictly preserve all 5 dimensions during extraction!
     loweredge_a1 = repmat(Pol_a1_anch_for_gap(ii, :, :, :, :), [num_seg, 1, 1, 1, 1]);
-    loweredge_a1 = permute(loweredge_a1, [2, 3, 1, 4, 5]); % [N_choice_a1_dc, N_a2_endo, num_seg, N_other_states, N_ze]
+    loweredge_a1 = permute(loweredge_a1, [2, 3, 1, 4, 5]);
     loweredge_a1 = reshape(loweredge_a1, [N_choice_a1_dc, N_a2_endo, num_seg * N_other_states, N_ze]);
 
-    if maxgap(ii) > 0
-        % Bound the grid against N_a1_dc (the actual grid length)
-        loweredge_a1 = min(loweredge_a1, N_a1_dc);
-        upper_bound_req = loweredge_a1 + maxgap(ii);
-        mg_eval = max(maxgap(ii), max(upper_bound_req - loweredge_a1, [], 'all'));
+    % CRITICAL FIX: Zero-Sync CPU Bounds Assignment.
+    % By completely dropping the dynamic max(..., 'all') reduction,
+    % the CPU never waits for the GPU to return a boundary calculation.
+    mg_eval = maxgap(ii);
 
+    if mg_eval > 0
         % Cap the evaluation window so it doesn't physically exceed the grid
         mg_eval = min(mg_eval, N_a1_dc - 1);
         loweredge_a1 = min(loweredge_a1, N_a1_dc - mg_eval);
 
-        % Evaluate exactly 5 arguments (dropping the anchor tracker for the zoom pass)
+        % Evaluate exactly 5 arguments
         [V_seg, Pol_apr_seg, Pol_d1_seg, L2idx_seg, L2flag_seg] = EvalBlockFn(seg_state_chunk, loweredge_a1, mg_eval);
     else
         [V_seg, Pol_apr_seg, Pol_d1_seg, L2idx_seg, L2flag_seg] = EvalBlockFn(seg_state_chunk, loweredge_a1, 0);

@@ -1603,26 +1603,29 @@ else
         RHS_for_d = reshape(RHS_flat, [N_d_safe_local, num_choices_total, FLAT_STATES]);
         [V_sub_fine, apr_offset] = max(RHS_for_d, [], 2);
         d_idx_local = repmat(reshape(1:N_d_safe_local, [N_d_safe_local, 1]), [1, FLAT_STATES]);
-
         V_j_max   = reshape(V_sub_fine,  [N_d_safe_local, N_states, N_ze_local]);
         Pol_d_max = reshape(d_idx_local, [N_d_safe_local, N_states, N_ze_local]);
         Pol_a1_per_a2 = [];
 
-        a1_apr_offset = mod(apr_offset(:)' - 1, total_gap + 1) + 1;
-        a2_offset_factor = ceil(apr_offset(:)' / (total_gap + 1));
+        % CRITICAL FIX: Stripped all (:)_transpose operators from the Slicer branch
+        a1_apr_offset = mod(apr_offset(:) - 1, total_gap + 1) + 1;
+        a2_offset_factor = ceil(apr_offset(:) / (total_gap + 1));
 
         loweredge_matrix_2d = reshape(loweredge_matrix, [N_d_safe_local, N_a1_other, FLAT_STATES]);
-        state_offsets = repmat(0:FLAT_STATES-1, [N_d_safe_local, 1]);
-        lin_idx_loweredge = d_idx_local(:)' + (a2_offset_factor(:)' - 1) * N_d_safe_local + state_offsets(:)' * (N_d_safe_local * N_a1_other);
+
+        % Re-oriented state_offsets to remain a perfect column vector
+        state_offsets = repmat(reshape(0:FLAT_STATES-1, [1, FLAT_STATES]), [N_d_safe_local, 1]);
+
+        lin_idx_loweredge = d_idx_local(:) + (a2_offset_factor(:) - 1) * N_d_safe_local + state_offsets(:) * (N_d_safe_local * N_a1_other);
         chosen_loweredge = loweredge_matrix_2d(lin_idx_loweredge);
 
-        a1_Pol_apr = chosen_loweredge(:)' + a1_apr_offset(:)' - 1;
+        a1_Pol_apr = chosen_loweredge(:) + a1_apr_offset(:) - 1;
         a1_Pol_apr = min(a1_Pol_apr, N_a1_dc);
-
-        Pol_apr_max = a1_Pol_apr(:)' + (a2_offset_factor(:)' - 1) * N_a1_dc;
+        Pol_apr_max = a1_Pol_apr(:) + (a2_offset_factor(:) - 1) * N_a1_dc;
         Pol_apr_max = reshape(Pol_apr_max, [N_d_safe_local, N_states, N_ze_local]);
-        Pol_L2idx_max = []; Pol_L2flag_max = [];
-        clear RHS_flat;
+        Pol_L2idx_max = [];
+        Pol_L2flag_max = [];
+        % clear RHS_flat;
     else
         [V_sub_fine, Pol_sub_idx] = max(RHS_flat, [], 1);
         if nargout > 5
