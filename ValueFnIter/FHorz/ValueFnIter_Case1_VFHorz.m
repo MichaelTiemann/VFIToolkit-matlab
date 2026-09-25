@@ -945,7 +945,7 @@ for reverse_j = 0:N_j-1
                 if l_a1 == 1
                     [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC1_Slicer(N_a1_dc, N_a1_dc, max(1, N_a2), N_ze_local, vfoptions, LocalBlockFn_Base, max(1, N_d_safe));
                 else
-                    [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC2A_Slicer(N_a1_dc, N_a1_other, N_a1_other * max(1, N_a2), N_a1_dc, N_ze_local, vfoptions, LocalBlockFn_Base, max(1, N_d_safe));
+                    [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC2A_Slicer(N_a1_dc, N_a1_other, N_a1_other * max(1, N_a2), N_a1_dc, N_ze_local, vfoptions, LocalBlockFn_Base);
                 end
             end
 
@@ -1284,46 +1284,14 @@ if N_a2 > 1
     [a1_sub, a2_sub] = ind2sub([N_a1_dc * N_a1_other, N_a2], state_idx);
 else
     a1_sub = state_idx;
+    a2_sub = [];
 end
 
-% -------------------------------------------------------------------------
-% 6D ORTHOGONAL BROADCASTING
-% Matches Reference arrayfun shape perfectly. Strictly gated to 1-Asset models.
-% -------------------------------------------------------------------------
-N_other_local = N_a1_other * max(1, N_a2);
-N_a1_local = N_states / N_other_local;
-if l_a1 == 1 && N_a1_local == round(N_a1_local) && N_states > N_a1_local
-    A1_mat_reshaped = reshape(A1_mat, [N_a1_dc, N_a1_other, l_a1]);
-    a1_idx_safe = mod(state_idx(1:N_a1_local) - 1, N_a1_dc) + 1;
-    A1_cells = cell(1, l_a1);
-    for ia = 1:l_a1
-        A1_cells{ia} = cast(reshape(A1_mat_reshaped(a1_idx_safe, :, ia), [1, 1, N_a1_local, N_a1_other, 1, 1]), 'like', EV_local);
-    end
-    A2_cells = cell(1, l_a2);
-    for ia = 1:l_a2
-        A2_cells{ia} = cast(reshape(A2_mat(:, ia), [1, 1, 1, 1, max(1, N_a2), 1]), 'like', EV_local);
-    end
-    Z_cells_local_ortho = cell(1, length(Z_cells_block));
-    for iz = 1:length(Z_cells_block); Z_cells_local_ortho{iz} = reshape(Z_cells_block{iz}, [1,1,1,1,1,n_z_loc]); end
-    E_cells_local_ortho = cell(1, length(E_cells_block));
-    for ie = 1:length(E_cells_block); E_cells_local_ortho{ie} = reshape(E_cells_block{ie}, [1,1,1,1,1,n_e_loc]); end
-    D_cells_local_ortho = cell(1, length(D_cells_block));
-    for id = 1:length(D_cells_block); D_cells_local_ortho{id} = reshape(D_cells_block{id}, [N_d_safe_local,1,1,1,1,1]); end
-    orthogonal_mode = true;
-else
-    A1_cells = cell(1, l_a1);
-    for ia = 1:l_a1; A1_cells{ia} = cast(reshape(A1_mat(a1_sub, ia), [1, 1, N_states, 1, 1]), 'like', EV_local); end
-    if l_a2 > 0
-        A2_cells = cell(1, l_a2);
-        for ia = 1:l_a2; A2_cells{ia} = cast(reshape(A2_mat(a2_sub, ia), [1, 1, N_states, 1, 1]), 'like', EV_local); end
-    else
-        A2_cells = {};
-    end
-    Z_cells_local_ortho = Z_cells_block;
-    E_cells_local_ortho = E_cells_block;
-    D_cells_local_ortho = D_cells_block;
-    orthogonal_mode = false;
-end
+% Define the 3D Tensor Core Router
+Execute_3D_Core = @(Apr_cells_in, num_choices_in) Helper_3D_Core(...
+    D_cells_block, Apr_cells_in, A1_mat, A2_mat, Z_cells_block, E_cells_block, ...
+    a1_sub, a2_sub, N_d_safe_local, num_choices_in, ...
+    N_states, n_z_loc, n_e_loc, l_a1, l_a2, N_a2, EV_local, TensorReturnFn, ReturnFnParamsCell);
 
 % =========================================================================
 % PHASE 1: EVALUATION (CHOICE MATRIX GENERATION)
@@ -1341,27 +1309,49 @@ if isempty(loweredge_matrix)
         Apr_cells = cell(1, l_a1);
         for ia = 1:l_a1; Apr_cells{ia} = cast(reshape(mesh_out{ia}(:), [1, num_choices_total, 1, 1, 1]), 'like', EV_local); end
 
-        if orthogonal_mode
-            Apr_cells_ortho = cell(1, l_a1);
-            for ia = 1:l_a1; Apr_cells_ortho{ia} = reshape(Apr_cells{ia}, [1, num_choices_total, 1, 1, 1, 1]); end
-            if N_a2 > 1
-                F_tensor = reshape(TensorReturnFn(D_cells_local_ortho{:}, Apr_cells_ortho{:}, A1_cells{:}, A2_cells{:}, Z_cells_local_ortho{:}, E_cells_local_ortho{:}, ReturnFnParamsCell{:}), [N_d_safe_local, num_choices_total, N_states, n_z_loc, n_e_loc]);
-            else
-                F_tensor = reshape(TensorReturnFn(D_cells_local_ortho{:}, Apr_cells_ortho{:}, A1_cells{:}, Z_cells_local_ortho{:}, E_cells_local_ortho{:}, ReturnFnParamsCell{:}), [N_d_safe_local, num_choices_total, N_states, n_z_loc, n_e_loc]);
-            end
-        else
-            if N_a2 > 1
-                F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
-            else
-                F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
-            end
-        end
+        F_tensor = Execute_3D_Core(Apr_cells, num_choices_total);
 
+        % === PHASE 2 (REVISED): SINGLETON-PRESERVING 3D COLLAPSE ===
         choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
         a1_offset = (choice_idx_linear - 1) * N_d_stride;
-        if N_a2 > 1; a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * N_a1_dc * N_a1_other); else; a2_offset = 0; end
+
+        if N_a2 > 1
+            a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * N_a1_dc * N_a1_other);
+        else
+            a2_offset = 0; % CRITICAL: Preserves the missing N_states dimension!
+        end
+
+        % 1. Fetch EV_bounded in its highly compressed 5D state (Zero extra memory)
         lin_idx_compact = static_EV_offset + a1_offset + a2_offset;
         EV_bounded = EV_bounded_pre(lin_idx_compact);
+
+        % 2. Deflate geometry to pure 3D for warp-speed arithmetic
+        FLAT_CHOICES = N_d_safe_local * num_choices_total;
+
+        % F_tensor becomes [Choices, States, Shocks]
+        F_tensor = reshape(F_tensor, [FLAT_CHOICES, N_states, N_ze_local]);
+
+        if N_a2 > 1
+            EV_bounded = reshape(EV_bounded, [FLAT_CHOICES, N_states, N_ze_local]);
+        else
+            % EV_bounded becomes [Choices, 1, Shocks], retaining zero-memory implicit expansion!
+            EV_bounded = reshape(EV_bounded, [FLAT_CHOICES, 1, N_ze_local]);
+        end
+
+        % 1. Extract 1D Column for Choices (d, a1_prime)
+        d_vec_extracted = static_EV_offset(:, 1, 1, 1, 1) - 1;
+        Choice_Offsets_2D = reshape(d_vec_extracted + a1_offset, [FLAT_CHOICES, 1]);
+
+        % 2. Extract 1D Row for States (a2_prime, z, e)
+        base_state_offsets = static_EV_offset(1, 1, 1, :, :);
+        State_Offsets_2D = reshape(base_state_offsets + reshape(a2_offset, [1, 1, N_states, 1, 1]), [1, FLAT_STATES]);
+
+        % 3. Pure 2D Broadcast (Bypasses all 5D VRAM allocations!)
+        lin_idx_compact_2D = Choice_Offsets_2D + State_Offsets_2D;
+
+        % 4. Fetch EV directly into 2D and format F_tensor for the RHS
+        EV_bounded = EV_bounded_pre(lin_idx_compact_2D);
+        F_tensor = reshape(F_tensor, [FLAT_CHOICES, FLAT_STATES]);
 
     else
         % =================================================================
@@ -1376,21 +1366,7 @@ if isempty(loweredge_matrix)
         Apr_cells = cell(1, l_a1);
         for ia = 1:l_a1; Apr_cells{ia} = cast(reshape(mesh_out{ia}(:), [1, num_choices_total, 1, 1, 1]), 'like', EV_local); end
 
-        if orthogonal_mode
-            Apr_cells_ortho = cell(1, l_a1);
-            for ia = 1:l_a1; Apr_cells_ortho{ia} = reshape(Apr_cells{ia}, [1, num_choices_total, 1, 1, 1, 1]); end
-            if N_a2 > 1
-                F_tensor = reshape(TensorReturnFn(D_cells_local_ortho{:}, Apr_cells_ortho{:}, A1_cells{:}, A2_cells{:}, Z_cells_local_ortho{:}, E_cells_local_ortho{:}, ReturnFnParamsCell{:}), [N_d_safe_local, num_choices_total, N_states, n_z_loc, n_e_loc]);
-            else
-                F_tensor = reshape(TensorReturnFn(D_cells_local_ortho{:}, Apr_cells_ortho{:}, A1_cells{:}, Z_cells_local_ortho{:}, E_cells_local_ortho{:}, ReturnFnParamsCell{:}), [N_d_safe_local, num_choices_total, N_states, n_z_loc, n_e_loc]);
-            end
-        else
-            if N_a2 > 1
-                F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
-            else
-                F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
-            end
-        end
+        F_tensor = Execute_3D_Core(Apr_cells, num_choices_total);
 
         choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
         if N_a2 > 1
@@ -1469,23 +1445,7 @@ else
             choice_idx_linear = choice_idx_a1 + (choice_idx_a2 - 1) * length(A1_grids_1d{1});
         end
 
-        if orthogonal_mode
-            Apr_cells_ortho = cell(1, l_a1);
-            for ia = 1:l_a1; Apr_cells_ortho{ia} = reshape(Apr_cells{ia}, [N_d_safe_local, num_choices_total, N_a1_local, N_a1_other, max(1, N_a2), n_z_loc]); end
-            if N_a2 > 1
-                F_tensor = reshape(TensorReturnFn(D_cells_local_ortho{:}, Apr_cells_ortho{:}, A1_cells{:}, A2_cells{:}, Z_cells_local_ortho{:}, E_cells_local_ortho{:}, ReturnFnParamsCell{:}), [N_d_safe_local, num_choices_total, N_states, n_z_loc, n_e_loc]);
-            else
-                F_tensor = reshape(TensorReturnFn(D_cells_local_ortho{:}, Apr_cells_ortho{:}, A1_cells{:}, Z_cells_local_ortho{:}, E_cells_local_ortho{:}, ReturnFnParamsCell{:}), [N_d_safe_local, num_choices_total, N_states, n_z_loc, n_e_loc]);
-            end
-        else
-            if N_a2 > 1
-                for i_a = 1:length(Apr_cells); Apr_cells{i_a} = cast(Apr_cells{i_a}, 'like', EV_local); end
-                F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
-            else
-                for i_a = 1:length(Apr_cells); Apr_cells{i_a} = cast(Apr_cells{i_a}, 'like', EV_local); end
-                F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
-            end
-        end
+        F_tensor = Execute_3D_Core(Apr_cells, num_choices_total);
 
         a1_offset = (choice_idx_linear - 1) * N_d_stride;
         if N_a2 > 1; a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * N_a1_dc * N_a1_other); else; a2_offset = 0; end
@@ -1537,23 +1497,7 @@ else
             choice_idx_linear = choice_idx_a1 + (choice_idx_a2 - 1) * length(a1prime_grid);
         end
 
-        if orthogonal_mode
-            Apr_cells_ortho = cell(1, l_a1);
-            for ia = 1:l_a1; Apr_cells_ortho{ia} = reshape(Apr_cells{ia}, [N_d_safe_local, num_choices_total, N_a1_local, N_a1_other, max(1, N_a2), n_z_loc]); end
-            if N_a2 > 1
-                F_tensor = reshape(TensorReturnFn(D_cells_local_ortho{:}, Apr_cells_ortho{:}, A1_cells{:}, A2_cells{:}, Z_cells_local_ortho{:}, E_cells_local_ortho{:}, ReturnFnParamsCell{:}), [N_d_safe_local, num_choices_total, N_states, n_z_loc, n_e_loc]);
-            else
-                F_tensor = reshape(TensorReturnFn(D_cells_local_ortho{:}, Apr_cells_ortho{:}, A1_cells{:}, Z_cells_local_ortho{:}, E_cells_local_ortho{:}, ReturnFnParamsCell{:}), [N_d_safe_local, num_choices_total, N_states, n_z_loc, n_e_loc]);
-            end
-        else
-            if N_a2 > 1
-                for i_a = 1:length(Apr_cells); Apr_cells{i_a} = cast(Apr_cells{i_a}, 'like', EV_local); end
-                F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
-            else
-                for i_a = 1:length(Apr_cells); Apr_cells{i_a} = cast(Apr_cells{i_a}, 'like', EV_local); end
-                F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
-            end
-        end
+        F_tensor = Execute_3D_Core(Apr_cells, num_choices_total);
 
         if N_a2 > 1
             a1_offset = (choice_idx_linear - 1) * N_d_stride;
@@ -1787,6 +1731,54 @@ else
 end
 
 p_a1 = p_a1_c;
+
+
+end
+function F_tensor = Helper_3D_Core(D_cells, Apr_cells, A1_mat, A2_mat, Z_cells, E_cells, ...
+    a1_sub, a2_sub, N_d, N_apr, N_states, n_z, n_e, l_a1, l_a2, N_a2, EV_local, TensorReturnFn, Params)
+
+% 1. Extract 1D State vectors directly from sub-indices
+A1_cells_3D = cell(1, l_a1);
+for ia = 1:l_a1; A1_cells_3D{ia} = cast(reshape(A1_mat(a1_sub, ia), [1, 1, N_states, 1, 1]), 'like', EV_local); end
+
+if N_a2 > 1
+    A2_cells_3D = cell(1, l_a2);
+    for ia = 1:l_a2; A2_cells_3D{ia} = cast(reshape(A2_mat(a2_sub, ia), [1, 1, N_states, 1, 1]), 'like', EV_local); end
+end
+
+% 2. Explicitly expand ONLY the states into Dim 3 (FLAT_STATES)
+% This forces the GPU kernel to execute in a highly efficient 3D geometry
+FLAT_STATES = N_states * n_z * n_e;
+state_shape_5D = [1, 1, N_states, n_z, n_e];
+expand_to_3D = @(x) reshape(x + zeros(state_shape_5D, 'like', EV_local), [1, 1, FLAT_STATES]);
+
+A1_flat = cellfun(expand_to_3D, A1_cells_3D, 'UniformOutput', false);
+if N_a2 > 1; A2_flat = cellfun(expand_to_3D, A2_cells_3D, 'UniformOutput', false); end
+
+Z_cells_5D = cell(1, length(Z_cells));
+for iz = 1:length(Z_cells); Z_cells_5D{iz} = reshape(Z_cells{iz}, [1, 1, 1, n_z, 1]); end
+Z_flat = cellfun(expand_to_3D, Z_cells_5D, 'UniformOutput', false);
+
+E_cells_5D = cell(1, length(E_cells));
+for ie = 1:length(E_cells); E_cells_5D{ie} = reshape(E_cells{ie}, [1, 1, 1, 1, n_e]); end
+E_flat = cellfun(expand_to_3D, E_cells_5D, 'UniformOutput', false);
+
+% 3. Format Choices for Dim 1 and Dim 2
+D_flat = cell(1, length(D_cells));
+for id = 1:length(D_cells); D_flat{id} = reshape(D_cells{id}, [N_d, 1, 1]); end
+
+Apr_flat = cell(1, l_a1);
+for ia = 1:l_a1; Apr_flat{ia} = cast(reshape(Apr_cells{ia}, [1, N_apr, 1]), 'like', EV_local); end
+
+% 4. Execute 3D Broadcast PTX Kernel (Zero explicit Cartesian allocation)
+if N_a2 > 1
+    F_3D = TensorReturnFn(D_flat{:}, Apr_flat{:}, A1_flat{:}, A2_flat{:}, Z_flat{:}, E_flat{:}, Params{:});
+else
+    F_3D = TensorReturnFn(D_flat{:}, Apr_flat{:}, A1_flat{:}, Z_flat{:}, E_flat{:}, Params{:});
+end
+
+% 5. Restore 5D Geometry for downstream operations
+F_tensor = reshape(F_3D, [N_d, N_apr, N_states, n_z, n_e]);
 
 
 end
