@@ -941,11 +941,10 @@ for reverse_j = 0:N_j-1
             else
                 % DC Mode 3 requests [N_d, N_states, N_ze] from the Tensor Block
                 LocalBlockFn_Base = @(state_idx, loweredge_matrix, maxgap_scalar) SlicerWrapper(state_idx, loweredge_matrix, maxgap_scalar, 3);
-
                 if l_a1 == 1
                     [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC1_Slicer(N_a1_dc, N_a1_dc, max(1, N_a2), N_ze_local, vfoptions, LocalBlockFn_Base, max(1, N_d_safe));
                 else
-                    [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC2A_Slicer(N_a1_dc, N_a1_other, N_a1_other * max(1, N_a2), N_a1_dc, N_ze_local, vfoptions, LocalBlockFn_Base);
+                    [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC2A_Slicer(N_a1_dc, N_a1_other, max(1, N_a2), max(1, N_d_safe), N_ze_local, vfoptions, LocalBlockFn_Base);
                 end
             end
 
@@ -1499,15 +1498,38 @@ end
 % PHASE 2: UNIVERSAL RHS EVALUATION & POLICY EXTRACTION
 % Combine ReturnFn + Expected Value, then extract maximums.
 % =========================================================================
+
 FLAT_CHOICES = N_d_safe_local * num_choices_total;
 FLAT_STATES  = N_states * N_ze_local;
 
-RHS = Evaluate_Universal_RHS_VFHorz(F_tensor, EV_bounded, 1, 1, ezc2_j, ezc3, ezc4, ezc7_j);
-F_is_inf_flat = reshape((F_tensor == -Inf), [FLAT_CHOICES, FLAT_STATES]); % Capture Inf states for L2flag
+% =========================================================================
+% PHASE 2: UNIVERSAL RHS EVALUATION & POLICY EXTRACTION
+% Combine ReturnFn + Expected Value, then extract maximums.
+% =========================================================================
 
-clear F_tensor EV_bounded; % Memory Hoist
+FLAT_CHOICES = N_d_safe_local * num_choices_total;
+FLAT_STATES  = N_states * N_ze_local;
+
+% --- UNIVERSAL 3D GEOMETRY DEFLATION ---
+% Regardless of which branch (Coarse, DC Zoom, or Grid Interp) generated the arrays,
+% we intercept them here and force them into 3D warp-speed geometry before the RHS math.
+F_tensor = reshape(F_tensor, [FLAT_CHOICES, N_states, N_ze_local]);
+
+if numel(EV_bounded) == FLAT_CHOICES * N_ze_local
+    % Preserve zero-copy singleton expansion when states are implicitly broadcasted
+    EV_bounded = reshape(EV_bounded, [FLAT_CHOICES, 1, N_ze_local]);
+else
+    EV_bounded = reshape(EV_bounded, [FLAT_CHOICES, N_states, N_ze_local]);
+end
+
+RHS = Evaluate_Universal_RHS_VFHorz(F_tensor, EV_bounded, 1, 1, ezc2_j, ezc3, ezc4, ezc7_j);
+
+% --- RESTORE 2D GEOMETRY FOR OUTPUT MAPPING ---
+F_is_inf_flat = reshape((F_tensor == -Inf), [FLAT_CHOICES, FLAT_STATES]); % Capture Inf states for L2flag
+% clear F_tensor EV_bounded; % Memory Hoist
+
 RHS_flat = reshape(RHS, [FLAT_CHOICES, FLAT_STATES]);
-clear RHS; % Memory Hoist
+% clear RHS; % Memory Hoist
 
 % -------------------------------------------------------------------------
 % OUTPUT MAPPING (Coarse vs Fine, Slicer vs Standard)
@@ -1532,19 +1554,19 @@ if isempty(loweredge_matrix)
         else
             Pol_a1_per_a2 = [];
         end
-        clear RHS_flat;
+        % clear RHS_flat;
     else
         [V_sub_coarse, Pol_sub_idx] = max(RHS_flat, [], 1);
         if nargout > 5
             num_choices_a1 = num_choices_total / N_a1_other;
             RHS_for_d = reshape(RHS_flat, [N_d_safe_local, num_choices_a1, N_a1_other, FLAT_STATES]);
             [~, max_a1_idx_per_d] = max(RHS_for_d, [], 2);
-            clear RHS_for_d; % Memory Hoist
+            % clear RHS_for_d; % Memory Hoist
             Pol_a1_per_a2 = reshape(max_a1_idx_per_d, [N_d_safe_local, N_a1_other, N_states, N_ze_local]);
         else
             Pol_a1_per_a2 = [];
         end
-        clear RHS_flat;
+        % clear RHS_flat;
 
         d_idx_local = mod(Pol_sub_idx - 1, N_d_safe_local) + 1;
         apr_idx_local  = ceil(Pol_sub_idx / N_d_safe_local);
@@ -1588,7 +1610,7 @@ else
             num_choices_a1 = num_choices_total / N_a1_other;
             RHS_for_d = reshape(RHS_flat, [N_d_safe_local, num_choices_a1, N_a1_other, FLAT_STATES]);
             [~, max_a1_idx_rel] = max(RHS_for_d, [], 2);
-            clear RHS_for_d; % Memory Hoist
+            % clear RHS_for_d; % Memory Hoist
             if gridinterplayer(1) == 0 || is_dc_mode == 2
                 max_a1_idx_rel = reshape(max_a1_idx_rel, [N_d_safe_local, N_a1_other, N_states, N_ze_local]);
                 low_mat_4d = reshape(loweredge_matrix, [N_d_safe_local, N_a1_other, N_states, N_ze_local]);
@@ -1606,7 +1628,7 @@ else
         if d_override > 0; Pol_d_max(:) = d_override; end
 
         if gridinterplayer(1) == 0 || is_dc_mode == 2
-            clear RHS_flat; % Memory Hoist
+            % clear RHS_flat; % Memory Hoist
             a1_apr_offset = mod(apr_offset(:)' - 1, total_gap + 1) + 1;
             a2_offset_factor = ceil(apr_offset(:)' / (total_gap + 1));
 
@@ -1644,7 +1666,7 @@ else
             isInfLower = F_is_inf_flat(lin_lower);
             isInfUpper = F_is_inf_flat(lin_upper);
 
-            clear RHS_flat F_is_inf_flat; % Memory Hoist
+            % clear RHS_flat F_is_inf_flat; % Memory Hoist
 
             inLowerStrict = (a1_apr_offset(:)' >= 2) & (a1_apr_offset(:)' <= n2short + 1);
             inUpperStrict = (a1_apr_offset(:)' >= n2short + 3 + d_gap * (n2short + 1)) & (a1_apr_offset(:)' <= num_choices_total_a1 - 1);
@@ -1661,10 +1683,12 @@ end
 end
 
 function [v, p_apr, p_d, p_l2, p_l2f, p_a1] = Helper_SlicerWrapper(a1_idx, low_mat, mg, dc_mode, N_a1_dc, N_a1_other, N_a2, N_ze, N_d, CoreFn)
-N_other = N_a1_other * max(1, N_a2);
-state_chunk = reshape(a1_idx(:) + (0:N_other-1) * N_a1_dc, 1, []);
-num_a1 = length(a1_idx);
+% DC2A_Slicer passes a linear index already spanning both N_a1_dc and N_a1_other.
+% We only need to broadcast this across the N_a2 dimension.
+N_a1_total = N_a1_dc * N_a1_other;
+state_chunk = reshape(a1_idx(:) + (0:max(1, N_a2)-1) * N_a1_total, 1, []);
 
+num_a1 = length(a1_idx);
 if isempty(low_mat)
     low_chunk = [];
     d_gap = 0;
@@ -1685,35 +1709,34 @@ else
 end
 
 if dc_mode == 3
-    v     = reshape(v_c, max(1, N_d), [], max(1, N_other), max(1, N_ze));
-    p_apr = reshape(p_apr_c, max(1, N_d), [], max(1, N_other), max(1, N_ze));
-    p_d   = reshape(p_d_c, max(1, N_d), [], max(1, N_other), max(1, N_ze));
-
+    v     = reshape(v_c, max(1, N_d), [], max(1, N_a2), max(1, N_ze));
+    p_apr = reshape(p_apr_c, max(1, N_d), [], max(1, N_a2), max(1, N_ze));
+    p_d   = reshape(p_d_c, max(1, N_d), [], max(1, N_a2), max(1, N_ze));
     if ~isempty(p_l2_c)
-        p_l2  = reshape(p_l2_c, max(1, N_d), [], max(1, N_other), max(1, N_ze));
-        p_l2f = reshape(p_l2f_c, max(1, N_d), [], max(1, N_other), max(1, N_ze));
+        p_l2  = reshape(p_l2_c, max(1, N_d), [], max(1, N_a2), max(1, N_ze));
+        p_l2f = reshape(p_l2f_c, max(1, N_d), [], max(1, N_a2), max(1, N_ze));
     else
         p_l2  = [];
         p_l2f = [];
     end
 else
-    v     = reshape(v_c, [], max(1, N_other), max(1, N_ze));
-    p_apr = reshape(p_apr_c, [], max(1, N_other), max(1, N_ze));
-    p_d   = reshape(p_d_c, [], max(1, N_other), max(1, N_ze));
-
+    v     = reshape(v_c, [], max(1, N_a2), max(1, N_ze));
+    p_apr = reshape(p_apr_c, [], max(1, N_a2), max(1, N_ze));
+    p_d   = reshape(p_d_c, [], max(1, N_a2), max(1, N_ze));
     if ~isempty(p_l2_c)
-        p_l2  = reshape(p_l2_c, [], max(1, N_other), max(1, N_ze));
-        p_l2f = reshape(p_l2f_c, [], max(1, N_other), max(1, N_ze));
+        p_l2  = reshape(p_l2_c, [], max(1, N_a2), max(1, N_ze));
+        p_l2f = reshape(p_l2f_c, [], max(1, N_a2), max(1, N_ze));
     else
         p_l2  = [];
         p_l2f = [];
     end
 end
-
 p_a1 = p_a1_c;
 
 
 end
+
+
 function F_tensor = Helper_3D_Core(D_cells, Apr_cells, A1_mat, A2_mat, Z_cells, E_cells, ...
     a1_sub, a2_sub, N_d, N_apr, N_states, n_z, n_e, l_a1, l_a2, N_a2, EV_local, TensorReturnFn, Params)
 
