@@ -1287,7 +1287,7 @@ end
 N_other_local = N_a1_other * max(1, N_a2);
 N_a1_local = N_states / N_other_local;
 
-if N_a1_local == round(N_a1_local) && N_states > N_a1_local
+if l_a1 == 1 && N_a1_local == round(N_a1_local) && N_states > N_a1_local
     A1_mat_reshaped = reshape(A1_mat, [N_a1_dc, N_a1_other, l_a1]);
     a1_idx_safe = mod(state_idx(1:N_a1_local) - 1, N_a1_dc) + 1;
 
