@@ -37,8 +37,18 @@ for ii = 1:(num_anchors - 1)
     mg_max = max(mg_seg);
 
     if mg_max > 0
-        loweredge = min(Pol_apr_anch(:, ii, :, :), N_choice - mg_max);
-        [V_seg, Pol_apr_seg, ~, L2idx_seg, L2flag_seg] = EvalBlockFn(segment_states, loweredge, mg_max);
+        % Instead of artificially capping the loweredge by mg_max (which pulls
+        % the window too far down), we allow the loweredge to float naturally,
+        % but extend the search window (mg_eval) to guarantee the upper bounds are reached.
+        loweredge = min(Pol_apr_anch(:, ii, :, :), N_choice);
+        upper_bound_req = loweredge + mg_max;
+        mg_eval = max(mg_max, max(upper_bound_req - loweredge, [], 'all'));
+
+        % Cap the evaluation window so it doesn't physically exceed the grid
+        mg_eval = min(mg_eval, N_choice - 1);
+        loweredge = min(loweredge, N_choice - mg_eval);
+
+        [V_seg, Pol_apr_seg, ~, L2idx_seg, L2flag_seg] = EvalBlockFn(segment_states, loweredge, mg_eval);
     else
         loweredge = Pol_apr_anch(:, ii, :, :);
         [V_seg, Pol_apr_seg, ~, L2idx_seg, L2flag_seg] = EvalBlockFn(segment_states, loweredge, 0);
