@@ -236,7 +236,7 @@ for reverse_j = 0:N_j-1
         if ~is_exp_asset
             EV_reshaped = reshape(EV_local, [N_a1_dc * N_a1_other, n_z_loc, n_e_loc, N_dsemiz]);
             EV_d_sliced = EV_reshaped(:, :, :, dsemiz_idx_tensor(:));
-            EV_bounded_pre = beta_j .* permute(EV_d_sliced, [4, 1, 5, 2, 3]); 
+            EV_bounded_pre = beta_j .* permute(EV_d_sliced, [4, 1, 5, 2, 3]);
         else
             % (Keep your Experience Asset EV prep here)
             error("exp asset not implemented yet")
@@ -289,7 +289,7 @@ l_a1 = length(A1_grids_1d);
 l_a2 = size(A2_mat, 2);
 
 if N_a2 > 1
-    N_a1_total = N_a1_dc;
+    N_a1_total = N_a1_dc * N_a1_other;
     a2_sub = ceil(state_idx / N_a1_total);
     a1_sub = state_idx - (a2_sub - 1) * N_a1_total;
 else
@@ -311,6 +311,8 @@ else
     A2_cells = {};
 end
 
+local_ze = n_z_loc * n_e_loc;
+
 if isempty(loweredge_matrix)
     grids_for_choices = A1_grids_1d;
     [mesh_out{1:l_a1}] = ndgrid(grids_for_choices{:});
@@ -328,19 +330,19 @@ if isempty(loweredge_matrix)
     end
 
     FLAT_CHOICES = N_d_safe * num_choices_total;
-    F_tensor = reshape(F_tensor, [FLAT_CHOICES, N_states, n_z_loc * n_e_loc]);
+    F_tensor = reshape(F_tensor, [FLAT_CHOICES, N_states, local_ze]);
 
     choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
     a1_offset = (choice_idx_linear - 1) * N_d_safe;
     lin_idx_compact = static_EV_offset + a1_offset;
     EV_bounded = EV_local(lin_idx_compact);
-    EV_bounded = reshape(EV_bounded, [FLAT_CHOICES, N_states, n_z_loc * n_e_loc]);
+    EV_bounded = reshape(EV_bounded, [FLAT_CHOICES, N_states, local_ze]);
 else
     total_gap = maxgap_scalar;
     num_choices_total = total_gap + 1;
 
     loweredge_matrix = max(1, min(loweredge_matrix, N_a1_dc));
-    base_idx_a1 = reshape(loweredge_matrix, [N_d_safe, 1, N_states, N_z, 1]);
+    base_idx_a1 = reshape(loweredge_matrix, [N_d_safe, 1, N_states, local_ze, 1]);
     offsets_a1 = reshape(0:total_gap, [1, total_gap + 1, 1, 1, 1]);
     choice_idx_a1_base = max(1, min(base_idx_a1 + offsets_a1, length(A1_grids_1d{1})));
 
@@ -353,16 +355,17 @@ else
         F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_local{:}, E_cells_local{:}, ReturnFnParamsCell{:});
     end
 
+    FLAT_CHOICES = N_d_safe * num_choices_total;
+    F_tensor = reshape(F_tensor, [FLAT_CHOICES, N_states, local_ze]);
+
     a1_offset = (choice_idx_linear - 1) * N_d_safe;
     lin_idx_compact = static_EV_offset + a1_offset;
     EV_bounded = EV_local(lin_idx_compact);
+    EV_bounded = reshape(EV_bounded, [FLAT_CHOICES, N_states, local_ze]);
 end
 
 FLAT_CHOICES = N_d_safe * num_choices_total;
-FLAT_STATES = N_states * N_z;
-
-F_tensor = reshape(F_tensor, [FLAT_CHOICES, N_states, N_z]);
-EV_bounded = reshape(EV_bounded, [FLAT_CHOICES, 1, N_z]);
+FLAT_STATES = N_states * local_ze;
 
 RHS = F_tensor + EV_bounded;
 RHS_flat = reshape(RHS, [FLAT_CHOICES, FLAT_STATES]);
@@ -381,11 +384,11 @@ end
 
 d_idx_local = repmat(reshape(1:N_d_safe, [N_d_safe, 1]), [1, FLAT_STATES]);
 
-V_j_max   = reshape(V_sub,       [N_d_safe, N_states, N_z]);
-Pol_d_max = reshape(d_idx_local, [N_d_safe, N_states, N_z]);
+V_j_max   = reshape(V_sub,       [N_d_safe, N_states, local_ze]);
+Pol_d_max = reshape(d_idx_local, [N_d_safe, N_states, local_ze]);
 
 if isempty(loweredge_matrix)
-    Pol_apr_max = reshape(apr_idx_local, [N_d_safe, N_states, N_z]);
+    Pol_apr_max = reshape(apr_idx_local, [N_d_safe, N_states, local_ze]);
 else
     a1_apr_offset = mod(apr_idx_local - 1, total_gap + 1) + 1;
     a2_offset_factor = ceil(apr_idx_local / (total_gap + 1));
@@ -398,7 +401,7 @@ else
 
     a1_Pol = min(chosen_low + a1_apr_offset - 1, N_a1_dc);
     Pol_apr_max = a1_Pol + (a2_offset_factor - 1) * N_a1_dc;
-    Pol_apr_max = reshape(Pol_apr_max, [N_d_safe, N_states, N_z]);
+    Pol_apr_max = reshape(Pol_apr_max, [N_d_safe, N_states, local_ze]);
 end
 
 Pol_L2idx = [];
