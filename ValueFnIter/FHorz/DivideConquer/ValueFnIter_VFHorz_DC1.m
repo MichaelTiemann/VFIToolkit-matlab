@@ -123,9 +123,17 @@ for ip = 1:length(ReturnFnParamNames)
     if ~isa(base_ReturnFnParamsCell{ip}, 'gpuArray'); base_ReturnFnParamsCell{ip} = gpuArray(base_ReturnFnParamsCell{ip}); end
 end
 
+N_semiz_local = 1; N_dsemiz = 1;
+if has_semiz && length(n_d) > 0
+    N_semiz_local = max(1, prod(vfoptions.n_semiz));
+    if isfield(vfoptions, 'l_dsemiz'); N_dsemiz = prod(n_d(end-vfoptions.l_dsemiz+1:end)); else; N_dsemiz = n_d(end); end
+end
+N_z_exog = max(1, n_z_work / N_semiz_local);
+
 % Pre-compute z and e values for calls to TensorFn and aprimeFn
 ze_chunks = {1:N_ze};
 chunk_meta = cell(1, length(ze_chunks));
+d_vec = reshape(0:N_d_safe-1, [N_d_safe, 1, 1, 1, 1]);
 for i_ze = 1:length(ze_chunks)
     c_ze = ze_chunks{i_ze};
     if isa(c_ze, 'gpuArray'), c_ze_cpu = gather(c_ze); else, c_ze_cpu = c_ze; end
@@ -135,6 +143,13 @@ for i_ze = 1:length(ze_chunks)
     meta.n_z_loc = length(meta.z_vals);
     meta.n_e_loc = length(meta.e_vals);
     meta.N_ze_local = length(c_ze);
+
+    % Precompute static EV offset mapping per chunk metadata
+    z_vec = reshape((0:meta.n_z_loc-1) * (N_d_safe * N_a1_dc * N_a1_other), [1, 1, 1, meta.n_z_loc, 1]);
+    e_vec = reshape((0:meta.n_e_loc-1) * (N_d_safe * N_a1_dc * N_a1_other * meta.n_z_loc), [1, 1, 1, 1, meta.n_e_loc]);
+    meta.static_EV_offset = cast(d_vec + 1 + z_vec + e_vec, 'like', a_grid);
+    meta.static_EV_offset_fine = [];
+
     chunk_meta{i_ze} = meta;
 end
 
@@ -170,22 +185,18 @@ for reverse_j = 0:N_j-1
 
     EV_local = beta_j .* reshape(V_next, [N_a, N_z]);
 
-    % Precompute static EV offset mapping for 3D Deflation
-    if ~is_exp_asset
-        EV_reshaped = reshape(EV_local, [N_a1_dc * N_a1_other, n_z_loc, n_e_loc, N_dsemiz]);
-        EV_d_sliced = EV_reshaped(:, :, :, dsemiz_idx_tensor(:));
-        EV_bounded_pre = beta_j .* permute(EV_d_sliced, [4, 1, 5, 2, 3]);
+    % Ensure valid EV bounds and flatten into ze representation for chunks
+    valid_EV = isfinite(EV_local) & (EV_local ~= 0);
+    % if ezc6(jj) ~= 1; EV_local(valid_EV) = max(EV_local(valid_EV), 0).^ezc6(jj); end
+    % if ezc8(jj) ~= 1; EV_local(valid_EV) = max(EV_local(valid_EV), 0).^ezc8(jj); end
 
-        % CRITICAL FIX: Use chunk-localized dimensions (n_z_loc, n_e_loc)
-        % instead of global N_z to prevent index out-of-bounds.
-        d_vec = reshape(0:N_d_safe-1, [N_d_safe, 1, 1, 1, 1]);
-        z_vec = reshape((0:n_z_loc-1) * (N_d_safe * N_a1_dc * N_a1_other), [1, 1, 1, n_z_loc, 1]);
-        e_vec = reshape((0:n_e_loc-1) * (N_d_safe * N_a1_dc * N_a1_other * n_z_loc), [1, 1, 1, 1, n_e_loc]);
-        static_EV_offset = cast(d_vec + 1 + z_vec + e_vec, 'like', EV_bounded_pre);
-        static_EV_offset_fine = [];
+    EV_flat_ze = reshape(EV_local, [N_a, N_ze, N_dsemiz]);
+
+    if N_dsemiz > 1
+        if isfield(vfoptions, 'l_dsemiz'); N_d_prefix = max(1, prod(n_d(1:end-vfoptions.l_dsemiz))); else; N_d_prefix = max(1, prod(n_d(1:end-1))); end
+        dsemiz_idx = ceil((1:N_d_safe)' / N_d_prefix); dsemiz_idx_tensor = reshape(dsemiz_idx, [N_d_safe, 1, 1, 1]);
     else
-        % (Keep your existing experience asset precomputation block as is)
-        error("exp_asset not yet supported")
+        dsemiz_idx_tensor = ones(N_d_safe, 1, 1, 1);
     end
 
     for i_ze = 1:length(ze_chunks)
@@ -194,8 +205,13 @@ for reverse_j = 0:N_j-1
         n_e_loc = meta.n_e_loc;
         curr_ze = ze_chunks{i_ze};
         N_ze_local = length(curr_ze);
+        EV_local = EV_flat_ze(:, curr_ze, :);
 
-        % META TRICK: Build Z and E cells locally per chunk
+        % Extract precomputed static offset for this chunk
+        static_EV_offset = meta.static_EV_offset;
+        static_EV_offset_fine = meta.static_EV_offset_fine;
+
+        % Build Z and E cells locally per chunk
         if has_semiz || has_z
             num_z_vars = length(n_all_z);
             Z_cells_local = cell(1, num_z_vars);
@@ -217,20 +233,37 @@ for reverse_j = 0:N_j-1
             E_cells_local = {};
         end
 
+        if ~is_exp_asset
+            EV_reshaped = reshape(EV_local, [N_a1_dc * N_a1_other, n_z_loc, n_e_loc, N_dsemiz]);
+            EV_d_sliced = EV_reshaped(:, :, :, dsemiz_idx_tensor(:));
+            EV_bounded_pre = beta_j .* permute(EV_d_sliced, [4, 1, 5, 2, 3]); 
+        else
+            % (Keep your Experience Asset EV prep here)
+            error("exp asset not implemented yet")
+        end
+
         % Define Evaluation Block for DC Slicer using Meta-Trick cells
         LocalBlockFn = @(state_idx, loweredge_matrix, maxgap_scalar) Evaluate_DC_TensorBlock(...
             state_idx, loweredge_matrix, maxgap_scalar, N_a1_dc, N_a1_other, max(1, N_a2), N_d_safe, N_z, ...
             Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_mat, A1_grids_1d, ...
             EV_local, static_EV_offset, TensorReturnFn, ReturnFnParamsCell, n_z_loc, n_e_loc);
 
+        % Define Evaluation Block for DC Slicer
+        % LocalBlockFn = @(state_idx, loweredge_matrix, maxgap_scalar, d_gap, dc_mode_override) Evaluate_Case1_TensorBlock(...
+        %     state_idx, loweredge_matrix, maxgap_scalar, d_gap, N_a1_dc, N_a1_other, max(1, N_a2), N_d_safe, N_ze_local, ...
+        %     Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_mat, A1_grids_1d, a2_grids_1d, ...
+        %     vfoptions.gridinterplayer, n2short, n2long, beta_j, EV_local, EV_bounded_pre, EV_interp_local, a1prime_grid, ...
+        %     TensorReturnFn, ReturnFnParamsCell, ezc2(jj), ezc3, ezc4, ezc7(jj), ...
+        %     TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, dc_mode_override, 0, static_EV_offset_fine);
+
         % Dispatch Universal DC1 Slicer [ValueFnIter_DC1_Slicer.m](https://github.com/MichaelTiemann/VFIToolkit-matlab/raw/refs/heads/tensor-branch2/ValueFnIter/FHorz/DivideConquer/ValueFnIter_DC1_Slicer.m)
         [v, p_apr, p_d] = ValueFnIter_DC1_Slicer(N_a1_dc, N_a1_dc, 1, N_z, vfoptions, LocalBlockFn, N_d_safe);
 
-        V(:, :, jj) = reshape(v, [N_a, N_z]);
+        V(:, curr_ze, jj) = reshape(v, [N_a, N_ze_local]);
         if N_d > 0
-            Policy(:, :, jj) = (reshape(p_apr, [N_a, N_z]) - 1) * N_d + reshape(p_d, [N_a, N_z]);
+            Policy(:, curr_ze, jj) = (reshape(p_apr, [N_a, N_ze_local]) - 1) * N_d + reshape(p_d, [N_a, N_ze_local]);
         else
-            Policy(:, :, jj) = reshape(p_apr, [N_a, N_z]);
+            Policy(:, curr_ze, jj) = reshape(p_apr, [N_a, N_ze_local]);
         end
     end
     V_next = V(:, :, jj);
