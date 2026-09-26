@@ -1560,19 +1560,37 @@ RHS_flat = reshape(RHS, [FLAT_CHOICES, FLAT_STATES]);
 if isempty(loweredge_matrix)
     % COARSE MAPPING
     if is_dc_mode == 3
-        RHS_for_d = reshape(RHS_flat, [N_d_safe_local, num_choices_total, FLAT_STATES]);
-        [V_sub_coarse, apr_idx_local] = max(RHS_for_d, [], 2);
-        d_idx_local = repmat(reshape(1:N_d_safe_local, [N_d_safe_local, 1]), [1, FLAT_STATES]);
+        if N_d_safe_local == 1
+            % Fast column-major reduction for single-decision models
+            [V_sub_coarse, apr_idx_local] = max(RHS_flat, [], 1);
+            V_sub_coarse = reshape(V_sub_coarse, [1, 1, FLAT_STATES]);
+            apr_idx_local = reshape(apr_idx_local, [1, 1, FLAT_STATES]);
+        else
+            RHS_for_d = reshape(RHS_flat, [N_d_safe_local, num_choices_total, FLAT_STATES]);
+            RHS_perm = permute(RHS_for_d, [2, 1, 3]);
+            [V_sub_coarse, apr_idx_local] = max(RHS_perm, [], 1);
+            V_sub_coarse = permute(V_sub_coarse, [2, 1, 3]);
+            apr_idx_local = permute(apr_idx_local, [2, 1, 3]);
+        end
 
+        d_idx_local = repmat(reshape(1:N_d_safe_local, [N_d_safe_local, 1]), [1, FLAT_STATES]);
         V_j_max     = reshape(V_sub_coarse,  [N_d_safe_local, N_states, N_ze_local]);
         Pol_apr_max = reshape(apr_idx_local, [N_d_safe_local, N_states, N_ze_local]);
         Pol_d_max   = reshape(d_idx_local,   [N_d_safe_local, N_states, N_ze_local]);
-        Pol_L2idx_max  = []; Pol_L2flag_max = [];
+        Pol_L2idx_max  = [];
+        Pol_L2flag_max = [];
 
         if nargout > 5
             num_choices_a1 = num_choices_total / N_a1_other;
-            RHS_a1 = reshape(RHS_flat, [N_d_safe_local, num_choices_a1, N_a1_other, FLAT_STATES]);
-            [~, max_a1_idx_per_d] = max(RHS_a1, [], 2);
+            if N_d_safe_local == 1
+                RHS_a1 = reshape(RHS_flat, [num_choices_a1, N_a1_other * FLAT_STATES]);
+                [~, max_a1_idx_per_d] = max(RHS_a1, [], 1);
+            else
+                RHS_a1 = reshape(RHS_flat, [N_d_safe_local, num_choices_a1, N_a1_other, FLAT_STATES]);
+                RHS_a1_perm = permute(RHS_a1, [2, 1, 3, 4]);
+                [~, max_a1_idx_per_d] = max(RHS_a1_perm, [], 1);
+                max_a1_idx_per_d = permute(max_a1_idx_per_d, [2, 1, 3, 4]);
+            end
             Pol_a1_per_a2 = reshape(max_a1_idx_per_d, [N_d_safe_local, N_a1_other, N_states, N_ze_local]);
         else
             Pol_a1_per_a2 = [];
@@ -1602,33 +1620,44 @@ if isempty(loweredge_matrix)
     end
 
 else
+    % FINE ZOOM MAPPING
     if is_dc_mode == 3
-        RHS_for_d = reshape(RHS_flat, [N_d_safe_local, num_choices_total, FLAT_STATES]);
-        [V_sub_fine, apr_offset] = max(RHS_for_d, [], 2);
+        if N_d_safe_local == 1
+            % Fast column-major reduction
+            [V_sub_fine, apr_offset] = max(RHS_flat, [], 1);
+            V_sub_fine = reshape(V_sub_fine, [1, 1, FLAT_STATES]);
+            apr_offset = reshape(apr_offset, [1, 1, FLAT_STATES]);
+        else
+            RHS_for_d = reshape(RHS_flat, [N_d_safe_local, num_choices_total, FLAT_STATES]);
+            RHS_perm = permute(RHS_for_d, [2, 1, 3]);
+            [V_sub_fine, apr_offset] = max(RHS_perm, [], 1);
+            V_sub_fine = permute(V_sub_fine, [2, 1, 3]);
+            apr_offset = permute(apr_offset, [2, 1, 3]);
+        end
 
-        % CRITICAL FIX: Pure Implicit Expansion Mapping.
-        % Completely eliminates repmat, (:) vectorizations, and intermediate
-        % allocations, fusing the pointer extraction into a single kernel.
-        apr_offset = reshape(apr_offset, [N_d_safe_local, FLAT_STATES]);
-        a1_apr_offset = mod(apr_offset - 1, total_gap + 1) + 1;
-        a2_offset_factor = ceil(apr_offset / (total_gap + 1));
+        d_idx_local = repmat(reshape(1:N_d_safe_local, [N_d_safe_local, 1]), [1, FLAT_STATES]);
+        V_j_max   = reshape(V_sub_fine,  [N_d_safe_local, N_states, N_ze_local]);
+        Pol_d_max = reshape(d_idx_local, [N_d_safe_local, N_states, N_ze_local]);
+        Pol_a1_per_a2 = [];
+
+        % Vectorized pointer extraction
+        apr_offset_2d = reshape(apr_offset, [N_d_safe_local, FLAT_STATES]);
+        a1_apr_offset = mod(apr_offset_2d - 1, total_gap + 1) + 1;
+        a2_offset_factor = ceil(apr_offset_2d / (total_gap + 1));
 
         loweredge_matrix_2d = reshape(loweredge_matrix, [N_d_safe_local, N_a1_other, FLAT_STATES]);
 
         d_vec = cast((1:N_d_safe_local)', 'like', apr_offset);
         s_vec = cast((0:FLAT_STATES-1) * (N_d_safe_local * N_a1_other), 'like', apr_offset);
 
+        % Because all variables are matrices or correctly oriented vectors,
+        % implicit expansion stays perfectly bounded to [N_d, FLAT_STATES].
         lin_idx_loweredge = d_vec + (a2_offset_factor - 1) * N_d_safe_local + s_vec;
         chosen_loweredge = loweredge_matrix_2d(lin_idx_loweredge);
 
         a1_Pol_apr = min(chosen_loweredge + a1_apr_offset - 1, N_a1_dc);
         Pol_apr_max = a1_Pol_apr + (a2_offset_factor - 1) * N_a1_dc;
-
-        V_j_max   = reshape(V_sub_fine,  [N_d_safe_local, N_states, N_ze_local]);
-        Pol_d_max = repmat(reshape(1:N_d_safe_local, [N_d_safe_local, 1, 1]), [1, N_states, N_ze_local]);
         Pol_apr_max = reshape(Pol_apr_max, [N_d_safe_local, N_states, N_ze_local]);
-
-        Pol_a1_per_a2 = [];
         Pol_L2idx_max = [];
         Pol_L2flag_max = [];
         % clear RHS_flat;

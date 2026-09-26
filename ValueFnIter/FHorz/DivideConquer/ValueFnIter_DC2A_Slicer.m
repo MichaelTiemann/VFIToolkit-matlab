@@ -60,11 +60,9 @@ for ii = 1:(num_anchors - 1)
     seg_state_chunk = seg_state_chunk(:)';
     num_seg = length(segment_a1_states);
 
-    % CRITICAL FIX: Zero-Cost Implicit Expansion Bounds Generation.
-    % Completely bypasses the repmat (strided memory copy) and permute
-    % (CUDA shared-memory shuffle) kernels, building the array instantly.
-    anchor_slice = Pol_a1_anch_for_gap(ii, :, :, :, :);
-    loweredge_a1 = reshape(anchor_slice, [N_choice_a1_dc, N_a2_endo, 1, N_other_states, N_ze]) + zeros(1, 1, num_seg, 1, 1, 'like', anchor_slice);
+    % ZERO-COST REP-MAT BOUNDS (Bypasses permute and implicit expansion memory copies)
+    anchor_slice = reshape(Pol_a1_anch_for_gap(ii, :, :, :, :), [N_choice_a1_dc, N_a2_endo, 1, N_other_states, N_ze]);
+    loweredge_a1 = repmat(anchor_slice, [1, 1, num_seg, 1, 1]);
     loweredge_a1 = reshape(loweredge_a1, [N_choice_a1_dc, N_a2_endo, num_seg * N_other_states, N_ze]);
 
     mg_eval = maxgap(ii);
