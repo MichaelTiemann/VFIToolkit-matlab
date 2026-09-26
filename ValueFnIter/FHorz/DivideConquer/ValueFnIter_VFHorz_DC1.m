@@ -153,7 +153,7 @@ for i_ze = 1:length(ze_chunks)
     e_vec = reshape((0:meta.n_e_loc-1) * (N_a_local * meta.n_z_loc), [1, 1, 1, 1, meta.n_e_loc]);
 
     % If ze_chunks spans multiple chunks, static_EV_offset scales to local N_ze_local
-    meta.static_EV_offset = cast(d_vec + 1 + z_vec + e_vec, 'like', a_grid);
+    meta.static_EV_offset = [];
     meta.static_EV_offset_fine = [];
 
     chunk_meta{i_ze} = meta;
@@ -345,10 +345,26 @@ if isempty(loweredge_matrix)
     FLAT_CHOICES = N_d_safe * num_choices_total;
     F_tensor = reshape(F_tensor, [FLAT_CHOICES, N_states, local_ze]);
 
+    % Generate choice indices across choices and local shocks
     choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
-    a1_offset = (choice_idx_linear - 1) * N_d_safe;
-    lin_idx_compact = static_EV_offset + a1_offset;
-    EV_bounded = EV_local(lin_idx_compact);
+    N_a_total = N_a1_dc * N_a1_other;
+
+    a1_indices = reshape(choice_idx_linear, [1, num_choices_total, 1, 1, 1]);
+    a1_indices = max(1, min(a1_indices, N_a_total));
+
+    ze_indices = reshape(1:local_ze, [1, 1, 1, local_ze, 1]);
+
+    % Broadcast indices to match [N_d_safe, num_choices_total, N_states, local_ze]
+    % Note: FLAT_CHOICES = N_d_safe * num_choices_total
+    d_idx = reshape(1:N_d_safe, [N_d_safe, 1, 1, 1, 1]);
+
+    % Compute linear indices matching EV_local [N_a, local_ze]
+    % Row = a1_indices, Col = ze_indices
+    lin_idx_compact = a1_indices + (ze_indices - 1) * N_a_total;
+
+    EV_bounded_raw = EV_local(lin_idx_compact); % Slices based on a1 and ze
+    % Replicate/Expand across decision choices (N_d_safe) and states (N_states)
+    EV_bounded = repmat(EV_bounded_raw, [N_d_safe, 1, N_states, 1]);
     EV_bounded = reshape(EV_bounded, [FLAT_CHOICES, N_states, local_ze]);
 else
     total_gap = maxgap_scalar;
@@ -371,8 +387,16 @@ else
     FLAT_CHOICES = N_d_safe * num_choices_total;
     F_tensor = reshape(F_tensor, [FLAT_CHOICES, N_states, local_ze]);
 
-    a1_offset = (choice_idx_linear - 1) * N_d_safe;
-    lin_idx_compact = static_EV_offset + a1_offset;
+    N_a_total = N_a1_dc * N_a1_other;
+    a1_indices = max(1, min(choice_idx_linear, N_a_total));
+
+    % ze_indices needs to broadcast across [N_d_safe, num_choices_total, N_states, local_ze]
+    ze_indices = reshape(1:local_ze, [1, 1, 1, local_ze, 1]);
+
+    lin_idx_compact = a1_indices + (ze_indices - 1) * N_a_total;
+
+    % Because choice_idx_linear already covers d and states,
+    % EV_local(lin_idx_compact) is already shaped correctly for reshaping!
     EV_bounded = EV_local(lin_idx_compact);
     EV_bounded = reshape(EV_bounded, [FLAT_CHOICES, N_states, local_ze]);
 end
