@@ -171,9 +171,22 @@ for reverse_j = 0:N_j-1
     EV_local = beta_j .* reshape(V_next, [N_a, N_z]);
 
     % Precompute static EV offset mapping for 3D Deflation
-    d_vec = reshape(0:N_d_safe-1, [N_d_safe, 1, 1, 1, 1]);
-    z_vec = reshape((0:N_z-1) * (N_d_safe * N_a1_dc), [1, 1, 1, N_z, 1]);
-    static_EV_offset = cast(d_vec + 1 + z_vec, 'like', EV_local);
+    if ~is_exp_asset
+        EV_reshaped = reshape(EV_local, [N_a1_dc * N_a1_other, n_z_loc, n_e_loc, N_dsemiz]);
+        EV_d_sliced = EV_reshaped(:, :, :, dsemiz_idx_tensor(:));
+        EV_bounded_pre = beta_j .* permute(EV_d_sliced, [4, 1, 5, 2, 3]);
+
+        % CRITICAL FIX: Use chunk-localized dimensions (n_z_loc, n_e_loc)
+        % instead of global N_z to prevent index out-of-bounds.
+        d_vec = reshape(0:N_d_safe-1, [N_d_safe, 1, 1, 1, 1]);
+        z_vec = reshape((0:n_z_loc-1) * (N_d_safe * N_a1_dc * N_a1_other), [1, 1, 1, n_z_loc, 1]);
+        e_vec = reshape((0:n_e_loc-1) * (N_d_safe * N_a1_dc * N_a1_other * n_z_loc), [1, 1, 1, 1, n_e_loc]);
+        static_EV_offset = cast(d_vec + 1 + z_vec + e_vec, 'like', EV_bounded_pre);
+        static_EV_offset_fine = [];
+    else
+        % (Keep your existing experience asset precomputation block as is)
+        error("exp_asset not yet supported")
+    end
 
     for i_ze = 1:length(ze_chunks)
         meta = chunk_meta{i_ze};
@@ -282,13 +295,13 @@ if isempty(loweredge_matrix)
     end
 
     FLAT_CHOICES = N_d_safe * num_choices_total;
-    F_tensor = reshape(F_tensor, [FLAT_CHOICES, N_states, N_z]);
+    F_tensor = reshape(F_tensor, [FLAT_CHOICES, N_states, n_z_loc * n_e_loc]);
 
     choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
     a1_offset = (choice_idx_linear - 1) * N_d_safe;
     lin_idx_compact = static_EV_offset + a1_offset;
     EV_bounded = EV_local(lin_idx_compact);
-    EV_bounded = reshape(EV_bounded, [FLAT_CHOICES, N_states, N_z]);
+    EV_bounded = reshape(EV_bounded, [FLAT_CHOICES, N_states, n_z_loc * n_e_loc]);
 else
     total_gap = maxgap_scalar;
     num_choices_total = total_gap + 1;
