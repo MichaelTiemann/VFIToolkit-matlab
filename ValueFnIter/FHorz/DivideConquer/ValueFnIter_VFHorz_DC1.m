@@ -113,7 +113,11 @@ end
 has_z = prod(n_z) > 0; n_z_work = N_semiz * N_z_exog; n_e_work = max(1, prod(n_e_pass)); N_ze = n_z_work * n_e_work;
 
 V = zeros(N_a, N_ze, N_j, 'gpuArray');
-Policy = zeros(N_a, N_ze, N_j, 'gpuArray');
+if N_d > 0
+    Policy = zeros(2, N_a, N_ze, N_j, 'gpuArray');
+else
+    Policy = zeros(N_a, N_ze, N_j, 'gpuArray');
+end
 V_next = zeros(N_a, N_ze, 'gpuArray');
 
 base_ReturnFnParamsCell = CreateCellFromParams(Parameters, ReturnFnParamNames, 1, vfoptions.precision);
@@ -274,7 +278,8 @@ for reverse_j = 0:N_j-1
 
         V(:, curr_ze, jj) = reshape(v, [N_a, N_ze_local]);
         if N_d > 0
-            Policy(:, curr_ze, jj) = (reshape(p_apr, [N_a, N_ze_local]) - 1) * N_d + reshape(p_d, [N_a, N_ze_local]);
+            Policy(1, :, curr_ze, jj) = reshape(p_d, [1, N_a, N_ze_local]);
+            Policy(2, :, curr_ze, jj) = reshape(p_apr, [1, N_a, N_ze_local]);
         else
             Policy(:, curr_ze, jj) = reshape(p_apr, [N_a, N_ze_local]);
         end
@@ -427,17 +432,23 @@ Pol_d_max = reshape(d_idx_local, [N_d_safe, N_states, local_ze]);
 if isempty(loweredge_matrix)
     Pol_apr_max = reshape(apr_idx_local, [N_d_safe, N_states, local_ze]);
 else
-    a1_apr_offset = mod(apr_idx_local - 1, total_gap + 1) + 1;
-    a2_offset_factor = ceil(apr_idx_local / (total_gap + 1));
+    % Force apr_idx_local to flatten to [N_d_safe, FLAT_STATES] to match loweredge_2d
+    apr_idx_flat = reshape(apr_idx_local, [N_d_safe, FLAT_STATES]);
+
+    a1_apr_offset = mod(apr_idx_flat - 1, total_gap + 1) + 1;
+    a2_offset_factor = ceil(apr_idx_flat / (total_gap + 1));
+
     loweredge_2d = reshape(loweredge_matrix, [N_d_safe, FLAT_STATES]);
-    d_vec = cast((1:N_d_safe)', 'like', apr_idx_local);
-    s_vec = cast((0:FLAT_STATES-1) * N_d_safe, 'like', apr_idx_local);
+    d_vec = cast((1:N_d_safe)', 'like', apr_idx_flat);
+    s_vec = cast((0:FLAT_STATES-1) * N_d_safe, 'like', apr_idx_flat);
 
     lin_idx_low = d_vec + s_vec;
     chosen_low = loweredge_2d(lin_idx_low);
 
     a1_Pol = min(chosen_low + a1_apr_offset - 1, N_a1_dc);
     Pol_apr_max = a1_Pol + (a2_offset_factor - 1) * N_a1_dc;
+
+    % Final safe reshape matching [N_d_safe, N_states, local_ze]
     Pol_apr_max = reshape(Pol_apr_max, [N_d_safe, N_states, local_ze]);
 end
 
