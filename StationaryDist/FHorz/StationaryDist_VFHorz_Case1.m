@@ -146,6 +146,13 @@ if simoptions.parallel<2
     return
 end
 
+%% Precalculate for either delegation or orchestration
+N_semiz=prod(simoptions.n_semiz);
+%% Initialize simoptions as if called through main VFHorz_Case1 orchestrator
+if N_semiz>0 && ~isfield(simoptions,'l_dsemiz')
+    simoptions.l_dsemiz=1; % by default, just one decision variable is used for the semi-exo state
+end
+
 %% Exogenous shock grids
 simoptions_for_delegation = simoptions; % Preserve intact options for legacy delegation
 if simoptions.alreadygridvals==0
@@ -172,7 +179,6 @@ if ~exist('z_gridvals_J', 'var')
 end
 
 %% Semi-exogenous shock gridvals and pi
-N_semiz=prod(simoptions.n_semiz);
 if simoptions.alreadygridvals_semiexo==0
     if N_semiz>0
         if simoptions.experienceassetsemiz>=1
@@ -215,14 +221,6 @@ end
 
 if abs(sum(jequaloneDist(:))-1)>10^(-9)
     error('The jequaloneDist must be of mass one')
-end
-
-%% Initialize simoptions as if called through main VFHorz_Case1 orchestrator
-N_semiz = prod(n_semiz);
-if N_semiz>0
-    if ~isfield(simoptions,'l_dsemiz')
-        simoptions.l_dsemiz=1; % by default, just one decision variable is used for the semi-exo state
-    end
 end
 
 
