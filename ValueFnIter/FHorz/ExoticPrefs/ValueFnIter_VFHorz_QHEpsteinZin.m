@@ -673,18 +673,32 @@ if isempty(loweredge_matrix)
         FLAT_STATES = N_states * N_ze_local;
     end
 else
-    % =================================================================
-    % BRANCH 2: ZOOM PHASE (loweredge_matrix provided)
-    % =================================================================
-    num_states_lower = size(loweredge_matrix, 1);
-    if num_states_lower == 1 && N_states > 1; loweredge_matrix = repmat(loweredge_matrix, N_states, 1); end
+    % ================================================================= %
+    % BRANCH 2: ZOOM PHASE (loweredge_matrix provided by Coarse Pass)   %
+    % ================================================================= %
+    Pol_a1_per_a2 = [];
+    loweredge_matrix = max(1, min(loweredge_matrix, N_a1));
+    num_val = numel(loweredge_matrix);
+    target_shape = zeros(max(1, N_d_safe), 1, N_states, n_z_loc, n_e_loc, 'like', loweredge_matrix);
+    target_states_ze = N_states * n_z_loc * n_e_loc;
+
+    if num_val == target_states_ze
+        low_reshaped = reshape(loweredge_matrix, [1, 1, N_states, n_z_loc, n_e_loc]);
+    elseif num_val == max(1, N_d_safe) * target_states_ze
+        low_reshaped = reshape(loweredge_matrix, [max(1, N_d_safe), 1, N_states, n_z_loc, n_e_loc]);
+    else
+        low_flat = loweredge_matrix(:);
+        if length(low_flat) < target_states_ze; low_flat = repmat(low_flat, ceil(target_states_ze / max(1, length(low_flat))), 1); end
+        low_reshaped = reshape(low_flat(1:target_states_ze), [1, 1, N_states, n_z_loc, n_e_loc]);
+    end
+    loweredge_matrix = low_reshaped + target_shape;
 
     if gridinterplayer(1) == 0
-        % -------------------------------------------------------------
-        % SCENARIO 2A: Standard DC Segment Zoom (No Interpolation)
-        % -------------------------------------------------------------
+        % ------------------------------------------------------------- %
+        % SCENARIO 2A: Standard DC Segment Zoom (No Interpolation)      %
+        % ------------------------------------------------------------- %
         num_choices = maxgap_scalar + 1;
-        base_idx = reshape(loweredge_matrix, [1, 1, N_states, n_z_loc, n_e_loc]);
+        base_idx = reshape(loweredge_matrix, [max(1, N_d_safe), 1, N_states, n_z_loc, n_e_loc]);
         choice_idx = max(1, min(base_idx + reshape(0:maxgap_scalar, [1, num_choices, 1, 1, 1]), N_a1));
 
         Apr_cells = cell(1, num_a1);
