@@ -146,12 +146,13 @@ for i_ze = 1:length(ze_chunks)
     meta.N_ze_local = length(c_ze);
 
     % CORRECTED STATIC OFFSET:
-    % d_vec handles decision steps (stride 1)
-    % z_vec strides by total asset states (N_a1_dc * N_a1_other) per shock index
+    % The offset stride must span the local chunk size (meta.N_ze_local),
+    % not the global n_z_work, to keep lin_idx_compact inside EV_local bounds.
     N_a_local = N_a1_dc * N_a1_other;
     z_vec = reshape((0:meta.n_z_loc-1) * N_a_local, [1, 1, 1, meta.n_z_loc, 1]);
     e_vec = reshape((0:meta.n_e_loc-1) * (N_a_local * meta.n_z_loc), [1, 1, 1, 1, meta.n_e_loc]);
 
+    % If ze_chunks spans multiple chunks, static_EV_offset scales to local N_ze_local
     meta.static_EV_offset = cast(d_vec + 1 + z_vec + e_vec, 'like', a_grid);
     meta.static_EV_offset_fine = [];
 
@@ -256,7 +257,7 @@ for reverse_j = 0:N_j-1
 
         % Define Evaluation Block for DC Slicer using Meta-Trick cells
         LocalBlockFn = @(state_idx, loweredge_matrix, maxgap_scalar) Evaluate_DC_TensorBlock(...
-            state_idx, loweredge_matrix, maxgap_scalar, N_a1_dc, N_a1_other, max(1, N_a2), N_d_safe, N_z, ...
+            state_idx, loweredge_matrix, maxgap_scalar, N_a1_dc, N_a1_other, max(1, N_a2), N_d_safe, N_ze_local, ...
             Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_mat, A1_grids_1d, ...
             EV_local, static_EV_offset, TensorReturnFn, ReturnFnParamsCell, n_z_loc, n_e_loc);
 
@@ -269,7 +270,7 @@ for reverse_j = 0:N_j-1
         %     TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, dc_mode_override, 0, static_EV_offset_fine);
 
         % Dispatch Universal DC1 Slicer [ValueFnIter_DC1_Slicer.m](https://github.com/MichaelTiemann/VFIToolkit-matlab/raw/refs/heads/tensor-branch2/ValueFnIter/FHorz/DivideConquer/ValueFnIter_DC1_Slicer.m)
-        [v, p_apr, p_d] = ValueFnIter_DC1_Slicer(N_a1_dc, N_a1_dc, 1, N_z, vfoptions, LocalBlockFn, N_d_safe);
+        [v, p_apr, p_d] = ValueFnIter_DC1_Slicer(N_a1_dc, N_a1_dc, 1, N_ze_local, vfoptions, LocalBlockFn, N_d_safe);
 
         V(:, curr_ze, jj) = reshape(v, [N_a, N_ze_local]);
         if N_d > 0
