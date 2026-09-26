@@ -249,7 +249,7 @@ if strcmp(vfoptions.exoticpreferences, 'QuasiHyperbolic') || strcmp(vfoptions.ex
     return;
 end
 
-if false && vfoptions.divideandconquer == 1
+if vfoptions.divideandconquer == 1 && ~is_EZ
     [V, Policy] = ValueFnIter_VFHorz_DC1(n_d, n_a, n_z, N_j, d_grid, a_grid, z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
     varargout={V,Policy};
     return
@@ -472,7 +472,8 @@ else
     pi_u_shape = [];
 end
 
-N_d_safe = max(1, prod(n_d)); n_a_work = prod(n_a);
+N_d_safe = max(1, prod(n_d));
+n_a_work = prod(n_a);
 
 has_semiz = prod(vfoptions.n_semiz) > 0;
 if has_semiz

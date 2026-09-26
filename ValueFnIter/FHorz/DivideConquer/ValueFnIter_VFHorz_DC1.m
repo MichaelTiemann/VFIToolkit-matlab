@@ -99,6 +99,7 @@ for i_d = 1:length(D_cells_block)
 end
 
 N_d_safe = max(1, N_d);
+n_a_work = prod(n_a);
 
 has_semiz = prod(vfoptions.n_semiz) > 0;
 if has_semiz
@@ -113,13 +114,12 @@ end
 has_z = prod(n_z) > 0; n_z_work = N_semiz * N_z_exog; n_e_work = max(1, prod(n_e_pass));
 N_ze = n_z_work * n_e_work;
 
-V = zeros(N_a, N_ze, N_j, 'gpuArray');
+V = zeros(n_a_work, n_z_work, n_e_work, N_j, 'gpuArray'); V_next = zeros(n_a_work, n_z_work, n_e_work, 'gpuArray');
 if N_d > 0
     Policy = zeros(2, N_a, N_ze, N_j, 'gpuArray');
 else
     Policy = zeros(N_a, N_ze, N_j, 'gpuArray');
 end
-V_next = zeros(N_a, N_ze, 'gpuArray');
 
 base_ReturnFnParamsCell = CreateCellFromParams(Parameters, ReturnFnParamNames, 1, vfoptions.precision);
 is_age_dependent = false(1, length(ReturnFnParamNames));
@@ -127,6 +127,9 @@ for ip = 1:length(ReturnFnParamNames)
     if numel(Parameters.(ReturnFnParamNames{ip})) == N_j; is_age_dependent(ip) = true; end
     if ~isa(base_ReturnFnParamsCell{ip}, 'gpuArray'); base_ReturnFnParamsCell{ip} = gpuArray(base_ReturnFnParamsCell{ip}); end
 end
+
+warmglow = int32(isfield(vfoptions,'WarmGlowBequestsFn'));
+ezc2 = ones(N_j,1); ezc3 = 1; ezc4 = 1; ezc5 = ones(N_j,1); ezc6 = ones(N_j,1); ezc7 = ones(N_j,1); ezc8 = ones(N_j,1);
 
 N_semiz_local = 1; N_dsemiz = 1;
 if has_semiz && length(n_d) > 0
@@ -323,12 +326,12 @@ for reverse_j = 0:N_j-1
         %     TensorReturnFn, ReturnFnParamsCell, ezc2(jj), ezc3, ezc4, ezc7(jj), ...
         %     TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, dc_mode_override, 0, static_EV_offset_fine);
 
-        % Dispatch Universal DC1 Slicer [ValueFnIter_DC1_Slicer.m](https://github.com/MichaelTiemann/VFIToolkit-matlab/raw/refs/heads/tensor-branch2/ValueFnIter/FHorz/DivideConquer/ValueFnIter_DC1_Slicer.m)
+        % DC Mode 3 requests [N_d, N_states, N_ze] from the Tensor Block
         if l_a1 == 1
-            [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC1_Slicer(N_a1_dc, N_a1_dc, max(1, N_a2), N_ze_local, vfoptions, LocalBlockFn_Base, N_d_safe);
+            [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC1_Slicer(N_a1_dc, N_a1_dc, max(1, N_a2), N_ze_local, vfoptions, LocalBlockFn, N_d_safe);
         else
             % CRITICAL FIX: Pass N_a1_other * max(1, N_a2) as N_other_states so V_max allocates correctly
-            [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC2A_Slicer(N_a1_dc, N_a1_other, N_a1_other * N_a2, N_d_safe, N_ze_local, vfoptions, LocalBlockFn_Base);
+            [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC2A_Slicer(N_a1_dc, N_a1_other, N_a1_other * N_a2, N_d_safe, N_ze_local, vfoptions, LocalBlockFn);
         end
 
         V_j_max(:, curr_ze)     = reshape(v,     [N_a, N_ze_local]);
@@ -573,10 +576,10 @@ else
     a2_offset_factor = ceil(apr_idx_flat / (total_gap + 1));
 
     loweredge_2d = reshape(loweredge_matrix, [N_d_safe, FLAT_STATES]);
-    d_vec = cast((1:N_d_safe)', 'like', apr_idx_flat);
+    d_vec_row = cast((1:N_d_safe)', 'like', apr_idx_flat);
     s_vec = cast((0:FLAT_STATES-1) * N_d_safe, 'like', apr_idx_flat);
 
-    lin_idx_low = d_vec + s_vec;
+    lin_idx_low = d_vec_row + s_vec;
     chosen_low = loweredge_2d(lin_idx_low);
 
     a1_Pol = min(chosen_low + a1_apr_offset - 1, N_a1_dc);
