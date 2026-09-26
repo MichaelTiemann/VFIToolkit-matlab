@@ -134,6 +134,7 @@ N_z_exog = max(1, n_z_work / N_semiz_local);
 ze_chunks = {1:N_ze};
 chunk_meta = cell(1, length(ze_chunks));
 d_vec = reshape(0:N_d_safe-1, [N_d_safe, 1, 1, 1, 1]);
+
 for i_ze = 1:length(ze_chunks)
     c_ze = ze_chunks{i_ze};
     if isa(c_ze, 'gpuArray'), c_ze_cpu = gather(c_ze); else, c_ze_cpu = c_ze; end
@@ -144,9 +145,13 @@ for i_ze = 1:length(ze_chunks)
     meta.n_e_loc = length(meta.e_vals);
     meta.N_ze_local = length(c_ze);
 
-    % Precompute static EV offset mapping per chunk metadata
-    z_vec = reshape((0:meta.n_z_loc-1) * (N_d_safe * N_a1_dc * N_a1_other), [1, 1, 1, meta.n_z_loc, 1]);
-    e_vec = reshape((0:meta.n_e_loc-1) * (N_d_safe * N_a1_dc * N_a1_other * meta.n_z_loc), [1, 1, 1, 1, meta.n_e_loc]);
+    % CORRECTED STATIC OFFSET:
+    % d_vec handles decision steps (stride 1)
+    % z_vec strides by total asset states (N_a1_dc * N_a1_other) per shock index
+    N_a_local = N_a1_dc * N_a1_other;
+    z_vec = reshape((0:meta.n_z_loc-1) * N_a_local, [1, 1, 1, meta.n_z_loc, 1]);
+    e_vec = reshape((0:meta.n_e_loc-1) * (N_a_local * meta.n_z_loc), [1, 1, 1, 1, meta.n_e_loc]);
+
     meta.static_EV_offset = cast(d_vec + 1 + z_vec + e_vec, 'like', a_grid);
     meta.static_EV_offset_fine = [];
 
@@ -240,6 +245,13 @@ for reverse_j = 0:N_j-1
         else
             % (Keep your Experience Asset EV prep here)
             error("exp asset not implemented yet")
+        end
+
+        % Ensure EV_local has the correct shape for stride indexing
+        if N_a2 > 1
+            EV_local = reshape(EV_local, [N_a1_dc * N_a1_other, N_a2, n_z_loc, n_e_loc]);
+        else
+            EV_local = reshape(EV_local, [N_a1_dc * N_a1_other, n_z_loc, n_e_loc]);
         end
 
         % Define Evaluation Block for DC Slicer using Meta-Trick cells
