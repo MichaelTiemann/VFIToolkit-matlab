@@ -153,14 +153,12 @@ for i_ze = 1:length(ze_chunks)
     meta.n_e_loc = length(meta.e_vals);
     meta.N_ze_local = length(c_ze);
 
-    % CORRECTED STATIC OFFSET:
-    % The offset stride must span the local chunk size (meta.N_ze_local),
-    % not the global n_z_work, to keep lin_idx_compact inside EV_local bounds.
-    N_a_local = N_a1_dc * N_a1_other;
-    z_vec = reshape((0:meta.n_z_loc-1) * N_a_local, [1, 1, 1, meta.n_z_loc, 1]);
-    e_vec = reshape((0:meta.n_e_loc-1) * (N_a_local * n_z_work), [1, 1, 1, 1, meta.n_e_loc]);
+    % STATIC EV OFFSET COMPUTATION
+    N_a1_total = N_a1_dc * N_a1_other;
+    z_vec = reshape((0:meta.n_z_loc-1) * (N_d_safe * N_a1_total), [1, 1, 1, meta.n_z_loc, 1]);
+    e_vec = reshape((0:meta.n_e_loc-1) * (N_d_safe * N_a1_total * meta.n_z_loc), [1, 1, 1, 1, meta.n_e_loc]);
 
-    meta.static_EV_offset = [];
+    meta.static_EV_offset = gpuArray(d_vec + 1 + z_vec + e_vec);
     meta.static_EV_offset_fine = [];
 
     chunk_meta{i_ze} = meta;
@@ -576,11 +574,10 @@ else
     a2_offset_factor = ceil(apr_idx_flat / (total_gap + 1));
 
     loweredge_2d = reshape(loweredge_matrix, [N_d_safe, FLAT_STATES]);
-    d_vec_row = cast((1:N_d_safe)', 'like', apr_idx_flat);
-    s_vec = cast((0:FLAT_STATES-1) * N_d_safe, 'like', apr_idx_flat);
-
-    lin_idx_low = d_vec_row + s_vec;
-    chosen_low = loweredge_2d(lin_idx_low);
+    d_vec_row = cast((1:N_d_safe)', 'like', apr_offset);
+    s_vec = reshape((0:FLAT_STATES-1) * (N_d_safe * N_a1_other), [1, 1, FLAT_STATES]);
+    lin_idx_loweredge = d_vec_row + (a2_offset_factor - 1) * N_d_safe + s_vec;
+    chosen_low = loweredge_2d(lin_idx_loweredge);
 
     a1_Pol = min(chosen_low + a1_apr_offset - 1, N_a1_dc);
     Pol_apr_max = a1_Pol + (a2_offset_factor - 1) * N_a1_dc;
