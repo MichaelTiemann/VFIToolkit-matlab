@@ -855,7 +855,6 @@ for reverse_j = 0:N_j-1
                 end
 
                 % Setup static mapping offsets for all Branches
-                d_vec = reshape(0:N_d_safe-1, [N_d_safe, 1, 1, 1, 1]);
                 z_vec = reshape((0:n_z_loc-1) * (N_d_safe * N_a1_total * N_a2_global), [1, 1, 1, n_z_loc, 1]);
                 e_vec = reshape((0:n_e_loc-1) * (N_d_safe * N_a1_total * N_a2_global * n_z_loc), [1, 1, 1, 1, n_e_loc]);
                 static_EV_offset = cast(d_vec + 1 + z_vec + e_vec, 'like', EV_bounded_pre);
@@ -1019,7 +1018,6 @@ for reverse_j = 0:N_j-1
                     EV_d_sliced = EV_reshaped(:, :, :, dsemiz_idx_tensor(:));
                     EV_bounded_pre = beta_j .* permute(EV_d_sliced, [4, 1, 5, 2, 3]);
 
-                    d_vec = reshape(0:N_d_safe-1, [N_d_safe, 1, 1, 1, 1]);
                     z_vec = reshape((0:n_z_loc-1) * (N_d_safe * N_a1_dc * N_a1_other), [1, 1, 1, n_z_loc, 1]);
                     e_vec = reshape((0:n_e_loc-1) * (N_d_safe * N_a1_dc * N_a1_other * n_z_loc), [1, 1, 1, 1, n_e_loc]);
                     static_EV_offset = cast(d_vec + 1 + z_vec + e_vec, 'like', EV_bounded_pre);
@@ -1139,7 +1137,6 @@ for reverse_j = 0:N_j-1
                     end
 
                     % Setup static mapping offsets for all Branches
-                    d_vec = reshape(0:N_d_safe-1, [N_d_safe, 1, 1, 1, 1]);
                     z_vec = reshape((0:n_z_loc-1) * (N_d_safe * N_a1_total * N_a2_global), [1, 1, 1, n_z_loc, 1]);
                     e_vec = reshape((0:n_e_loc-1) * (N_d_safe * N_a1_total * N_a2_global * n_z_loc), [1, 1, 1, 1, n_e_loc]);
                     static_EV_offset = cast(d_vec + 1 + z_vec + e_vec, 'like', EV_bounded_pre);
@@ -1648,18 +1645,18 @@ else
         Pol_a1_per_a2 = [];
 
         % Vectorized pointer extraction
-        apr_offset_2d = reshape(apr_offset, [N_d_safe, FLAT_STATES]);
+        apr_offset_2d = reshape(apr_offset, [N_d_safe, N_a1_other, FLAT_STATES]);
         a1_apr_offset = mod(apr_offset_2d - 1, total_gap + 1) + 1;
         a2_offset_factor = ceil(apr_offset_2d / (total_gap + 1));
 
         loweredge_matrix_2d = reshape(loweredge_matrix, [N_d_safe, N_a1_other, FLAT_STATES]);
 
-        d_vec = cast((1:N_d_safe)', 'like', apr_offset);
-        s_vec = cast((0:FLAT_STATES-1) * (N_d_safe * N_a1_other), 'like', apr_offset);
+        d_vec_row = cast((1:N_d_safe)', 'like', apr_offset);
+        s_vec = shiftdim(cast((0:FLAT_STATES-1) * (N_d_safe * N_a1_other), 'like', apr_offset), -1);
 
         % Because all variables are matrices or correctly oriented vectors,
         % implicit expansion stays perfectly bounded to [N_d, FLAT_STATES].
-        lin_idx_loweredge = d_vec + (a2_offset_factor - 1) * N_d_safe + s_vec;
+        lin_idx_loweredge = d_vec_row + (a2_offset_factor - 1) * N_d_safe + s_vec;
         chosen_loweredge = loweredge_matrix_2d(lin_idx_loweredge);
 
         a1_Pol_apr = min(chosen_loweredge + a1_apr_offset - 1, N_a1_dc);
