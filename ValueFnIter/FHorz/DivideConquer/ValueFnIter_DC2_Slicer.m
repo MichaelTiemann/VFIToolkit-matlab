@@ -4,7 +4,7 @@ function [V_max, Pol_apr, Pol_d1, Pol_L2idx, Pol_L2flag] = ValueFnIter_DC2_Slice
 if nargin < 7; N_d = 1; end
 gridinterplayer = vfoptions.gridinterplayer(1) == 1;
 
-level1ii = round(linspace(1, N_a1, vfoptions.level1n));
+level1ii = round(linspace(1, N_a1, vfoptions.level1n(1)));
 num_anchors = length(level1ii);
 
 % 1. Construct full anchor state array
@@ -23,12 +23,12 @@ maxgap = squeeze(max(diff_anch, [], [1, 2, 4, 5])); % Collapse all dims except a
 maxgap = gather(maxgap); % Prevent GPU stalls
 
 % Preallocate global outputs (N_d aware)
-V_d       = -inf(N_d, N_a1, N_a2, N_ze, 'gpuArray');
-Pol_apr_d = ones(N_d, N_a1, N_a2, N_ze, 'gpuArray');
+V_d       = -inf(N_d, N_a1, N_other_states, N_ze, 'gpuArray');
+Pol_apr_d = ones(N_d, N_a1, N_other_states, N_ze, 'gpuArray');
 
 if gridinterplayer
-    Pol_L2idx_d  = ones(N_d, N_a1, N_a2, N_ze, 'gpuArray');
-    Pol_L2flag_d = 2 * ones(N_d, N_a1, N_a2, N_ze, 'gpuArray');
+    Pol_L2idx_d  = ones(N_d, N_a1, N_other_states, N_ze, 'gpuArray');
+    Pol_L2flag_d = 2 * ones(N_d, N_a1, N_other_states, N_ze, 'gpuArray');
 else
     Pol_L2idx_d = [];
     Pol_L2flag_d = [];
@@ -66,20 +66,18 @@ for ii = 1:(num_anchors - 1)
     [V_seg, Pol_apr_seg, Pol_d_seg, ~, ~] = EvalBlockFn(state_chunk_mat_seg(:)', loweredge(:), mg_eval);
 
     % --- DEAD ZONE SURVIVAL PATCH ---
-    % If either anchor failed (-Inf), the penalty gradient is missing.
-    % We must fully open the search window to scan for the survival ledge.
     V_anch_left = V_d(:, level1ii(ii), :, :);
     V_anch_right = V_d(:, level1ii(ii+1), :, :);
     if any(V_anch_left(:) == -Inf) || any(V_anch_right(:) == -Inf)
-        mg_eval = N_choice - 1;
+        mg_eval = N_a1 - 1;
         loweredge(:) = 1;
     end
     % --------------------------------
 
     if mg_eval > 0
         % Cap the evaluation window so it doesn't physically exceed the grid
-        mg_eval = min(mg_eval, N_choice - 1);
-        loweredge = min(loweredge, N_choice - mg_eval);
+        mg_eval = min(mg_eval, N_a1 - 1);
+        loweredge = min(loweredge, N_a1 - mg_eval);
 
         [V_seg, Pol_apr_seg, ~, L2idx_seg, L2flag_seg] = EvalBlockFn(segment_states, loweredge, mg_eval);
     else
@@ -97,37 +95,31 @@ end
 
 % Collapse N_d Dimension Safely
 [V_max, best_d] = max(V_d, [], 1);
-V_max = reshape(V_max, [N_a1, max(1, N_a2), max(1, N_ze)]);
+V_max = reshape(V_max, [N_a1, max(1, N_other_states), max(1, N_ze)]);
 
 if N_d > 1
     d_stride = N_d;
     a1_stride = d_stride * N_a1;
-    a2_stride = a1_stride * max(1, N_a2);
+    a2_stride = a1_stride * max(1, N_other_states);
 
-    [A1_grid, A2_grid, ZE_grid] = ndgrid(1:N_a1, 1:max(1, N_a2), 1:max(1, N_ze));
+    [A1_grid, A2_grid, ZE_grid] = ndgrid(1:N_a1, 1:max(1, N_other_states), 1:max(1, N_ze));
     lin_idx = best_d(:) + (A1_grid(:) - 1) * d_stride + (A2_grid(:) - 1) * a1_stride + (ZE_grid(:) - 1) * a2_stride;
 
-    Pol_apr = reshape(Pol_apr_d(lin_idx), [N_a1, max(1, N_a2), max(1, N_ze)]);
-    Pol_d1  = reshape(best_d, [N_a1, max(1, N_a2), max(1, N_ze)]);
-
+    Pol_apr = reshape(Pol_apr_d(lin_idx), [N_a1, max(1, N_other_states), max(1, N_ze)]);
+    Pol_d1  = reshape(best_d, [N_a1, max(1, N_other_states), max(1, N_ze)]);
     if gridinterplayer
-        Pol_L2idx  = reshape(Pol_L2idx_d(lin_idx), [N_a1, max(1, N_a2), max(1, N_ze)]);
-        Pol_L2flag = reshape(Pol_L2flag_d(lin_idx), [N_a1, max(1, N_a2), max(1, N_ze)]);
+        Pol_L2idx  = reshape(Pol_L2idx_d(lin_idx), [N_a1, max(1, N_other_states), max(1, N_ze)]);
+        Pol_L2flag = reshape(Pol_L2flag_d(lin_idx), [N_a1, max(1, N_other_states), max(1, N_ze)]);
     else
         Pol_L2idx = [];
         Pol_L2flag = [];
     end
 else
-    % Bypass linear indexing if N_d == 1 to save memory and time
-    Pol_apr = reshape(Pol_apr_d, [N_a1, max(1, N_a2), max(1, N_ze)]);
-    Pol_d1  = reshape(best_d, [N_a1, max(1, N_a2), max(1, N_ze)]);
-
+    Pol_apr = reshape(Pol_apr_d, [N_a1, max(1, N_other_states), max(1, N_ze)]);
+    Pol_d1  = reshape(best_d, [N_a1, max(1, N_other_states), max(1, N_ze)]);
     if gridinterplayer
-        Pol_L2idx  = reshape(Pol_L2idx_d, [N_a1, max(1, N_a2), max(1, N_ze)]);
-        Pol_L2flag = reshape(Pol_L2flag_d, [N_a1, max(1, N_a2), max(1, N_ze)]);
-    else
-        Pol_L2idx = [];
-        Pol_L2flag = [];
+        Pol_L2idx  = reshape(Pol_L2idx_d, [N_a1, max(1, N_other_states), max(1, N_ze)]);
+        Pol_L2flag = reshape(Pol_L2flag_d, [N_a1, max(1, N_other_states), max(1, N_ze)]);
     end
 end
 
