@@ -249,9 +249,17 @@ if strcmp(vfoptions.exoticpreferences, 'QuasiHyperbolic') || strcmp(vfoptions.ex
     return;
 end
 
-if vfoptions.divideandconquer == 1 && ~is_EZ
-    disp("ValueFnIter_VFHorz_DC1 version")
-    [V, Policy] = ValueFnIter_VFHorz_DC1(n_d, n_a, n_combined_z, N_j, d_grid, a_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);    varargout={V,Policy};
+if vfoptions.divideandconquer == 1 && vfoptions.gridinterplayer(1) == 0 && ~is_EZ
+    if length(n_a) == 1
+        disp("ValueFnIter_VFHorz_DC1 version")
+        [V, Policy] = ValueFnIter_VFHorz_DC1(n_d, n_a, n_combined_z, N_j, d_grid, a_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);    varargout={V,Policy};
+    elseif length(n_a) == 2
+        disp("ValueFnIter_VFHorz_DC2 version")
+        [V, Policy] = ValueFnIter_VFHorz_DC2(n_d, n_a, n_combined_z, N_j, d_grid, a_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);    varargout={V,Policy};
+    else
+        error("divide and conquer not implemented for length(n_a) > 2")
+    end
+    varargout={V,Policy};
     return
 end
 

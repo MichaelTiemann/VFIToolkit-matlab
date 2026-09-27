@@ -1,4 +1,4 @@
-function varargout = ValueFnIter_VFHorz_DC1(n_d, n_a, n_z, N_j, d_grid, a_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions)
+function varargout = ValueFnIter_VFHorz_DC2(n_d, n_a, n_z, N_j, d_grid, a_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions)
 % ValueFnIter_VFHorz_DC1 - Specialized Divide & Conquer High-Performance Engine
 % Streamlined exclusively for DC models, combining flat-pack GPU vectorization
 % with n-monotonicity slicing.
