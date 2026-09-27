@@ -53,6 +53,21 @@ for ii = 1:(num_anchors - 1)
     mg_seg = maxgap(:, ii);
     mg_eval = max(mg_seg);
 
+    % CRITICAL FIX: Zero-Sync CPU Bounds Assignment.
+    mg_seg = maxgap(:, ii);
+    mg_eval = max(mg_seg);
+
+    % --- DEAD ZONE SURVIVAL PATCH ---
+    % If either anchor failed (-Inf), the penalty gradient is missing.
+    % We must fully open the search window to scan for the survival ledge.
+    V_anch_left = V_d(:, level1ii(ii), :, :);
+    V_anch_right = V_d(:, level1ii(ii+1), :, :);
+    if any(V_anch_left(:) == -Inf) || any(V_anch_right(:) == -Inf)
+        mg_eval = N_choice - 1;
+        loweredge(:) = 1;
+    end
+    % --------------------------------
+
     if mg_eval > 0
         % Cap the evaluation window so it doesn't physically exceed the grid
         mg_eval = min(mg_eval, N_choice - 1);

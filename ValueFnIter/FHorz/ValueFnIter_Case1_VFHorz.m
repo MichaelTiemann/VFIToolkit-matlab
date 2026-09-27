@@ -1377,7 +1377,11 @@ if isempty(loweredge_matrix)
         Apr_cells = cell(1, l_a1);
         for ia = 1:l_a1; Apr_cells{ia} = cast(reshape(mesh_out{ia}(:), [1, num_choices_total, 1, 1, 1]), 'like', EV_local); end
 
-        F_tensor = Execute_3D_Core(Apr_cells, num_choices_total);
+        if N_a2 > 1
+            F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
+        else
+            F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_block{:}, E_cells_block{:}, ReturnFnParamsCell{:});
+        end
 
         choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
         if N_a2 > 1
