@@ -41,14 +41,12 @@ for ii = 1:(num_anchors - 1)
     segment_states = (level1ii(ii) + 1) : (level1ii(ii+1) - 1);
     if isempty(segment_states); continue; end
 
+    num_seg = length(segment_states);
     state_chunk_mat_seg = segment_states(:) + (0:N_other_states-1) * N_a1;
 
     % Extract the specific loweredge conditional bounds for this anchor
     mg_eval = maxgap(ii);
     loweredge = min(maxindex1(:, :, ii, :, :), N_a1 - mg_eval);
-
-    % Pass the loweredge matrix and mg_eval to the Block Evaluator
-    [V_seg, Pol_apr_seg, Pol_d_seg, ~, ~] = EvalBlockFn(state_chunk_mat_seg(:)', loweredge(:), mg_eval);
 
     % --- DEAD ZONE SURVIVAL PATCH ---
     V_anch_left = V_d(:, level1ii(ii), :, :);
@@ -63,14 +61,14 @@ for ii = 1:(num_anchors - 1)
         % Cap the evaluation window so it doesn't physically exceed the grid
         mg_eval = min(mg_eval, N_a1 - 1);
         loweredge = min(loweredge, N_a1 - mg_eval);
-
-        [V_seg, Pol_apr_seg, ~, ~, ~] = EvalBlockFn(segment_states, loweredge, mg_eval);
-    else
-        [V_seg, Pol_apr_seg, ~, ~, ~] = EvalBlockFn(segment_states, loweredge, 0);
     end
 
-    V_d(:, segment_states, :, :)       = V_seg;
-    Pol_apr_d(:, segment_states, :, :) = Pol_apr_seg;
+    % Evaluate the full flattened segment block
+    [V_seg_flat, Pol_apr_seg_flat, ~] = EvalBlockFn(state_chunk_mat_seg(:)', loweredge(:), mg_eval);
+
+    % Reshape and assign directly back to the global tensor
+    V_d(:, segment_states, :, :)       = reshape(V_seg_flat, [N_d, num_seg, N_other_states, N_ze]);
+    Pol_apr_d(:, segment_states, :, :) = reshape(Pol_apr_seg_flat, [N_d, num_seg, N_other_states, N_ze]);
 end
 
 % Collapse N_d Dimension Safely
