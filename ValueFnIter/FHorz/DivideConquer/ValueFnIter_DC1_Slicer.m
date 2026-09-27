@@ -10,7 +10,13 @@ num_anchors = length(level1ii);
 V_d       = -inf(N_d, N_a1, N_a2, N_ze, 'gpuArray');
 Pol_apr_d = ones(N_d, N_a1, N_a2, N_ze, 'gpuArray');
 
-[V_anch, Pol_apr_anch, ~] = EvalBlockFn(level1ii, [], 0);
+% 1. Construct full anchor state array across all N_a2 states
+state_chunk_mat_L1 = level1ii(:) + (0:max(1, N_a2)-1) * N_a1;
+
+[V_anch_flat, Pol_apr_anch_flat, ~] = EvalBlockFn(state_chunk_mat_L1(:)', [], 0);
+
+V_anch = reshape(V_anch_flat, [N_d, num_anchors, max(1, N_a2), N_ze]);
+Pol_apr_anch = reshape(Pol_apr_anch_flat, [N_d, num_anchors, max(1, N_a2), N_ze]);
 
 V_d(:, level1ii, :, :)       = V_anch;
 Pol_apr_d(:, level1ii, :, :) = Pol_apr_anch;
@@ -54,10 +60,11 @@ for ii = 1:(num_anchors - 1)
         loweredge = min(loweredge, N_choice - mg_eval);
     end
 
-    [V_seg, Pol_apr_seg, Pol_d_seg] = EvalBlockFn(segment_states, loweredge(:), mg_eval);
+    state_chunk_mat_seg = segment_states(:) + (0:max(1, N_a2)-1) * N_a1;
+    [V_seg_flat, Pol_apr_seg_flat, ~] = EvalBlockFn(state_chunk_mat_seg(:)', loweredge(:), mg_eval);
 
-    V_d(:, segment_states, :, :)       = V_seg;
-    Pol_apr_d(:, segment_states, :, :) = Pol_apr_seg;
+    V_d(:, segment_states, :, :)       = reshape(V_seg_flat, [N_d, num_seg, max(1, N_a2), N_ze]);
+    Pol_apr_d(:, segment_states, :, :) = reshape(Pol_apr_seg_flat, [N_d, num_seg, max(1, N_a2), N_ze]);
 end
 
 % Collapse N_d Dimension Safely
