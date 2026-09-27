@@ -257,8 +257,6 @@ for reverse_j = 0:N_j-1
     V_j_max        = zeros(N_a, N_ze, 'like', V_next);
     Pol_apr_max    = zeros(N_a, N_ze, 'like', V_next);
     Pol_d_max      = zeros(N_a, N_ze, 'like', V_next);
-    Pol_L2idx_max  = zeros(N_a, N_ze, 'like', V_next);
-    Pol_L2flag_max = zeros(N_a, N_ze, 'like', V_next);
 
     if N_dsemiz > 1
         if isfield(vfoptions, 'l_dsemiz'); N_d_prefix = max(1, prod(n_d(1:end-vfoptions.l_dsemiz))); else; N_d_prefix = max(1, prod(n_d(1:end-1))); end
@@ -321,31 +319,19 @@ for reverse_j = 0:N_j-1
 
         % DC Mode 3 requests [N_d, N_states, N_ze] from the Tensor Block
         if l_a1 == 1
-            [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC1_Slicer(N_a1_dc, N_a1_dc, max(1, N_a2), N_ze_local, vfoptions, LocalBlockFn, N_d_safe);
+            [v, p_apr, p_d] = ValueFnIter_DC1_Slicer(N_a1_dc, N_a1_dc, max(1, N_a2), N_ze_local, vfoptions, LocalBlockFn, N_d_safe);
         else
-            % CRITICAL FIX: Pass N_a1_other * max(1, N_a2) as N_other_states so V_max allocates correctly
-            [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC2A_Slicer(N_a1_dc, N_a1_other, N_a1_other * N_a2, N_d_safe, N_ze_local, vfoptions, LocalBlockFn);
+            error("DC1 must be called with single-asset grids only")
         end
 
         V_j_max(:, curr_ze)     = reshape(v,     [N_a, N_ze_local]);
         Pol_apr_max(:, curr_ze) = reshape(p_apr, [N_a, N_ze_local]);
         Pol_d_max(:, curr_ze)   = reshape(p_d,   [N_a, N_ze_local]);
-        if vfoptions.gridinterplayer(1) == 1
-            Pol_L2idx_max(:, curr_ze)  = reshape(p_l2idx,  [N_a, N_ze_local]);
-            Pol_L2flag_max(:, curr_ze) = reshape(p_l2flag, [N_a, N_ze_local]);
-        end
     end
     V_j_max     = reshape(V_j_max,     [N_a, n_z_work, n_e_work]);
     Pol_apr_max = reshape(Pol_apr_max, [N_a, n_z_work, n_e_work]);
     Pol_d_max   = reshape(Pol_d_max,   [N_a, n_z_work, n_e_work]);
-    if vfoptions.gridinterplayer(1) == 1
-        Pol_L2idx_max  = reshape(Pol_L2idx_max,  [N_a, n_z_work, n_e_work]);
-        Pol_L2flag_max = reshape(Pol_L2flag_max, [N_a, n_z_work, n_e_work]);
-        if N_d > 0; PolicyKron(1, :, :, :, jj) = (Pol_apr_max - 1) * N_d + Pol_d_max; else; PolicyKron(1, :, :, :, jj) = Pol_apr_max; end
-        PolicyKron(2, :, :, :, jj) = Pol_L2idx_max; PolicyKron(3, :, :, :, jj) = Pol_L2flag_max;
-    else
-        if N_d > 0; PolicyKron(:, :, :, jj) = (Pol_apr_max - 1) * N_d + Pol_d_max; else; PolicyKron(:, :, :, jj) = Pol_apr_max; end
-    end
+    if N_d > 0; PolicyKron(:, :, :, jj) = (Pol_apr_max - 1) * N_d + Pol_d_max; else; PolicyKron(:, :, :, jj) = Pol_apr_max; end
 
     V(:, :, :, jj) = V_j_max;
     V_next = V_j_max;
@@ -353,7 +339,8 @@ end
 
 if N_z == 0; V = squeeze(V); end
 if N_d == 0; n_daprime = n_a(1:l_a1); else; n_daprime = [n_d, n_a(1:l_a1)]; end
-if vfoptions.gridinterplayer(1) ~= 1; PolicyKron = shiftdim(PolicyKron, -1); end
+% No gridinterplayer, so add default 1 dimension
+PolicyKron = shiftdim(PolicyKron, -1);
 
 if isfield(vfoptions, 'outputkron') && vfoptions.outputkron == 1
     varargout{1} = V; varargout{2} = PolicyKron; return
@@ -363,31 +350,15 @@ disp('Unpacking Policy tensor to System RAM...');
 num_pol_vars = length(n_daprime); n_daprime_col = n_daprime(:); divisors = cumprod([1; n_daprime_col(1:end-1)]);
 MAX_INT32 = 2147483647;
 
-if vfoptions.gridinterplayer(1) == 1
-    total_elements = (num_pol_vars + 2) * n_a_work * n_z_work * n_e_work * N_j;
-    if total_elements < (MAX_INT32 * 0.9)
-        BaseIndexKron = PolicyKron(1, :, :, :, :);
-        P_base_gpu = mod(floor((BaseIndexKron - 1) ./ divisors), n_daprime_col) + 1;
-        P_gpu = [P_base_gpu; PolicyKron(2:3, :, :, :, :)]; Policy_flat = gather(P_gpu);
-    else
-        disp('Using memory-safe iterative unpacking due to massive array size...');
-        Policy_flat = zeros([num_pol_vars + 2, n_a_work, n_z_work, n_e_work, N_j], vfoptions.precision);
-        for jj = 1:N_j
-            PK_j = PolicyKron(1, :, :, :, jj); P_base = mod(floor((PK_j - 1) ./ divisors), n_daprime_col) + 1;
-            Policy_flat(:, :, :, :, jj) = gather([P_base; PolicyKron(2:3, :, :, :, jj)]);
-        end
-    end
+total_elements = num_pol_vars * n_a_work * n_z_work * n_e_work * N_j;
+if total_elements < (MAX_INT32 * 0.9)
+    P_gpu = mod(floor((PolicyKron - 1) ./ divisors), n_daprime_col) + 1; Policy_flat = gather(P_gpu);
 else
-    total_elements = num_pol_vars * n_a_work * n_z_work * n_e_work * N_j;
-    if total_elements < (MAX_INT32 * 0.9)
-        P_gpu = mod(floor((PolicyKron - 1) ./ divisors), n_daprime_col) + 1; Policy_flat = gather(P_gpu);
-    else
-        disp('Using memory-safe iterative unpacking due to massive array size...');
-        Policy_flat = zeros([num_pol_vars, n_a_work, n_z_work, n_e_work, N_j], vfoptions.precision);
-        for jj = 1:N_j
-            PK_j = PolicyKron(:, :, :, :, jj); P_j_gpu = mod(floor((PK_j - 1) ./ divisors), n_daprime_col) + 1;
-            Policy_flat(:, :, :, :, jj) = gather(P_j_gpu);
-        end
+    disp('Using memory-safe iterative unpacking due to massive array size...');
+    Policy_flat = zeros([num_pol_vars, n_a_work, n_z_work, n_e_work, N_j], vfoptions.precision);
+    for jj = 1:N_j
+        PK_j = PolicyKron(:, :, :, :, jj); P_j_gpu = mod(floor((PK_j - 1) ./ divisors), n_daprime_col) + 1;
+        Policy_flat(:, :, :, :, jj) = gather(P_j_gpu);
     end
 end
 
@@ -406,7 +377,7 @@ varargout{1} = V; varargout{2} = Policy;
 end
 
 
-function [V_j_max, Pol_apr_max, Pol_d_max, Pol_L2idx, Pol_L2flag] = Evaluate_DC_TensorBlock(...
+function [V_j_max, Pol_apr_max, Pol_d_max] = Evaluate_DC_TensorBlock(...
     state_idx, loweredge_matrix, maxgap_scalar, N_a1_dc, N_a1_other, N_a2, N_d_safe, N_z, ...
     Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_mat, A1_grids_1d, ...
     EV_bounded_pre, static_EV_offset, TensorReturnFn, ReturnFnParamsCell, n_z_loc, n_e_loc)
@@ -580,9 +551,6 @@ else
 
     Pol_apr_max = reshape(Pol_apr_max, [N_d_safe, N_states, local_ze]);
 end
-
-Pol_L2idx = zeros(N_d_safe, N_states, local_ze, 'like', EV_bounded_pre);
-Pol_L2flag = 2 * ones(N_d_safe, N_states, local_ze, 'like', EV_bounded_pre);
 
 
 end
