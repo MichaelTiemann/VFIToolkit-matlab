@@ -116,9 +116,9 @@ N_ze = n_z_work * n_e_work;
 
 V = zeros(n_a_work, n_z_work, n_e_work, N_j, 'gpuArray'); V_next = zeros(n_a_work, n_z_work, n_e_work, 'gpuArray');
 if N_d > 0
-    Policy = zeros(2, N_a, N_ze, N_j, 'gpuArray');
+    PolicyKron = zeros(2, N_a, N_ze, N_j, 'gpuArray');
 else
-    Policy = zeros(N_a, N_ze, N_j, 'gpuArray');
+    PolicyKron = zeros(N_a, N_ze, N_j, 'gpuArray');
 end
 
 base_ReturnFnParamsCell = CreateCellFromParams(Parameters, ReturnFnParamNames, 1, vfoptions.precision);
@@ -132,7 +132,7 @@ warmglow = int32(isfield(vfoptions,'WarmGlowBequestsFn'));
 ezc2 = ones(N_j,1); ezc3 = 1; ezc4 = 1; ezc5 = ones(N_j,1); ezc6 = ones(N_j,1); ezc7 = ones(N_j,1); ezc8 = ones(N_j,1);
 
 N_semiz_local = 1; N_dsemiz = 1;
-if has_semiz && length(n_d) > 0
+if has_semiz && ~isempty(n_d)
     N_semiz_local = max(1, prod(vfoptions.n_semiz));
     if isfield(vfoptions, 'l_dsemiz'); N_dsemiz = prod(n_d(end-vfoptions.l_dsemiz+1:end)); else; N_dsemiz = n_d(end); end
 end
@@ -163,8 +163,6 @@ for i_ze = 1:length(ze_chunks)
 
     chunk_meta{i_ze} = meta;
 end
-
-load("Legacy.mat");
 
 %% Finite Horizon Backward Induction Loop
 for reverse_j = 0:N_j-1
@@ -257,8 +255,6 @@ for reverse_j = 0:N_j-1
     V_j_max        = zeros(N_a, N_ze, 'like', V_next);
     Pol_apr_max    = zeros(N_a, N_ze, 'like', V_next);
     Pol_d_max      = zeros(N_a, N_ze, 'like', V_next);
-    Pol_L2idx_max  = zeros(N_a, N_ze, 'like', V_next);
-    Pol_L2flag_max = zeros(N_a, N_ze, 'like', V_next);
 
     if N_dsemiz > 1
         if isfield(vfoptions, 'l_dsemiz'); N_d_prefix = max(1, prod(n_d(1:end-vfoptions.l_dsemiz))); else; N_d_prefix = max(1, prod(n_d(1:end-1))); end
@@ -277,7 +273,6 @@ for reverse_j = 0:N_j-1
 
         % Extract precomputed static offset for this chunk
         static_EV_offset = meta.static_EV_offset;
-        static_EV_offset_fine = meta.static_EV_offset_fine;
 
         % Build Z and E cells locally per chunk
         if has_semiz || has_z
@@ -417,8 +412,6 @@ end
 
 local_ze = n_z_loc * n_e_loc;
 
-local_ze = n_z_loc * n_e_loc;
-
 % --- PHASE 1: GRID & TENSOR SETUP ---
 if isempty(loweredge_matrix)
     grids_for_choices = A1_grids_1d;
@@ -435,7 +428,6 @@ if isempty(loweredge_matrix)
     else
         F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_local{:}, E_cells_local{:}, ReturnFnParamsCell{:});
     end
-    choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
 
 else
     total_gap = maxgap_scalar;
@@ -444,20 +436,17 @@ else
         offsets_a1 = reshape(0:total_gap, [1, total_gap + 1, 1, 1, 1]);
         choice_idx_a1_base = max(1, min(base_idx_a1 + offsets_a1, length(A1_grids_1d{1})));
         Apr_cells = { A1_grids_1d{1}(choice_idx_a1_base) };
-        choice_idx_linear = choice_idx_a1_base;
         num_choices_total = total_gap + 1;
     else
         num_choices_total = (total_gap + 1) * N_a1_other;
 
-        % --- MASSIVE SPEEDUP 1: Native int32 generation halves memory bandwidth ---
-        base_idx_a1 = int32(reshape(loweredge_matrix, [N_d_safe, 1, N_a1_other, N_states, n_z_loc, n_e_loc]));
-        offsets_a1 = int32(reshape(0:total_gap, [1, total_gap + 1, 1, 1, 1, 1]));
+        base_idx_a1 = reshape(loweredge_matrix, [N_d_safe, 1, N_a1_other, N_states, n_z_loc, n_e_loc]);
+        offsets_a1 = reshape(0:total_gap, [1, total_gap + 1, 1, 1, 1, 1]);
 
-        choice_idx_a1_matrix = min(int32(length(A1_grids_1d{1})), max(int32(1), base_idx_a1 + offsets_a1));
+        choice_idx_a1_matrix = min(length(A1_grids_1d{1}), max(1, base_idx_a1 + offsets_a1));
         choice_idx_a1 = reshape(choice_idx_a1_matrix, [N_d_safe, num_choices_total, N_states, n_z_loc, n_e_loc]);
 
-        % --- MASSIVE SPEEDUP 2: Eliminate 3D N_d_safe Repmat ---
-        a2_mesh_flat = repmat(int32(reshape(1:N_a1_other, [1, N_a1_other])), [total_gap + 1, 1]);
+        a2_mesh_flat = repmat(reshape(1:N_a1_other, [1, N_a1_other]), [total_gap + 1, 1]);
         choice_idx_a2 = reshape(a2_mesh_flat, [1, num_choices_total, 1, 1, 1]);
 
         Apr_cells = cell(1, l_a1);
@@ -467,8 +456,6 @@ else
             flat_grid = mesh_a2{ia-1}(:);
             Apr_cells{ia} = reshape(flat_grid(choice_idx_a2), [1, num_choices_total, 1, 1, 1]);
         end
-
-        % NOTE: choice_idx_linear is completely deleted here to save VRAM!
     end
 
     if N_a2 > 1
@@ -482,44 +469,35 @@ end
 FLAT_CHOICES = N_d_safe * num_choices_total;
 F_tensor = reshape(F_tensor, [FLAT_CHOICES, N_states, local_ze]);
 
-% --- MASSIVE SPEEDUP 3: Fused int32 Indexing ---
-% By grouping terms, we avoid generating 5D index matrices until the absolute last step.
-N_d_safe_i32 = int32(N_d_safe);
-
+% --- MASSIVE SPEEDUP 3: Fused Indexing (Restored to Native Types) ---
 if isempty(loweredge_matrix)
     % Coarse Pass
-    choice_idx_linear_i32 = int32(reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]));
-    base_offset = int32(static_EV_offset) + (choice_idx_linear_i32 - 1) * N_d_safe_i32;
+    choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
+    base_offset = static_EV_offset + (choice_idx_linear - 1) * N_d_safe;
 
     if N_a2 > 1
-        a2_offset = int32(reshape(a2_sub - 1, [1, 1, N_states, 1, 1])) * int32(N_d_safe * N_a1_dc * N_a1_other);
+        a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_safe * N_a1_dc * N_a1_other);
         lin_idx_compact = base_offset + a2_offset;
     else
-        % CRITICAL FIX: Force implicit expansion across the N_states dimension
-        lin_idx_compact = base_offset + zeros(1, 1, N_states, 'int32');
+        % Force implicit expansion across the N_states dimension
+        lin_idx_compact = base_offset + zeros(1, 1, N_states, 'like', base_offset);
     end
 else
-    % Zoom Pass: Combine choice 1 and 2 offsets natively without creating choice_idx_linear
-    N_a1_len_i32 = int32(length(A1_grids_1d{1}));
-
-    term1 = int32(static_EV_offset) - N_d_safe_i32;
-    term2 = (choice_idx_a2 - 1) * (N_a1_len_i32 * N_d_safe_i32);
+    % Zoom Pass: Combine choice 1 and 2 offsets natively
+    term1 = static_EV_offset - N_d_safe;
+    term2 = (choice_idx_a2 - 1) * (length(A1_grids_1d{1}) * N_d_safe);
     base_offset = term1 + term2; % Evaluates cheaply to [N_d, num_choices, 1, z, e]
 
     if N_a2 > 1
-        a2_offset = int32(reshape(a2_sub - 1, [1, 1, N_states, 1, 1])) * int32(N_d_safe * N_a1_dc * N_a1_other);
-        lin_idx_compact = base_offset + choice_idx_a1 * N_d_safe_i32 + a2_offset;
+        a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_safe * N_a1_dc * N_a1_other);
+        lin_idx_compact = base_offset + choice_idx_a1 * N_d_safe + a2_offset;
     else
-        lin_idx_compact = base_offset + choice_idx_a1 * N_d_safe_i32;
+        lin_idx_compact = base_offset + choice_idx_a1 * N_d_safe;
     end
 end
 
 EV_bounded = EV_bounded_pre(lin_idx_compact);
 EV_bounded = reshape(EV_bounded, [FLAT_CHOICES, N_states, local_ze]);
-
-FLAT_STATES = N_states * local_ze;
-RHS = F_tensor + EV_bounded;
-RHS_flat = reshape(RHS, [FLAT_CHOICES, FLAT_STATES]);
 
 FLAT_STATES = N_states * local_ze;
 RHS = F_tensor + EV_bounded;

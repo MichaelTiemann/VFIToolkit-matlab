@@ -116,9 +116,9 @@ N_ze = n_z_work * n_e_work;
 
 V = zeros(n_a_work, n_z_work, n_e_work, N_j, 'gpuArray'); V_next = zeros(n_a_work, n_z_work, n_e_work, 'gpuArray');
 if N_d > 0
-    Policy = zeros(2, N_a, N_ze, N_j, 'gpuArray');
+    PolicyKron = zeros(2, N_a, N_ze, N_j, 'gpuArray');
 else
-    Policy = zeros(N_a, N_ze, N_j, 'gpuArray');
+    PolicyKron = zeros(N_a, N_ze, N_j, 'gpuArray');
 end
 
 base_ReturnFnParamsCell = CreateCellFromParams(Parameters, ReturnFnParamNames, 1, vfoptions.precision);
@@ -132,7 +132,7 @@ warmglow = int32(isfield(vfoptions,'WarmGlowBequestsFn'));
 ezc2 = ones(N_j,1); ezc3 = 1; ezc4 = 1; ezc5 = ones(N_j,1); ezc6 = ones(N_j,1); ezc7 = ones(N_j,1); ezc8 = ones(N_j,1);
 
 N_semiz_local = 1; N_dsemiz = 1;
-if has_semiz && length(n_d) > 0
+if has_semiz && ~isempty(n_d)
     N_semiz_local = max(1, prod(vfoptions.n_semiz));
     if isfield(vfoptions, 'l_dsemiz'); N_dsemiz = prod(n_d(end-vfoptions.l_dsemiz+1:end)); else; N_dsemiz = n_d(end); end
 end
@@ -163,8 +163,6 @@ for i_ze = 1:length(ze_chunks)
 
     chunk_meta{i_ze} = meta;
 end
-
-load("Legacy.mat");
 
 %% Finite Horizon Backward Induction Loop
 for reverse_j = 0:N_j-1
@@ -275,7 +273,6 @@ for reverse_j = 0:N_j-1
 
         % Extract precomputed static offset for this chunk
         static_EV_offset = meta.static_EV_offset;
-        static_EV_offset_fine = meta.static_EV_offset_fine;
 
         % Build Z and E cells locally per chunk
         if has_semiz || has_z
@@ -414,8 +411,6 @@ end
 
 local_ze = n_z_loc * n_e_loc;
 
-local_ze = n_z_loc * n_e_loc;
-
 % --- PHASE 1: GRID & TENSOR SETUP ---
 if isempty(loweredge_matrix)
     grids_for_choices = A1_grids_1d;
@@ -488,10 +483,6 @@ end
 lin_idx_compact = static_EV_offset + a1_offset + a2_offset;
 EV_bounded = EV_bounded_pre(lin_idx_compact);
 EV_bounded = reshape(EV_bounded, [FLAT_CHOICES, N_states, local_ze]);
-
-FLAT_STATES = N_states * local_ze;
-RHS = F_tensor + EV_bounded;
-RHS_flat = reshape(RHS, [FLAT_CHOICES, FLAT_STATES]);
 
 FLAT_STATES = N_states * local_ze;
 RHS = F_tensor + EV_bounded;
