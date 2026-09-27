@@ -398,13 +398,13 @@ end
 
 A1_cells = cell(1, l_a1);
 for ia = 1:l_a1
-    A1_cells{ia} = cast(reshape(A1_mat(a1_sub, ia), [1, 1, N_states, 1, 1]), 'like', EV_bounded_pre);
+    A1_cells{ia} = reshape(A1_mat(a1_sub, ia), [1, 1, N_states, 1, 1]);
 end
 
 if N_a2 > 1
     A2_cells = cell(1, l_a2);
     for ia = 1:l_a2
-        A2_cells{ia} = cast(reshape(A2_mat(a2_sub, ia), [1, 1, N_states, 1, 1]), 'like', EV_bounded_pre);
+        A2_cells{ia} = reshape(A2_mat(a2_sub, ia), [1, 1, N_states, 1, 1]);
     end
 else
     A2_cells = {};
@@ -443,11 +443,11 @@ else
         base_idx_a1 = reshape(loweredge_matrix, [N_d_safe, 1, N_a1_other, N_states, n_z_loc, n_e_loc]);
         offsets_a1 = reshape(0:total_gap, [1, total_gap + 1, 1, 1, 1, 1]);
 
-        choice_idx_a1_matrix = min(length(A1_grids_1d{1}), max(1, base_idx_a1 + offsets_a1));
-        choice_idx_a1 = reshape(choice_idx_a1_matrix, [N_d_safe, num_choices_total, N_states, n_z_loc, n_e_loc]);
+        % Slicer bounds guarantee safety, eliminating min/max array overhead
+        choice_idx_a1 = reshape(base_idx_a1 + offsets_a1, [N_d_safe, num_choices_total, N_states, n_z_loc, n_e_loc]);
 
-        a2_mesh_flat = repmat(reshape(1:N_a1_other, [1, N_a1_other]), [total_gap + 1, 1]);
-        choice_idx_a2 = reshape(a2_mesh_flat, [1, num_choices_total, 1, 1, 1]);
+        % Generate immediately using ceil (no repmat required)
+        choice_idx_a2 = reshape(ceil((1:num_choices_total) / (total_gap + 1)), [1, num_choices_total, 1, 1, 1]);
 
         Apr_cells = cell(1, l_a1);
         Apr_cells{1} = A1_grids_1d{1}(choice_idx_a1);
@@ -500,8 +500,7 @@ EV_bounded = EV_bounded_pre(lin_idx_compact);
 EV_bounded = reshape(EV_bounded, [FLAT_CHOICES, N_states, local_ze]);
 
 FLAT_STATES = N_states * local_ze;
-RHS = F_tensor + EV_bounded;
-RHS_flat = reshape(RHS, [FLAT_CHOICES, FLAT_STATES]);
+RHS_flat = reshape(F_tensor + EV_bounded, [FLAT_CHOICES, FLAT_STATES]);
 
 % --- PHASE 3 OUTPUT MAPPING ---
 % Find max across all choices for each decision and state
@@ -557,8 +556,7 @@ else
 
     lin_idx_low = d_vec_col + (a2_offset_factor - 1) * N_d_safe + s_vec;
     chosen_loweredge = loweredge_3d(lin_idx_low);
-
-    a1_Pol_apr = min(chosen_loweredge + a1_apr_offset - 1, N_a1_dc);
+    a1_Pol_apr = chosen_loweredge + a1_apr_offset - 1;
     Pol_apr_max = a1_Pol_apr + (a2_offset_factor - 1) * N_a1_dc;
     Pol_apr_max = reshape(Pol_apr_max, [N_d_safe, N_states, local_ze]);
 end

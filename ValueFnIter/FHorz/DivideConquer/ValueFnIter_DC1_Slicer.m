@@ -10,7 +10,7 @@ num_anchors = length(level1ii);
 V_d       = -inf(N_d, N_a1, N_a2, N_ze, 'gpuArray');
 Pol_apr_d = ones(N_d, N_a1, N_a2, N_ze, 'gpuArray');
 
-[V_anch, Pol_apr_anch, ~, ~, ~] = EvalBlockFn(level1ii, [], 0);
+[V_anch, Pol_apr_anch, ~] = EvalBlockFn(level1ii, [], 0);
 
 V_d(:, level1ii, :, :)       = V_anch;
 Pol_apr_d(:, level1ii, :, :) = Pol_apr_anch;
