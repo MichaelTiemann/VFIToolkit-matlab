@@ -19,10 +19,10 @@ if ~isfield(vfoptions, 'level1n')
     else; vfoptions.level1n = [floor(sqrt(n_a(1))), n_a(2:end)]; end
 end
 
-% done by orchestrator, but leave here for documentation
-[z_gridvals_J, pi_z_J, vfoptions] = ExogShockSetup_FHorz(n_z, z_grid, pi_z, N_j, Parameters, vfoptions, 3, 0);
-z_gridvals_J = gpuArray(z_gridvals_J);
-pi_z_J = gpuArray(pi_z_J);
+% done by orchestrator, but leave here for documentation; we receive properly aged z and pi_z grids
+% [z_gridvals_J, pi_z_J, vfoptions] = ExogShockSetup_FHorz(n_z, z_grid, pi_z, N_j, Parameters, vfoptions, 3, 0);
+z_gridvals_J = gpuArray(z_grid);
+pi_z_J = gpuArray(pi_z);
 
 % --- MULTI-AXIS STATE PARSER ---
 has_e = isfield(vfoptions, 'n_e') && prod(vfoptions.n_e) > 0;
@@ -74,7 +74,7 @@ for i = 1:l_a1
 end
 
 [TensorReturnFn, ~, ~, ~, ~] = CreateTensorFnAndCells(ReturnFn, [n_d, n_a(1:l_a1)], n_a, n_z, n_e_pass, [], [], [], []);
-[~, D_cells_block, A1_cells, Z_cells_block, E_cells_block] = CreateTensorFnAndCells(ReturnFn, n_d, n_a(1:l_a1), n_z, n_e_pass, d_grid, a1_endo_grid_vals, [], []);
+[~, D_cells_block, A1_cells, ~, ~] = CreateTensorFnAndCells(ReturnFn, n_d, n_a(1:l_a1), n_z, n_e_pass, d_grid, a1_endo_grid_vals, [], []);
 
 if l_a2 > 0
     [~, ~, A2_cells, ~, ~] = CreateTensorFnAndCells(vfoptions.aprimeFn, n_d, n_a2, 0, 0, [], a2_exp_grid_vals, [], []);
@@ -163,6 +163,8 @@ for i_ze = 1:length(ze_chunks)
 
     chunk_meta{i_ze} = meta;
 end
+
+load("Legacy.mat");
 
 %% Finite Horizon Backward Induction Loop
 for reverse_j = 0:N_j-1
@@ -351,7 +353,33 @@ for reverse_j = 0:N_j-1
     else
         if N_d > 0; PolicyKron(:, :, :, jj) = (Pol_apr_max - 1) * N_d + Pol_d_max; else; PolicyKron(:, :, :, jj) = Pol_apr_max; end
     end
-    V(:, :, :, jj) = V_j_max; V_next = V_j_max;
+
+    V(:, :, :, jj) = V_j_max;
+    V_next = V_j_max;
+
+    % =================================================================
+    % DIVERGENCE TRAP: Compare against a known-good Legacy matrix
+    % (Assuming you have a saved 'Legacy_V' workspace variable loaded)
+    % =================================================================
+    % Find if there is any state that survived in Legacy but died in DC
+    if false && exist('V_ref', 'var')
+        legacy_slice = V_ref(:, :, jj);
+        % A state is falsely killed if Legacy is finite but DC is -Inf
+        false_deaths = (legacy_slice > -Inf) & (V_j_max == -Inf);
+
+        if any(false_deaths(:))
+            fprintf('\n>>> FATAL DIVERGENCE CAUGHT AT AGE jj = %d <<<\n', jj);
+
+            % Find the exact state that falsely died
+            first_false = find(false_deaths(:), 1, 'first');
+            [a_idx, z_idx, e_idx, jj_idx] = ind2sub(size(V_j_max), first_false);
+
+            fprintf('First falsely killed state: a=%d, z=%d, e=%d, jj=%d\n', a_idx, z_idx, e_idx, jj_idx);
+            fprintf('Legacy Value: %f\n', legacy_slice(first_false));
+
+            keyboard; % PAUSE EXECUTION
+        end
+    end
 end
 
 if N_z == 0; V = squeeze(V); end
@@ -508,38 +536,22 @@ end
 FLAT_CHOICES = N_d_safe * num_choices_total;
 F_tensor = reshape(F_tensor, [FLAT_CHOICES, N_states, local_ze]);
 
-if isempty(loweredge_matrix)
-    % COARSE PASS ZERO-COPY: EV doesn't depend on current state
-    EV_bounded = reshape(EV_bounded_pre, [FLAT_CHOICES, 1, local_ze]);
+a1_offset = (choice_idx_linear - 1) * N_d_safe;
+if N_a2 > 1
+    a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_safe * N_a1_dc * N_a1_other);
 else
-    % ZOOM PASS: Extract strictly by aprime choice to prevent d-axis shift
-    if N_a2 > 1
-        a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_a1_dc * N_a1_other);
-    else
-        a2_offset = zeros(1, 1, N_states, 'like', choice_idx_linear);
-    end
-
-    % Decouple Z and E strides exactly as they sit in EV_bounded_pre
-    N_a1_total = N_a1_dc * N_a1_other;
-    z_stride = reshape((0:n_z_loc-1) * (N_a1_total * N_a2), [1, 1, 1, n_z_loc, 1]);
-    e_stride = reshape((0:n_e_loc-1) * (N_a1_total * N_a2 * n_z_loc), [1, 1, 1, 1, n_e_loc]);
-
-    % Build a pure choice index mapping (independent of d_vec)
-    base_idx = (choice_idx_linear - 1) + a2_offset + z_stride + e_stride;
-
-    % Map EV_bounded_pre by inflating across choices and states
-    % EV_bounded_pre shape is [N_d_safe, N_a1_total, N_a2, n_z_loc, n_e_loc]
-    EV_bounded = zeros(N_d_safe, num_choices_total, N_states, n_z_loc, n_e_loc, 'like', EV_bounded_pre);
-    for id = 1:N_d_safe
-        % Extract the slice for this specific decision
-        EV_slice = EV_bounded_pre(id, :, :, :, :);
-        % Map the specific choices the Slicer requested for this decision
-        idx_d = base_idx(id, :, :, :, :);
-        EV_bounded(id, :, :, :, :) = EV_slice(idx_d + 1);
-    end
-
-    EV_bounded = reshape(EV_bounded, [FLAT_CHOICES, N_states, local_ze]);
+    % Force expansion across the state dimension
+    a2_offset = zeros(1, 1, N_states, 'like', a1_offset);
 end
+
+% This cleanly works for BOTH Coarse (1D choice_idx) and Zoom (5D choice_idx)
+lin_idx_compact = static_EV_offset + a1_offset + a2_offset;
+EV_bounded = EV_bounded_pre(lin_idx_compact);
+EV_bounded = reshape(EV_bounded, [FLAT_CHOICES, N_states, local_ze]);
+
+FLAT_STATES = N_states * local_ze;
+RHS = F_tensor + EV_bounded;
+RHS_flat = reshape(RHS, [FLAT_CHOICES, FLAT_STATES]);
 
 FLAT_STATES = N_states * local_ze;
 RHS = F_tensor + EV_bounded;
@@ -547,6 +559,18 @@ RHS_flat = reshape(RHS, [FLAT_CHOICES, FLAT_STATES]);
 
 % --- PHASE 3 OUTPUT MAPPING ---
 % Find max across all choices for each decision and state
+
+% --- TENSOR MATH TRAP ---
+% If this is the Zoom pass evaluating state a=2 (which is index 1 of the segment)
+if false && N_states > 1 && N_states < 201 && state_idx(1) == 2
+    fprintf('\n>>> ZOOM PASS FOR a=2 CAUGHT <<<\n');
+    % Print the first two choices (a'=1 and a'=2) for z=1
+    fprintf('F_tensor(a''=1, z=1)  = %f\n', F_tensor(1, 1, 1));
+    fprintf('EV_bounded(a''=1, z=1)= %f\n', EV_bounded(1, 1, 1));
+    fprintf('RHS(a''=1, z=1)       = %f\n', RHS_flat(1, 1));
+    keyboard;
+end
+
 if N_d_safe == 1
     [V_sub, apr_idx_local] = max(RHS_flat, [], 1);
     V_sub = reshape(V_sub, [1, 1, FLAT_STATES]);
