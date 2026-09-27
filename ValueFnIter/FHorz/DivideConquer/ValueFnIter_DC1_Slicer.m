@@ -15,12 +15,16 @@ Pol_apr_d = ones(N_d, N_a1, N_a2, N_ze, 'gpuArray');
 V_d(:, level1ii, :, :)       = V_anch;
 Pol_apr_d(:, level1ii, :, :) = Pol_apr_anch;
 
+anch_inf_3d = reshape(V_anch, [N_d, num_anchors, max(1, N_a2) * max(1, N_ze)]);
+anch_is_inf = gather(any(anch_inf_3d == -Inf, [1, 3]));
+anch_is_inf = anch_is_inf(:)'; % Ensure it evaluates as a clean row vector
+
 % maxgap is calculated PER D
 diff_anch = Pol_apr_anch(:, 2:end, :, :) - Pol_apr_anch(:, 1:end-1, :, :);
 maxgap = squeeze(max(max(diff_anch, [], 4), [], 3));
 if N_d == 1 && size(maxgap, 1) > 1; maxgap = maxgap'; end
 
-% CRITICAL FIX: Gather maxgap to the CPU to prevent pipeline flushes in the loop below
+% Gather maxgap to the CPU to prevent pipeline flushes in the loop below
 maxgap = gather(maxgap);
 
 for ii = 1:(num_anchors - 1)
@@ -29,36 +33,28 @@ for ii = 1:(num_anchors - 1)
 
     num_seg = length(segment_states);
 
-    % CRITICAL FIX: ZERO-COST REP-MAT BOUNDS
     % Replicates bounds safely across segment states to prevent TensorBlock scrambling
     anchor_slice = reshape(Pol_apr_anch(:, ii, :, :), [N_d, 1, 1, max(1, N_a2), N_ze]);
     loweredge = repmat(anchor_slice, [1, 1, num_seg, 1, 1]);
     loweredge = reshape(loweredge, [N_d, 1, num_seg * max(1, N_a2), N_ze]);
 
-    % CRITICAL FIX: Zero-Sync CPU Bounds Assignment.
     mg_seg = maxgap(:, ii);
     mg_eval = max(mg_seg);
 
-    % --- DEAD ZONE SURVIVAL PATCH ---
-    % If either anchor failed (-Inf), the penalty gradient is missing.
-    % We must fully open the search window to scan for the survival ledge.
-    V_anch_left = V_d(:, level1ii(ii), :, :);
-    V_anch_right = V_d(:, level1ii(ii+1), :, :);
-    if any(V_anch_left(:) == -Inf) || any(V_anch_right(:) == -Inf)
+    % --- DEAD ZONE SURVIVAL PATCH (Zero-Sync Version) ---
+    if anch_is_inf(ii) || anch_is_inf(ii+1)
         mg_eval = N_choice - 1;
         loweredge(:) = 1;
     end
-    % --------------------------------
+    % ----------------------------------------------------
 
     if mg_eval > 0
         % Cap the evaluation window so it doesn't physically exceed the grid
         mg_eval = min(mg_eval, N_choice - 1);
         loweredge = min(loweredge, N_choice - mg_eval);
-
-        [V_seg, Pol_apr_seg, ~, ~, ~] = EvalBlockFn(segment_states, loweredge, mg_eval);
-    else
-        [V_seg, Pol_apr_seg, ~, ~, ~] = EvalBlockFn(segment_states, loweredge, 0);
     end
+
+    [V_seg, Pol_apr_seg, Pol_d_seg] = EvalBlockFn(segment_states, loweredge(:), mg_eval);
 
     V_d(:, segment_states, :, :)       = V_seg;
     Pol_apr_d(:, segment_states, :, :) = Pol_apr_seg;

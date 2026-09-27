@@ -115,11 +115,7 @@ has_z = prod(n_z) > 0; n_z_work = N_semiz * N_z_exog; n_e_work = max(1, prod(n_e
 N_ze = n_z_work * n_e_work;
 
 V = zeros(n_a_work, n_z_work, n_e_work, N_j, 'gpuArray'); V_next = zeros(n_a_work, n_z_work, n_e_work, 'gpuArray');
-if N_d > 0
-    PolicyKron = zeros(2, N_a, N_ze, N_j, 'gpuArray');
-else
-    PolicyKron = zeros(N_a, N_ze, N_j, 'gpuArray');
-end
+PolicyKron = zeros(N_a, n_z_work, n_e_work, N_j, 'gpuArray');
 
 base_ReturnFnParamsCell = CreateCellFromParams(Parameters, ReturnFnParamNames, 1, vfoptions.precision);
 is_age_dependent = false(1, length(ReturnFnParamNames));
@@ -328,7 +324,11 @@ for reverse_j = 0:N_j-1
     V_j_max     = reshape(V_j_max,     [N_a, n_z_work, n_e_work]);
     Pol_apr_max = reshape(Pol_apr_max, [N_a, n_z_work, n_e_work]);
     Pol_d_max   = reshape(Pol_d_max,   [N_a, n_z_work, n_e_work]);
-    if N_d > 0; PolicyKron(:, :, :, jj) = (Pol_apr_max - 1) * N_d + Pol_d_max; else; PolicyKron(:, :, jj) = Pol_apr_max; end
+    if N_d > 0
+        PolicyKron(:, :, :, jj) = (Pol_apr_max - 1) * N_d + Pol_d_max;
+    else
+        PolicyKron(:, :, :, jj) = Pol_apr_max;
+    end
 
     V(:, :, :, jj) = V_j_max;
     V_next = V_j_max;
@@ -434,7 +434,10 @@ else
     if l_a1 == 1
         base_idx_a1 = reshape(loweredge_matrix, [N_d_safe, 1, N_states, n_z_loc, n_e_loc]);
         offsets_a1 = reshape(0:total_gap, [1, total_gap + 1, 1, 1, 1]);
-        choice_idx_a1_base = max(1, min(base_idx_a1 + offsets_a1, length(A1_grids_1d{1})));
+
+        % Slicer bounds guarantee safety, eliminating min/max array overhead
+        choice_idx_a1_base = base_idx_a1 + offsets_a1;
+
         Apr_cells = { A1_grids_1d{1}(choice_idx_a1_base) };
         choice_idx_linear = choice_idx_a1_base;
         num_choices_total = total_gap + 1;
