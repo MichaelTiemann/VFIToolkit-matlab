@@ -314,7 +314,7 @@ for reverse_j = 0:N_j-1
         LocalBlockFn = @(state_idx, loweredge_matrix, maxgap_scalar) Evaluate_DC_TensorBlock(...
             state_idx, loweredge_matrix, maxgap_scalar, N_a1_dc, N_a1_other, max(1, N_a2), N_d_safe, N_ze_local, ...
             Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_mat, A1_grids_1d, ...
-            EV_local, static_EV_offset, TensorReturnFn, ReturnFnParamsCell, n_z_loc, n_e_loc);
+            EV_bounded_pre, static_EV_offset, TensorReturnFn, ReturnFnParamsCell, n_z_loc, n_e_loc);
 
         % Define Evaluation Block for DC Slicer
         % LocalBlockFn = @(state_idx, loweredge_matrix, maxgap_scalar, d_gap, dc_mode_override) Evaluate_Case1_TensorBlock(...
@@ -412,12 +412,12 @@ end
 function [V_j_max, Pol_apr_max, Pol_d_max, Pol_L2idx, Pol_L2flag] = Evaluate_DC_TensorBlock(...
     state_idx, loweredge_matrix, maxgap_scalar, N_a1_dc, N_a1_other, N_a2, N_d_safe, N_z, ...
     Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_mat, A1_grids_1d, ...
-    EV_local, static_EV_offset, TensorReturnFn, ReturnFnParamsCell, n_z_loc, n_e_loc)
+    EV_bounded_pre, static_EV_offset, TensorReturnFn, ReturnFnParamsCell, n_z_loc, n_e_loc)
 % Evaluate_DC_TensorBlock - Pure Flat-Pack Tensor Core using Meta-Trick Cells
 
 N_states = length(state_idx);
-state_idx = cast(state_idx, 'like', EV_local);
-if ~isempty(loweredge_matrix); loweredge_matrix = cast(loweredge_matrix, 'like', EV_local); end
+state_idx = cast(state_idx, 'like', EV_bounded_pre);
+if ~isempty(loweredge_matrix); loweredge_matrix = cast(loweredge_matrix, 'like', EV_bounded_pre); end
 l_a1 = length(A1_grids_1d);
 l_a2 = size(A2_mat, 2);
 
@@ -432,13 +432,13 @@ end
 
 A1_cells = cell(1, l_a1);
 for ia = 1:l_a1
-    A1_cells{ia} = cast(reshape(A1_mat(a1_sub, ia), [1, 1, N_states, 1, 1]), 'like', EV_local);
+    A1_cells{ia} = cast(reshape(A1_mat(a1_sub, ia), [1, 1, N_states, 1, 1]), 'like', EV_bounded_pre);
 end
 
 if N_a2 > 1
     A2_cells = cell(1, l_a2);
     for ia = 1:l_a2
-        A2_cells{ia} = cast(reshape(A2_mat(a2_sub, ia), [1, 1, N_states, 1, 1]), 'like', EV_local);
+        A2_cells{ia} = cast(reshape(A2_mat(a2_sub, ia), [1, 1, N_states, 1, 1]), 'like', EV_bounded_pre);
     end
 else
     A2_cells = {};
@@ -446,6 +446,9 @@ end
 
 local_ze = n_z_loc * n_e_loc;
 
+local_ze = n_z_loc * n_e_loc;
+
+% --- PHASE 1: GRID & TENSOR SETUP ---
 if isempty(loweredge_matrix)
     grids_for_choices = A1_grids_1d;
     [mesh_out{1:l_a1}] = ndgrid(grids_for_choices{:});
@@ -453,7 +456,7 @@ if isempty(loweredge_matrix)
 
     Apr_cells = cell(1, l_a1);
     for ia = 1:l_a1
-        Apr_cells{ia} = cast(reshape(mesh_out{ia}(:), [1, num_choices_total, 1, 1, 1]), 'like', EV_local);
+        Apr_cells{ia} = cast(reshape(mesh_out{ia}(:), [1, num_choices_total, 1, 1, 1]), 'like', EV_bounded_pre);
     end
 
     if N_a2 > 1
@@ -461,31 +464,8 @@ if isempty(loweredge_matrix)
     else
         F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_local{:}, E_cells_local{:}, ReturnFnParamsCell{:});
     end
-
-    FLAT_CHOICES = N_d_safe * num_choices_total;
-    F_tensor = reshape(F_tensor, [FLAT_CHOICES, N_states, local_ze]);
-
-    % Generate choice indices across choices and local shocks
     choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
-    N_a_total = N_a1_dc * N_a1_other;
 
-    a1_indices = reshape(choice_idx_linear, [1, num_choices_total, 1, 1, 1]);
-    a1_indices = max(1, min(a1_indices, N_a_total));
-
-    ze_indices = reshape(1:local_ze, [1, 1, 1, local_ze, 1]);
-
-    % Broadcast indices to match [N_d_safe, num_choices_total, N_states, local_ze]
-    % Note: FLAT_CHOICES = N_d_safe * num_choices_total
-    d_idx = reshape(1:N_d_safe, [N_d_safe, 1, 1, 1, 1]);
-
-    % Compute linear indices matching EV_local [N_a, local_ze]
-    % Row = a1_indices, Col = ze_indices
-    lin_idx_compact = a1_indices + (ze_indices - 1) * N_a_total;
-
-    EV_bounded_raw = EV_local(lin_idx_compact); % Slices based on a1 and ze
-    % Replicate/Expand across decision choices (N_d_safe) and states (N_states)
-    EV_bounded = repmat(EV_bounded_raw, [N_d_safe, 1, N_states, 1]);
-    EV_bounded = reshape(EV_bounded, [FLAT_CHOICES, N_states, local_ze]);
 else
     total_gap = maxgap_scalar;
     if l_a1 == 1
@@ -522,28 +502,24 @@ else
     else
         F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_local{:}, E_cells_local{:}, ReturnFnParamsCell{:});
     end
-
-    FLAT_CHOICES = N_d_safe * num_choices_total;
-    F_tensor = reshape(F_tensor, [FLAT_CHOICES, N_states, local_ze]);
-
-    N_a_total = N_a1_dc * N_a1_other;
-    a1_indices = max(1, min(choice_idx_linear, N_a_total));
-
-    % Decouple shock indices into separate z and e dimensions for multi-axis compatibility
-    z_indices = reshape(1:n_z_loc, [1, 1, 1, n_z_loc, 1]);
-    e_indices = reshape(1:n_e_loc, [1, 1, 1, 1, n_e_loc]);
-
-    % Compute multi-axis linear offset matching EV_local layout
-    ze_flat_idx = z_indices + (e_indices - 1) * n_z_loc;
-    lin_idx_compact = a1_indices + (ze_flat_idx - 1) * N_a_total;
-
-    EV_bounded = EV_local(lin_idx_compact);
-    EV_bounded = reshape(EV_bounded, [FLAT_CHOICES, N_states, local_ze]);
 end
 
+% --- PHASE 2: UNIFIED EXPECTED VALUE INDEXING ---
 FLAT_CHOICES = N_d_safe * num_choices_total;
-FLAT_STATES = N_states * local_ze;
+F_tensor = reshape(F_tensor, [FLAT_CHOICES, N_states, local_ze]);
 
+a1_offset = (choice_idx_linear - 1) * N_d_safe;
+if N_a2 > 1
+    a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_safe * N_a1_dc * N_a1_other);
+else
+    a2_offset = zeros(1, 1, N_states, 'like', a1_offset);
+end
+
+lin_idx_compact = static_EV_offset + a1_offset + a2_offset;
+EV_bounded = EV_bounded_pre(lin_idx_compact);
+EV_bounded = reshape(EV_bounded, [FLAT_CHOICES, N_states, local_ze]);
+
+FLAT_STATES = N_states * local_ze;
 RHS = F_tensor + EV_bounded;
 RHS_flat = reshape(RHS, [FLAT_CHOICES, FLAT_STATES]);
 
@@ -567,27 +543,25 @@ Pol_d_max = reshape(d_idx_local, [N_d_safe, N_states, local_ze]);
 if isempty(loweredge_matrix)
     Pol_apr_max = reshape(apr_idx_local, [N_d_safe, N_states, local_ze]);
 else
-    % Force apr_idx_local to flatten to [N_d_safe, FLAT_STATES] to match loweredge_2d
+    % Multi-Asset Safe Loweredge Extraction
     apr_idx_flat = reshape(apr_idx_local, [N_d_safe, FLAT_STATES]);
-
     a1_apr_offset = mod(apr_idx_flat - 1, total_gap + 1) + 1;
     a2_offset_factor = ceil(apr_idx_flat / (total_gap + 1));
 
-    loweredge_2d = reshape(loweredge_matrix, [N_d_safe, FLAT_STATES]);
-    d_vec_row = cast((1:N_d_safe)', 'like', apr_offset);
-    s_vec = reshape((0:FLAT_STATES-1) * (N_d_safe * N_a1_other), [1, 1, FLAT_STATES]);
-    lin_idx_loweredge = d_vec_row + (a2_offset_factor - 1) * N_d_safe + s_vec;
-    chosen_low = loweredge_2d(lin_idx_loweredge);
+    loweredge_3d = reshape(loweredge_matrix, [N_d_safe, N_a1_other, FLAT_STATES]);
+    d_vec_row = cast((1:N_d_safe)', 'like', apr_idx_flat);
+
+    s_vec = reshape((0:FLAT_STATES-1) * (N_d_safe * N_a1_other), [1, FLAT_STATES]);
+    lin_idx_low = d_vec_row + (a2_offset_factor - 1) * N_d_safe + s_vec;
+    chosen_low = loweredge_3d(lin_idx_low);
 
     a1_Pol = min(chosen_low + a1_apr_offset - 1, N_a1_dc);
     Pol_apr_max = a1_Pol + (a2_offset_factor - 1) * N_a1_dc;
-
-    % Final safe reshape matching [N_d_safe, N_states, local_ze]
     Pol_apr_max = reshape(Pol_apr_max, [N_d_safe, N_states, local_ze]);
 end
 
-Pol_L2idx = zeros(N_d_safe, N_states, local_ze, 'like', EV_local);
-Pol_L2flag = 2 * ones(N_d_safe, N_states, local_ze, 'like', EV_local);
+Pol_L2idx = zeros(N_d_safe, N_states, local_ze, 'like', EV_bounded_pre);
+Pol_L2flag = 2 * ones(N_d_safe, N_states, local_ze, 'like', EV_bounded_pre);
 
 
 end
