@@ -306,7 +306,7 @@ for reverse_j = 0:N_j-1
         end
 
         % Define Evaluation Block for DC Slicer using Meta-Trick cells
-        LocalBlockFn = @(state_idx, loweredge_matrix, maxgap_scalar) Evaluate_DC_TensorBlock(...
+        LocalBlockFn = @(state_idx, loweredge_matrix, maxgap_scalar) Evaluate_DC2_TensorBlock(...
             state_idx, loweredge_matrix, maxgap_scalar, N_a1_dc, N_a1_other, max(1, N_a2), N_d_safe, N_ze_local, ...
             Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_mat, A1_grids_1d, ...
             EV_bounded_pre, static_EV_offset, TensorReturnFn, ReturnFnParamsCell, n_z_loc, n_e_loc);
@@ -323,8 +323,8 @@ for reverse_j = 0:N_j-1
         if l_a1 == 1
             [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC1_Slicer(N_a1_dc, N_a1_dc, max(1, N_a2), N_ze_local, vfoptions, LocalBlockFn, N_d_safe);
         else
-            % CRITICAL FIX: Pass N_a1_other * max(1, N_a2) as N_other_states so V_max allocates correctly
-            [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC2_Slicer(N_a1_dc, N_a2prime, N_other_states, N_ze, vfoptions, LocalBlockFn, N_d_safe);
+            N_other_states = N_a1_other * max(1, N_a2);
+            [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC2_Slicer(N_a1_dc, N_a1_other, N_other_states, N_ze_local, vfoptions, LocalBlockFn, N_d_safe);
         end
 
         V_j_max(:, curr_ze)     = reshape(v,     [N_a, N_ze_local]);
@@ -406,11 +406,11 @@ varargout{1} = V; varargout{2} = Policy;
 end
 
 
-function [V_j_max, Pol_apr_max, Pol_d_max, Pol_L2idx, Pol_L2flag] = Evaluate_DC_TensorBlock(...
+function [V_j_max, Pol_apr_max, Pol_d_max, Pol_L2idx, Pol_L2flag, Pol_a1_per_a2] = Evaluate_DC2_TensorBlock(...
     state_idx, loweredge_matrix, maxgap_scalar, N_a1_dc, N_a1_other, N_a2, N_d_safe, N_z, ...
     Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_mat, A1_grids_1d, ...
     EV_bounded_pre, static_EV_offset, TensorReturnFn, ReturnFnParamsCell, n_z_loc, n_e_loc)
-% Evaluate_DC_TensorBlock - Pure Flat-Pack Tensor Core using Meta-Trick Cells
+% Evaluate_DC2_TensorBlock - Pure Flat-Pack Tensor Core using Meta-Trick Cells
 
 N_states = length(state_idx);
 state_idx = cast(state_idx, 'like', EV_bounded_pre);
@@ -545,39 +545,47 @@ d_idx_local = repmat(reshape(1:N_d_safe, [N_d_safe, 1]), [1, FLAT_STATES]);
 V_j_max   = reshape(V_sub,       [N_d_safe, N_states, local_ze]);
 Pol_d_max = reshape(d_idx_local, [N_d_safe, N_states, local_ze]);
 
-if isempty(loweredge_matrix)
-    if N_a1_other > 1
-        % MULTI-ASSET COARSE PASS: Isolate N_a1_other for DC2A_Slicer
-        % Prevents MATLAB from scrambling the assignment dims in the Slicer
-        num_choices_a1 = num_choices_total / N_a1_other;
-        RHS_a1 = reshape(RHS_flat, [N_d_safe, num_choices_a1, N_a1_other, FLAT_STATES]);
-        RHS_a1_perm = permute(RHS_a1, [2, 1, 3, 4]);
-        [~, max_a1_idx_per_d] = max(RHS_a1_perm, [], 1);
-        max_a1_idx_per_d = permute(max_a1_idx_per_d, [2, 1, 3, 4]);
+% Standard Global Policy Output
+Pol_apr_max = reshape(apr_idx_local, [N_d_safe, N_states, local_ze]);
 
-        Pol_apr_max = reshape(max_a1_idx_per_d, [N_d_safe, N_a1_other, N_states, local_ze]);
+if isempty(loweredge_matrix)
+    if nargout > 5
+        if N_a1_other > 1
+            % MULTI-ASSET COARSE PASS: Extract 6th output for DC2A bounds
+            num_choices_a1 = num_choices_total / N_a1_other;
+            if N_d_safe == 1
+                RHS_a1 = reshape(RHS_flat, [num_choices_a1, N_a1_other * FLAT_STATES]);
+                [~, max_a1_idx_per_d] = max(RHS_a1, [], 1);
+            else
+                RHS_a1 = reshape(RHS_flat, [N_d_safe, num_choices_a1, N_a1_other, FLAT_STATES]);
+                RHS_a1_perm = permute(RHS_a1, [2, 1, 3, 4]);
+                [~, max_a1_idx_per_d] = max(RHS_a1_perm, [], 1);
+                max_a1_idx_per_d = permute(max_a1_idx_per_d, [2, 1, 3, 4]);
+            end
+            Pol_a1_per_a2 = reshape(max_a1_idx_per_d, [N_d_safe, N_a1_other, N_states, local_ze]);
+        else
+            Pol_a1_per_a2 = reshape(apr_idx_local, [N_d_safe, 1, N_states, local_ze]);
+        end
     else
-        % SINGLE-ASSET COARSE PASS: Standard 3D output for DC1_Slicer
-        Pol_apr_max = reshape(apr_idx_local, [N_d_safe, N_states, local_ze]);
+        Pol_a1_per_a2 = [];
     end
 else
     % ZOOM PASS: Map choices back to absolute global bounds
-    apr_idx_flat = reshape(apr_idx_local, [N_d_safe, FLAT_STATES]);
+    Pol_a1_per_a2 = []; % Not needed during segment zoom
 
+    apr_idx_flat = reshape(apr_idx_local, [N_d_safe, FLAT_STATES]);
     a1_apr_offset = mod(apr_idx_flat - 1, total_gap + 1) + 1;
     a2_offset_factor = ceil(apr_idx_flat / (total_gap + 1));
 
     loweredge_3d = reshape(loweredge_matrix, [N_d_safe, N_a1_other, FLAT_STATES]);
     d_vec_row = cast((1:N_d_safe)', 'like', apr_idx_flat);
+    s_vec = reshape((0:FLAT_STATES-1) * (N_d_safe * N_a1_other), [1, 1, FLAT_STATES]);
 
-    s_vec = reshape((0:FLAT_STATES-1) * (N_d_safe * N_a1_other), [1, FLAT_STATES]);
     lin_idx_low = d_vec_row + (a2_offset_factor - 1) * N_d_safe + s_vec;
+    chosen_loweredge = loweredge_3d(lin_idx_low);
 
-    chosen_low = reshape(loweredge_3d(lin_idx_low), [N_d_safe, FLAT_STATES]);
-
-    a1_Pol = min(chosen_low + a1_apr_offset - 1, N_a1_dc);
-    Pol_apr_max = a1_Pol + (a2_offset_factor - 1) * N_a1_dc;
-
+    a1_Pol_apr = min(chosen_loweredge + a1_apr_offset - 1, N_a1_dc);
+    Pol_apr_max = a1_Pol_apr + (a2_offset_factor - 1) * N_a1_dc;
     Pol_apr_max = reshape(Pol_apr_max, [N_d_safe, N_states, local_ze]);
 end
 
