@@ -249,7 +249,16 @@ if strcmp(vfoptions.exoticpreferences, 'QuasiHyperbolic') || strcmp(vfoptions.ex
     return;
 end
 
-if vfoptions.divideandconquer == 1 && vfoptions.gridinterplayer(1) == 0 && ~is_EZ
+% Extract active flags
+l_exp_base  = vfoptions.experienceasset >= 1;
+l_exp_u     = vfoptions.experienceassetu >= 1;
+l_exp_z     = vfoptions.experienceassetz >= 1;
+l_exp_e     = vfoptions.experienceassete >= 1;
+l_exp_ze    = vfoptions.experienceassetze >= 1;
+l_exp_semiz = vfoptions.experienceassetsemiz >= 1;
+is_exp_asset = l_exp_base || l_exp_u || l_exp_z || l_exp_e || l_exp_ze || l_exp_semiz;
+
+if vfoptions.divideandconquer == 1 && vfoptions.gridinterplayer(1) == 0 && ~is_EZ && ~is_exp_asset
     if length(n_a) == 1
         disp("ValueFnIter_VFHorz_DC1 version")
         [V, Policy] = ValueFnIter_VFHorz_DC1(n_d, n_a, n_combined_z, N_j, d_grid, a_grid, z_gridvals_J, pi_z_J, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);    varargout={V,Policy};
@@ -282,15 +291,6 @@ if has_e
 else
     e_work = ones(1, 1, 'like', a_grid);
 end
-
-% Extract active flags
-l_exp_base  = vfoptions.experienceasset >= 1;
-l_exp_u     = vfoptions.experienceassetu >= 1;
-l_exp_z     = vfoptions.experienceassetz >= 1;
-l_exp_e     = vfoptions.experienceassete >= 1;
-l_exp_ze    = vfoptions.experienceassetze >= 1;
-l_exp_semiz = vfoptions.experienceassetsemiz >= 1;
-is_exp_asset = l_exp_base || l_exp_u || l_exp_z || l_exp_e || l_exp_ze || l_exp_semiz;
 
 % Trust SetupNonStandardEndoStates for all geometry bounds
 if is_exp_asset || vfoptions.riskyasset == 1 || vfoptions.residualasset == 1
@@ -964,10 +964,10 @@ for reverse_j = 0:N_j-1
                 % DC Mode 3 requests [N_d, N_states, N_ze] from the Tensor Block
                 LocalBlockFn_Base = @(state_idx, loweredge_matrix, maxgap_scalar) SlicerWrapper(state_idx, loweredge_matrix, maxgap_scalar, 3);
                 if l_a1 == 1
-                    [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC1_Slicer(N_a1_dc, N_a1_dc, max(1, N_a2), N_ze_local, vfoptions, LocalBlockFn_Base, N_d_safe);
+                    [v, p_apr, p_d] = ValueFnIter_DC1_Slicer(N_a1_dc, N_a1_dc, max(1, N_a2), N_ze_local, vfoptions, LocalBlockFn_Base, N_d_safe);
                 else
                     % CRITICAL FIX: Pass N_a1_other * max(1, N_a2) as N_other_states so V_max allocates correctly
-                    [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC2A_Slicer(N_a1_dc, N_a1_other, N_a1_other * N_a2, N_d_safe, N_ze_local, vfoptions, LocalBlockFn_Base);
+                    [v, p_apr, p_d] = ValueFnIter_DC2_Slicer(N_a1_dc, N_a1_other, N_a1_other * N_a2, N_d_safe, N_ze_local, vfoptions, LocalBlockFn_Base);
                 end
             end
 

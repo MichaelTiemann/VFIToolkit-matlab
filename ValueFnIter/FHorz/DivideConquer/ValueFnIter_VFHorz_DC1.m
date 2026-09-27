@@ -38,15 +38,8 @@ else
     e_work = ones(1, 1, 'like', a_grid);
 end
 
-l_exp_base  = vfoptions.experienceasset >= 1;
-l_exp_u     = vfoptions.experienceassetu >= 1;
-l_exp_z     = vfoptions.experienceassetz >= 1;
-l_exp_e     = vfoptions.experienceassete >= 1;
-l_exp_ze    = vfoptions.experienceassetze >= 1;
-l_exp_semiz = vfoptions.experienceassetsemiz >= 1;
-is_exp_asset = l_exp_base || l_exp_u || l_exp_z || l_exp_e || l_exp_ze || l_exp_semiz;
-
-if is_exp_asset || vfoptions.riskyasset == 1 || vfoptions.residualasset == 1
+if vfoptions.riskyasset == 1 || vfoptions.residualasset == 1
+    error("riskyasset and residualasset not supported in DC1")
     a1_endo_grid_vals = vfoptions.a1_grid;
     a2_exp_grid_vals  = vfoptions.a2_grid;
     n_a1_dc = vfoptions.n_a1(1);
@@ -170,7 +163,6 @@ for reverse_j = 0:N_j-1
     end
     DiscountFactorParamsVec = CreateVectorFromParams(Parameters, DiscountFactorParamNames, jj, vfoptions.precision);
     beta_j = prod(DiscountFactorParamsVec);
-    if is_exp_asset; aprimeFnParamsCell = CreateCellFromParams(Parameters, aprimeFnParamNames, jj); else; aprimeFnParamsCell = {}; end
 
     % All copied across from ValueFnIter_Case1_VHorz...setting up EV_flat_ze and others
     if jj == N_j && (~isfield(vfoptions, 'V_Jplus1') || isempty(vfoptions.V_Jplus1))
@@ -287,14 +279,9 @@ for reverse_j = 0:N_j-1
             for ie_var = 1:num_e_vars; E_cells_local{ie_var} = reshape(e_work(meta.e_vals, ie_var), [1, 1, 1, 1, n_e_loc]); end
         else; E_cells_local = {}; end
 
-        if ~is_exp_asset
-            EV_reshaped = reshape(EV_local, [N_a1_dc * N_a1_other, n_z_loc, n_e_loc, N_dsemiz]);
-            EV_d_sliced = EV_reshaped(:, :, :, dsemiz_idx_tensor(:));
-            EV_bounded_pre = beta_j .* permute(EV_d_sliced, [4, 1, 5, 2, 3]);
-        else
-            % (Keep your Experience Asset EV prep here)
-            error("exp asset not implemented yet")
-        end
+        EV_reshaped = reshape(EV_local, [N_a1_dc * N_a1_other, n_z_loc, n_e_loc, N_dsemiz]);
+        EV_d_sliced = EV_reshaped(:, :, :, dsemiz_idx_tensor(:));
+        EV_bounded_pre = beta_j .* permute(EV_d_sliced, [4, 1, 5, 2, 3]);
 
         % Define Evaluation Block for DC Slicer using Meta-Trick cells
         LocalBlockFn = @(state_idx, loweredge_matrix, maxgap_scalar) Evaluate_DC_TensorBlock(...
