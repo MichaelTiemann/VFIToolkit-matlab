@@ -329,7 +329,7 @@ for reverse_j = 0:N_j-1
     V_j_max     = reshape(V_j_max,     [N_a, n_z_work, n_e_work]);
     Pol_apr_max = reshape(Pol_apr_max, [N_a, n_z_work, n_e_work]);
     Pol_d_max   = reshape(Pol_d_max,   [N_a, n_z_work, n_e_work]);
-    if N_d > 0; PolicyKron(:, :, :, jj) = (Pol_apr_max - 1) * N_d + Pol_d_max; else; PolicyKron(:, :, :, jj) = Pol_apr_max; end
+    if N_d > 0; PolicyKron(:, :, :, jj) = (Pol_apr_max - 1) * N_d + Pol_d_max; else; PolicyKron(:, :, jj) = Pol_apr_max; end
 
     V(:, :, :, jj) = V_j_max;
     V_next = V_j_max;
