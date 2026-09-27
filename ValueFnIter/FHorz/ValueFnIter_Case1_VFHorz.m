@@ -250,6 +250,7 @@ if strcmp(vfoptions.exoticpreferences, 'QuasiHyperbolic') || strcmp(vfoptions.ex
 end
 
 if vfoptions.divideandconquer == 1 && ~is_EZ
+    disp("ValueFnIter_VFHorz_DC1 version")
     [V, Policy] = ValueFnIter_VFHorz_DC1(n_d, n_a, n_z, N_j, d_grid, a_grid, z_grid, pi_z, ReturnFn, Parameters, DiscountFactorParamNames, ReturnFnParamNames, vfoptions);
     varargout={V,Policy};
     return

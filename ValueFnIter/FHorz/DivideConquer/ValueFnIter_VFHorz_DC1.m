@@ -543,20 +543,29 @@ Pol_d_max = reshape(d_idx_local, [N_d_safe, N_states, local_ze]);
 if isempty(loweredge_matrix)
     Pol_apr_max = reshape(apr_idx_local, [N_d_safe, N_states, local_ze]);
 else
-    % Multi-Asset Safe Loweredge Extraction
+    % Force apr_idx_local to flatten to [N_d_safe, FLAT_STATES]
     apr_idx_flat = reshape(apr_idx_local, [N_d_safe, FLAT_STATES]);
+
     a1_apr_offset = mod(apr_idx_flat - 1, total_gap + 1) + 1;
     a2_offset_factor = ceil(apr_idx_flat / (total_gap + 1));
 
     loweredge_3d = reshape(loweredge_matrix, [N_d_safe, N_a1_other, FLAT_STATES]);
     d_vec_row = cast((1:N_d_safe)', 'like', apr_idx_flat);
 
+    % CRITICAL FIX: s_vec must be strictly 2D [1, FLAT_STATES] to prevent 3D explosion
     s_vec = reshape((0:FLAT_STATES-1) * (N_d_safe * N_a1_other), [1, FLAT_STATES]);
+
+    % Because everything is [1, 294] or [1, 1], they add element-wise perfectly
     lin_idx_low = d_vec_row + (a2_offset_factor - 1) * N_d_safe + s_vec;
     chosen_low = loweredge_3d(lin_idx_low);
 
+    % CRITICAL FIX: Crush any phantom 3D singletons from the extraction
+    chosen_low = reshape(chosen_low, [N_d_safe, FLAT_STATES]);
+
     a1_Pol = min(chosen_low + a1_apr_offset - 1, N_a1_dc);
     Pol_apr_max = a1_Pol + (a2_offset_factor - 1) * N_a1_dc;
+
+    % Final safe reshape matching [N_d_safe, N_states, local_ze]
     Pol_apr_max = reshape(Pol_apr_max, [N_d_safe, N_states, local_ze]);
 end
 
