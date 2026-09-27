@@ -1,11 +1,26 @@
-function [V_max, Pol_apr, Pol_d1, Pol_L2idx, Pol_L2flag] = ValueFnIter_DC2_Slicer(N_a1, N_choice, N_a2, N_ze, vfoptions, EvalBlockFn, N_d)
-% Universal CPU Divide-and-Conquer (n-Monotonicity) Slicer (Vectorized over N_d)
+function [V_max, Pol_apr, Pol_d1, Pol_L2idx, Pol_L2flag] = ValueFnIter_DC2_Slicer(N_a1, N_a2prime, N_other_states, N_ze, vfoptions, EvalBlockFn, N_d)
+% Universal 2-Asset CPU Divide-and-Conquer (n-Monotonicity) Slicer (Vectorized over N_d)
 
 if nargin < 7; N_d = 1; end
 gridinterplayer = vfoptions.gridinterplayer(1) == 1;
 
 level1ii = round(linspace(1, N_a1, vfoptions.level1n));
 num_anchors = length(level1ii);
+
+% 1. Construct full anchor state array
+state_chunk_mat_L1 = level1ii(:) + (0:N_other_states-1) * N_a1;
+
+% 2. CRITICAL: Request the 6th output (p_a1_per_a2)
+[~, ~, ~, ~, ~, p_a1_per_a2_anch] = EvalBlockFn(state_chunk_mat_L1(:)', [], 0);
+
+% 3. Reshape conditional bounds to separate the anchor dimension
+% p_a1_per_a2 comes out as [N_d, N_a2prime, N_states_passed, N_ze]
+maxindex1 = reshape(p_a1_per_a2_anch, [N_d, N_a2prime, length(level1ii), N_other_states, N_ze]);
+
+% 4. Calculate maxgap STRICTLY on the a1prime conditional bounds
+diff_anch = maxindex1(:, :, 2:end, :, :) - maxindex1(:, :, 1:end-1, :, :);
+maxgap = squeeze(max(diff_anch, [], [1, 2, 4, 5])); % Collapse all dims except anchors
+maxgap = gather(maxgap); % Prevent GPU stalls
 
 % Preallocate global outputs (N_d aware)
 V_d       = -inf(N_d, N_a1, N_a2, N_ze, 'gpuArray');
@@ -41,21 +56,14 @@ for ii = 1:(num_anchors - 1)
     segment_states = (level1ii(ii) + 1) : (level1ii(ii+1) - 1);
     if isempty(segment_states); continue; end
 
-    num_seg = length(segment_states);
+    state_chunk_mat_seg = segment_states(:) + (0:N_other_states-1) * N_a1;
 
-    % CRITICAL FIX: ZERO-COST REP-MAT BOUNDS
-    % Replicates bounds safely across segment states to prevent TensorBlock scrambling
-    anchor_slice = reshape(Pol_apr_anch(:, ii, :, :), [N_d, 1, 1, max(1, N_a2), N_ze]);
-    loweredge = repmat(anchor_slice, [1, 1, num_seg, 1, 1]);
-    loweredge = reshape(loweredge, [N_d, 1, num_seg * max(1, N_a2), N_ze]);
+    % Extract the specific loweredge conditional bounds for this anchor
+    mg_eval = maxgap(ii);
+    loweredge = min(maxindex1(:, :, ii, :, :), N_a1 - mg_eval);
 
-    % CRITICAL FIX: Zero-Sync CPU Bounds Assignment.
-    mg_seg = maxgap(:, ii);
-    mg_eval = max(mg_seg);
-
-    % CRITICAL FIX: Zero-Sync CPU Bounds Assignment.
-    mg_seg = maxgap(:, ii);
-    mg_eval = max(mg_seg);
+    % Pass the loweredge matrix and mg_eval to the Block Evaluator
+    [V_seg, Pol_apr_seg, Pol_d_seg, ~, ~] = EvalBlockFn(state_chunk_mat_seg(:)', loweredge(:), mg_eval);
 
     % --- DEAD ZONE SURVIVAL PATCH ---
     % If either anchor failed (-Inf), the penalty gradient is missing.

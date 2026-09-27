@@ -324,7 +324,7 @@ for reverse_j = 0:N_j-1
             [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC1_Slicer(N_a1_dc, N_a1_dc, max(1, N_a2), N_ze_local, vfoptions, LocalBlockFn, N_d_safe);
         else
             % CRITICAL FIX: Pass N_a1_other * max(1, N_a2) as N_other_states so V_max allocates correctly
-            [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC2A_Slicer(N_a1_dc, N_a1_other, N_a1_other * N_a2, N_d_safe, N_ze_local, vfoptions, LocalBlockFn);
+            [v, p_apr, p_d, p_l2idx, p_l2flag] = ValueFnIter_DC2_Slicer(N_a1_dc, N_a2prime, N_other_states, N_ze, vfoptions, LocalBlockFn, N_d_safe);
         end
 
         V_j_max(:, curr_ze)     = reshape(v,     [N_a, N_ze_local]);
