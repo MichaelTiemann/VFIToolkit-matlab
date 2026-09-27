@@ -508,21 +508,45 @@ end
 FLAT_CHOICES = N_d_safe * num_choices_total;
 F_tensor = reshape(F_tensor, [FLAT_CHOICES, N_states, local_ze]);
 
-a1_offset = (choice_idx_linear - 1) * N_d_safe;
-if N_a2 > 1
-    a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_safe * N_a1_dc * N_a1_other);
+if isempty(loweredge_matrix)
+    % COARSE PASS ZERO-COPY: EV doesn't depend on current state
+    EV_bounded = reshape(EV_bounded_pre, [FLAT_CHOICES, 1, local_ze]);
 else
-    a2_offset = zeros(1, 1, N_states, 'like', a1_offset);
-end
+    % ZOOM PASS: Extract strictly by aprime choice to prevent d-axis shift
+    if N_a2 > 1
+        a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_a1_dc * N_a1_other);
+    else
+        a2_offset = zeros(1, 1, N_states, 'like', choice_idx_linear);
+    end
 
-lin_idx_compact = static_EV_offset + a1_offset + a2_offset;
-EV_bounded = EV_bounded_pre(lin_idx_compact);
-EV_bounded = reshape(EV_bounded, [FLAT_CHOICES, N_states, local_ze]);
+    % Decouple Z and E strides exactly as they sit in EV_bounded_pre
+    N_a1_total = N_a1_dc * N_a1_other;
+    z_stride = reshape((0:n_z_loc-1) * (N_a1_total * N_a2), [1, 1, 1, n_z_loc, 1]);
+    e_stride = reshape((0:n_e_loc-1) * (N_a1_total * N_a2 * n_z_loc), [1, 1, 1, 1, n_e_loc]);
+
+    % Build a pure choice index mapping (independent of d_vec)
+    base_idx = (choice_idx_linear - 1) + a2_offset + z_stride + e_stride;
+
+    % Map EV_bounded_pre by inflating across choices and states
+    % EV_bounded_pre shape is [N_d_safe, N_a1_total, N_a2, n_z_loc, n_e_loc]
+    EV_bounded = zeros(N_d_safe, num_choices_total, N_states, n_z_loc, n_e_loc, 'like', EV_bounded_pre);
+    for id = 1:N_d_safe
+        % Extract the slice for this specific decision
+        EV_slice = EV_bounded_pre(id, :, :, :, :);
+        % Map the specific choices the Slicer requested for this decision
+        idx_d = base_idx(id, :, :, :, :);
+        EV_bounded(id, :, :, :, :) = EV_slice(idx_d + 1);
+    end
+
+    EV_bounded = reshape(EV_bounded, [FLAT_CHOICES, N_states, local_ze]);
+end
 
 FLAT_STATES = N_states * local_ze;
 RHS = F_tensor + EV_bounded;
 RHS_flat = reshape(RHS, [FLAT_CHOICES, FLAT_STATES]);
 
+% --- PHASE 3 OUTPUT MAPPING ---
+% Find max across all choices for each decision and state
 if N_d_safe == 1
     [V_sub, apr_idx_local] = max(RHS_flat, [], 1);
     V_sub = reshape(V_sub, [1, 1, FLAT_STATES]);
@@ -536,14 +560,26 @@ else
 end
 
 d_idx_local = repmat(reshape(1:N_d_safe, [N_d_safe, 1]), [1, FLAT_STATES]);
-
 V_j_max   = reshape(V_sub,       [N_d_safe, N_states, local_ze]);
 Pol_d_max = reshape(d_idx_local, [N_d_safe, N_states, local_ze]);
 
 if isempty(loweredge_matrix)
-    Pol_apr_max = reshape(apr_idx_local, [N_d_safe, N_states, local_ze]);
+    if N_a1_other > 1
+        % MULTI-ASSET COARSE PASS: Isolate N_a1_other for DC2A_Slicer
+        % Prevents MATLAB from scrambling the assignment dims in the Slicer
+        num_choices_a1 = num_choices_total / N_a1_other;
+        RHS_a1 = reshape(RHS_flat, [N_d_safe, num_choices_a1, N_a1_other, FLAT_STATES]);
+        RHS_a1_perm = permute(RHS_a1, [2, 1, 3, 4]);
+        [~, max_a1_idx_per_d] = max(RHS_a1_perm, [], 1);
+        max_a1_idx_per_d = permute(max_a1_idx_per_d, [2, 1, 3, 4]);
+
+        Pol_apr_max = reshape(max_a1_idx_per_d, [N_d_safe, N_a1_other, N_states, local_ze]);
+    else
+        % SINGLE-ASSET COARSE PASS: Standard 3D output for DC1_Slicer
+        Pol_apr_max = reshape(apr_idx_local, [N_d_safe, N_states, local_ze]);
+    end
 else
-    % Force apr_idx_local to flatten to [N_d_safe, FLAT_STATES]
+    % ZOOM PASS: Map choices back to absolute global bounds
     apr_idx_flat = reshape(apr_idx_local, [N_d_safe, FLAT_STATES]);
 
     a1_apr_offset = mod(apr_idx_flat - 1, total_gap + 1) + 1;
@@ -552,20 +588,14 @@ else
     loweredge_3d = reshape(loweredge_matrix, [N_d_safe, N_a1_other, FLAT_STATES]);
     d_vec_row = cast((1:N_d_safe)', 'like', apr_idx_flat);
 
-    % CRITICAL FIX: s_vec must be strictly 2D [1, FLAT_STATES] to prevent 3D explosion
     s_vec = reshape((0:FLAT_STATES-1) * (N_d_safe * N_a1_other), [1, FLAT_STATES]);
-
-    % Because everything is [1, 294] or [1, 1], they add element-wise perfectly
     lin_idx_low = d_vec_row + (a2_offset_factor - 1) * N_d_safe + s_vec;
-    chosen_low = loweredge_3d(lin_idx_low);
 
-    % CRITICAL FIX: Crush any phantom 3D singletons from the extraction
-    chosen_low = reshape(chosen_low, [N_d_safe, FLAT_STATES]);
+    chosen_low = reshape(loweredge_3d(lin_idx_low), [N_d_safe, FLAT_STATES]);
 
     a1_Pol = min(chosen_low + a1_apr_offset - 1, N_a1_dc);
     Pol_apr_max = a1_Pol + (a2_offset_factor - 1) * N_a1_dc;
 
-    % Final safe reshape matching [N_d_safe, N_states, local_ze]
     Pol_apr_max = reshape(Pol_apr_max, [N_d_safe, N_states, local_ze]);
 end
 
