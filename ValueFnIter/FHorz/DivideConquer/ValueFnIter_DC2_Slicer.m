@@ -10,7 +10,7 @@ num_anchors = length(level1ii);
 state_chunk_mat_L1 = level1ii(:) + (0:N_other_states-1) * N_a1;
 
 % 2. Evaluate all anchors across all other states (Get all 6 outputs at once)
-[V_anch_flat, Pol_apr_anch_flat, ~, ~, ~, p_a1_per_a2_anch] = EvalBlockFn(state_chunk_mat_L1(:)', [], 0);
+[V_anch_flat, Pol_apr_anch_flat, ~, p_a1_per_a2_anch] = EvalBlockFn(state_chunk_mat_L1(:)', [], 0);
 
 % 3. Reshape conditional bounds to separate the anchor dimension
 % p_a1_per_a2 comes out as [N_d, N_a2prime, N_states_passed, N_ze]
@@ -24,15 +24,12 @@ Pol_apr_d = ones(N_d, N_a1, N_other_states, N_ze, 'gpuArray');
 V_d(:, level1ii, :, :)       = reshape(V_anch_flat, [N_d, num_anchors, N_other_states, N_ze]);
 Pol_apr_d(:, level1ii, :, :) = reshape(Pol_apr_anch_flat, [N_d, num_anchors, N_other_states, N_ze]);
 
-[V_anch, Pol_apr_anch, ~, ~, ~] = EvalBlockFn(level1ii, [], 0);
+% Calculate maxgap STRICTLY on the a1prime conditional bounds (maxindex1) to avoid the 2D Global Index Trap
+diff_anch = maxindex1(:, :, 2:end, :, :) - maxindex1(:, :, 1:end-1, :, :);
 
-V_d(:, level1ii, :, :)       = V_anch;
-Pol_apr_d(:, level1ii, :, :) = Pol_apr_anch;
-
-% maxgap is calculated PER D
-diff_anch = Pol_apr_anch(:, 2:end, :, :) - Pol_apr_anch(:, 1:end-1, :, :);
-maxgap = squeeze(max(max(diff_anch, [], 4), [], 3));
-if N_d == 1 && size(maxgap, 1) > 1; maxgap = maxgap'; end
+% Collapse all dimensions except the anchor intervals (Dim 3 of maxindex1)
+maxgap = squeeze(max(diff_anch, [], [1, 2, 4, 5]));
+maxgap = maxgap(:)'; % Ensure it is a row vector
 
 % CRITICAL FIX: Gather maxgap to the CPU to prevent pipeline flushes in the loop below
 maxgap = gather(maxgap);
@@ -63,8 +60,11 @@ for ii = 1:(num_anchors - 1)
         loweredge = min(loweredge, N_a1 - mg_eval);
     end
 
+    % Replicate the bounds across the intermediate segment states
+    loweredge_rep = repmat(loweredge, [1, 1, num_seg, 1, 1]);
+
     % Evaluate the full flattened segment block
-    [V_seg_flat, Pol_apr_seg_flat, ~] = EvalBlockFn(state_chunk_mat_seg(:)', loweredge(:), mg_eval);
+    [V_seg_flat, Pol_apr_seg_flat, ~] = EvalBlockFn(state_chunk_mat_seg(:)', loweredge_rep(:), mg_eval);
 
     % Reshape and assign directly back to the global tensor
     V_d(:, segment_states, :, :)       = reshape(V_seg_flat, [N_d, num_seg, N_other_states, N_ze]);
@@ -90,7 +90,7 @@ else
     Pol_d1  = reshape(best_d, [N_a1, max(1, N_other_states), max(1, N_ze)]);
 end
 
-if N_a2 == 1
+if N_other_states == 1
     V_max = reshape(V_max, [N_a1, N_ze]);
     Pol_apr = reshape(Pol_apr, [N_a1, N_ze]);
     Pol_d1 = reshape(Pol_d1, [N_a1, N_ze]);

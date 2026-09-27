@@ -523,25 +523,20 @@ Pol_d_max = reshape(d_idx_local, [N_d_safe, N_states, local_ze]);
 Pol_apr_max = reshape(apr_idx_local, [N_d_safe, N_states, local_ze]);
 
 if isempty(loweredge_matrix)
-    if nargout > 5
-        if N_a1_other > 1
-            % MULTI-ASSET COARSE PASS: Extract 6th output for DC2A bounds
-            num_choices_a1 = num_choices_total / N_a1_other;
-            if N_d_safe == 1
-                RHS_a1 = reshape(RHS_flat, [num_choices_a1, N_a1_other * FLAT_STATES]);
-                [~, max_a1_idx_per_d] = max(RHS_a1, [], 1);
-            else
-                RHS_a1 = reshape(RHS_flat, [N_d_safe, num_choices_a1, N_a1_other, FLAT_STATES]);
-                RHS_a1_perm = permute(RHS_a1, [2, 1, 3, 4]);
-                [~, max_a1_idx_per_d] = max(RHS_a1_perm, [], 1);
-                max_a1_idx_per_d = permute(max_a1_idx_per_d, [2, 1, 3, 4]);
-            end
-            Pol_a1_per_a2 = reshape(max_a1_idx_per_d, [N_d_safe, N_a1_other, N_states, local_ze]);
+    if N_a1_other > 1
+        num_choices_a1 = num_choices_total / N_a1_other;
+        if N_d_safe == 1
+            RHS_a1 = reshape(RHS_flat, [num_choices_a1, N_a1_other * FLAT_STATES]);
+            [~, max_a1_idx_per_d] = max(RHS_a1, [], 1);
         else
-            Pol_a1_per_a2 = reshape(apr_idx_local, [N_d_safe, 1, N_states, local_ze]);
+            RHS_a1 = reshape(RHS_flat, [N_d_safe, num_choices_a1, N_a1_other, FLAT_STATES]);
+            RHS_a1_perm = permute(RHS_a1, [2, 1, 3, 4]);
+            [~, max_a1_idx_per_d] = max(RHS_a1_perm, [], 1);
+            max_a1_idx_per_d = permute(max_a1_idx_per_d, [2, 1, 3, 4]);
         end
+        Pol_a1_per_a2 = reshape(max_a1_idx_per_d, [N_d_safe, N_a1_other, N_states, local_ze]);
     else
-        Pol_a1_per_a2 = [];
+        Pol_a1_per_a2 = reshape(apr_idx_local, [N_d_safe, 1, N_states, local_ze]);
     end
 else
     % ZOOM PASS: Map choices back to absolute global bounds
@@ -552,10 +547,12 @@ else
     a2_offset_factor = ceil(apr_idx_flat / (total_gap + 1));
 
     loweredge_3d = reshape(loweredge_matrix, [N_d_safe, N_a1_other, FLAT_STATES]);
-    d_vec_row = cast((1:N_d_safe)', 'like', apr_idx_flat);
-    s_vec = reshape((0:FLAT_STATES-1) * (N_d_safe * N_a1_other), [1, 1, FLAT_STATES]);
+    d_vec_col = cast((1:N_d_safe)', 'like', apr_idx_flat);
 
-    lin_idx_low = d_vec_row + (a2_offset_factor - 1) * N_d_safe + s_vec;
+    % CRITICAL FIX: Keep s_vec strictly 2D [1, FLAT_STATES] to prevent broadcast explosion
+    s_vec = cast(0:FLAT_STATES-1, 'like', apr_idx_flat) * (N_d_safe * N_a1_other);
+
+    lin_idx_low = d_vec_col + (a2_offset_factor - 1) * N_d_safe + s_vec;
     chosen_loweredge = loweredge_3d(lin_idx_low);
 
     a1_Pol_apr = min(chosen_loweredge + a1_apr_offset - 1, N_a1_dc);
