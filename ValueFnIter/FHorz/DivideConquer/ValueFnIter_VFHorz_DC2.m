@@ -448,24 +448,27 @@ else
         num_choices_total = total_gap + 1;
     else
         num_choices_total = (total_gap + 1) * N_a1_other;
-        base_idx_a1 = reshape(loweredge_matrix, [N_d_safe, N_a1_other, N_states, n_z_loc, n_e_loc]);
-        offsets_a1 = reshape(0:total_gap, [1, 1, 1, 1, 1, total_gap + 1]);
-        choice_idx_a1_matrix = max(1, min(base_idx_a1 + offsets_a1, length(A1_grids_1d{1})));
-        choice_idx_a1_matrix = permute(choice_idx_a1_matrix, [1, 6, 2, 3, 4, 5]);
+
+        % --- MASSIVE SPEEDUP 1: Native int32 generation halves memory bandwidth ---
+        base_idx_a1 = int32(reshape(loweredge_matrix, [N_d_safe, 1, N_a1_other, N_states, n_z_loc, n_e_loc]));
+        offsets_a1 = int32(reshape(0:total_gap, [1, total_gap + 1, 1, 1, 1, 1]));
+
+        choice_idx_a1_matrix = min(int32(length(A1_grids_1d{1})), max(int32(1), base_idx_a1 + offsets_a1));
         choice_idx_a1 = reshape(choice_idx_a1_matrix, [N_d_safe, num_choices_total, N_states, n_z_loc, n_e_loc]);
 
-        a2_base_vec = reshape(1:N_a1_other, [1, 1, N_a1_other]);
-        a2_mesh = repmat(a2_base_vec, [N_d_safe, total_gap + 1, 1]);
-        choice_idx_a2 = cast(reshape(a2_mesh, [N_d_safe, num_choices_total, 1, 1, 1]), 'like', choice_idx_a1);
+        % --- MASSIVE SPEEDUP 2: Eliminate 3D N_d_safe Repmat ---
+        a2_mesh_flat = repmat(int32(reshape(1:N_a1_other, [1, N_a1_other])), [total_gap + 1, 1]);
+        choice_idx_a2 = reshape(a2_mesh_flat, [1, num_choices_total, 1, 1, 1]);
 
         Apr_cells = cell(1, l_a1);
         Apr_cells{1} = A1_grids_1d{1}(choice_idx_a1);
         if l_a1 > 2; [mesh_a2{1:l_a1-1}] = ndgrid(A1_grids_1d{2:end}); else; mesh_a2{1} = A1_grids_1d{2}; end
         for ia = 2:l_a1
             flat_grid = mesh_a2{ia-1}(:);
-            Apr_cells{ia} = reshape(flat_grid(choice_idx_a2), [N_d_safe, num_choices_total, 1, 1, 1]);
+            Apr_cells{ia} = reshape(flat_grid(choice_idx_a2), [1, num_choices_total, 1, 1, 1]);
         end
-        choice_idx_linear = choice_idx_a1 + (choice_idx_a2 - 1) * length(A1_grids_1d{1});
+
+        % NOTE: choice_idx_linear is completely deleted here to save VRAM!
     end
 
     if N_a2 > 1
@@ -479,16 +482,38 @@ end
 FLAT_CHOICES = N_d_safe * num_choices_total;
 F_tensor = reshape(F_tensor, [FLAT_CHOICES, N_states, local_ze]);
 
-a1_offset = (choice_idx_linear - 1) * N_d_safe;
-if N_a2 > 1
-    a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_safe * N_a1_dc * N_a1_other);
+% --- MASSIVE SPEEDUP 3: Fused int32 Indexing ---
+% By grouping terms, we avoid generating 5D index matrices until the absolute last step.
+N_d_safe_i32 = int32(N_d_safe);
+
+if isempty(loweredge_matrix)
+    % Coarse Pass
+    choice_idx_linear_i32 = int32(reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]));
+    base_offset = int32(static_EV_offset) + (choice_idx_linear_i32 - 1) * N_d_safe_i32;
+
+    if N_a2 > 1
+        a2_offset = int32(reshape(a2_sub - 1, [1, 1, N_states, 1, 1])) * int32(N_d_safe * N_a1_dc * N_a1_other);
+        lin_idx_compact = base_offset + a2_offset;
+    else
+        % CRITICAL FIX: Force implicit expansion across the N_states dimension
+        lin_idx_compact = base_offset + zeros(1, 1, N_states, 'int32');
+    end
 else
-    % Force expansion across the state dimension
-    a2_offset = zeros(1, 1, N_states, 'like', a1_offset);
+    % Zoom Pass: Combine choice 1 and 2 offsets natively without creating choice_idx_linear
+    N_a1_len_i32 = int32(length(A1_grids_1d{1}));
+
+    term1 = int32(static_EV_offset) - N_d_safe_i32;
+    term2 = (choice_idx_a2 - 1) * (N_a1_len_i32 * N_d_safe_i32);
+    base_offset = term1 + term2; % Evaluates cheaply to [N_d, num_choices, 1, z, e]
+
+    if N_a2 > 1
+        a2_offset = int32(reshape(a2_sub - 1, [1, 1, N_states, 1, 1])) * int32(N_d_safe * N_a1_dc * N_a1_other);
+        lin_idx_compact = base_offset + choice_idx_a1 * N_d_safe_i32 + a2_offset;
+    else
+        lin_idx_compact = base_offset + choice_idx_a1 * N_d_safe_i32;
+    end
 end
 
-% This cleanly works for BOTH Coarse (1D choice_idx) and Zoom (5D choice_idx)
-lin_idx_compact = static_EV_offset + a1_offset + a2_offset;
 EV_bounded = EV_bounded_pre(lin_idx_compact);
 EV_bounded = reshape(EV_bounded, [FLAT_CHOICES, N_states, local_ze]);
 

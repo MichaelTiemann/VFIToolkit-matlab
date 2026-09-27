@@ -24,6 +24,12 @@ Pol_apr_d = ones(N_d, N_a1, N_other_states, N_ze, 'gpuArray');
 V_d(:, level1ii, :, :)       = reshape(V_anch_flat, [N_d, num_anchors, N_other_states, N_ze]);
 Pol_apr_d(:, level1ii, :, :) = reshape(Pol_apr_anch_flat, [N_d, num_anchors, N_other_states, N_ze]);
 
+% --- CRITICAL FIX 1: Pre-calculate Dead Zone flags for all anchors and pull to CPU
+% to absolutely prevent GPU pipeline flushes inside the segment loop.
+anch_inf_3d = reshape(V_anch_flat, [N_d, num_anchors, N_other_states * max(1, N_ze)]);
+anch_is_inf = gather(any(anch_inf_3d == -Inf, [1, 3]));
+anch_is_inf = anch_is_inf(:)'; % Ensure it evaluates as a clean row vector
+
 % Calculate maxgap STRICTLY on the a1prime conditional bounds (maxindex1) to avoid the 2D Global Index Trap
 diff_anch = maxindex1(:, :, 2:end, :, :) - maxindex1(:, :, 1:end-1, :, :);
 
@@ -45,14 +51,12 @@ for ii = 1:(num_anchors - 1)
     mg_eval = maxgap(ii);
     loweredge = min(maxindex1(:, :, ii, :, :), N_a1 - mg_eval);
 
-    % --- DEAD ZONE SURVIVAL PATCH ---
-    V_anch_left = V_d(:, level1ii(ii), :, :);
-    V_anch_right = V_d(:, level1ii(ii+1), :, :);
-    if any(V_anch_left(:) == -Inf) || any(V_anch_right(:) == -Inf)
+    % --- DEAD ZONE SURVIVAL PATCH (Zero-Sync Version) ---
+    if anch_is_inf(ii) || anch_is_inf(ii+1)
         mg_eval = N_a1 - 1;
         loweredge(:) = 1;
     end
-    % --------------------------------
+    % ----------------------------------------------------
 
     if mg_eval > 0
         % Cap the evaluation window so it doesn't physically exceed the grid
