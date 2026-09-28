@@ -803,17 +803,22 @@ for reverse_j = 0:N_j-1
                     for ie = 1:length(E_cells_block); E_cells_compact{ie} = cast(reshape(E_cells_block{ie}(1,1,1,1,:), [1, 1, 1, 1, n_e_loc]), 'like', EV_local); end
 
                     A2_prime = TensoraprimeFn(D_cells_block, A2_cells_compact, Z_cells_compact, E_cells_compact, aprimeFnParamsCell);
+
+                    % Force explicit expansion across all state dimensions (in case aprimeFn ignores z or e)
+                    A2_prime = A2_prime + zeros([N_d_safe, 1, N_a2_local, n_z_loc, n_e_loc], 'like', A2_prime);
+
                     a2_grid_1d_vec = a2_grids_1d{1};
                     a2_prime_clipped = max(a2_grid_1d_vec(1), min(A2_prime, a2_grid_1d_vec(end)));
 
-                    % Native GPU Vectorized Search (Eliminates CPU gather stall & 7D expansion)
-                    [~, idx_flat] = histc(a2_prime_clipped(:), a2_grid_1d_vec(:));
-                    idx = reshape(idx_flat, size(a2_prime_clipped));
+                    % Native GPU Vectorized Search (Eliminates CPU gather stall & histc sync)
+                    a2_grid_shape = cast(reshape(a2_grid_1d_vec, [1,1,1,1,1,1,N_a2_global]), 'like', A2_prime);
+                    idx = sum(a2_prime_clipped >= a2_grid_shape, 7);
                     idx(idx == 0) = 1;
                     idx(idx == N_a2_global) = N_a2_global - 1;
 
                     a2_left = reshape(a2_grid_1d_vec(idx), size(idx));
                     a2_right = reshape(a2_grid_1d_vec(idx+1), size(idx));
+
                     weight = (a2_prime_clipped - a2_left) ./ (a2_right - a2_left);
                     weight(a2_right == a2_left) = 0; weight(abs(weight) < 1e-12) = 0; weight(abs(weight - 1) < 1e-12) = 1;
 
@@ -827,36 +832,38 @@ for reverse_j = 0:N_j-1
                     idx_2d_right_base = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_right_base));
 
                     n_u_loc = size(idx, 6);
-                    idx_shape = [N_d_safe, 1, N_a2_local, n_z_loc, n_e_loc];
-                    weight_ND = reshape(weight, [1, N_d_safe, 1, N_a2_local, 1, 1, n_u_loc]);
+                    idx_shape_all = [N_d_safe, 1, N_a2_local, n_z_loc, n_e_loc, n_u_loc];
+                    % Add leading 1 to align with N_a1_total for implicit expansion
+                    weight_ND = reshape(weight, [1, idx_shape_all]);
 
                     % ---- Compute EV_bounded_pre for COARSE pass ----
                     N_a1_total = N_a1_dc * N_a1_other;
                     EV_3D = reshape(EV_local, [N_a1_total, N_a2_global * N_ze_local * N_dsemiz]);
 
                     if ~isempty(pi_u_shape)
-                        EV_compact = 0;
-                        for iu = 1:n_u_loc
-                            idx_u_left = idx_2d_left_base(:,:,:,:,:,iu);
-                            idx_u_right = idx_2d_right_base(:,:,:,:,:,iu);
-                            EV_left  = reshape(EV_3D(:, idx_u_left(:)), [N_a1_total, idx_shape]);
-                            EV_right = reshape(EV_3D(:, idx_u_right(:)), [N_a1_total, idx_shape]);
-                            w_u = weight_ND(:,:,:,:,:,:,iu);
-                            term_left  = EV_left .* (1 - w_u); term_right = EV_right .* w_u;
-                            term_left(isnan(term_left)) = 0; term_right(isnan(term_right)) = 0;
-                            EV_u = term_left + term_right;
-                            pi_scalar = cast(pi_u_shape(1,1,1,1,1,iu), 'like', EV_u);
-                            EV_compact = EV_compact + EV_u .* pi_scalar;
-                        end
+                        % Vectorized across ALL shocks simultaneously (No CPU loop)
+                        EV_left_all  = reshape(EV_3D(:, idx_2d_left_base(:)), [N_a1_total, idx_shape_all]);
+                        EV_right_all = reshape(EV_3D(:, idx_2d_right_base(:)), [N_a1_total, idx_shape_all]);
+
+                        term_left  = EV_left_all .* (1 - weight_ND);
+                        term_right = EV_right_all .* weight_ND;
+                        term_left(isnan(term_left)) = 0;
+                        term_right(isnan(term_right)) = 0;
+
+                        EV_u = term_left + term_right;
+                        pi_u_ND = cast(reshape(pi_u_shape, [1, 1, 1, 1, 1, 1, n_u_loc]), 'like', EV_u);
+                        EV_compact = sum(EV_u .* pi_u_ND, 7);
                     else
-                        EV_left  = reshape(EV_3D(:, idx_2d_left_base(:)), [N_a1_total, idx_shape]);
-                        EV_right = reshape(EV_3D(:, idx_2d_right_base(:)), [N_a1_total, idx_shape]);
-                        term_left  = EV_left .* (1 - weight_ND); term_right = EV_right .* weight_ND;
-                        term_left(isnan(term_left)) = 0; term_right(isnan(term_right)) = 0;
+                        EV_left_all  = reshape(EV_3D(:, idx_2d_left_base(:)), [N_a1_total, idx_shape_all]);
+                        EV_right_all = reshape(EV_3D(:, idx_2d_right_base(:)), [N_a1_total, idx_shape_all]);
+                        term_left  = EV_left_all .* (1 - weight_ND);
+                        term_right = EV_right_all .* weight_ND;
+                        term_left(isnan(term_left)) = 0;
+                        term_right(isnan(term_right)) = 0;
                         EV_compact = term_left + term_right;
                     end
                     EV_compact(isnan(EV_compact)) = -Inf;
-                    EV_bounded_pre = beta_j .* permute(EV_compact, [2, 1, 3, 4, 5]);
+                    EV_bounded_pre = beta_j .* permute(EV_compact, [2, 1, 3, 4, 5]); % [N_d, N_a1, N_a2_local, z, e]
 
                     % ---- Compute EV_interp_local for FINE pass ----
                     if vfoptions.gridinterplayer(1) == 1
@@ -864,30 +871,31 @@ for reverse_j = 0:N_j-1
                         EV_3D_interp = reshape(EV_interp_local, [N_a1_interp, N_a2_global * N_ze_local * N_dsemiz]);
 
                         if ~isempty(pi_u_shape)
-                            EV_compact_int = 0;
-                            for iu = 1:n_u_loc
-                                idx_u_left = idx_2d_left_base(:,:,:,:,:,iu);
-                                idx_u_right = idx_2d_right_base(:,:,:,:,:,iu);
-                                EV_left_int  = reshape(EV_3D_interp(:, idx_u_left(:)), [N_a1_interp, idx_shape]);
-                                EV_right_int = reshape(EV_3D_interp(:, idx_u_right(:)), [N_a1_interp, idx_shape]);
-                                w_u = weight_ND(:,:,:,:,:,:,iu);
-                                term_left_int  = EV_left_int .* (1 - w_u); term_right_int = EV_right_int .* w_u;
-                                term_left_int(isnan(term_left_int)) = 0; term_right_int(isnan(term_right_int)) = 0;
-                                EV_u_int = term_left_int + term_right_int;
-                                pi_scalar = cast(pi_u_shape(1,1,1,1,1,iu), 'like', EV_u_int);
-                                EV_compact_int = EV_compact_int + EV_u_int .* pi_scalar;
-                            end
+                            EV_left_int  = reshape(EV_3D_interp(:, idx_2d_left_base(:)), [N_a1_interp, idx_shape_all]);
+                            EV_right_int = reshape(EV_3D_interp(:, idx_2d_right_base(:)), [N_a1_interp, idx_shape_all]);
+
+                            term_left_int  = EV_left_int .* (1 - weight_ND);
+                            term_right_int = EV_right_int .* weight_ND;
+                            term_left_int(isnan(term_left_int)) = 0;
+                            term_right_int(isnan(term_right_int)) = 0;
+
+                            EV_u_int = term_left_int + term_right_int;
+                            pi_u_ND = cast(reshape(pi_u_shape, [1, 1, 1, 1, 1, 1, n_u_loc]), 'like', EV_u_int);
+                            EV_compact_int = sum(EV_u_int .* pi_u_ND, 7);
                         else
-                            EV_left_int  = reshape(EV_3D_interp(:, idx_2d_left_base(:)), [N_a1_interp, idx_shape]);
-                            EV_right_int = reshape(EV_3D_interp(:, idx_2d_right_base(:)), [N_a1_interp, idx_shape]);
-                            term_left_int  = EV_left_int .* (1 - weight_ND); term_right_int = EV_right_int .* weight_ND;
-                            term_left_int(isnan(term_left_int)) = 0; term_right_int(isnan(term_right_int)) = 0;
+                            EV_left_int  = reshape(EV_3D_interp(:, idx_2d_left_base(:)), [N_a1_interp, idx_shape_all]);
+                            EV_right_int = reshape(EV_3D_interp(:, idx_2d_right_base(:)), [N_a1_interp, idx_shape_all]);
+                            term_left_int  = EV_left_int .* (1 - weight_ND);
+                            term_right_int = EV_right_int .* weight_ND;
+                            term_left_int(isnan(term_left_int)) = 0;
+                            term_right_int(isnan(term_right_int)) = 0;
                             EV_compact_int = term_left_int + term_right_int;
                         end
                         EV_compact_int(isnan(EV_compact_int)) = -Inf;
-                        EV_interp_local = beta_j .* permute(EV_compact_int, [2, 1, 3, 4, 5]);
+                        EV_interp_local = beta_j .* permute(EV_compact_int, [2, 1, 3, 4, 5]); % Overwrite
                     end
 
+                    % Setup static mapping offsets for all Branches (Now safely sized to N_a2_local!)
                     z_vec = reshape((0:n_z_loc-1) * (N_d_safe * N_a1_total * N_a2_local), [1, 1, 1, n_z_loc, 1]);
                     e_vec = reshape((0:n_e_loc-1) * (N_d_safe * N_a1_total * N_a2_local * n_z_loc), [1, 1, 1, 1, n_e_loc]);
                     static_EV_offset = cast(d_vec + 1 + z_vec + e_vec, 'like', EV_bounded_pre);
@@ -1070,13 +1078,16 @@ for reverse_j = 0:N_j-1
 
                     A2_prime = TensoraprimeFn(D_cells_block, A2_cells_compact, Z_cells_compact, E_cells_compact, aprimeFnParamsCell);
 
+                    % Force explicit expansion across all state dimensions (in case aprimeFn ignores z or e)
+                    A2_prime = A2_prime + zeros([N_d_safe, 1, N_a2_local, n_z_loc, n_e_loc], 'like', A2_prime);
+
                     a2_grid_1d_vec = a2_grids_1d{1};
                     a2_prime_clipped = max(a2_grid_1d_vec(1), min(A2_prime, a2_grid_1d_vec(end)));
 
-                    % NATIVE GPU HISTC (Eliminates 7D element-by-element expansion)
-                    [~, idx_flat] = histc(a2_prime_clipped(:), a2_grid_1d_vec(:));
-                    idx = reshape(idx_flat, size(a2_prime_clipped));
-                    idx(idx == 0) = 1; % Failsafe for lower bound
+                    % Native GPU Vectorized Search (Eliminates CPU gather stall & histc sync)
+                    a2_grid_shape = cast(reshape(a2_grid_1d_vec, [1,1,1,1,1,1,N_a2_global]), 'like', A2_prime);
+                    idx = sum(a2_prime_clipped >= a2_grid_shape, 7);
+                    idx(idx == 0) = 1;
                     idx(idx == N_a2_global) = N_a2_global - 1;
 
                     a2_left = reshape(a2_grid_1d_vec(idx), size(idx));
@@ -1085,7 +1096,6 @@ for reverse_j = 0:N_j-1
                     weight = (a2_prime_clipped - a2_left) ./ (a2_right - a2_left);
                     weight(a2_right == a2_left) = 0; weight(abs(weight) < 1e-12) = 0; weight(abs(weight - 1) < 1e-12) = 1;
 
-                    % Offsets must map into the GLOBAL EV matrix
                     z_offset  = reshape(0:n_z_loc-1, [1, 1, 1, n_z_loc, 1]) * N_a2_global;
                     e_offset  = reshape(0:n_e_loc-1, [1, 1, 1, 1, n_e_loc]) * (N_a2_global * n_z_loc);
                     ds_offset = reshape(dsemiz_idx_tensor - 1, [N_d_safe, 1, 1, 1, 1]) * (N_a2_global * n_z_loc * n_e_loc);
@@ -1096,35 +1106,33 @@ for reverse_j = 0:N_j-1
                     idx_2d_right_base = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_right_base));
 
                     n_u_loc = size(idx, 6);
-                    idx_shape = [N_d_safe, 1, N_a2_local, n_z_loc, n_e_loc];
-                    weight_ND = reshape(weight, [1, N_d_safe, 1, N_a2_local, 1, 1, n_u_loc]);
+                    idx_shape_all = [N_d_safe, 1, N_a2_local, n_z_loc, n_e_loc, n_u_loc];
+                    % Add leading 1 to align with N_a1_total for implicit expansion
+                    weight_ND = reshape(weight, [1, idx_shape_all]);
 
                     % ---- Compute EV_bounded_pre for COARSE pass ----
                     N_a1_total = N_a1_dc * N_a1_other;
                     EV_3D = reshape(EV_local, [N_a1_total, N_a2_global * N_ze_local * N_dsemiz]);
 
                     if ~isempty(pi_u_shape)
-                        EV_compact = 0;
-                        for iu = 1:n_u_loc
-                            idx_u_left = idx_2d_left_base(:,:,:,:,:,iu);
-                            idx_u_right = idx_2d_right_base(:,:,:,:,:,iu);
-                            EV_left  = reshape(EV_3D(:, idx_u_left(:)), [N_a1_total, idx_shape]);
-                            EV_right = reshape(EV_3D(:, idx_u_right(:)), [N_a1_total, idx_shape]);
-                            w_u = weight_ND(:,:,:,:,:,:,iu);
-                            term_left  = EV_left .* (1 - w_u);
-                            term_right = EV_right .* w_u;
-                            term_left(isnan(term_left))   = 0;
-                            term_right(isnan(term_right)) = 0;
-                            EV_u = term_left + term_right;
-                            pi_scalar = cast(pi_u_shape(1,1,1,1,1,iu), 'like', EV_u);
-                            EV_compact = EV_compact + EV_u .* pi_scalar;
-                        end
+                        % Vectorized across ALL shocks simultaneously (No CPU loop)
+                        EV_left_all  = reshape(EV_3D(:, idx_2d_left_base(:)), [N_a1_total, idx_shape_all]);
+                        EV_right_all = reshape(EV_3D(:, idx_2d_right_base(:)), [N_a1_total, idx_shape_all]);
+
+                        term_left  = EV_left_all .* (1 - weight_ND);
+                        term_right = EV_right_all .* weight_ND;
+                        term_left(isnan(term_left)) = 0;
+                        term_right(isnan(term_right)) = 0;
+
+                        EV_u = term_left + term_right;
+                        pi_u_ND = cast(reshape(pi_u_shape, [1, 1, 1, 1, 1, 1, n_u_loc]), 'like', EV_u);
+                        EV_compact = sum(EV_u .* pi_u_ND, 7);
                     else
-                        EV_left  = reshape(EV_3D(:, idx_2d_left_base(:)), [N_a1_total, idx_shape]);
-                        EV_right = reshape(EV_3D(:, idx_2d_right_base(:)), [N_a1_total, idx_shape]);
-                        term_left  = EV_left .* (1 - weight_ND);
-                        term_right = EV_right .* weight_ND;
-                        term_left(isnan(term_left))   = 0;
+                        EV_left_all  = reshape(EV_3D(:, idx_2d_left_base(:)), [N_a1_total, idx_shape_all]);
+                        EV_right_all = reshape(EV_3D(:, idx_2d_right_base(:)), [N_a1_total, idx_shape_all]);
+                        term_left  = EV_left_all .* (1 - weight_ND);
+                        term_right = EV_right_all .* weight_ND;
+                        term_left(isnan(term_left)) = 0;
                         term_right(isnan(term_right)) = 0;
                         EV_compact = term_left + term_right;
                     end
@@ -1137,27 +1145,23 @@ for reverse_j = 0:N_j-1
                         EV_3D_interp = reshape(EV_interp_local, [N_a1_interp, N_a2_global * N_ze_local * N_dsemiz]);
 
                         if ~isempty(pi_u_shape)
-                            EV_compact_int = 0;
-                            for iu = 1:n_u_loc
-                                idx_u_left = idx_2d_left_base(:,:,:,:,:,iu);
-                                idx_u_right = idx_2d_right_base(:,:,:,:,:,iu);
-                                EV_left_int  = reshape(EV_3D_interp(:, idx_u_left(:)), [N_a1_interp, idx_shape]);
-                                EV_right_int = reshape(EV_3D_interp(:, idx_u_right(:)), [N_a1_interp, idx_shape]);
-                                w_u = weight_ND(:,:,:,:,:,:,iu);
-                                term_left_int  = EV_left_int .* (1 - w_u);
-                                term_right_int = EV_right_int .* w_u;
-                                term_left_int(isnan(term_left_int))   = 0;
-                                term_right_int(isnan(term_right_int)) = 0;
-                                EV_u_int = term_left_int + term_right_int;
-                                pi_scalar = cast(pi_u_shape(1,1,1,1,1,iu), 'like', EV_u_int);
-                                EV_compact_int = EV_compact_int + EV_u_int .* pi_scalar;
-                            end
-                        else
-                            EV_left_int  = reshape(EV_3D_interp(:, idx_2d_left_base(:)), [N_a1_interp, idx_shape]);
-                            EV_right_int = reshape(EV_3D_interp(:, idx_2d_right_base(:)), [N_a1_interp, idx_shape]);
+                            EV_left_int  = reshape(EV_3D_interp(:, idx_2d_left_base(:)), [N_a1_interp, idx_shape_all]);
+                            EV_right_int = reshape(EV_3D_interp(:, idx_2d_right_base(:)), [N_a1_interp, idx_shape_all]);
+
                             term_left_int  = EV_left_int .* (1 - weight_ND);
                             term_right_int = EV_right_int .* weight_ND;
-                            term_left_int(isnan(term_left_int))   = 0;
+                            term_left_int(isnan(term_left_int)) = 0;
+                            term_right_int(isnan(term_right_int)) = 0;
+
+                            EV_u_int = term_left_int + term_right_int;
+                            pi_u_ND = cast(reshape(pi_u_shape, [1, 1, 1, 1, 1, 1, n_u_loc]), 'like', EV_u_int);
+                            EV_compact_int = sum(EV_u_int .* pi_u_ND, 7);
+                        else
+                            EV_left_int  = reshape(EV_3D_interp(:, idx_2d_left_base(:)), [N_a1_interp, idx_shape_all]);
+                            EV_right_int = reshape(EV_3D_interp(:, idx_2d_right_base(:)), [N_a1_interp, idx_shape_all]);
+                            term_left_int  = EV_left_int .* (1 - weight_ND);
+                            term_right_int = EV_right_int .* weight_ND;
+                            term_left_int(isnan(term_left_int)) = 0;
                             term_right_int(isnan(term_right_int)) = 0;
                             EV_compact_int = term_left_int + term_right_int;
                         end
@@ -1384,19 +1388,13 @@ if isempty(loweredge_matrix)
         F_tensor = reshape(F_tensor, [FLAT_CHOICES, N_states, N_ze_local]);
 
         if N_a2 > 1
-            % Complex state-dependent offset requires physical gathering
-            choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
-            a1_offset = (choice_idx_linear - 1) * N_d_stride;
-            a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * N_a1_dc * N_a1_other);
-
-            lin_idx_compact = static_EV_offset + a1_offset + a2_offset;
-            EV_bounded = EV_bounded_pre(lin_idx_compact);
+            % ZERO-COPY NATIVE SLICING (Bypasses 250M element index array allocation)
+            % EV_bounded_pre is [N_d_safe, N_a1_total, N_a2_local, z, e]
+            EV_bounded = EV_bounded_pre(:, 1:num_choices_total, a2_sub, :, :);
             EV_bounded = reshape(EV_bounded, [FLAT_CHOICES, N_states, N_ze_local]);
         else
             % ZERO-COPY SHORTCUT!
-            % EV_bounded_pre is already perfectly aligned: [N_d, N_a1, 1, z, e].
-            % We completely bypass the 5D index array allocation and the gather step.
-            EV_bounded = reshape(EV_bounded_pre, [FLAT_CHOICES, 1, N_ze_local]);
+            EV_bounded = reshape(EV_bounded_pre(:, 1:num_choices_total, 1, :, :), [FLAT_CHOICES, 1, N_ze_local]);
         end
 
     else
@@ -1420,10 +1418,9 @@ if isempty(loweredge_matrix)
 
         choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
         if N_a2 > 1
-            a1_offset = (choice_idx_linear - 1) * N_d_stride;
-            a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * length(a1prime_grid) * N_a1_other);
-            lin_idx_compact = static_EV_offset_fine + a1_offset + a2_offset;
-            EV_bounded = EV_interp_local(lin_idx_compact);
+            % ZERO-COPY NATIVE SLICING
+            EV_bounded = EV_interp_local(:, 1:num_choices_total, a2_sub, :, :);
+            EV_bounded = reshape(EV_bounded, [FLAT_CHOICES, N_states, N_ze_local]);
         else
             stride_z = length(a1prime_grid) * N_a1_other;
             ze_offset = reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]);
