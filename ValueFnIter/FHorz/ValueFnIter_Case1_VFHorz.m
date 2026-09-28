@@ -864,31 +864,29 @@ for reverse_j = 0:N_j-1
 
                     % ---- Compute EV_interp_local for FINE pass ----
                     if vfoptions.gridinterplayer(1) == 1
+                        % Because Expectation (over u) and linear interpolation are both linear
+                        % operators, they commute. We directly interpolate the coarse EV_bounded_pre
+                        % to avoid re-evaluating the massive shock transitions over the fine grid.
+
+                        EV_b_reshaped = reshape(EV_bounded_pre, [N_d_safe, N_a1_dc, N_a1_other, N_a2_local, n_z_loc, n_e_loc]);
+
+                        EV_left_int  = EV_b_reshaped(:, interp_left_idx, :, :, :, :);
+                        EV_right_int = EV_b_reshaped(:, interp_right_idx, :, :, :, :);
+
+                        w_shape = cast(reshape(interp_weights, [1, length(interp_weights), 1, 1, 1, 1]), 'like', EV_bounded_pre);
+
+                        term_L = EV_left_int .* (1 - w_shape);
+                        term_R = EV_right_int .* w_shape;
+
+                        % Protect against 0 * -Inf = NaN
+                        term_L(isnan(term_L)) = 0;
+                        term_R(isnan(term_R)) = 0;
+
+                        EV_interp_local = term_L + term_R;
+
+                        % Collapse back to [N_d_safe, a1prime_interp * N_a1_other, N_a2_local, z, e]
                         N_a1_interp = length(a1prime_grid) * N_a1_other;
-                        EV_flat_int = EV_interp_local(:);
-
-                        a1_vec_int = cast(reshape(1:N_a1_interp, [1, N_a1_interp, 1, 1, 1, 1]), 'like', EV_interp_local);
-
-                        lin_left_int  = a1_vec_int + (idx_2d_left_base - 1) * N_a1_interp;
-                        lin_right_int = a1_vec_int + (idx_2d_right_base - 1) * N_a1_interp;
-
-                        term_left_int  = EV_flat_int(lin_left_int) .* (1 - weight);
-                        term_right_int = EV_flat_int(lin_right_int) .* weight;
-                        term_left_int(isnan(term_left_int)) = 0;
-                        term_right_int(isnan(term_right_int)) = 0;
-
-                        EV_u_int = term_left_int + term_right_int;
-
-                        if ~isempty(pi_u_shape)
-                            pi_ND = cast(reshape(pi_u_shape, [1, 1, 1, 1, 1, n_u_loc]), 'like', EV_u_int);
-                            EV_compact_int = sum(EV_u_int .* pi_ND, 6);
-                        else
-                            EV_compact_int = EV_u_int;
-                        end
-
-                        % Natively born as [N_d_safe, a1prime_interp, N_a2_local, z, e]. No permute needed!
-                        EV_compact_int(isnan(EV_compact_int)) = -Inf;
-                        EV_interp_local = beta_j .* EV_compact_int;
+                        EV_interp_local = reshape(EV_interp_local, [N_d_safe, N_a1_interp, N_a2_local, n_z_loc, n_e_loc]);
                     end
 
                     % Setup static mapping offsets for all Branches (Now safely sized to N_a2_local!)
@@ -1617,39 +1615,47 @@ end
 FLAT_CHOICES = N_d_safe * num_choices_total;
 FLAT_STATES  = N_states * N_ze_local;
 
-% --- NATIVE GEOMETRY EXTRACTION ---
-if is_cartesian
-    if isempty(loweredge_matrix) && (gridinterplayer(1) == 0 || is_dc_mode == 2)
-        % Natively [N_d_safe, a1prime, N_a2_len, z, e]
-        EV_raw = EV_bounded_pre;
-    else
-        EV_raw = EV_interp_local;
-    end
+% --- OVERHEAD BYPASS: Native Nd Addition ---
+if all(ezc2_j == 1) && ezc3 == 1 && ezc4 == 1 && all(ezc7_j == 1)
+    if is_cartesian
+        if isempty(loweredge_matrix) && (gridinterplayer(1) == 0 || is_dc_mode == 2)
+            EV_slice = reshape(EV_bounded_pre, [N_d_safe, num_choices_total, 1, N_a2_len, N_ze_local]);
+        else
+            EV_slice = reshape(EV_interp_local, [N_d_safe, num_choices_total, 1, N_a2_len, N_ze_local]);
+        end
 
-    % Insert singleton at Dim 3 (N_a1_state) to match F_tensor exactly
-    EV_slice = reshape(EV_raw, [N_d_safe, num_choices_total, 1, N_a2_len, N_ze_local]);
-    F_tensor_native = reshape(F_tensor, [N_d_safe, num_choices_total, N_a1_total, N_a2_len, N_ze_local]);
-    if is_EZ
+        % IN-PLACE ADDITION: Re-using F_tensor prevents a 4.1 GB VRAM allocation per call!
+        F_tensor = reshape(F_tensor, [N_d_safe, num_choices_total, N_a1_total, N_a2_len, N_ze_local]);
+        F_tensor = F_tensor + EV_slice;
+        RHS_flat = reshape(F_tensor, [FLAT_CHOICES, FLAT_STATES]);
+    else
+        EV_slice = reshape(EV_bounded, [FLAT_CHOICES, FLAT_STATES]);
+        F_tensor = reshape(F_tensor, [FLAT_CHOICES, FLAT_STATES]);
+
+        % IN-PLACE ADDITION
+        F_tensor = F_tensor + EV_slice;
+        RHS_flat = F_tensor;
+    end
+else
+    % Fallback to Universal RHS
+    if is_cartesian
+        if isempty(loweredge_matrix) && (gridinterplayer(1) == 0 || is_dc_mode == 2)
+            EV_slice = reshape(EV_bounded_pre, [N_d_safe, num_choices_total, 1, N_a2_len, N_ze_local]);
+        else
+            EV_slice = reshape(EV_interp_local, [N_d_safe, num_choices_total, 1, N_a2_len, N_ze_local]);
+        end
+        F_tensor_native = reshape(F_tensor, [N_d_safe, num_choices_total, N_a1_total, N_a2_len, N_ze_local]);
+
         EV_expanded = EV_slice + zeros(size(F_tensor_native), 'like', EV_slice);
         F_tensor_reshaped = reshape(F_tensor_native, [FLAT_CHOICES, N_states, N_ze_local]);
         EV_bounded_reshaped = reshape(EV_expanded, [FLAT_CHOICES, N_states, N_ze_local]);
-        RHS = Evaluate_Universal_RHS_VFHorz(F_tensor_reshaped, EV_bounded_reshaped, 1, 1, ezc2_j, ezc3, ezc4, ezc7_j);
     else
-        RHS = F_tensor_native + EV_slice;
+        F_tensor_reshaped = reshape(F_tensor, [FLAT_CHOICES, N_states, N_ze_local]);
+        EV_bounded_reshaped = reshape(EV_bounded, [FLAT_CHOICES, N_states, N_ze_local]);
     end
-else
-    EV_slice = reshape(EV_bounded, [FLAT_CHOICES, N_states, N_ze_local]);
-    F_tensor_native = reshape(F_tensor, [FLAT_CHOICES, N_states, N_ze_local]);
-    if is_EZ
-        RHS = Evaluate_Universal_RHS_VFHorz(F_tensor_native, EV_slice, 1, 1, ezc2_j, ezc3, ezc4, ezc7_j);
-    else
-        RHS = F_tensor_native + EV_slice;
-    end
+    RHS = Evaluate_Universal_RHS_VFHorz(F_tensor_reshaped, EV_bounded_reshaped, 1, 1, ezc2_j, ezc3, ezc4, ezc7_j);
+    RHS_flat = reshape(RHS, [FLAT_CHOICES, FLAT_STATES]);
 end
-
-% --- RESTORE 2D GEOMETRY FOR OUTPUT MAPPING ---
-F_is_inf_flat = reshape((F_tensor == -Inf), [FLAT_CHOICES, FLAT_STATES]);
-RHS_flat = reshape(RHS, [FLAT_CHOICES, FLAT_STATES]);
 
 % -------------------------------------------------------------------------
 % OUTPUT MAPPING
@@ -1657,7 +1663,6 @@ RHS_flat = reshape(RHS, [FLAT_CHOICES, FLAT_STATES]);
 if isempty(loweredge_matrix)
     % =====================================================================
     % COARSE MAPPING
-    % Extracts the index of the best discrete choice and coarse asset policy
     % =====================================================================
     if is_dc_mode == 3
         if N_d_safe == 1
@@ -1666,10 +1671,11 @@ if isempty(loweredge_matrix)
             apr_idx_local = reshape(apr_idx_local, [1, 1, FLAT_STATES]);
         else
             RHS_for_d = reshape(RHS_flat, [N_d_safe, num_choices_total, FLAT_STATES]);
-            RHS_perm = permute(RHS_for_d, [2, 1, 3]);
-            [V_sub_coarse, apr_idx_local] = max(RHS_perm, [], 1);
-            V_sub_coarse = permute(V_sub_coarse, [2, 1, 3]);
-            apr_idx_local = permute(apr_idx_local, [2, 1, 3]);
+
+            % ZERO-COPY MAX: Maximize directly over dim 2. Prevents 4.1 GB uncoalesced permute read!
+            [V_sub_coarse, apr_idx_local] = max(RHS_for_d, [], 2);
+            V_sub_coarse = reshape(V_sub_coarse, [N_d_safe, 1, FLAT_STATES]);
+            apr_idx_local = reshape(apr_idx_local, [N_d_safe, 1, FLAT_STATES]);
         end
         d_idx_local = repmat(reshape(1:N_d_safe, [N_d_safe, 1]), [1, FLAT_STATES]);
 
@@ -1686,9 +1692,8 @@ if isempty(loweredge_matrix)
                 [~, max_a1_idx_per_d] = max(RHS_a1, [], 1);
             else
                 RHS_a1 = reshape(RHS_flat, [N_d_safe, num_choices_a1, N_a1_other, FLAT_STATES]);
-                RHS_a1_perm = permute(RHS_a1, [2, 1, 3, 4]);
-                [~, max_a1_idx_per_d] = max(RHS_a1_perm, [], 1);
-                max_a1_idx_per_d = permute(max_a1_idx_per_d, [2, 1, 3, 4]);
+                % ZERO-COPY MAX
+                [~, max_a1_idx_per_d] = max(RHS_a1, [], 2);
             end
             Pol_a1_per_a2 = reshape(max_a1_idx_per_d, [N_d_safe, N_a1_other, N_states, N_ze_local]);
         else
@@ -1719,7 +1724,6 @@ if isempty(loweredge_matrix)
 else
     % =====================================================================
     % FINE ZOOM MAPPING
-    % Extracts the index of the absolute policy relative to the zoom grid
     % =====================================================================
     if is_dc_mode == 3
         if N_d_safe == 1
@@ -1728,10 +1732,10 @@ else
             apr_offset = reshape(apr_offset, [1, 1, FLAT_STATES]);
         else
             RHS_for_d = reshape(RHS_flat, [N_d_safe, num_choices_total, FLAT_STATES]);
-            RHS_perm = permute(RHS_for_d, [2, 1, 3]);
-            [V_sub_fine, apr_offset] = max(RHS_perm, [], 1);
-            V_sub_fine = permute(V_sub_fine, [2, 1, 3]);
-            apr_offset = permute(apr_offset, [2, 1, 3]);
+            % ZERO-COPY MAX: Maximize directly over dim 2. Prevents 4.1 GB uncoalesced permute read!
+            [V_sub_fine, apr_offset] = max(RHS_for_d, [], 2);
+            V_sub_fine = reshape(V_sub_fine, [N_d_safe, 1, FLAT_STATES]);
+            apr_offset = reshape(apr_offset, [N_d_safe, 1, FLAT_STATES]);
         end
         d_idx_local = repmat(reshape(1:N_d_safe, [N_d_safe, 1]), [1, FLAT_STATES]);
         V_j_max   = reshape(V_sub_fine,  [N_d_safe, N_states, N_ze_local]);
@@ -1813,8 +1817,10 @@ else
             lin_lower = d_idx_local(:) + (1 - 1) * N_d_safe + (a2_offset_factor(:) - 1) * (num_choices_total_a1 * N_d_safe) + (0:FLAT_STATES-1)' * size(RHS_flat, 1);
             lin_upper = d_idx_local(:) + (num_choices_total_a1 - 1) * N_d_safe + (a2_offset_factor(:) - 1) * (num_choices_total_a1 * N_d_safe) + (0:FLAT_STATES-1)' * size(RHS_flat, 1);
 
-            isInfLower = F_is_inf_flat(lin_lower);
-            isInfUpper = F_is_inf_flat(lin_upper);
+            % ZERO-COPY INF CHECK: Only scan exactly what we need, directly from RHS_flat
+            isInfLower = (RHS_flat(lin_lower) == -Inf);
+            isInfUpper = (RHS_flat(lin_upper) == -Inf);
+
             inLowerStrict = (a1_apr_offset(:) >= 2) & (a1_apr_offset(:) <= n2short + 1);
             inUpperStrict = (a1_apr_offset(:) >= n2short + 3 + d_gap * (n2short + 1)) & (a1_apr_offset(:) <= num_choices_total_a1 - 1);
 
