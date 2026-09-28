@@ -1635,17 +1635,13 @@ FLAT_STATES  = N_states * N_ze_local;
 if is_cartesian
     if N_a2 > 1
         a2_unique_idx = a2_sub(1:N_a1_total:end);
-        if isempty(loweredge_matrix) && (gridinterplayer(1) == 0 || is_dc_mode == 2)
-            EV_raw = EV_bounded_pre(:, 1:num_choices_total, a2_unique_idx, :, :);
-        else
-            EV_raw = EV_interp_local(:, 1:num_choices_total, a2_unique_idx, :, :);
-        end
     else
-        if isempty(loweredge_matrix) && (gridinterplayer(1) == 0 || is_dc_mode == 2)
-            EV_raw = EV_bounded_pre(:, 1:num_choices_total, 1, :, :);
-        else
-            EV_raw = EV_interp_local(:, 1:num_choices_total, 1, :, :);
-        end
+        a2_unique_idx = 1;
+    end
+    if isempty(loweredge_matrix) && (gridinterplayer(1) == 0 || is_dc_mode == 2)
+        EV_raw = EV_bounded_pre(:, 1:num_choices_total, a2_unique_idx, :, :);
+    else
+        EV_raw = EV_interp_local(:, 1:num_choices_total, a2_unique_idx, :, :);
     end
     EV_bounded = reshape(EV_raw, [N_d_safe, num_choices_total, 1, N_a2_len, N_ze_local]);
 end
