@@ -560,7 +560,45 @@ elseif vfoptions.lowmemory == 1
     end
 else; ze_chunks = {1:N_ze}; end
 
-if ismember(vfoptions.lowmemory, [4, 5]) && n_a2 > 0; a2_chunks = num2cell(1:N_a2); else; a2_chunks = {1:N_a2}; end
+% --- Dynamic VRAM Profiling (Hoisted for Chunking) ---
+if vfoptions.parallel == 2
+    safe_elements = 250000000; % Fast lane: 250M elements safely fits modern GPUs
+else
+    safe_elements = 50000000; % CPU fallback
+end
+
+% --- Smart A2 Chunking ---
+if l_a2 > 0
+    N_a1_total = N_a1_dc * N_a1_other;
+
+    % Safely calculate N_dsemiz for memory estimation
+    N_dsemiz_mem = 1;
+    if has_semiz && length(n_d) > 0
+        if isfield(vfoptions, 'l_dsemiz')
+            N_dsemiz_mem = prod(n_d(end-vfoptions.l_dsemiz+1:end));
+        else
+            N_dsemiz_mem = n_d(end);
+        end
+    end
+
+    if vfoptions.gridinterplayer(1) == 1
+        % GI footprint for a2 slice interpolation
+        elements_per_a2 = N_a1_total * n2short * N_ze * N_dsemiz_mem;
+    else
+        elements_per_a2 = N_a1_total * N_ze * N_dsemiz_mem;
+    end
+
+    a2_chunk_size = max(1, floor(safe_elements / max(1, elements_per_a2)));
+    if ismember(vfoptions.lowmemory, [4, 5]); a2_chunk_size = 1; end
+
+    num_a2_chunks = ceil(N_a2 / a2_chunk_size);
+    a2_chunks = cell(1, num_a2_chunks);
+    for c = 1:num_a2_chunks
+        a2_chunks{c} = ((c - 1) * a2_chunk_size + 1) : min(c * a2_chunk_size, N_a2);
+    end
+else
+    a2_chunks = {1:max(1, N_a2)};
+end
 
 chunk_meta = cell(1, length(ze_chunks));
 d_vec = reshape(0:N_d_safe-1, [N_d_safe, 1, 1, 1, 1]);
@@ -589,16 +627,6 @@ if has_semiz && length(n_d) > 0
     if isfield(vfoptions, 'l_dsemiz'); N_dsemiz = prod(n_d(end-vfoptions.l_dsemiz+1:end)); else; N_dsemiz = n_d(end); end
 end
 N_z_exog = max(1, n_z_work / N_semiz_local);
-
-% --- Dynamic VRAM Profiling (Hoisted) ---
-if vfoptions.parallel == 2
-    % With the massive 13GB precomputation spike eliminated, the Tensor Bridge
-    % can safely process up to 250 Million elements per chunk without spilling.
-    % This drops Slicer overhead down to ~3 fast chunks per age.
-    safe_elements = 250000000;
-else
-    safe_elements = 50000000; % CPU fallback
-end
 
 for reverse_j = 0:N_j-1
     jj = N_j - reverse_j;
@@ -984,11 +1012,15 @@ for reverse_j = 0:N_j-1
         for i_a2 = 1:length(a2_chunks)
             curr_a2 = a2_chunks{i_a2}; N_a2_local = length(curr_a2);
             start_a_idx = (min(curr_a2) - 1) * (N_a1_dc * N_a1_other) + 1; end_a_idx   = max(curr_a2) * (N_a1_dc * N_a1_other);
+
             for i_ze = 1:length(ze_chunks)
                 curr_ze = ze_chunks{i_ze}; N_ze_local = length(curr_ze);
                 meta = chunk_meta{i_ze}; n_z_loc = meta.n_z_loc; n_e_loc = meta.n_e_loc;
+
                 if is_exp_asset; A2_local = A2_mat(curr_a2, :); else; A2_local = []; end
+
                 EV_local = EV_flat_ze(:, curr_ze, :);
+
                 if has_semiz || has_z
                     num_z_vars = length(n_combined_z); Z_cells_local = cell(1, num_z_vars);
                     if size(z_gridvals_J, 2) ~= num_z_vars
@@ -998,25 +1030,33 @@ for reverse_j = 0:N_j-1
                         for iz = 1:num_z_vars; Z_cells_local{iz} = reshape(z_gridvals_J(meta.z_vals, iz, min(jj, size(z_gridvals_J,3))), [1, 1, 1, n_z_loc, 1]); end
                     end
                 else; Z_cells_local = {}; end
+
                 if has_e
                     num_e_vars = size(e_work, 2); E_cells_local = cell(1, num_e_vars);
                     for ie = 1:num_e_vars; E_cells_local{ie} = reshape(e_work(meta.e_vals, ie), [1, 1, 1, 1, n_e_loc]); end
                 else; E_cells_local = {}; end
 
                 if vfoptions.gridinterplayer(1) == 1
-                    N_cols = N_ze_local * N_dsemiz; zero_weights = (interp_weights == 0); one_weights = (interp_weights == 1);
+                    N_cols = N_ze_local * N_dsemiz;
+                    zero_weights = (interp_weights == 0);
+                    one_weights = (interp_weights == 1);
+
                     if is_exp_asset
-                        EV_2d = reshape(EV_local, [N_a1_dc, N_a1_other * N_a2_local * N_cols]);
+                        N_a2_global = max(1, prod(cellfun(@length, a2_grids_1d)));
+                        % FIX 1: EV_local has N_a2_global rows. Reshape must safely map the global dimension!
+                        EV_2d = reshape(EV_local, [N_a1_dc, N_a1_other * N_a2_global * N_cols]);
                         EV_left_val = EV_2d(interp_left_idx, :); EV_right_val = EV_2d(interp_right_idx, :);
                         EV_interp_flat = EV_left_val + interp_weights .* (EV_right_val - EV_left_val);
-                        EV_interp_flat(zero_weights, :) = EV_left_val(zero_weights, :); EV_interp_flat(one_weights, :) = EV_right_val(one_weights, :);
+                        EV_interp_flat(zero_weights, :) = EV_left_val(zero_weights, :);
+                        EV_interp_flat(one_weights, :) = EV_right_val(one_weights, :);
                         EV_interp_flat(isnan(EV_interp_flat)) = -Inf;
-                        EV_interp_local = reshape(EV_interp_flat, [length(a1prime_grid), N_a1_other, N_a2_local, N_ze_local, N_dsemiz]);
+                        EV_interp_local = reshape(EV_interp_flat, [length(a1prime_grid), N_a1_other, N_a2_global, N_ze_local, N_dsemiz]);
                     else
                         EV_2d = reshape(EV_local, [N_a1_dc, N_a1_other * N_cols]);
                         EV_left_val = EV_2d(interp_left_idx, :); EV_right_val = EV_2d(interp_right_idx, :);
                         EV_interp_flat = EV_left_val + interp_weights .* (EV_right_val - EV_left_val);
-                        EV_interp_flat(zero_weights, :) = EV_left_val(zero_weights, :); EV_interp_flat(one_weights, :) = EV_right_val(one_weights, :);
+                        EV_interp_flat(zero_weights, :) = EV_left_val(zero_weights, :);
+                        EV_interp_flat(one_weights, :) = EV_right_val(one_weights, :);
                         EV_interp_flat(isnan(EV_interp_flat)) = -Inf;
                         EV_interp_local = reshape(EV_interp_flat, [length(a1prime_grid), N_a1_other, N_ze_local, N_dsemiz]);
                     end
@@ -1026,7 +1066,6 @@ for reverse_j = 0:N_j-1
                     EV_reshaped = reshape(EV_local, [N_a1_dc * N_a1_other, n_z_loc, n_e_loc, N_dsemiz]);
                     EV_d_sliced = EV_reshaped(:, :, :, dsemiz_idx_tensor(:));
                     EV_bounded_pre = beta_j .* permute(EV_d_sliced, [4, 1, 5, 2, 3]);
-
                     z_vec = reshape((0:n_z_loc-1) * (N_d_safe * N_a1_dc * N_a1_other), [1, 1, 1, n_z_loc, 1]);
                     e_vec = reshape((0:n_e_loc-1) * (N_d_safe * N_a1_dc * N_a1_other * n_z_loc), [1, 1, 1, 1, n_e_loc]);
                     static_EV_offset = cast(d_vec + 1 + z_vec + e_vec, 'like', EV_bounded_pre);
@@ -1035,41 +1074,42 @@ for reverse_j = 0:N_j-1
                     % --- Precompute A2 Transition & Expectation (Hoisted out of Slicer) ---
                     N_a2_global = max(1, prod(cellfun(@length, a2_grids_1d)));
                     A2_cells_compact = cell(1, l_a2);
-                    for ia = 1:l_a2; A2_cells_compact{ia} = cast(reshape(a2_grids_1d{ia}, [1, 1, N_a2_global, 1, 1]), 'like', EV_local); end
+                    % FIX 2: Restrict A2 evaluation strictly to the active chunk (N_a2_local)!
+                    for ia = 1:l_a2; A2_cells_compact{ia} = cast(reshape(A2_local(:, ia), [1, 1, N_a2_local, 1, 1]), 'like', EV_local); end
+
                     Z_cells_compact = cell(1, length(Z_cells_block));
                     for iz = 1:length(Z_cells_block); Z_cells_compact{iz} = cast(reshape(Z_cells_block{iz}(1,1,1,:,1), [1, 1, 1, n_z_loc, 1]), 'like', EV_local); end
                     E_cells_compact = cell(1, length(E_cells_block));
                     for ie = 1:length(E_cells_block); E_cells_compact{ie} = cast(reshape(E_cells_block{ie}(1,1,1,1,:), [1, 1, 1, 1, n_e_loc]), 'like', EV_local); end
 
                     A2_prime = TensoraprimeFn(D_cells_block, A2_cells_compact, Z_cells_compact, E_cells_compact, aprimeFnParamsCell);
+
                     a2_grid_1d_vec = a2_grids_1d{1};
                     a2_prime_clipped = max(a2_grid_1d_vec(1), min(A2_prime, a2_grid_1d_vec(end)));
 
-                    % Native GPU Vectorized Search (Eliminates CPU gather stall from discretize)
                     idx = sum(a2_prime_clipped >= reshape(a2_grid_1d_vec, [1, 1, 1, 1, 1, 1, length(a2_grid_1d_vec)]), 7);
                     idx(idx == N_a2_global | idx == 0) = N_a2_global - 1;
                     idx = max(1, min(idx, N_a2_global - 1));
 
                     a2_left = reshape(a2_grid_1d_vec(idx), size(idx));
                     a2_right = reshape(a2_grid_1d_vec(idx+1), size(idx));
-                    weight = (a2_prime_clipped - a2_left) ./ (a2_right - a2_left);
-                    weight(a2_right == a2_left) = 0;
-                    weight(abs(weight) < 1e-12) = 0;
-                    weight(abs(weight - 1) < 1e-12) = 1;
 
+                    weight = (a2_prime_clipped - a2_left) ./ (a2_right - a2_left);
+                    weight(a2_right == a2_left) = 0; weight(abs(weight) < 1e-12) = 0; weight(abs(weight - 1) < 1e-12) = 1;
+
+                    % Offsets must map into the GLOBAL EV matrix
                     z_offset  = reshape(0:n_z_loc-1, [1, 1, 1, n_z_loc, 1]) * N_a2_global;
                     e_offset  = reshape(0:n_e_loc-1, [1, 1, 1, 1, n_e_loc]) * (N_a2_global * n_z_loc);
                     ds_offset = reshape(dsemiz_idx_tensor - 1, [N_d_safe, 1, 1, 1, 1]) * (N_a2_global * n_z_loc * n_e_loc);
+
                     idx_2d_left_base  = idx + z_offset + e_offset + ds_offset;
                     idx_2d_right_base = idx_2d_left_base + 1;
                     idx_2d_left_base  = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_left_base));
                     idx_2d_right_base = min(N_a2_global * N_ze_local * N_dsemiz, max(1, idx_2d_right_base));
 
                     n_u_loc = size(idx, 6);
-
-                    % Note: idx_shape drops n_u_loc so we can loop over it safely
-                    idx_shape = [N_d_safe, 1, N_a2_global, n_z_loc, n_e_loc];
-                    weight_ND = reshape(weight, [1, N_d_safe, 1, N_a2_global, 1, 1, n_u_loc]);
+                    idx_shape = [N_d_safe, 1, N_a2_local, n_z_loc, n_e_loc];
+                    weight_ND = reshape(weight, [1, N_d_safe, 1, N_a2_local, 1, 1, n_u_loc]);
 
                     % ---- Compute EV_bounded_pre for COARSE pass ----
                     N_a1_total = N_a1_dc * N_a1_other;
@@ -1080,17 +1120,13 @@ for reverse_j = 0:N_j-1
                         for iu = 1:n_u_loc
                             idx_u_left = idx_2d_left_base(:,:,:,:,:,iu);
                             idx_u_right = idx_2d_right_base(:,:,:,:,:,iu);
-
                             EV_left  = reshape(EV_3D(:, idx_u_left(:)), [N_a1_total, idx_shape]);
                             EV_right = reshape(EV_3D(:, idx_u_right(:)), [N_a1_total, idx_shape]);
-
                             w_u = weight_ND(:,:,:,:,:,:,iu);
                             term_left  = EV_left .* (1 - w_u);
                             term_right = EV_right .* w_u;
-
                             term_left(isnan(term_left))   = 0;
                             term_right(isnan(term_right)) = 0;
-
                             EV_u = term_left + term_right;
                             pi_scalar = cast(pi_u_shape(1,1,1,1,1,iu), 'like', EV_u);
                             EV_compact = EV_compact + EV_u .* pi_scalar;
@@ -1105,7 +1141,7 @@ for reverse_j = 0:N_j-1
                         EV_compact = term_left + term_right;
                     end
                     EV_compact(isnan(EV_compact)) = -Inf;
-                    EV_bounded_pre = beta_j .* permute(EV_compact, [2, 1, 3, 4, 5]); % [N_d, N_a1, N_a2, z, e]
+                    EV_bounded_pre = beta_j .* permute(EV_compact, [2, 1, 3, 4, 5]); % [N_d, N_a1, N_a2_local, z, e]
 
                     % ---- Compute EV_interp_local for FINE pass ----
                     if vfoptions.gridinterplayer(1) == 1
@@ -1117,17 +1153,13 @@ for reverse_j = 0:N_j-1
                             for iu = 1:n_u_loc
                                 idx_u_left = idx_2d_left_base(:,:,:,:,:,iu);
                                 idx_u_right = idx_2d_right_base(:,:,:,:,:,iu);
-
                                 EV_left_int  = reshape(EV_3D_interp(:, idx_u_left(:)), [N_a1_interp, idx_shape]);
                                 EV_right_int = reshape(EV_3D_interp(:, idx_u_right(:)), [N_a1_interp, idx_shape]);
-
                                 w_u = weight_ND(:,:,:,:,:,:,iu);
                                 term_left_int  = EV_left_int .* (1 - w_u);
                                 term_right_int = EV_right_int .* w_u;
-
                                 term_left_int(isnan(term_left_int))   = 0;
                                 term_right_int(isnan(term_right_int)) = 0;
-
                                 EV_u_int = term_left_int + term_right_int;
                                 pi_scalar = cast(pi_u_shape(1,1,1,1,1,iu), 'like', EV_u_int);
                                 EV_compact_int = EV_compact_int + EV_u_int .* pi_scalar;
@@ -1145,19 +1177,20 @@ for reverse_j = 0:N_j-1
                         EV_interp_local = beta_j .* permute(EV_compact_int, [2, 1, 3, 4, 5]); % Overwrite
                     end
 
-                    % Setup static mapping offsets for all Branches
-                    z_vec = reshape((0:n_z_loc-1) * (N_d_safe * N_a1_total * N_a2_global), [1, 1, 1, n_z_loc, 1]);
-                    e_vec = reshape((0:n_e_loc-1) * (N_d_safe * N_a1_total * N_a2_global * n_z_loc), [1, 1, 1, 1, n_e_loc]);
+                    % Setup static mapping offsets for all Branches (Now safely sized to N_a2_local!)
+                    z_vec = reshape((0:n_z_loc-1) * (N_d_safe * N_a1_total * N_a2_local), [1, 1, 1, n_z_loc, 1]);
+                    e_vec = reshape((0:n_e_loc-1) * (N_d_safe * N_a1_total * N_a2_local * n_z_loc), [1, 1, 1, 1, n_e_loc]);
                     static_EV_offset = cast(d_vec + 1 + z_vec + e_vec, 'like', EV_bounded_pre);
 
                     if vfoptions.gridinterplayer(1) == 1
-                        z_vec_fine = reshape((0:n_z_loc-1) * (N_d_safe * N_a1_interp * N_a2_global), [1, 1, 1, n_z_loc, 1]);
-                        e_vec_fine = reshape((0:n_e_loc-1) * (N_d_safe * N_a1_interp * N_a2_global * n_z_loc), [1, 1, 1, 1, n_e_loc]);
+                        z_vec_fine = reshape((0:n_z_loc-1) * (N_d_safe * N_a1_interp * N_a2_local), [1, 1, 1, n_z_loc, 1]);
+                        e_vec_fine = reshape((0:n_e_loc-1) * (N_d_safe * N_a1_interp * N_a2_local * n_z_loc), [1, 1, 1, 1, n_e_loc]);
                         static_EV_offset_fine = cast(d_vec + 1 + z_vec_fine + e_vec_fine, 'like', EV_bounded_pre);
                     else
                         static_EV_offset_fine = [];
                     end
                 end
+
                 % The non-DC Block takes 5 arguments (Strictly using N_a2_local and A2_local)
                 LocalBlockFn = @(state_idx, loweredge_matrix, maxgap_scalar, d_gap, dc_mode_override) Evaluate_Case1_TensorBlock(...
                     state_idx, loweredge_matrix, maxgap_scalar, d_gap, N_a1_dc, N_a1_other, max(1, N_a2_local), N_d_safe, N_ze_local, ...
@@ -1166,16 +1199,20 @@ for reverse_j = 0:N_j-1
                     TensorReturnFn, ReturnFnParamsCell, ezc2(jj), ezc3, ezc4, ezc7(jj), ...
                     TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, dc_mode_override, 0, static_EV_offset_fine);
 
+                % FIX 3: Local indexing prevents A2_local OOB crashes inside the Slicer!
                 state_list = start_a_idx:end_a_idx;
                 total_states = length(state_list);
+                state_list_local = 1:total_states;
                 flat_choices = N_d_safe * N_a1_dc * N_a1_other;
 
                 % --- Dynamic VRAM Protection ---
                 max_states_per_chunk = max(1, floor(safe_elements / (flat_choices * n_z_loc * n_e_loc)));
                 v_concat = []; p_apr_concat = []; p_d_concat = []; p_l2idx_concat = []; p_l2flag_concat = [];
+
                 for chunk_start = 1:max_states_per_chunk:total_states
                     chunk_end = min(total_states, chunk_start + max_states_per_chunk - 1);
-                    state_chunk = state_list(chunk_start:chunk_end);
+                    state_chunk = state_list_local(chunk_start:chunk_end);
+
                     if vfoptions.gridinterplayer(1) == 1
                         [~, ~, ~, ~, ~, p_a1_per_a2] = LocalBlockFn(state_chunk, [], 0, 0, 2);
                         loweredge_chunk = reshape(p_a1_per_a2, [N_d_safe, N_a1_other, length(state_chunk), N_ze_local]);
@@ -1183,15 +1220,18 @@ for reverse_j = 0:N_j-1
                     else
                         [v_c, p_apr_c, p_d_c, p_l2idx_c, p_l2flag_c] = LocalBlockFn(state_chunk, [], 0, 0, 0);
                     end
+
                     v_concat = [v_concat; v_c]; p_apr_concat = [p_apr_concat; p_apr_c]; p_d_concat = [p_d_concat; p_d_c];
                     if vfoptions.gridinterplayer(1) == 1; p_l2idx_concat = [p_l2idx_concat; p_l2idx_c]; p_l2flag_concat = [p_l2flag_concat; p_l2flag_c]; end
                 end
-                V_j_max(start_a_idx:end_a_idx, curr_ze)     = reshape(v_concat,     [length(state_list), N_ze_local]);
-                Pol_apr_max(start_a_idx:end_a_idx, curr_ze) = reshape(p_apr_concat, [length(state_list), N_ze_local]);
-                Pol_d_max(start_a_idx:end_a_idx, curr_ze)   = reshape(p_d_concat,   [length(state_list), N_ze_local]);
+
+                V_j_max(start_a_idx:end_a_idx, curr_ze)     = reshape(v_concat,     [total_states, N_ze_local]);
+                Pol_apr_max(start_a_idx:end_a_idx, curr_ze) = reshape(p_apr_concat, [total_states, N_ze_local]);
+                Pol_d_max(start_a_idx:end_a_idx, curr_ze)   = reshape(p_d_concat,   [total_states, N_ze_local]);
+
                 if vfoptions.gridinterplayer(1) == 1
-                    Pol_L2idx_max(start_a_idx:end_a_idx, curr_ze)  = reshape(p_l2idx_concat,  [length(state_list), N_ze_local]);
-                    Pol_L2flag_max(start_a_idx:end_a_idx, curr_ze) = reshape(p_l2flag_concat, [length(state_list), N_ze_local]);
+                    Pol_L2idx_max(start_a_idx:end_a_idx, curr_ze)  = reshape(p_l2idx_concat,  [total_states, N_ze_local]);
+                    Pol_L2flag_max(start_a_idx:end_a_idx, curr_ze) = reshape(p_l2flag_concat, [total_states, N_ze_local]);
                 end
             end
         end
