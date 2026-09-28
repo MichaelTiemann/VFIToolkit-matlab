@@ -863,7 +863,8 @@ for reverse_j = 0:N_j-1
                         EV_compact = term_left + term_right;
                     end
                     EV_compact(isnan(EV_compact)) = -Inf;
-                    EV_bounded_pre = beta_j .* permute(EV_compact, [2, 1, 3, 4, 5]); % [N_d, N_a1, N_a2_local, z, e]
+                    % FIX: Jump over the singleton dimension to perfectly map [N_d, N_a1, N_a2, z, e]
+                    EV_bounded_pre = beta_j .* permute(EV_compact, [2, 1, 4, 5, 6, 3]);
 
                     % ---- Compute EV_interp_local for FINE pass ----
                     if vfoptions.gridinterplayer(1) == 1
@@ -892,7 +893,8 @@ for reverse_j = 0:N_j-1
                             EV_compact_int = term_left_int + term_right_int;
                         end
                         EV_compact_int(isnan(EV_compact_int)) = -Inf;
-                        EV_interp_local = beta_j .* permute(EV_compact_int, [2, 1, 3, 4, 5]); % Overwrite
+                        % FIX: Jump over the singleton dimension to perfectly map [N_d, N_a1, N_a2, z, e]
+                        EV_interp_local = beta_j .* permute(EV_compact_int, [2, 1, 4, 5, 6, 3]);
                     end
 
                     % Setup static mapping offsets for all Branches (Now safely sized to N_a2_local!)
@@ -1137,7 +1139,8 @@ for reverse_j = 0:N_j-1
                         EV_compact = term_left + term_right;
                     end
                     EV_compact(isnan(EV_compact)) = -Inf;
-                    EV_bounded_pre = beta_j .* permute(EV_compact, [2, 1, 3, 4, 5]); % [N_d, N_a1, N_a2_local, z, e]
+                    % FIX: Jump over the singleton dimension to perfectly map [N_d, N_a1, N_a2, z, e]
+                    EV_bounded_pre = beta_j .* permute(EV_compact, [2, 1, 4, 5, 6, 3]);
 
                     % ---- Compute EV_interp_local for FINE pass ----
                     if vfoptions.gridinterplayer(1) == 1
@@ -1166,7 +1169,8 @@ for reverse_j = 0:N_j-1
                             EV_compact_int = term_left_int + term_right_int;
                         end
                         EV_compact_int(isnan(EV_compact_int)) = -Inf;
-                        EV_interp_local = beta_j .* permute(EV_compact_int, [2, 1, 3, 4, 5]); % Overwrite
+                        % FIX: Jump over the singleton dimension to perfectly map [N_d, N_a1, N_a2, z, e]
+                        EV_interp_local = beta_j .* permute(EV_compact_int, [2, 1, 4, 5, 6, 3]);
                     end
 
                     % Setup static mapping offsets for all Branches (Now safely sized to N_a2_local!)
