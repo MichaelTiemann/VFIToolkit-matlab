@@ -562,7 +562,7 @@ else; ze_chunks = {1:N_ze}; end
 
 % --- Dynamic VRAM Profiling (Hoisted for Chunking) ---
 if vfoptions.parallel == 2
-    safe_elements = 250000000; % Fast lane: 250M elements safely fits modern GPUs
+    safe_elements = 750000000; % Fast lane: 750M elements safely fits modern GPUs
 else
     safe_elements = 50000000; % CPU fallback
 end
@@ -1355,8 +1355,6 @@ if d_override > 0
     if size(dsemiz_idx_tensor, 1) >= d_override; dsemiz_idx_tensor = dsemiz_idx_tensor(d_override, :, :, :); end
     if size(static_EV_offset, 1) >= d_override; static_EV_offset = static_EV_offset(d_override, :, :, :, :); end
     if size(static_EV_offset_fine, 1) >= d_override; static_EV_offset_fine = static_EV_offset_fine(d_override, :, :, :, :); end
-else
-    N_d_safe = N_d_safe;
 end
 
 N_states = length(state_idx);
@@ -1633,31 +1631,37 @@ end
 FLAT_CHOICES = N_d_safe * num_choices_total;
 FLAT_STATES  = N_states * N_ze_local;
 
-% --- ZERO-COPY IMPLICIT EXPANSION (Bypasses 4.1 GB GPU Reallocation) ---
+% --- NATIVE GEOMETRY EXTRACTION ---
 if is_cartesian
     if N_a2 > 1
-        F_tensor = reshape(F_tensor, [FLAT_CHOICES, N_a1_total, N_a2_len, N_ze_local]);
         a2_unique_idx = a2_sub(1:N_a1_total:end);
         if isempty(loweredge_matrix) && (gridinterplayer(1) == 0 || is_dc_mode == 2)
-            EV_bounded = reshape(EV_bounded_pre(:, 1:num_choices_total, a2_unique_idx, :, :), [FLAT_CHOICES, 1, N_a2_len, N_ze_local]);
+            EV_raw = EV_bounded_pre(:, 1:num_choices_total, a2_unique_idx, :, :);
         else
-            EV_bounded = reshape(EV_interp_local(:, 1:num_choices_total, a2_unique_idx, :, :), [FLAT_CHOICES, 1, N_a2_len, N_ze_local]);
+            EV_raw = EV_interp_local(:, 1:num_choices_total, a2_unique_idx, :, :);
         end
     else
-        F_tensor = reshape(F_tensor, [FLAT_CHOICES, N_states, N_ze_local]);
         if isempty(loweredge_matrix) && (gridinterplayer(1) == 0 || is_dc_mode == 2)
-            EV_bounded = reshape(EV_bounded_pre(:, 1:num_choices_total, 1, :, :), [FLAT_CHOICES, 1, N_ze_local]);
+            EV_raw = EV_bounded_pre(:, 1:num_choices_total, 1, :, :);
         else
-            EV_bounded = reshape(EV_interp_local(:, 1:num_choices_total, 1, :, :), [FLAT_CHOICES, 1, N_ze_local]);
+            EV_raw = EV_interp_local(:, 1:num_choices_total, 1, :, :);
         end
     end
-else
-    % Zoom Pass dynamically extracted bounds
-    F_tensor = reshape(F_tensor, [FLAT_CHOICES, N_states, N_ze_local]);
-    EV_bounded = reshape(EV_bounded, [FLAT_CHOICES, N_states, N_ze_local]);
+    EV_bounded = reshape(EV_raw, [N_d_safe, num_choices_total, 1, N_a2_len, N_ze_local]);
 end
 
-RHS = Evaluate_Universal_RHS_VFHorz(F_tensor, EV_bounded, 1, 1, ezc2_j, ezc3, ezc4, ezc7_j);
+% --- OVERHEAD BYPASS: Native Nd Addition ---
+if all(ezc2_j == 1) && ezc3 == 1 && ezc4 == 1 && all(ezc7_j == 1)
+    RHS = F_tensor + EV_bounded;
+else
+    % Fallback to Universal RHS
+    if is_cartesian
+        EV_expanded = EV_bounded + zeros(size(F_tensor), 'like', EV_bounded);
+        F_tensor = reshape(F_tensor, [FLAT_CHOICES, N_states, N_ze_local]);
+        EV_bounded = reshape(EV_expanded, [FLAT_CHOICES, N_states, N_ze_local]);
+    end
+    RHS = Evaluate_Universal_RHS_VFHorz(F_tensor, EV_bounded, 1, 1, ezc2_j, ezc3, ezc4, ezc7_j);
+end
 
 % --- RESTORE 2D GEOMETRY FOR OUTPUT MAPPING ---
 F_is_inf_flat = reshape((F_tensor == -Inf), [FLAT_CHOICES, FLAT_STATES]);
