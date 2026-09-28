@@ -1215,6 +1215,13 @@ for reverse_j = 0:N_j-1
 
                 % --- Dynamic VRAM Protection ---
                 max_states_per_chunk = max(1, floor(safe_elements / (flat_choices * n_z_loc * n_e_loc)));
+
+                % FIX: Snap chunk size to complete A1 columns to guarantee Zero-Copy Cartesian execution
+                N_a1_total = N_a1_dc * N_a1_other;
+                if max_states_per_chunk > N_a1_total
+                    max_states_per_chunk = floor(max_states_per_chunk / N_a1_total) * N_a1_total;
+                end
+
                 % Preallocate on GPU to prevent massive reallocation stalls
                 v_concat = zeros(total_states, N_ze_local, 'like', EV_local);
                 p_apr_concat = zeros(total_states, N_ze_local, 'like', EV_local);
@@ -1337,6 +1344,8 @@ N_d_stride = N_d_safe;
 
 % -------------------------------------------------------------------------
 % D_OVERRIDE SLICING
+% If d_override is active, we dynamically slice the choice tensors to only
+% evaluate the specific discrete choice branch requested.
 % -------------------------------------------------------------------------
 if d_override > 0
     N_d_safe = 1;
@@ -1356,32 +1365,43 @@ if ~isempty(loweredge_matrix); loweredge_matrix = cast(loweredge_matrix, 'like',
 l_a1 = length(A1_grids_1d);
 l_a2 = sum(size(A2_mat)>1);
 
+% -------------------------------------------------------------------------
 % --- ALWAYS EXTRACT SUB-INDICES ---
+% Separate the global state_idx into a1 and a2 coordinates for tensor mapping
+% -------------------------------------------------------------------------
 if N_a2 > 1
     N_a1_total = N_a1_dc * N_a1_other;
     a2_sub = ceil(state_idx / N_a1_total);
     a1_sub = state_idx - (a2_sub - 1) * N_a1_total;
 else
+    N_a1_total = N_a1_dc * N_a1_other;
     a1_sub = state_idx;
     a2_sub = [];
 end
 
+% -------------------------------------------------------------------------
 % --- REBUILD LOCAL 5D ORTHOGONAL STATE CELLS FOR NATIVE EXECUTION ---
-N_a1_len = N_states / N_a2;
-is_cartesian = (N_a1_len == floor(N_a1_len)) && isempty(loweredge_matrix);
+% Detect if the current state chunk is perfectly rectangular. If yes, we can
+% use Zero-Copy Implicit Expansion. If jagged, we explicitly map arrays.
+% -------------------------------------------------------------------------
+N_a2_len = N_states / N_a1_total;
+
+% Ensure the chunk is perfectly rectangular and spans full A1 columns
+is_cartesian = (N_a2_len == floor(N_a2_len)) && isempty(loweredge_matrix) && (a1_sub(1) == 1) && (a1_sub(end) == N_a1_total);
 
 if is_cartesian
-    % ORTHOGONAL BROADCASTING
+    % ORTHOGONAL BROADCASTING (Zero-Copy fast path)
     A1_cells = cell(1, l_a1);
     for ia = 1:l_a1
-        A1_cells{ia} = cast(reshape(A1_mat(a1_sub(1:N_a1_len), ia), [1, 1, N_a1_len, 1, 1, 1]), 'like', EV_local);
+        A1_cells{ia} = cast(reshape(A1_mat(1:N_a1_total, ia), [1, 1, N_a1_total, 1, 1, 1]), 'like', EV_local);
     end
     if N_a2 > 1
         A2_cells = cell(1, l_a2);
+        a2_unique_idx = a2_sub(1:N_a1_total:end);
         for ia = 1:l_a2
-            A2_cells{ia} = cast(reshape(A2_mat(1:N_a2, ia), [1, 1, 1, N_a2, 1, 1]), 'like', EV_local);
+            A2_cells{ia} = cast(reshape(A2_mat(a2_unique_idx, ia), [1, 1, 1, N_a2_len, 1, 1]), 'like', EV_local);
         end
-        % Shift Z and E out of dimension 4
+        % Shift Z and E out of dimension 4 to prevent collision with A2
         Z_cells_eval = cell(1, length(Z_cells_block));
         for iz = 1:length(Z_cells_block)
             Z_cells_eval{iz} = reshape(Z_cells_block{iz}(1,1,1,:,1), [1, 1, 1, 1, n_z_loc, 1]);
@@ -1396,7 +1416,7 @@ if is_cartesian
         E_cells_eval = E_cells_block;
     end
 else
-    % FULLY EXPANDED STATES
+    % FULLY EXPANDED STATES (Fallback for jagged chunks or Zoom Pass)
     A1_cells = cell(1, l_a1);
     for ia = 1:l_a1
         A1_cells{ia} = cast(reshape(A1_mat(a1_sub, ia), [1, 1, N_states, 1, 1]), 'like', EV_local);
@@ -1486,6 +1506,7 @@ if isempty(loweredge_matrix)
 else
     % =================================================================
     % BRANCH 2: ZOOM PHASE
+    % Evaluates the subset of the grid near the coarse policy optimum
     % =================================================================
     Pol_a1_per_a2 = [];
     loweredge_matrix = max(1, min(loweredge_matrix, N_a1_dc * N_a1_other));
@@ -1615,11 +1636,12 @@ FLAT_STATES  = N_states * N_ze_local;
 % --- ZERO-COPY IMPLICIT EXPANSION (Bypasses 4.1 GB GPU Reallocation) ---
 if is_cartesian
     if N_a2 > 1
-        F_tensor = reshape(F_tensor, [FLAT_CHOICES, N_a1_len, N_a2, N_ze_local]);
+        F_tensor = reshape(F_tensor, [FLAT_CHOICES, N_a1_total, N_a2_len, N_ze_local]);
+        a2_unique_idx = a2_sub(1:N_a1_total:end);
         if isempty(loweredge_matrix) && (gridinterplayer(1) == 0 || is_dc_mode == 2)
-            EV_bounded = reshape(EV_bounded_pre(:, 1:num_choices_total, 1:N_a2, :, :), [FLAT_CHOICES, 1, N_a2, N_ze_local]);
+            EV_bounded = reshape(EV_bounded_pre(:, 1:num_choices_total, a2_unique_idx, :, :), [FLAT_CHOICES, 1, N_a2_len, N_ze_local]);
         else
-            EV_bounded = reshape(EV_interp_local(:, 1:num_choices_total, 1:N_a2, :, :), [FLAT_CHOICES, 1, N_a2, N_ze_local]);
+            EV_bounded = reshape(EV_interp_local(:, 1:num_choices_total, a2_unique_idx, :, :), [FLAT_CHOICES, 1, N_a2_len, N_ze_local]);
         end
     else
         F_tensor = reshape(F_tensor, [FLAT_CHOICES, N_states, N_ze_local]);
@@ -1645,7 +1667,10 @@ RHS_flat = reshape(RHS, [FLAT_CHOICES, FLAT_STATES]);
 % OUTPUT MAPPING
 % -------------------------------------------------------------------------
 if isempty(loweredge_matrix)
+    % =====================================================================
     % COARSE MAPPING
+    % Extracts the index of the best discrete choice and coarse asset policy
+    % =====================================================================
     if is_dc_mode == 3
         if N_d_safe == 1
             [V_sub_coarse, apr_idx_local] = max(RHS_flat, [], 1);
@@ -1704,7 +1729,10 @@ if isempty(loweredge_matrix)
         Pol_L2flag_max = [];
     end
 else
+    % =====================================================================
     % FINE ZOOM MAPPING
+    % Extracts the index of the absolute policy relative to the zoom grid
+    % =====================================================================
     if is_dc_mode == 3
         if N_d_safe == 1
             [V_sub_fine, apr_offset] = max(RHS_flat, [], 1);
@@ -1812,6 +1840,7 @@ end
 
 
 end
+
 
 function [v, p_apr, p_d, p_l2, p_l2f, p_a1] = Helper_SlicerWrapper(state_chunk_idx, low_mat, mg, dc_mode, N_a1_dc, N_a1_other, N_a2, N_ze, N_d, CoreFn)
 % The slicer natively generates the full linear state index because we passed
