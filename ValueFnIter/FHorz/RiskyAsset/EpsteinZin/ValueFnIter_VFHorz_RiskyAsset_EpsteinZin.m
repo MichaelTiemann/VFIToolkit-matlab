@@ -164,8 +164,7 @@ for reverse_j = 0:N_j-1
 
         if ezc5_val == 1; WG_transformed(valid_wg) = ezc4_val * WG_eval(valid_wg); else; WG_transformed(valid_wg) = max(ezc4_val * WG_eval(valid_wg), 0).^ezc5_val; end
         WG_transformed(WG_eval == 0) = 0;
-        wg_shape = ones(1, 8); wg_shape(dim_a2s) = N_a2_safe;
-        WG_vec = reshape(WG_transformed, wg_shape);
+        WG_vec = WG_transformed(:); % Flatten to 1D vector (evaluated at nodes)
     else
         WG_vec = 0;
     end
@@ -173,13 +172,12 @@ for reverse_j = 0:N_j-1
     % =========================================================================
     % PHASE 3: TENSOR EVALUATION & IMPLICIT EXPANSION
     % =========================================================================
-    % 1. Evaluate Return Function (Force uniform sizes for arrayfun)
+    % 1. Evaluate Return Function (Dynamically bound to active variables)
     ret_shape = ones(1, 8);
-    for i = 1:length(d_return_idx); ret_shape(d_return_idx(i)) = n_d(d_return_idx(i)); end
-    ret_shape(dim_a1p) = N_a1_safe;
-    ret_shape(dim_a1s) = N_a1_safe;
-    ret_shape(dim_a2s) = N_a2_safe;
-    ret_shape(dim_z) = N_z;
+    for i = 1:length(ret_args_run)
+        sz = size(ret_args_run{i});
+        ret_shape(1:length(sz)) = max(ret_shape(1:length(sz)), sz);
+    end
 
     ret_args_exp = cell(size(ret_args_run));
     for i = 1:length(ret_args_run)
@@ -191,41 +189,48 @@ for reverse_j = 0:N_j-1
     F_tensor(F_tensor == 0) = -Inf;
 
     % 2. Evaluate Portfolio Returns (a2_prime)
-    ap_shape = ones(1, 8);
-    for i = 1:length(d_aprime_idx); ap_shape(d_aprime_idx(i)) = n_d(d_aprime_idx(i)); end
-    ap_shape(dim_a2s) = N_a2_safe;
-    ap_shape(dim_u) = N_u;
+    % Hoist the portfolio mapping out of the loop if parameters are static!
+    if reverse_j == 0 || any(Ap_age)
+        ap_shape = ones(1, 8);
+        for i = 1:length(ap_args)
+            sz = size(ap_args{i});
+            ap_shape(1:length(sz)) = max(ap_shape(1:length(sz)), sz);
+        end
 
-    ap_args_exp = cell(size(ap_args));
-    for i = 1:length(ap_args)
-        ap_args_exp{i} = ap_args{i} + zeros(ap_shape, 'like', proto);
+        ap_args_exp = cell(size(ap_args));
+        for i = 1:length(ap_args)
+            ap_args_exp{i} = ap_args{i} + zeros(ap_shape, 'like', proto);
+        end
+
+        A2_prime = arrayfun(aprimeFn, ap_args_exp{:}, aprimeFnParamsCell{:});
+        a2_grid_1d_vec = a2_grids{1};
+        a2_prime_clipped = max(a2_grid_1d_vec(1), min(A2_prime, a2_grid_1d_vec(end)));
+
+        a2_grid_shape = ones(1, 8); a2_grid_shape(8) = length(a2_grid_1d_vec);
+        a2_grid_shape_vals = reshape(a2_grid_1d_vec, a2_grid_shape);
+        idx = sum(a2_prime_clipped >= a2_grid_shape_vals, 8);
+        idx(idx == 0) = 1;
+        idx(idx == length(a2_grid_1d_vec)) = length(a2_grid_1d_vec) - 1;
+
+        a2_left = reshape(a2_grid_1d_vec(idx), size(idx));
+        a2_right = reshape(a2_grid_1d_vec(idx+1), size(idx));
+        weight = (a2_prime_clipped - a2_left) ./ (a2_right - a2_left);
+        weight(a2_right == a2_left) = 0;
+        weight(abs(weight) < 1e-12) = 0;
+        weight(abs(weight - 1) < 1e-12) = 1;
+
+        % Strictly cast offset matrices to proto to prevent GPU/CPU indexing stalls
+        a1_prime_offset_shape = ones(1, 8); a1_prime_offset_shape(dim_a1p) = N_a1_safe;
+        a1_prime_offset = cast(reshape(0:N_a1_safe-1, a1_prime_offset_shape), 'like', proto);
+
+        a2_prime_offset = (idx - 1) * N_a1_safe;
+
+        z_offset_shape = ones(1, 8); z_offset_shape(dim_z) = N_z;
+        z_offset = cast(reshape(0:N_z-1, z_offset_shape) * (N_a1_safe * N_a2_safe), 'like', proto);
+
+        idx_left  = 1 + a1_prime_offset + a2_prime_offset + z_offset;
+        idx_right = idx_left + N_a1_safe;
     end
-
-    A2_prime = arrayfun(aprimeFn, ap_args_exp{:}, aprimeFnParamsCell{:});
-    a2_grid_1d_vec = a2_grids{1};
-    a2_prime_clipped = max(a2_grid_1d_vec(1), min(A2_prime, a2_grid_1d_vec(end)));
-
-    a2_grid_shape = ones(1, 8); a2_grid_shape(8) = length(a2_grid_1d_vec);
-    a2_grid_shape_vals = reshape(a2_grid_1d_vec, a2_grid_shape);
-    idx = sum(a2_prime_clipped >= a2_grid_shape_vals, 8);
-    idx(idx == 0) = 1;
-    idx(idx == length(a2_grid_1d_vec)) = length(a2_grid_1d_vec) - 1;
-
-    a2_left = reshape(a2_grid_1d_vec(idx), size(idx));
-    a2_right = reshape(a2_grid_1d_vec(idx+1), size(idx));
-    weight = (a2_prime_clipped - a2_left) ./ (a2_right - a2_left);
-    weight(a2_right == a2_left) = 0;
-    weight(abs(weight) < 1e-12) = 0;
-    weight(abs(weight - 1) < 1e-12) = 1;
-
-    a1_prime_offset_shape = ones(1, 8); a1_prime_offset_shape(dim_a1p) = N_a1_safe;
-    a1_prime_offset = reshape(0:N_a1_safe-1, a1_prime_offset_shape) * 1;
-    a2_prime_offset = (idx - 1) * N_a1_safe;
-    z_offset_shape = ones(1, 8); z_offset_shape(dim_z) = N_z;
-    z_offset = reshape(0:N_z-1, z_offset_shape) * (N_a1_safe * N_a2_safe);
-
-    idx_left  = 1 + a1_prime_offset + a2_prime_offset + z_offset;
-    idx_right = idx_left + N_a1_safe;
 
     EV_flat = EV_z(:);
     term_L = EV_flat(idx_left) .* (1 - weight);
@@ -237,15 +242,31 @@ for reverse_j = 0:N_j-1
     EV_u_weighted = EV_u .* pi_u_shape;
     EV_u_weighted(EV_u == -Inf & pi_u_shape == 0) = 0;
     EV_compact = sum(EV_u_weighted, dim_u);
-
     EV_compact(isnan(EV_compact)) = -Inf;
+
+    % Interpolate Warmglow mapping (if active)
+    if warmglow == 1
+        WG_flat = WG_vec;
+        term_L_WG = WG_flat(idx) .* (1 - weight);
+        term_R_WG = WG_flat(idx+1) .* weight;
+        term_L_WG(isnan(term_L_WG)) = 0;
+        term_R_WG(isnan(term_R_WG)) = 0;
+        WG_u = term_L_WG + term_R_WG;
+        WG_u_weighted = WG_u .* pi_u_shape;
+        WG_u_weighted(WG_u == -Inf & pi_u_shape == 0) = 0;
+        WG_compact = sum(WG_u_weighted, dim_u);
+        WG_compact(isnan(WG_compact)) = -Inf;
+    else
+        WG_compact = 0;
+    end
+
     ezc6_val = ezc6(min(jj, length(ezc6))); ezc8_val = ezc8(min(jj, length(ezc8)));
 
     if warmglow == 1
-        valid_ez = isfinite(EV_compact) & isfinite(WG_vec);
+        valid_ez = isfinite(EV_compact) & isfinite(WG_compact);
         EV_transformed = EV_compact;
-        EV_transformed(valid_ez) = (sj_val * EV_compact(valid_ez).^ezc8_val + (1 - sj_val) * WG_vec(valid_ez).^ezc8_val).^ezc6_val;
-        EV_transformed((EV_compact == 0) & (WG_vec == 0)) = 0;
+        EV_transformed(valid_ez) = (sj_val * EV_compact(valid_ez).^ezc8_val + (1 - sj_val) * WG_compact(valid_ez).^ezc8_val).^ezc6_val;
+        EV_transformed((EV_compact == 0) & (WG_compact == 0)) = 0;
     else
         valid_ez = isfinite(EV_compact);
         EV_transformed = EV_compact;
@@ -265,7 +286,6 @@ for reverse_j = 0:N_j-1
             [EV_scaled, Pol_d2_indices{i}] = max(EV_scaled, [], i);
         end
     end
-
     % =========================================================================
     % PHASE 4: UNIVERSAL RHS & MAXIMIZATION
     % =========================================================================
