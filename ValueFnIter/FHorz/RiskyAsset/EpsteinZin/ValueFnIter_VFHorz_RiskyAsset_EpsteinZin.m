@@ -6,7 +6,12 @@ function [V, Policy] = ValueFnIter_VFHorz_RiskyAsset_EpsteinZin(...
 % =========================================================================
 % PHASE 1: PRE-COMPUTATION & AUTONOMOUS PARSING
 % =========================================================================
-n_a = [n_a1, n_a2]; % Reconstruct native asset array
+% Establish a bulletproof prototype for instantiating new arrays (matches precision & device)
+if ~isempty(a2_grid); proto = a2_grid; elseif ~isempty(a1_grid); proto = a1_grid; else; proto = d_grid; end
+
+if isfield(vfoptions, 'ezc9'); ezc9 = vfoptions.ezc9; else; ezc9 = ones(N_j, 1); end
+
+n_a = [n_a1, n_a2];
 N_d_safe = max(1, prod(n_d));
 N_a1_safe = max(1, prod(n_a1));
 N_a2_safe = max(1, prod(n_a2));
@@ -14,18 +19,7 @@ N_z = max(1, prod(n_z));
 N_u = max(1, prod(n_u));
 N_a = N_a1_safe * N_a2_safe;
 
-if vfoptions.parallel == 2
-    pi_z_J = gpuArray(pi_z_J);
-    pi_u = gpuArray(pi_u);
-end
 pi_u_shape = reshape(pi_u(:), [1, 1, 1, 1, 1, 1, N_u]);
-
-% Extract the EZ sign-flipper directly from vfoptions
-if isfield(vfoptions, 'ezc9')
-    ezc9 = vfoptions.ezc9;
-else
-    ezc9 = ones(N_j, 1);
-end
 
 if isfield(vfoptions, 'refine_d')
     l_d1 = vfoptions.refine_d(1); l_d2 = vfoptions.refine_d(2);
@@ -54,17 +48,19 @@ for i = 1:length(n_a2); a2_grids{i} = a2_grid(offset+1 : offset+n_a2(i)); offset
 
 % Strict Orthogonal Dimensions 1-8 prevents VRAM blowouts
 D_cells = cell(1, length(n_d));
-for i = 1:length(n_d); shape = ones(1, 8); shape(i) = n_d(i); D_cells{i} = cast(reshape(d_grids{i}, shape), 'like', a1_grid); end
+for i = 1:length(n_d); shape = ones(1, 8); shape(i) = n_d(i); D_cells{i} = reshape(d_grids{i}, shape); end
 dim_a1p = length(n_d) + 1; dim_a1s = length(n_d) + 2; dim_a2s = length(n_d) + 3; dim_z = length(n_d) + 4; dim_u = length(n_d) + 5;
 
 Apr_cells = cell(1, length(n_a1));
-for i = 1:length(n_a1); shape = ones(1, 8); shape(dim_a1p) = n_a1(i); Apr_cells{i} = cast(reshape(a1_grids{i}, shape), 'like', a1_grid); end
+for i = 1:length(n_a1); shape = ones(1, 8); shape(dim_a1p) = n_a1(i); Apr_cells{i} = reshape(a1_grids{i}, shape); end
 A1_cells = cell(1, length(n_a1));
-for i = 1:length(n_a1); shape = ones(1, 8); shape(dim_a1s) = n_a1(i); A1_cells{i} = cast(reshape(a1_grids{i}, shape), 'like', a1_grid); end
+for i = 1:length(n_a1); shape = ones(1, 8); shape(dim_a1s) = n_a1(i); A1_cells{i} = reshape(a1_grids{i}, shape); end
 A2_cells = cell(1, max(1, length(n_a2)));
-for i = 1:length(n_a2); shape = ones(1, 8); shape(dim_a2s) = n_a2(i); A2_cells{i} = cast(reshape(a2_grids{i}, shape), 'like', a1_grid); end
-if isempty(n_a2); shape = ones(1, 8); shape(dim_a2s) = 1; A2_cells{1} = cast(reshape(0, shape), 'like', a1_grid); end
-shape = ones(1, 8); shape(dim_u) = N_u; U_cells = {cast(reshape(u_grid, shape), 'like', a1_grid)};
+for i = 1:length(n_a2); shape = ones(1, 8); shape(dim_a2s) = n_a2(i); A2_cells{i} = reshape(a2_grids{i}, shape); end
+if isempty(n_a2); shape = ones(1, 8); shape(dim_a2s) = 1; A2_cells{1} = zeros(shape, 'like', proto); end
+
+shape = ones(1, 8); shape(dim_u) = N_u;
+U_cells = {reshape(u_grid, shape)};
 
 ret_args = cell(1, num_prefix_ret); idx = 1;
 for i = 1:length(d_return_idx); ret_args{idx} = D_cells{d_return_idx(i)}; idx = idx + 1; end
@@ -78,25 +74,19 @@ for i = 1:length(d_aprime_idx); ap_args{idx} = D_cells{d_aprime_idx(i)}; idx = i
 if num_prefix_ap >= idx + 1; for i = 1:length(n_a2); ap_args{idx} = A2_cells{i}; idx = idx + 1; end; end
 ap_args{num_prefix_ap} = U_cells{1};
 
-V_next = zeros(N_a, N_z, 'like', a1_grid);
-V_out_flat = zeros(N_a, N_z, N_j, 'like', a1_grid);
-Policy_out_flat = zeros(length(n_d) + length(n_a1), N_a, N_z, N_j, 'like', a1_grid);
+V_next = zeros(N_a, N_z, 'like', proto);
+V_out_flat = zeros(N_a, N_z, N_j, 'like', proto);
+Policy_out_flat = zeros(length(n_d) + length(n_a1), N_a, N_z, N_j, 'like', proto);
 
 base_RetParams = CreateCellFromParams(Parameters, ReturnFnParamNames, 1, vfoptions.precision);
 Ret_age = false(1, length(ReturnFnParamNames));
 for ip = 1:length(ReturnFnParamNames)
     if numel(Parameters.(ReturnFnParamNames{ip})) == N_j; Ret_age(ip) = true; end
-    if vfoptions.parallel == 2 && isnumeric(base_RetParams{ip}) && ~isa(base_RetParams{ip}, 'gpuArray')
-        if ~isscalar(base_RetParams{ip}); base_RetParams{ip} = gpuArray(base_RetParams{ip}); end
-    end
 end
 base_ApParams = CreateCellFromParams(Parameters, aprimeFnParamNames, 1, vfoptions.precision);
 Ap_age = false(1, length(aprimeFnParamNames));
 for ip = 1:length(aprimeFnParamNames)
     if numel(Parameters.(aprimeFnParamNames{ip})) == N_j; Ap_age(ip) = true; end
-    if vfoptions.parallel == 2 && isnumeric(base_ApParams{ip}) && ~isa(base_ApParams{ip}, 'gpuArray')
-        if ~isscalar(base_ApParams{ip}); base_ApParams{ip} = gpuArray(base_ApParams{ip}); end
-    end
 end
 
 % =========================================================================
@@ -108,13 +98,11 @@ for reverse_j = 0:N_j-1
 
     ReturnFnParamsCell = base_RetParams;
     for ip = find(Ret_age)
-        val = cast(Parameters.(ReturnFnParamNames{ip})(jj), vfoptions.precision);
-        if vfoptions.parallel == 2; ReturnFnParamsCell{ip} = gpuArray(val); else; ReturnFnParamsCell{ip} = val; end
+        ReturnFnParamsCell{ip} = Parameters.(ReturnFnParamNames{ip})(jj);
     end
     aprimeFnParamsCell = base_ApParams;
     for ip = find(Ap_age)
-        val = cast(Parameters.(aprimeFnParamNames{ip})(jj), vfoptions.precision);
-        if vfoptions.parallel == 2; aprimeFnParamsCell{ip} = gpuArray(val); else; aprimeFnParamsCell{ip} = val; end
+        aprimeFnParamsCell{ip} = Parameters.(aprimeFnParamNames{ip})(jj);
     end
 
     beta_j = prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames, jj, vfoptions.precision));
@@ -133,16 +121,17 @@ for reverse_j = 0:N_j-1
     idx = length(ret_args_run) - num_z_vars + 1;
     for iz = 1:num_z_vars
         z_shape = ones(1, 8); z_shape(dim_z) = N_z;
-        z_cell = cast(reshape(z_gridvals_J(:, iz, min(jj, size(z_gridvals_J,3))), z_shape), 'like', a1_grid);
-        ret_args_run{idx} = z_cell; idx = idx + 1;
+        ret_args_run{idx} = reshape(z_gridvals_J(:, iz, min(jj, size(z_gridvals_J,3))), z_shape);
+        idx = idx + 1;
     end
 
     if jj == N_j
-        EV_z = zeros(N_a1_safe, N_a2_safe, N_z, 'like', a1_grid);
+        EV_z = zeros(N_a1_safe, N_a2_safe, N_z, 'like', proto);
     else
         valid_V = isfinite(V_next) & (V_next ~= 0);
         V_transformed = V_next;
         ezc4_val = ezc4(min(jj, length(ezc4))); ezc5_val = ezc5(min(jj, length(ezc5)));
+
         if ezc5_val == 1; V_transformed(valid_V) = ezc4_val * V_next(valid_V); else; V_transformed(valid_V) = max(ezc4_val * V_next(valid_V), 0).^ezc5_val; end
         V_transformed(V_next == 0) = 0;
 
@@ -159,10 +148,11 @@ for reverse_j = 0:N_j-1
     if warmglow == 1
         wg_params = CreateCellFromParams(Parameters, vfoptions.WarmGlowBequestsFnParamsNames, jj, vfoptions.precision);
         WG_eval = vfoptions.WarmGlowBequestsFn(a2_grid, wg_params{:});
-        if isscalar(WG_eval); WG_eval = WG_eval * ones(size(a2_grid), 'like', a2_grid); end
+        if isscalar(WG_eval); WG_eval = WG_eval * ones(size(a2_grid), 'like', proto); end
         valid_wg = isfinite(WG_eval) & (WG_eval ~= 0);
         WG_transformed = WG_eval;
         ezc4_val = ezc4(min(jj, length(ezc4))); ezc5_val = ezc5(min(jj, length(ezc5)));
+
         if ezc5_val == 1; WG_transformed(valid_wg) = ezc4_val * WG_eval(valid_wg); else; WG_transformed(valid_wg) = max(ezc4_val * WG_eval(valid_wg), 0).^ezc5_val; end
         WG_transformed(WG_eval == 0) = 0;
         wg_shape = ones(1, 8); wg_shape(dim_a2s) = N_a2_safe;
@@ -174,16 +164,40 @@ for reverse_j = 0:N_j-1
     % =========================================================================
     % PHASE 3: TENSOR EVALUATION & IMPLICIT EXPANSION
     % =========================================================================
-    F_tensor = arrayfun(ReturnFn, ret_args_run{:}, ReturnFnParamsCell{:});
+    % 1. Evaluate Return Function (Force uniform sizes for arrayfun)
+    ret_shape = ones(1, 8);
+    for i = 1:length(d_return_idx); ret_shape(d_return_idx(i)) = n_d(d_return_idx(i)); end
+    ret_shape(dim_a1p) = N_a1_safe;
+    ret_shape(dim_a1s) = N_a1_safe;
+    ret_shape(dim_a2s) = N_a2_safe;
+    ret_shape(dim_z) = N_z;
+
+    ret_args_exp = cell(size(ret_args_run));
+    for i = 1:length(ret_args_run)
+        ret_args_exp{i} = ret_args_run{i} + zeros(ret_shape, 'like', proto);
+    end
+
+    F_tensor = arrayfun(ReturnFn, ret_args_exp{:}, ReturnFnParamsCell{:});
     F_tensor(isfinite(F_tensor) & F_tensor ~= 0) = F_tensor(isfinite(F_tensor) & F_tensor ~= 0).^ezc2(min(jj, length(ezc2)));
     F_tensor(F_tensor == 0) = -Inf;
 
-    A2_prime = arrayfun(aprimeFn, ap_args{:}, aprimeFnParamsCell{:});
+    % 2. Evaluate Portfolio Returns (a2_prime)
+    ap_shape = ones(1, 8);
+    for i = 1:length(d_aprime_idx); ap_shape(d_aprime_idx(i)) = n_d(d_aprime_idx(i)); end
+    ap_shape(dim_a2s) = N_a2_safe;
+    ap_shape(dim_u) = N_u;
+
+    ap_args_exp = cell(size(ap_args));
+    for i = 1:length(ap_args)
+        ap_args_exp{i} = ap_args{i} + zeros(ap_shape, 'like', proto);
+    end
+
+    A2_prime = arrayfun(aprimeFn, ap_args_exp{:}, aprimeFnParamsCell{:});
     a2_grid_1d_vec = a2_grids{1};
     a2_prime_clipped = max(a2_grid_1d_vec(1), min(A2_prime, a2_grid_1d_vec(end)));
 
     a2_grid_shape = ones(1, 8); a2_grid_shape(8) = length(a2_grid_1d_vec);
-    a2_grid_shape_vals = cast(reshape(a2_grid_1d_vec, a2_grid_shape), 'like', A2_prime);
+    a2_grid_shape_vals = reshape(a2_grid_1d_vec, a2_grid_shape);
     idx = sum(a2_prime_clipped >= a2_grid_shape_vals, 8);
     idx(idx == 0) = 1;
     idx(idx == length(a2_grid_1d_vec)) = length(a2_grid_1d_vec) - 1;
@@ -230,15 +244,12 @@ for reverse_j = 0:N_j-1
         EV_transformed(EV_compact == 0) = 0;
     end
 
-    % --- THE 51x TENSOR REDUCTION & ezc9 FIX ---
+    % --- THE TENSOR REDUCTION ---
     ezc9_val = ezc9(min(jj, length(ezc9)));
     ezc3_val = ezc3(min(jj, length(ezc3)));
 
-    % Legacy exactly mirrors this scaling before and during max:
     EV_scaled = ezc9_val * ezc3_val * EV_transformed;
 
-    % Maximize out d2 (Riskyshare) before adding ReturnFn
-    % This instantly drops the RHS broadcast from 360M elements down to 7M!
     Pol_d2_indices = cell(1, length(n_d));
     if l_d2 > 0
         for i = (l_d1 + 1) : (l_d1 + l_d2)
@@ -259,11 +270,10 @@ for reverse_j = 0:N_j-1
     if l_d2 > 0; n_d_rem((l_d1 + 1) : (l_d1 + l_d2)) = 1; end
     N_d_rem = max(1, prod(n_d_rem));
 
-    % Force expansion to prevent reshape errors if anonymous fns ignored states
     full_shape = [n_d_rem, N_a1_safe, N_a1_safe, N_a2_safe, N_z];
     if length(full_shape) == 1; full_shape = [full_shape, 1]; end
 
-    RHS_native = RHS_native + zeros(full_shape, 'like', RHS_native);
+    RHS_native = RHS_native + zeros(full_shape, 'like', proto);
 
     FLAT_CHOICES_REM = N_d_rem * N_a1_safe;
     FLAT_STATES  = N_a1_safe * N_a2_safe * N_z;
@@ -280,9 +290,7 @@ for reverse_j = 0:N_j-1
         pol_val = mod(idx_rem - 1, sz) + 1;
 
         if l_d2 > 0 && i >= (l_d1 + 1) && i <= (l_d1 + l_d2)
-            % Extract the maximized d2 choice using the optimal (d1, d3, a1prime) index
-            % Implicit expansion keeps this collapsed if states were ignored, so force shape!
-            d2_full = Pol_d2_indices{i} + zeros(full_shape, 'like', Pol_d2_indices{i});
+            d2_full = Pol_d2_indices{i} + zeros(full_shape, 'like', proto);
             d2_mat = reshape(d2_full, [FLAT_CHOICES_REM, FLAT_STATES]);
             lin_idx = Pol_idx_flat + (0:FLAT_STATES-1) * FLAT_CHOICES_REM;
             Policy_out_flat(i, :, :, jj) = reshape(d2_mat(lin_idx), [1, N_a, N_z]);
@@ -292,10 +300,11 @@ for reverse_j = 0:N_j-1
         idx_rem = ceil(idx_rem / sz);
     end
 
-    % a1prime is always the last policy variable unpacked
-    sz = choice_sizes(length(n_d) + 1);
-    pol_val = mod(idx_rem - 1, sz) + 1;
-    Policy_out_flat(length(n_d) + 1, :, :, jj) = reshape(pol_val, [1, N_a, N_z]);
+    if length(n_a1) > 0
+        sz = choice_sizes(length(n_d) + 1);
+        pol_val = mod(idx_rem - 1, sz) + 1;
+        Policy_out_flat(length(n_d) + 1, :, :, jj) = reshape(pol_val, [1, N_a, N_z]);
+    end
 
     V_out_flat(:, :, jj) = V_j_max;
     V_next = V_j_max;
