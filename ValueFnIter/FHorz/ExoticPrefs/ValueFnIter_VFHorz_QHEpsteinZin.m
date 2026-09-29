@@ -113,9 +113,29 @@ base_ReturnFnParamsCell = CreateCellFromParams(Parameters, ReturnFnParamNames, 1
 is_age_dependent = false(1, length(ReturnFnParamNames));
 for ip = 1:length(ReturnFnParamNames)
     if numel(Parameters.(ReturnFnParamNames{ip})) == N_j; is_age_dependent(ip) = true; end
+    % Keep STATIC scalars on the CPU to bake into PTX
     if vfoptions.parallel == 2 && isnumeric(base_ReturnFnParamsCell{ip}) && ~isa(base_ReturnFnParamsCell{ip}, 'gpuArray')
-        base_ReturnFnParamsCell{ip} = gpuArray(base_ReturnFnParamsCell{ip});
+        if ~isscalar(base_ReturnFnParamsCell{ip})
+            base_ReturnFnParamsCell{ip} = gpuArray(base_ReturnFnParamsCell{ip});
+        end
     end
+end
+
+if l_a2 > 0
+    base_aprimeFnParamsCell = CreateCellFromParams(Parameters, aprimeFnParamNames, 1, vfoptions.precision);
+    aprimeFnParam_is_age_dependent = false(1, length(aprimeFnParamNames));
+    for ip = 1:length(aprimeFnParamNames)
+        if numel(Parameters.(aprimeFnParamNames{ip})) == N_j; aprimeFnParam_is_age_dependent(ip) = true; end
+        % Keep STATIC scalars on the CPU to bake into PTX
+        if vfoptions.parallel == 2 && isnumeric(base_aprimeFnParamsCell{ip}) && ~isa(base_aprimeFnParamsCell{ip}, 'gpuArray')
+            if ~isscalar(base_aprimeFnParamsCell{ip})
+                base_aprimeFnParamsCell{ip} = gpuArray(base_aprimeFnParamsCell{ip});
+            end
+        end
+    end
+else
+    base_aprimeFnParamsCell = {};
+    aprimeFnParam_is_age_dependent = [];
 end
 
 is_EZ = strcmp(vfoptions.exoticpreferences, 'EpsteinZin') || strcmp(vfoptions.exoticpreferences, 'QHEpsteinZin');
@@ -154,9 +174,20 @@ for reverse_j = 0:N_j-1
     ReturnFnParamsCell = base_ReturnFnParamsCell;
     for ip = find(is_age_dependent)
         val = cast(Parameters.(ReturnFnParamNames{ip})(jj), vfoptions.precision);
+        % Push DYNAMIC scalars to GPU to preserve JIT cache
         if vfoptions.parallel == 2; ReturnFnParamsCell{ip} = gpuArray(val); else; ReturnFnParamsCell{ip} = val; end
     end
-    if l_a2 > 0; aprimeFnParamsCell = CreateCellFromParams(Parameters, aprimeFnParamNames, jj); end
+
+    if l_a2 > 0
+        aprimeFnParamsCell = base_aprimeFnParamsCell;
+        for ip = find(aprimeFnParam_is_age_dependent)
+            val = cast(Parameters.(aprimeFnParamNames{ip})(jj), vfoptions.precision);
+            % Push DYNAMIC scalars to GPU to preserve JIT cache
+            if vfoptions.parallel == 2; aprimeFnParamsCell{ip} = gpuArray(val); else; aprimeFnParamsCell{ip} = val; end
+        end
+    else
+        aprimeFnParamsCell = {};
+    end
 
     DiscountFactorParamsVec = CreateVectorFromParams(Parameters, DiscountFactorParamNames, jj, vfoptions.precision);
     delta_j = prod(DiscountFactorParamsVec); sj_val = sj(jj);
@@ -232,6 +263,12 @@ for reverse_j = 0:N_j-1
             WG_transformed(WG_eval == 0) = 0;
             EV_base = EV_base * sj_val + (1 - sj_val) * reshape(WG_transformed, [N_a, 1, 1, 1]);
         end
+
+        % --- SOLIDIFY LAZY TREE ---
+        % Prevents re-evaluating the expectation math during the Dual-Pass broadcast
+        EV_base_lazy = EV_base;
+        EV_base = zeros(size(EV_base_lazy), 'like', EV_base_lazy);
+        EV_base(:) = EV_base_lazy(:);
 
         % DO NOT apply reverse EZ transforms here! Linear interpolation must happen first.
         EV_pack{i_ev} = reshape(EV_base, [N_a, N_ze, N_dsemiz]);
