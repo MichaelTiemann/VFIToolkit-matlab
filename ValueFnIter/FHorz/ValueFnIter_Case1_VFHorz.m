@@ -358,7 +358,7 @@ end
 % 2. Generate strictly separated D, A1, Z, and E cells using only l_a1 to prevent cross-meshing memory blowouts
 [~, D_cells_block, A1_cells, Z_cells_block, E_cells_block] = CreateTensorFnAndCells(ReturnFn, n_d, n_a(1:l_a1), n_combined_z, n_e_pass, d_grid, a1_endo_grid_vals, [], []);
 
-if isfield(vfoptions, 'gpu') && vfoptions.gpu == 1
+if vfoptions.parallel == 2
     for i = 1:length(D_cells_block); D_cells_block{i} = gpuArray(D_cells_block{i}); end
     for i = 1:length(Z_cells_block); Z_cells_block{i} = gpuArray(Z_cells_block{i}); end
     for i = 1:length(E_cells_block); E_cells_block{i} = gpuArray(E_cells_block{i}); end
@@ -619,7 +619,13 @@ base_ReturnFnParamsCell = CreateCellFromParams(Parameters, ReturnFnParamNames, 1
 is_age_dependent = false(1, length(ReturnFnParamNames));
 for ip = 1:length(ReturnFnParamNames)
     if numel(Parameters.(ReturnFnParamNames{ip})) == N_j; is_age_dependent(ip) = true; end
-    if isnumeric(base_ReturnFnParamsCell{ip}) && ~isa(base_ReturnFnParamsCell{ip}, 'gpuArray'); base_ReturnFnParamsCell{ip} = gpuArray(base_ReturnFnParamsCell{ip}); end
+
+    % Prevent PTX memory-read slowdown by keeping scalars on CPU
+    if isnumeric(base_ReturnFnParamsCell{ip}) && ~isa(base_ReturnFnParamsCell{ip}, 'gpuArray')
+        if ~isscalar(base_ReturnFnParamsCell{ip})
+            base_ReturnFnParamsCell{ip} = gpuArray(base_ReturnFnParamsCell{ip});
+        end
+    end
 end
 
 N_semiz_local = 1; N_dsemiz = 1;
@@ -634,7 +640,12 @@ for reverse_j = 0:N_j-1
     if vfoptions.verbose==1; fprintf('Finite horizon: %i of %i \n',jj, N_j); end
     ReturnFnParamsCell = base_ReturnFnParamsCell;
     for ip = find(is_age_dependent)
-        ReturnFnParamsCell{ip} = cast(Parameters.(ReturnFnParamNames{ip})(jj), 'like', a_grid);
+        val = Parameters.(ReturnFnParamNames{ip})(jj);
+        if isscalar(val)
+            ReturnFnParamsCell{ip} = cast(val, vfoptions.precision);
+        else
+            ReturnFnParamsCell{ip} = gpuArray(cast(val, vfoptions.precision));
+        end
     end
     DiscountFactorParamsVec = CreateVectorFromParams(Parameters, DiscountFactorParamNames, jj, vfoptions.precision);
     beta_j = prod(DiscountFactorParamsVec);
@@ -866,11 +877,15 @@ for reverse_j = 0:N_j-1
                         term_L(isnan(term_L)) = 0;
                         term_R(isnan(term_R)) = 0;
 
-                        EV_interp_local = term_L + term_R;
+                        EV_interp_lazy = term_L + term_R;
+
+                        % --- SOLIDIFY LAZY TREE ---
+                        EV_interp_flat = zeros(size(EV_interp_lazy), 'like', EV_interp_lazy);
+                        EV_interp_flat(:) = EV_interp_lazy(:);
 
                         % Collapse back to [N_d_safe, a1prime_interp * N_a1_other, N_a2_local, z, e]
                         N_a1_interp = length(a1prime_grid) * N_a1_other;
-                        EV_interp_local = reshape(EV_interp_local, [N_d_safe, N_a1_interp, N_a2_local, n_z_loc, n_e_loc]);
+                        EV_interp_local = reshape(EV_interp_flat, [N_d_safe, N_a1_interp, N_a2_local, n_z_loc, n_e_loc]);
                     end
 
                     % Setup static mapping offsets for all Branches (Now safely sized to N_a2_local!)
@@ -1530,7 +1545,12 @@ else
     EV_compact = EV_u;
 end
 EV_compact(isnan(EV_compact)) = -Inf;
-EV_out = beta_j .* EV_compact;
+
+% --- SOLIDIFY LAZY TREE ---
+% Prevents re-evaluating the expectation math multiple times during broadcast additions
+EV_out_lazy = beta_j .* EV_compact;
+EV_out = zeros(size(EV_out_lazy), 'like', EV_out_lazy);
+EV_out(:) = EV_out_lazy(:);
 
 
 end
