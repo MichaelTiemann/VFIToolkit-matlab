@@ -889,59 +889,39 @@ end
 % =================================================================
 % UNIVERSAL RHS EVALUATION
 % =================================================================
-% 1. Compute V and find optimal policy using the Belief EV
-EV_bounded_V = (beta_j * delta_j) .* EV_bounded_base;
-RHS_V = Evaluate_Universal_RHS_VFHorz(F_tensor, EV_bounded_V, 1, 1, ezc2_j, ezc3, ezc4, ezc7_j);
-FLAT_CHOICES_CAST = cast(FLAT_CHOICES, 'like', RHS_V);
+FLAT_CHOICES = max(1, N_d_safe) * num_choices;
+FLAT_STATES  = N_states * N_ze_local;
 
-is_RHS_collapsed = (size(RHS_V, 3) == 1 && N_states > 1);
-if is_RHS_collapsed
-    % --- Fast Collapsed Track (Requires Branch 1A native structures) ---
-    RHS_V_flat = reshape(RHS_V, [FLAT_CHOICES, N_ze_local]);
-    [V_sub_col, Pol_col] = max(RHS_V_flat, [], 1);
-    lin_idx_col = Pol_col + (0:N_ze_local-1) * FLAT_CHOICES_CAST;
-    F_flat_col = reshape(F_tensor, [FLAT_CHOICES, N_ze_local]);
-
-    % Save the tiny objects for Valt before broadcasting
-    V_sub_max_tiny = V_sub_col;
-    F_chosen_tiny = F_flat_col(lin_idx_col);
-
-    % Broadcast
-    V_sub_max    = repmat(V_sub_max_tiny, [N_states, 1]); V_sub_max = V_sub_max(:)';
-    Pol_sub_idx  = repmat(Pol_col, [N_states, 1]);        Pol_sub_idx = Pol_sub_idx(:)';
-    F_chosen     = repmat(F_chosen_tiny, [N_states, 1]);  F_chosen = F_chosen(:)';
-    Pol_a1_per_a2 = [];
-else
-    % --- Standard Full Track ---
-    RHS_V_flat = reshape(RHS_V, [FLAT_CHOICES, FLAT_STATES]);
-    [V_sub_max, Pol_sub_idx] = max(RHS_V_flat, [], 1);
-    lin_idx_full = Pol_sub_idx + (0:FLAT_STATES-1) * FLAT_CHOICES_CAST;
-
-    if nargout > 5
-        num_choices_a1 = num_choices; % No cross-meshing here
-        RHS_for_d = reshape(RHS_V_flat, [max(1, N_d_safe), num_choices_a1, 1, FLAT_STATES]);
-        [~, max_a1_idx_rel] = max(RHS_for_d, [], 2);
-        if isempty(loweredge_matrix)
-            Pol_a1_per_a2 = reshape(max_a1_idx_rel, [max(1, N_d_safe), 1, N_states, N_ze_local]);
-        elseif gridinterplayer(1) == 0 || is_dc_mode == 2
-            max_a1_idx_rel = reshape(max_a1_idx_rel, [max(1, N_d_safe), 1, N_states, N_ze_local]);
-            low_mat_4d = reshape(loweredge_matrix, [max(1, N_d_safe), 1, N_states, N_ze_local]);
-            Pol_a1_per_a2 = min(low_mat_4d + max_a1_idx_rel - 1, N_a1);
-        else
-            Pol_a1_per_a2 = [];
-        end
-    else
-        Pol_a1_per_a2 = [];
+if ~is_branch_1a
+    % Protect against 0-allocations: Only expand if ReturnFn ignores states
+    if size(F_tensor, 3) ~= N_a1 || size(F_tensor, 4) ~= max(1, N_a2)
+        F_tensor = F_tensor + zeros([1, 1, N_a1, max(1, N_a2), 1], 'like', F_tensor);
     end
+    F_tensor_native = reshape(F_tensor, [N_d_safe, num_choices, N_a1, max(1, N_a2), N_ze_local]);
 
-    is_F_collapsed = (size(F_tensor, 3) == 1 && N_states > 1);
-    if is_F_collapsed
-        F_flat_col = reshape(F_tensor, [FLAT_CHOICES, N_ze_local]);
-        F_flat_full = repmat(F_flat_col, [1, N_states]);
-        F_chosen = F_flat_full(lin_idx_full);
-    else
-        F_flat_full = reshape(F_tensor, [FLAT_CHOICES, FLAT_STATES]);
-        F_chosen = F_flat_full(lin_idx_full);
+    % 1. Compute V and find optimal policy using the Belief EV
+    EV_expanded_b = EV_belief_slice + zeros(size(F_tensor_native), 'like', EV_belief_slice);
+    F_tensor_reshaped_b = reshape(F_tensor_native, [FLAT_CHOICES, N_states, N_ze_local]);
+    EV_belief_reshaped = reshape(EV_expanded_b, [FLAT_CHOICES, N_states, N_ze_local]);
+
+    if compute_valt
+        EV_expanded_v = EV_Valt_slice + zeros(size(F_tensor_native), 'like', EV_Valt_slice);
+        EV_Valt_reshaped = reshape(EV_expanded_v, [FLAT_CHOICES, N_states, N_ze_local]);
+    end
+else
+    % Protect against 0-allocations: Only expand if ReturnFn ignores states
+    if size(F_tensor, 3) ~= N_states
+        F_tensor = F_tensor + zeros([1, 1, N_states, 1, 1], 'like', F_tensor);
+    end
+    F_tensor_reshaped_b = reshape(F_tensor, [FLAT_CHOICES, N_states, N_ze_local]);
+
+    % 1. Compute V and find optimal policy using the Belief EV
+    EV_expanded_b = EV_belief_bounded + zeros([1, 1, N_states, 1, 1], 'like', EV_belief_bounded);
+    EV_belief_reshaped = reshape(EV_expanded_b, [FLAT_CHOICES, N_states, N_ze_local]);
+
+    if compute_valt
+        EV_expanded_v = EV_Valt_bounded + zeros([1, 1, N_states, 1, 1], 'like', EV_Valt_bounded);
+        EV_Valt_reshaped = reshape(EV_expanded_v, [FLAT_CHOICES, N_states, N_ze_local]);
     end
 end
 
