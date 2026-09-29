@@ -340,28 +340,32 @@ N_a1_dc = n_a1_dc;
 N_a1_other = max(1, prod(n_a1_other));
 N_a2 = max(1, prod(n_a2));
 
-A1_grids_1d = cell(1, l_a1);
-offset = 0;
-for i = 1:l_a1
-    A1_grids_1d{i} = a1_endo_grid_vals((offset + 1):(offset + n_a(i)));
-    offset = offset + n_a(i);
-end
-
-% 1. Create the master TensorReturnFn using n_daprime so the signature expects (d, aprime, a1, a2, z, e)
-if isempty(n_d) || isequal(n_d, 0)
-    n_daprime_sig = n_a(1:l_a1);
-else
-    n_daprime_sig = [n_d, n_a(1:l_a1)];
-end
-[TensorReturnFn, ~, ~, ~, ~] = CreateTensorFnAndCells(ReturnFn, n_daprime_sig, n_a, n_combined_z, n_e_pass, [], [], [], []);
-
-% 2. Generate strictly separated D, A1, Z, and E cells using only l_a1 to prevent cross-meshing memory blowouts
-[~, D_cells_block, A1_cells, Z_cells_block, E_cells_block] = CreateTensorFnAndCells(ReturnFn, n_d, n_a(1:l_a1), n_combined_z, n_e_pass, d_grid, a1_endo_grid_vals, [], []);
-
-if vfoptions.parallel == 2
-    for i = 1:length(D_cells_block); D_cells_block{i} = gpuArray(D_cells_block{i}); end
-    for i = 1:length(Z_cells_block); Z_cells_block{i} = gpuArray(Z_cells_block{i}); end
-    for i = 1:length(E_cells_block); E_cells_block{i} = gpuArray(E_cells_block{i}); end
+if vfoptions.riskyasset ~= 1
+    % There's a little tangle between the setup we need for all functions and those we need for this function
+    % RiskyAsset does it's own setup for cell blocks, and it doesn't even call the Tensor Bridge
+    A1_grids_1d = cell(1, l_a1);
+    offset = 0;
+    for i = 1:l_a1
+        A1_grids_1d{i} = a1_endo_grid_vals((offset + 1):(offset + n_a(i)));
+        offset = offset + n_a(i);
+    end
+    
+    % 1. Create the master TensorReturnFn using n_daprime so the signature expects (d, aprime, a1, a2, z, e)
+    if isempty(n_d) || isequal(n_d, 0)
+        n_daprime_sig = n_a(1:l_a1);
+    else
+        n_daprime_sig = [n_d, n_a(1:l_a1)];
+    end
+    [TensorReturnFn, ~, ~, ~, ~] = CreateTensorFnAndCells(ReturnFn, n_daprime_sig, n_a, n_combined_z, n_e_pass, [], [], [], []);
+    
+    % 2. Generate strictly separated D, A1, Z, and E cells using only l_a1 to prevent cross-meshing memory blowouts
+    [~, D_cells_block, A1_cells, Z_cells_block, E_cells_block] = CreateTensorFnAndCells(ReturnFn, n_d, n_a(1:l_a1), n_combined_z, n_e_pass, d_grid, a1_endo_grid_vals, [], []);
+    
+    if vfoptions.parallel == 2
+        for i = 1:length(D_cells_block); D_cells_block{i} = gpuArray(D_cells_block{i}); end
+        for i = 1:length(Z_cells_block); Z_cells_block{i} = gpuArray(Z_cells_block{i}); end
+        for i = 1:length(E_cells_block); E_cells_block{i} = gpuArray(E_cells_block{i}); end
+    end
 end
 
 if l_a2 > 0
@@ -397,27 +401,31 @@ if l_a2 > 0
         n_d_aprime_pass = n_d(d2_idx);
     end
 
-    [TensoraprimeFn, ~, A2_cells, ~, ~] = CreateTensorFnAndCells(vfoptions.aprimeFn, n_d_aprime_pass, n_a2, n_z_pass_exp, n_e_pass_exp, [], a2_exp_grid_vals, [], []);
+    if vfoptions.riskyasset ~= 1
+        [TensoraprimeFn, ~, A2_cells, ~, ~] = CreateTensorFnAndCells(vfoptions.aprimeFn, n_d_aprime_pass, n_a2, n_z_pass_exp, n_e_pass_exp, [], a2_exp_grid_vals, [], []);
+    end
 else
     TensoraprimeFn = [];
     A2_cells = {};
 end
 
-A1_mat = zeros(N_a1_dc * N_a1_other, l_a1, 'like', a_grid);
-for i_a = 1:l_a1
-    A1_mat(:, i_a) = A1_cells{i_a}(:);
+if vfoptions.riskyasset ~= 1
+    A1_mat = zeros(N_a1_dc * N_a1_other, l_a1, 'like', a_grid);
+    for i_a = 1:l_a1
+        A1_mat(:, i_a) = A1_cells{i_a}(:);
+    end
+    
+    A2_mat = zeros(N_a2, l_a2, 'like', a_grid);
+    a2_grids_1d = cell(1, l_a2);
+    offset = 0;
+    for i_a = 1:l_a2
+        A2_mat(:, i_a) = A2_cells{i_a}(:);
+        a2_grids_1d{i_a} = a2_exp_grid_vals((offset + 1):(offset + n_a2(i_a)));
+        offset = offset + n_a2(i_a);
+    end
+    
+    for i_d = 1:length(D_cells_block); D_cells_block{i_d} = reshape(D_cells_block{i_d}, [max(1,prod(n_d)), 1, 1, 1, 1]); end
 end
-
-A2_mat = zeros(N_a2, l_a2, 'like', a_grid);
-a2_grids_1d = cell(1, l_a2);
-offset = 0;
-for i_a = 1:l_a2
-    A2_mat(:, i_a) = A2_cells{i_a}(:);
-    a2_grids_1d{i_a} = a2_exp_grid_vals((offset + 1):(offset + n_a2(i_a)));
-    offset = offset + n_a2(i_a);
-end
-
-for i_d = 1:length(D_cells_block); D_cells_block{i_d} = reshape(D_cells_block{i_d}, [max(1,prod(n_d)), 1, 1, 1, 1]); end
 
 if is_exp_asset || vfoptions.riskyasset == 1
     aprimeFn = vfoptions.aprimeFn;
@@ -456,18 +464,20 @@ if is_exp_asset || vfoptions.riskyasset == 1
     end
 
     aprimeFnParamNames = aprimeFnParamNames(isfield(Parameters, aprimeFnParamNames));
-    BaseTensoraprimeFn = TensoraprimeFn;
-    if l_exp_ze
-        TensoraprimeFn = @(D, A, Z, E, P) BaseTensoraprimeFn(D{d2_idx}, A{:}, Z{:}, E{:}, P{:});
-    elseif l_exp_z
-        TensoraprimeFn = @(D, A, Z, E, P) BaseTensoraprimeFn(D{d2_idx}, A{:}, Z{:}, P{:});
-    elseif l_exp_e
-        TensoraprimeFn = @(D, A, Z, E, P) BaseTensoraprimeFn(D{d2_idx}, A{:}, E{:}, P{:});
-    elseif l_exp_u
-        U_mesh = cast(reshape(vfoptions.u_grid, [1, 1, 1, 1, 1, length(vfoptions.u_grid)]), 'like', a_grid);
-        TensoraprimeFn = @(D, A, Z, E, P) BaseTensoraprimeFn(D{d2_idx}, A{:}, U_mesh, P{:});
-    else
-        TensoraprimeFn = @(D, A, Z, E, P) BaseTensoraprimeFn(D{d2_idx}, A{:}, P{:});
+    if vfoptions.riskyasset ~= 1
+        BaseTensoraprimeFn = TensoraprimeFn;
+        if l_exp_ze
+            TensoraprimeFn = @(D, A, Z, E, P) BaseTensoraprimeFn(D{d2_idx}, A{:}, Z{:}, E{:}, P{:});
+        elseif l_exp_z
+            TensoraprimeFn = @(D, A, Z, E, P) BaseTensoraprimeFn(D{d2_idx}, A{:}, Z{:}, P{:});
+        elseif l_exp_e
+            TensoraprimeFn = @(D, A, Z, E, P) BaseTensoraprimeFn(D{d2_idx}, A{:}, E{:}, P{:});
+        elseif l_exp_u
+            U_mesh = cast(reshape(vfoptions.u_grid, [1, 1, 1, 1, 1, length(vfoptions.u_grid)]), 'like', a_grid);
+            TensoraprimeFn = @(D, A, Z, E, P) BaseTensoraprimeFn(D{d2_idx}, A{:}, U_mesh, P{:});
+        else
+            TensoraprimeFn = @(D, A, Z, E, P) BaseTensoraprimeFn(D{d2_idx}, A{:}, P{:});
+        end
     end
 else
     aprimeFn = [];
@@ -534,7 +544,7 @@ else
 end
 
 if vfoptions.riskyasset == 1
-    disp('V-World: Dispatching Risky Asset model to Tensor Bridge...');
+    disp('V-World: Dispatching Risky Asset model (no Tensor Bridge)...');
     if length(n_a) > 1
         pass_n_a1 = n_a(1:end-1); pass_n_a2 = n_a(end);
         a1_grid_len = sum(pass_n_a1); pass_a1_grid = a_grid(1:a1_grid_len); pass_a2_grid = a_grid(a1_grid_len+1:end);
