@@ -638,7 +638,7 @@ for reverse_j = 0:N_j-1
     end
     DiscountFactorParamsVec = CreateVectorFromParams(Parameters, DiscountFactorParamNames, jj, vfoptions.precision);
     beta_j = prod(DiscountFactorParamsVec);
-    if is_exp_asset; aprimeFnParamsCell = CreateCellFromParams(Parameters, aprimeFnParamNames, jj); else; aprimeFnParamsCell = {}; end
+    if is_exp_asset; aprimeFnParamsCell = CreateCellFromParams(Parameters, aprimeFnParamNames, jj, vfoptions.precision); else; aprimeFnParamsCell = {}; end
 
     if jj == N_j && isfield(vfoptions, 'V_Jplus1') && ~isempty(vfoptions.V_Jplus1)
         V_next = reshape(vfoptions.V_Jplus1, [n_a_work, n_z_work, n_e_work]);
@@ -647,7 +647,7 @@ for reverse_j = 0:N_j-1
 
     if jj == N_j && (~isfield(vfoptions, 'V_Jplus1') || isempty(vfoptions.V_Jplus1))
         if warmglow == 1
-            wg_params = CreateCellFromParams(Parameters, vfoptions.WarmGlowBequestsFnParamsNames, jj);
+            wg_params = CreateCellFromParams(Parameters, vfoptions.WarmGlowBequestsFnParamsNames, jj, vfoptions.precision);
             WG_eval = vfoptions.WarmGlowBequestsFn(a_grid, wg_params{:});
             if isscalar(WG_eval); WG_eval = WG_eval * ones(size(a_grid), 'like', a_grid); end
             if is_EZ
@@ -1426,13 +1426,13 @@ if isempty(loweredge_matrix)
         if ~is_cartesian
             choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
             if N_a2 > 1
-                a1_offset = (choice_idx_linear - 1) * N_d_stride;
                 a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * N_a1_dc * N_a1_other);
-                lin_idx_compact = static_EV_offset + a1_offset + a2_offset;
+                % Fused index math
+                lin_idx_compact = static_EV_offset + (choice_idx_linear - 1) * N_d_stride + a2_offset;
                 EV_bounded = EV_bounded_pre(lin_idx_compact);
             else
-                a1_offset = (choice_idx_linear - 1) * N_d_stride;
-                lin_idx_compact = static_EV_offset + a1_offset;
+                % Fused index math
+                lin_idx_compact = static_EV_offset + (choice_idx_linear - 1) * N_d_stride;
                 EV_bounded = EV_bounded_pre(lin_idx_compact);
             end
         end
@@ -1457,16 +1457,16 @@ if isempty(loweredge_matrix)
         if ~is_cartesian
             choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
             if N_a2 > 1
-                a1_offset = (choice_idx_linear - 1) * N_d_stride;
                 a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * length(a1prime_grid) * N_a1_other);
-                lin_idx_compact = static_EV_offset_fine + a1_offset + a2_offset;
+                % Fused index math
+                lin_idx_compact = static_EV_offset_fine + (choice_idx_linear - 1) * N_d_stride + a2_offset;
                 EV_bounded = EV_interp_local(lin_idx_compact);
             else
                 stride_z = length(a1prime_grid) * N_a1_other;
                 ze_offset = reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]);
-                L2_linear_idx = choice_idx_linear + ze_offset;
-                if N_dsemiz > 1; L2_linear_idx = L2_linear_idx + (dsemiz_idx_tensor - 1) * (stride_z * N_ze_local); end
-                EV_bounded = beta_j .* EV_interp_local(L2_linear_idx);
+                if N_dsemiz > 1; ze_offset = ze_offset + (dsemiz_idx_tensor - 1) * (stride_z * N_ze_local); end
+                % Fused index math skips intermediate array
+                EV_bounded = beta_j .* EV_interp_local(choice_idx_linear + ze_offset);
             end
         end
     end
@@ -1501,21 +1501,18 @@ else
     L2_base = (loweredge_matrix_bounds - 1) * (n2short + 1) + 1;
     start_offset = -(n2short + 1); end_offset = (n2short + 1);
     num_choices_total_a1 = end_offset - start_offset + 1;
+    grid_len = length(a1prime_grid);
 
     if l_a1 == 1
-        % ZERO-COPY BOUNDS CLAMPING: In-place index fixing skips multiple 4GB temporary array allocations
         choice_idx_linear = reshape(L2_base, [N_d_safe, 1, N_states, n_z_loc, n_e_loc]) ...
             + reshape(start_offset:end_offset, [1, num_choices_total_a1, 1, 1, 1]);
 
-        grid_len = length(a1prime_grid);
         out_of_bounds = (choice_idx_linear < 1) | (choice_idx_linear > grid_len);
 
-        % In-place clamping prevents garbage collector stalls at the 'end' statement
-        choice_idx_linear(choice_idx_linear < 1) = 1;
-        choice_idx_linear(choice_idx_linear > grid_len) = grid_len;
+        % Fused clamp avoids temporary logical arrays and assignment overhead
+        choice_idx_linear = max(1, min(choice_idx_linear, grid_len));
 
-        % PREVENT FP64 PROMOTION: Cast forces arrayfun to evaluate natively at FP32
-        Apr_cells = { cast(a1prime_grid(choice_idx_linear), 'like', EV_local) };
+        Apr_cells = { a1prime_grid(choice_idx_linear) };
         num_choices_total = num_choices_total_a1;
     else
         num_choices_total = num_choices_total_a1 * N_a1_other;
@@ -1523,38 +1520,39 @@ else
             + reshape(start_offset:end_offset, [1, num_choices_total_a1, 1, 1, 1]);
         choice_idx_a1 = repmat(choice_idx_a1, [1, N_a1_other, 1, 1, 1]);
 
-        grid_len = length(a1prime_grid);
         out_of_bounds = (choice_idx_a1 < 1) | (choice_idx_a1 > grid_len);
 
-        choice_idx_a1(choice_idx_a1 < 1) = 1;
-        choice_idx_a1(choice_idx_a1 > grid_len) = grid_len;
+        % Fused clamp
+        choice_idx_a1 = max(1, min(choice_idx_a1, grid_len));
 
         a2_base_vec = reshape(1:N_a1_other, [1, 1, N_a1_other]);
         choice_idx_a2 = cast(reshape(repmat(a2_base_vec, [N_d_safe, num_choices_total_a1, 1]), [N_d_safe, num_choices_total, 1, 1, 1]), 'like', choice_idx_a1);
 
         Apr_cells = cell(1, l_a1);
-        Apr_cells{1} = cast(a1prime_grid(choice_idx_a1), 'like', EV_local);
+        Apr_cells{1} = a1prime_grid(choice_idx_a1);
         if l_a1 > 2; [mesh_a2{1:l_a1-1}] = ndgrid(A1_grids_1d{2:end}); else; mesh_a2{1} = A1_grids_1d{2}; end
         for ia = 2:l_a1
             flat_grid = mesh_a2{ia-1}(:);
-            Apr_cells{ia} = cast(flat_grid(choice_idx_a2), 'like', EV_local);
+            Apr_cells{ia} = flat_grid(choice_idx_a2);
         end
         choice_idx_linear = choice_idx_a1 + (choice_idx_a2 - 1) * grid_len;
     end
 
     if N_a2 > 1
         F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_eval{:}, E_cells_eval{:}, ReturnFnParamsCell{:});
-        a1_offset = (choice_idx_linear - 1) * N_d_stride;
         a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * length(a1prime_grid) * N_a1_other);
-        lin_idx_compact = static_EV_offset_fine + a1_offset + a2_offset;
+
+        % Fused index math skips intermediate array allocation
+        lin_idx_compact = static_EV_offset_fine + (choice_idx_linear - 1) * N_d_stride + a2_offset;
         EV_bounded = EV_interp_local(lin_idx_compact);
     else
         F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_eval{:}, E_cells_eval{:}, ReturnFnParamsCell{:});
         stride_z = length(a1prime_grid) * N_a1_other;
         ze_offset = reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]);
-        L2_linear_idx = choice_idx_linear + ze_offset;
-        if N_dsemiz > 1; L2_linear_idx = L2_linear_idx + (dsemiz_idx_tensor - 1) * (stride_z * N_ze_local); end
-        EV_bounded = beta_j .* EV_interp_local(L2_linear_idx);
+        if N_dsemiz > 1; ze_offset = ze_offset + (dsemiz_idx_tensor - 1) * (stride_z * N_ze_local); end
+
+        % Fused index math skips intermediate array allocation
+        EV_bounded = beta_j .* EV_interp_local(choice_idx_linear + ze_offset);
     end
     EV_bounded(out_of_bounds) = -Inf;
 end
@@ -1574,16 +1572,22 @@ if ~is_EZ
             EV_slice = reshape(EV_interp_local, [N_d_safe, num_choices_total, 1, N_a2_len, N_ze_local]);
         end
 
-        % IN-PLACE ADDITION: Re-using F_tensor prevents a 4.1 GB VRAM allocation per call!
+        % Guarantee F_tensor is expanded to full states (protects against ReturnFn ignoring a1/a2)
+        F_tensor = F_tensor + zeros([1, 1, N_a1_total, N_a2_len, 1], 'like', F_tensor);
+
+        % IN-PLACE ADDITION: Re-using F_tensor prevents a massive VRAM allocation per call!
         F_tensor = reshape(F_tensor, [N_d_safe, num_choices_total, N_a1_total, N_a2_len, N_ze_local]);
         F_tensor = F_tensor + EV_slice;
         RHS_flat = reshape(F_tensor, [FLAT_CHOICES, FLAT_STATES]);
     else
-        EV_slice = reshape(EV_bounded, [FLAT_CHOICES, FLAT_STATES]);
-        F_tensor = reshape(F_tensor, [FLAT_CHOICES, FLAT_STATES]);
+        % NON-CARTESIAN ZERO-COPY FIX:
+        % If N_a2=1 (Coarse pass), EV_bounded is [N_d, a1prime, 1, z, e] missing N_states.
+        % Add natively in 5D to force perfect implicit expansion without reshaping errors!
+        F_tensor = F_tensor + EV_bounded;
 
-        F_tensor = F_tensor + EV_slice;
-        RHS_flat = F_tensor;
+        % Guarantee expansion to N_states before flattening (protects against ReturnFn ignoring states)
+        F_tensor = F_tensor + zeros([1, 1, N_states, 1, 1], 'like', F_tensor);
+        RHS_flat = reshape(F_tensor, [FLAT_CHOICES, FLAT_STATES]);
     end
 else
     % Fallback to Universal RHS for Exotic Preferences
@@ -1593,21 +1597,27 @@ else
         else
             EV_slice = reshape(EV_interp_local, [N_d_safe, num_choices_total, 1, N_a2_len, N_ze_local]);
         end
+
+        F_tensor = F_tensor + zeros([1, 1, N_a1_total, N_a2_len, 1], 'like', F_tensor);
         F_tensor_native = reshape(F_tensor, [N_d_safe, num_choices_total, N_a1_total, N_a2_len, N_ze_local]);
 
         EV_expanded = EV_slice + zeros(size(F_tensor_native), 'like', EV_slice);
         F_tensor_reshaped = reshape(F_tensor_native, [FLAT_CHOICES, N_states, N_ze_local]);
         EV_bounded_reshaped = reshape(EV_expanded, [FLAT_CHOICES, N_states, N_ze_local]);
     else
+        % Explicitly broadcast N_states to both arrays before flattening
+        F_tensor = F_tensor + zeros([1, 1, N_states, 1, 1], 'like', F_tensor);
+        EV_expanded = EV_bounded + zeros([1, 1, N_states, 1, 1], 'like', EV_bounded);
+
         F_tensor_reshaped = reshape(F_tensor, [FLAT_CHOICES, N_states, N_ze_local]);
-        EV_bounded_reshaped = reshape(EV_bounded, [FLAT_CHOICES, N_states, N_ze_local]);
+        EV_bounded_reshaped = reshape(EV_expanded, [FLAT_CHOICES, N_states, N_ze_local]);
     end
     RHS = Evaluate_Universal_RHS_VFHorz(F_tensor_reshaped, EV_bounded_reshaped, 1, 1, ezc2_j, ezc3, ezc4, ezc7_j);
     RHS_flat = reshape(RHS, [FLAT_CHOICES, FLAT_STATES]);
 end
 
 % -------------------------------------------------------------------------
-% OUTPUT MAPPING
+% PHASE 3: OUTPUT MAPPING
 % -------------------------------------------------------------------------
 if isempty(loweredge_matrix)
     % =====================================================================
