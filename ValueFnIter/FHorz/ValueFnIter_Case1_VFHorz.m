@@ -616,14 +616,30 @@ for i_ze = 1:length(ze_chunks)
 end
 
 base_ReturnFnParamsCell = CreateCellFromParams(Parameters, ReturnFnParamNames, 1, vfoptions.precision);
-is_age_dependent = false(1, length(ReturnFnParamNames));
+ReturnFnParam_is_age_dependent = false(1, length(ReturnFnParamNames));
 for ip = 1:length(ReturnFnParamNames)
-    if numel(Parameters.(ReturnFnParamNames{ip})) == N_j; is_age_dependent(ip) = true; end
+    if numel(Parameters.(ReturnFnParamNames{ip})) == N_j; ReturnFnParam_is_age_dependent(ip) = true; end
 
-    % Prevent PTX memory-read slowdown by keeping scalars on CPU
+    % Keep STATIC scalars on the CPU so they bake into PTX as ultra-fast constants.
+    % Only push arrays to the GPU.
     if isnumeric(base_ReturnFnParamsCell{ip}) && ~isa(base_ReturnFnParamsCell{ip}, 'gpuArray')
         if ~isscalar(base_ReturnFnParamsCell{ip})
             base_ReturnFnParamsCell{ip} = gpuArray(base_ReturnFnParamsCell{ip});
+        end
+    end
+end
+if is_exp_asset
+    base_aprimeFnParamsCell = CreateCellFromParams(Parameters, aprimeFnParamNames, 1, vfoptions.precision);
+    aprimeFnParam_is_age_dependent = false(1, length(aprimeFnParamNames));
+    for ip = 1:length(aprimeFnParamNames)
+        if numel(Parameters.(aprimeFnParamNames{ip})) == N_j; aprimeFnParam_is_age_dependent(ip) = true; end
+
+        % Keep STATIC scalars on the CPU so they bake into PTX as ultra-fast constants.
+        % Only push arrays to the GPU.
+        if isnumeric(base_aprimeFnParamsCell{ip}) && ~isa(base_aprimeFnParamsCell{ip}, 'gpuArray')
+            if ~isscalar(base_aprimeFnParamsCell{ip})
+                base_aprimeFnParamsCell{ip} = gpuArray(base_aprimeFnParamsCell{ip});
+            end
         end
     end
 end
@@ -639,17 +655,25 @@ for reverse_j = 0:N_j-1
     jj = N_j - reverse_j;
     if vfoptions.verbose==1; fprintf('Finite horizon: %i of %i \n',jj, N_j); end
     ReturnFnParamsCell = base_ReturnFnParamsCell;
-    for ip = find(is_age_dependent)
+    for ip = find(ReturnFnParam_is_age_dependent)
         val = Parameters.(ReturnFnParamNames{ip})(jj);
-        if isscalar(val)
-            ReturnFnParamsCell{ip} = cast(val, vfoptions.precision);
-        else
-            ReturnFnParamsCell{ip} = gpuArray(cast(val, vfoptions.precision));
-        end
+        % Pushing DYNAMIC scalars to gpuArray prevents the JIT from recompiling 81 times,
+        % while keeping global memory reads to an absolute minimum!
+        ReturnFnParamsCell{ip} = gpuArray(cast(val, vfoptions.precision));
     end
     DiscountFactorParamsVec = CreateVectorFromParams(Parameters, DiscountFactorParamNames, jj, vfoptions.precision);
     beta_j = prod(DiscountFactorParamsVec);
-    if is_exp_asset; aprimeFnParamsCell = CreateCellFromParams(Parameters, aprimeFnParamNames, jj, vfoptions.precision); else; aprimeFnParamsCell = {}; end
+    if is_exp_asset
+        aprimeFnParamsCell = base_aprimeFnParamsCell;
+        for ip = find(aprimeFnParam_is_age_dependent)
+            val = Parameters.(aprimeFnParamNames{ip})(jj);
+            % Pushing DYNAMIC scalars to gpuArray prevents the JIT from recompiling 81 times,
+            % while keeping global memory reads to an absolute minimum!
+            aprimeFnParamsCell{ip} = gpuArray(cast(val, vfoptions.precision));
+        end
+    else
+        aprimeFnParamsCell = {};
+    end
 
     if jj == N_j && isfield(vfoptions, 'V_Jplus1') && ~isempty(vfoptions.V_Jplus1)
         V_next = reshape(vfoptions.V_Jplus1, [n_a_work, n_z_work, n_e_work]);
@@ -714,7 +738,7 @@ for reverse_j = 0:N_j-1
         end
 
         if warmglow == 1
-            wg_params = CreateCellFromParams(Parameters, vfoptions.WarmGlowBequestsFnParamsNames, jj);
+            wg_params = CreateCellFromParams(Parameters, vfoptions.WarmGlowBequestsFnParamsNames, jj, vfoptions.precision);
             WG_eval = vfoptions.WarmGlowBequestsFn(a_grid, wg_params{:});
             if isscalar(WG_eval); WG_eval = WG_eval * ones(size(a_grid), 'like', a_grid); end
             if is_EZ
@@ -1459,13 +1483,17 @@ if ~is_EZ
             EV_slice = reshape(EV_interp_local, [N_d_safe, num_choices_total, 1, N_a2_len, N_ze_local]);
         end
 
-        F_tensor = F_tensor + zeros([1, 1, N_a1_total, N_a2_len, 1], 'like', F_tensor);
+        if size(F_tensor, 3) ~= N_a1_total || size(F_tensor, 4) ~= N_a2_len
+            F_tensor = F_tensor + zeros([1, 1, N_a1_total, N_a2_len, 1], 'like', F_tensor);
+        end
         F_tensor = reshape(F_tensor, [N_d_safe, num_choices_total, N_a1_total, N_a2_len, N_ze_local]);
         F_tensor = F_tensor + EV_slice;
         RHS_flat = reshape(F_tensor, [FLAT_CHOICES, FLAT_STATES]);
     else
         F_tensor = F_tensor + EV_bounded;
-        F_tensor = F_tensor + zeros([1, 1, N_states, 1, 1], 'like', F_tensor);
+        if size(F_tensor, 3) ~= N_states
+            F_tensor = F_tensor + zeros([1, 1, N_states, 1, 1], 'like', F_tensor);
+        end
         RHS_flat = reshape(F_tensor, [FLAT_CHOICES, FLAT_STATES]);
     end
 else
@@ -1476,14 +1504,18 @@ else
         else
             EV_slice = reshape(EV_interp_local, [N_d_safe, num_choices_total, 1, N_a2_len, N_ze_local]);
         end
-        F_tensor = F_tensor + zeros([1, 1, N_a1_total, N_a2_len, 1], 'like', F_tensor);
+        if size(F_tensor, 3) ~= N_a1_total || size(F_tensor, 4) ~= N_a2_len
+            F_tensor = F_tensor + zeros([1, 1, N_a1_total, N_a2_len, 1], 'like', F_tensor);
+        end
         F_tensor_native = reshape(F_tensor, [N_d_safe, num_choices_total, N_a1_total, N_a2_len, N_ze_local]);
 
         EV_expanded = EV_slice + zeros(size(F_tensor_native), 'like', EV_slice);
         F_tensor_reshaped = reshape(F_tensor_native, [FLAT_CHOICES, N_states, N_ze_local]);
         EV_bounded_reshaped = reshape(EV_expanded, [FLAT_CHOICES, N_states, N_ze_local]);
     else
-        F_tensor = F_tensor + zeros([1, 1, N_states, 1, 1], 'like', F_tensor);
+        if size(F_tensor, 3) ~= N_states
+            F_tensor = F_tensor + zeros([1, 1, N_states, 1, 1], 'like', F_tensor);
+        end
         EV_expanded = EV_bounded + zeros([1, 1, N_states, 1, 1], 'like', EV_bounded);
 
         F_tensor_reshaped = reshape(F_tensor, [FLAT_CHOICES, N_states, N_ze_local]);
