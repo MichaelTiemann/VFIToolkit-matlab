@@ -18,6 +18,8 @@ else
     ezc7 = ones(N_j, 1, 'like', proto); ezc8 = ones(N_j, 1, 'like', proto);
 end
 
+if isfield(vfoptions, 'ezc9'); ezc9 = vfoptions.ezc9; else; ezc9 = ones(N_j, 1, 'like', proto); end
+
 % Extract present-bias parameter beta0 universally
 if isfield(vfoptions, 'QHadditionaldiscount') && isfield(Parameters, vfoptions.QHadditionaldiscount)
     beta0_val = Parameters.(vfoptions.QHadditionaldiscount);
@@ -113,11 +115,11 @@ for i_ze = 1:length(ze_chunks)
     chunk_meta{i_ze} = meta;
 end
 
+% Keep STATIC scalars on the CPU so they bake into PTX as ultra-fast constants. Only push arrays to the GPU.
 base_ReturnFnParamsCell = CreateCellFromParams(Parameters, ReturnFnParamNames, 1, vfoptions.precision);
 is_age_dependent = false(1, length(ReturnFnParamNames));
 for ip = 1:length(ReturnFnParamNames)
     if numel(Parameters.(ReturnFnParamNames{ip})) == N_j; is_age_dependent(ip) = true; end
-    % Keep STATIC scalars on the CPU to bake into PTX
     if vfoptions.parallel == 2 && isnumeric(base_ReturnFnParamsCell{ip}) && ~isa(base_ReturnFnParamsCell{ip}, 'gpuArray')
         if ~isscalar(base_ReturnFnParamsCell{ip}); base_ReturnFnParamsCell{ip} = gpuArray(base_ReturnFnParamsCell{ip}); end
     end
@@ -128,7 +130,6 @@ if l_a2 > 0
     aprimeFnParam_is_age_dependent = false(1, length(aprimeFnParamNames));
     for ip = 1:length(aprimeFnParamNames)
         if numel(Parameters.(aprimeFnParamNames{ip})) == N_j; aprimeFnParam_is_age_dependent(ip) = true; end
-        % Keep STATIC scalars on the CPU to bake into PTX
         if vfoptions.parallel == 2 && isnumeric(base_aprimeFnParamsCell{ip}) && ~isa(base_aprimeFnParamsCell{ip}, 'gpuArray')
             if ~isscalar(base_aprimeFnParamsCell{ip}); base_aprimeFnParamsCell{ip} = gpuArray(base_aprimeFnParamsCell{ip}); end
         end
@@ -162,10 +163,10 @@ for reverse_j = 0:N_j-1
     if vfoptions.verbose == 1; fprintf('Finite horizon QHEZ: %i of %i \n', jj, N_j); end
 
     % 2.1 Age-Dependent Parameter Updates
+    % Push DYNAMIC scalars to GPU to preserve JIT cache recompilation limits
     ReturnFnParamsCell = base_ReturnFnParamsCell;
     for ip = find(is_age_dependent)
         val = Parameters.(ReturnFnParamNames{ip})(jj);
-        % Push DYNAMIC scalars to GPU to preserve JIT cache
         if vfoptions.parallel == 2; ReturnFnParamsCell{ip} = gpuArray(val); else; ReturnFnParamsCell{ip} = val; end
     end
 
@@ -182,6 +183,17 @@ for reverse_j = 0:N_j-1
     DiscountFactorParamsVec = CreateVectorFromParams(Parameters, DiscountFactorParamNames, jj, vfoptions.precision);
     delta_j = prod(DiscountFactorParamsVec);
     sj_val = sj(jj);
+
+    % --- EZ Weight Extraction ---
+    if isfield(vfoptions, 'EZoneminusbeta') && vfoptions.EZoneminusbeta == 1
+        ezc1_j = 1 - delta_j;
+    elseif isfield(vfoptions, 'EZoneminusbeta') && vfoptions.EZoneminusbeta == 2
+        ezc1_j = 1 - sj_val * delta_j;
+    else
+        ezc1_j = 1;
+    end
+    ezc9_j = ezc9(min(jj, length(ezc9)));
+
     pi_z_j = pi_z_J(:, :, min(jj, size(pi_z_J, 3)));
     if has_e; pi_e_j = vfoptions.pi_e_J(:, min(jj + 1, size(vfoptions.pi_e_J, 2))); end
     if vfoptions.parallel == 2 && has_e && ~isa(pi_e_j, 'gpuArray'); pi_e_j = gpuArray(pi_e_j); end
@@ -258,7 +270,12 @@ for reverse_j = 0:N_j-1
             EV_base = EV_base * sj_val + (1 - sj_val) * reshape(WG_transformed, [N_a, 1, 1, 1]);
         end
 
-        % --- SOLIDIFY LAZY TREE ---
+        % The Crucial Missing Transformation: Epstein-Zin Certainty Equivalent Outer Power
+        valid_EV = isfinite(EV_base) & (EV_base ~= 0);
+        if ezc6(jj) ~= 1; EV_base(valid_EV) = max(EV_base(valid_EV), 0).^ezc6(jj); end
+        if ezc8(jj) ~= 1; EV_base(valid_EV) = max(EV_base(valid_EV), 0).^ezc8(jj); end
+
+        % --- SOLIDIFY LAZY TREE (Prevents massive memory reallocation in VRAM) ---
         EV_base_lazy = EV_base;
         EV_base = zeros(size(EV_base_lazy), 'like', EV_base_lazy);
         EV_base(:) = EV_base_lazy(:);
@@ -343,14 +360,14 @@ for reverse_j = 0:N_j-1
                 EV_belief_pre = []; EV_Valt_pre = []; static_EV_offset = [];
             end
 
-            % --- PASS 1: The Exponential Belief Pass ---
+            % --- PASS 1: The Exponential Belief Pass (Valt expectation, evaluated at beta = 1.0) ---
             if is_naive
                 LocalBlockFn_Exp = @(state_idx, loweredge_matrix, maxgap_scalar) QHEZ_SlicerWrapper(...
                     state_idx, loweredge_matrix, maxgap_scalar, N_ze_local, ...
                     @(s, l, m) Evaluate_QHEZ_TensorBlock(...
                     s, l, m, N_a1, N_a2, N_d_safe, N_ze_local, ...
                     Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_mat, a2_grids_1d, l_a2, ...
-                    0, n2short, n2long, 1.0, delta_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
+                    0, n2short, n2long, 1.0, delta_j, ezc1_j, ezc9_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
                     EV_belief_local, EV_belief_pre, EV_belief_interp, a1prime_grid, ...
                     TensorReturnFn, ReturnFnParamsCell, ezc2(jj), ezc3, ezc4, ezc7(jj), ...
                     TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, 1));
@@ -359,7 +376,7 @@ for reverse_j = 0:N_j-1
                 V_exp_j_max(:, curr_ze) = reshape(v_exp_c, [N_a1 * N_a2, N_ze_local]);
             end
 
-            % --- PASS 2: The Actual Reality Pass ---
+            % --- PASS 2: The Actual Reality Pass (Valt expectation, evaluated at present-bias beta0) ---
             full_state_chunk = 1:(N_a1 * N_a2);
             if vfoptions.gridinterplayer(1) == 1
                 LocalBlockFn_Actual_Coarse_Flat = @(state_idx, loweredge_matrix, maxgap_scalar) QHEZ_SlicerWrapper(...
@@ -367,7 +384,7 @@ for reverse_j = 0:N_j-1
                     @(s, l, m) Evaluate_QHEZ_TensorBlock(...
                     s, l, m, N_a1, N_a2, N_d_safe, N_ze_local, ...
                     Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_mat, a2_grids_1d, l_a2, ...
-                    0, n2short, n2long, beta0_j(jj), delta_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
+                    0, n2short, n2long, beta0_j(jj), delta_j, ezc1_j, ezc9_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
                     EV_Valt_local, EV_Valt_pre, EV_Valt_interp, a1prime_grid, ...
                     TensorReturnFn, ReturnFnParamsCell, ezc2(jj), ezc3, ezc4, ezc7(jj), ...
                     TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, 2));
@@ -377,7 +394,7 @@ for reverse_j = 0:N_j-1
                     @(s, l, m) Evaluate_QHEZ_TensorBlock(...
                     s, l, m, N_a1, N_a2, N_d_safe, N_ze_local, ...
                     Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_mat, a2_grids_1d, l_a2, ...
-                    vfoptions.gridinterplayer, n2short, n2long, beta0_j(jj), delta_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
+                    vfoptions.gridinterplayer, n2short, n2long, beta0_j(jj), delta_j, ezc1_j, ezc9_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
                     EV_Valt_local, EV_Valt_pre, EV_Valt_interp, a1prime_grid, ...
                     TensorReturnFn, ReturnFnParamsCell, ezc2(jj), ezc3, ezc4, ezc7(jj), ...
                     TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, 1));
@@ -431,7 +448,7 @@ for reverse_j = 0:N_j-1
                     @(s, l, m) Evaluate_QHEZ_TensorBlock(...
                     s, l, m, N_a1, N_a2, N_d_safe, N_ze_local, ...
                     Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_mat, a2_grids_1d, l_a2, ...
-                    0, n2short, n2long, beta0_j(jj), delta_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
+                    0, n2short, n2long, beta0_j(jj), delta_j, ezc1_j, ezc9_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
                     EV_Valt_local, EV_Valt_pre, EV_Valt_interp, a1prime_grid, ...
                     TensorReturnFn, ReturnFnParamsCell, ezc2(jj), ezc3, ezc4, ezc7(jj), ...
                     TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, 1));
@@ -532,13 +549,13 @@ for reverse_j = 0:N_j-1
                 for chunk_start = 1:max_states_per_chunk:total_states
                     chunk_end = min(total_states, chunk_start + max_states_per_chunk - 1); state_chunk = state_list(chunk_start:chunk_end);
 
-                    % --- PASS 1: Belief Pass ---
+                    % --- PASS 1: The Exponential Belief Pass (Valt expectation, evaluated at beta = 1.0) ---
                     if is_naive
                         if vfoptions.gridinterplayer(1) == 1
                             [~, ~, ~, ~, ~, p_a1_per_a2_exp] = Evaluate_QHEZ_TensorBlock(...
                                 state_chunk, [], 0, N_a1, N_a2_local, N_d_safe, N_ze_local, ...
                                 Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_local, a2_grids_1d, l_a2, ...
-                                0, n2short, n2long, 1.0, delta_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
+                                0, n2short, n2long, 1.0, delta_j, ezc1_j, ezc9_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
                                 EV_belief_local, EV_belief_pre, EV_belief_interp, a1prime_grid, ...
                                 TensorReturnFn, ReturnFnParamsCell, ezc2(jj), ezc3, ezc4, ezc7(jj), ...
                                 TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, 2);
@@ -547,7 +564,7 @@ for reverse_j = 0:N_j-1
                             v_exp_c = Evaluate_QHEZ_TensorBlock(...
                                 state_chunk, loweredge_chunk_exp, n2long - 1, N_a1, N_a2_local, N_d_safe, N_ze_local, ...
                                 Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_local, a2_grids_1d, l_a2, ...
-                                vfoptions.gridinterplayer, n2short, n2long, 1.0, delta_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
+                                vfoptions.gridinterplayer, n2short, n2long, 1.0, delta_j, ezc1_j, ezc9_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
                                 EV_belief_local, EV_belief_pre, EV_belief_interp, a1prime_grid, ...
                                 TensorReturnFn, ReturnFnParamsCell, ezc2(jj), ezc3, ezc4, ezc7(jj), ...
                                 TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, 0);
@@ -555,7 +572,7 @@ for reverse_j = 0:N_j-1
                             v_exp_c = Evaluate_QHEZ_TensorBlock(...
                                 state_chunk, [], 0, N_a1, N_a2_local, N_d_safe, N_ze_local, ...
                                 Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_local, a2_grids_1d, l_a2, ...
-                                0, n2short, n2long, 1.0, delta_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
+                                0, n2short, n2long, 1.0, delta_j, ezc1_j, ezc9_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
                                 EV_belief_local, EV_belief_pre, EV_belief_interp, a1prime_grid, ...
                                 TensorReturnFn, ReturnFnParamsCell, ezc2(jj), ezc3, ezc4, ezc7(jj), ...
                                 TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, 0);
@@ -563,12 +580,12 @@ for reverse_j = 0:N_j-1
                         V_exp_j_max(state_chunk, curr_ze) = reshape(v_exp_c, [length(state_chunk), N_ze_local]);
                     end
 
-                    % --- PASS 2: Reality Pass (Fast 2-Step GI) ---
+                    % --- PASS 2: The Actual Reality Pass (Valt expectation, evaluated at present-bias beta0) ---
                     if vfoptions.gridinterplayer(1) == 1
                         [~, ~, ~, ~, ~, p_a1_per_a2] = Evaluate_QHEZ_TensorBlock(...
                             state_chunk, [], 0, N_a1, N_a2_local, N_d_safe, N_ze_local, ...
                             Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_local, a2_grids_1d, l_a2, ...
-                            0, n2short, n2long, beta0_j(jj), delta_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
+                            0, n2short, n2long, beta0_j(jj), delta_j, ezc1_j, ezc9_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
                             EV_Valt_local, EV_Valt_pre, EV_Valt_interp, a1prime_grid, ...
                             TensorReturnFn, ReturnFnParamsCell, ezc2(jj), ezc3, ezc4, ezc7(jj), ...
                             TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, 2);
@@ -577,7 +594,7 @@ for reverse_j = 0:N_j-1
                         [v_c, p_apr_c, p_d_c, p_l2idx_c, p_l2flag_c, ~, valt_c] = Evaluate_QHEZ_TensorBlock(...
                             state_chunk, loweredge_chunk, n2long - 1, N_a1, N_a2_local, N_d_safe, N_ze_local, ...
                             Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_local, a2_grids_1d, l_a2, ...
-                            vfoptions.gridinterplayer, n2short, n2long, beta0_j(jj), delta_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
+                            vfoptions.gridinterplayer, n2short, n2long, beta0_j(jj), delta_j, ezc1_j, ezc9_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
                             EV_Valt_local, EV_Valt_pre, EV_Valt_interp, a1prime_grid, ...
                             TensorReturnFn, ReturnFnParamsCell, ezc2(jj), ezc3, ezc4, ezc7(jj), ...
                             TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, 0);
@@ -585,7 +602,7 @@ for reverse_j = 0:N_j-1
                         [v_c, p_apr_c, p_d_c, p_l2idx_c, p_l2flag_c, ~, valt_c] = Evaluate_QHEZ_TensorBlock(...
                             state_chunk, [], 0, N_a1, N_a2_local, N_d_safe, N_ze_local, ...
                             Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_local, a2_grids_1d, l_a2, ...
-                            0, n2short, n2long, beta0_j(jj), delta_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
+                            0, n2short, n2long, beta0_j(jj), delta_j, ezc1_j, ezc9_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
                             EV_Valt_local, EV_Valt_pre, EV_Valt_interp, a1prime_grid, ...
                             TensorReturnFn, ReturnFnParamsCell, ezc2(jj), ezc3, ezc4, ezc7(jj), ...
                             TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, 0);
@@ -666,7 +683,7 @@ end
 function [V_j_max, Pol_apr_max, Pol_d_max, Pol_L2idx_max, Pol_L2flag_max, Pol_a1_per_a2, Valt_j_max] = Evaluate_QHEZ_TensorBlock(...
     state_idx, loweredge_matrix, maxgap_scalar, N_a1, N_a2, N_d_safe, N_ze_local, ...
     Z_cells_block, E_cells_block, D_cells_block, A1_mat, A2_mat, a2_grids_1d, l_a2, ...
-    gridinterplayer, n2short, n2long, beta_j, delta_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
+    gridinterplayer, n2short, n2long, beta_j, delta_j, ezc1_j, ezc9_j, EV_belief_local, EV_belief_pre, EV_belief_interp, ...
     EV_Valt_local, EV_Valt_pre, EV_Valt_interp, a1prime_grid, ...
     TensorReturnFn, ReturnFnParamsCell, ezc2_j, ezc3, ezc4, ezc7_j, ...
     TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, is_dc_mode)
@@ -749,8 +766,8 @@ if isempty(loweredge_matrix)
                 stride_z = num_choices;
                 ze_offset = reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]);
                 if N_dsemiz > 1; ze_offset = ze_offset + (dsemiz_idx_tensor - 1) * (stride_z * N_ze_local); end
-                EV_belief_bounded = beta_j .* EV_source_b(choice_idx_linear + ze_offset);
-                if compute_valt; EV_Valt_bounded = delta_j .* EV_source_v(choice_idx_linear + ze_offset); end
+                EV_belief_bounded = EV_source_b(choice_idx_linear + ze_offset);
+                if compute_valt; EV_Valt_bounded = EV_source_v(choice_idx_linear + ze_offset); end
             end
         end
     end
@@ -774,8 +791,8 @@ else
         stride_z = length(a1prime_grid);
         ze_offset = reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]);
         if N_dsemiz > 1; ze_offset = ze_offset + (dsemiz_idx_tensor - 1) * (stride_z * N_ze_local); end
-        EV_belief_bounded = beta_j .* EV_belief_interp(choice_idx_linear + ze_offset);
-        if compute_valt; EV_Valt_bounded = delta_j .* EV_Valt_interp(choice_idx_linear + ze_offset); end
+        EV_belief_bounded = EV_belief_interp(choice_idx_linear + ze_offset);
+        if compute_valt; EV_Valt_bounded = EV_Valt_interp(choice_idx_linear + ze_offset); end
     end
     EV_belief_bounded(out_of_bounds) = -Inf;
     if compute_valt; EV_Valt_bounded(out_of_bounds) = -Inf; end
@@ -787,6 +804,9 @@ end
 FLAT_CHOICES = max(1, N_d_safe) * num_choices;
 FLAT_STATES  = N_states * N_ze_local;
 is_EZ = ~(all(ezc2_j == 1) && ezc3 == 1 && ezc4 == 1 && all(ezc7_j == 1));
+
+weight_belief = beta_j * delta_j * ezc9_j;
+weight_valt   = delta_j * ezc9_j;
 
 if is_cartesian
     if isempty(loweredge_matrix) && (gridinterplayer(1) == 0 || is_dc_mode == 2)
@@ -805,18 +825,18 @@ if is_cartesian
     EV_expanded_b = EV_slice_b + zeros(size(F_tensor_native), 'like', EV_slice_b);
 
     if is_EZ
-        RHS_belief_native = Evaluate_Universal_RHS_VFHorz(F_tensor_native, EV_expanded_b, 1, 1, ezc2_j, ezc3, ezc4, ezc7_j);
+        RHS_belief_native = Evaluate_Universal_RHS_VFHorz(F_tensor_native, EV_expanded_b, ezc1_j, weight_belief, ezc2_j, ezc3, ezc4, ezc7_j);
     else
-        RHS_belief_native = F_tensor_native + EV_expanded_b;
+        RHS_belief_native = F_tensor_native + weight_belief .* EV_expanded_b;
     end
     RHS_belief_flat = reshape(RHS_belief_native, [FLAT_CHOICES, FLAT_STATES]);
 
     if compute_valt
         EV_expanded_v = EV_slice_v + zeros(size(F_tensor_native), 'like', EV_slice_v);
         if is_EZ
-            RHS_Valt_native = Evaluate_Universal_RHS_VFHorz(F_tensor_native, EV_expanded_v, 1, 1, ezc2_j, ezc3, ezc4, ezc7_j);
+            RHS_Valt_native = Evaluate_Universal_RHS_VFHorz(F_tensor_native, EV_expanded_v, ezc1_j, weight_valt, ezc2_j, ezc3, ezc4, ezc7_j);
         else
-            RHS_Valt_native = F_tensor_native + EV_expanded_v;
+            RHS_Valt_native = F_tensor_native + weight_valt .* EV_expanded_v;
         end
         RHS_Valt_flat = reshape(RHS_Valt_native, [FLAT_CHOICES, FLAT_STATES]);
     else
@@ -826,9 +846,9 @@ else
     EV_expanded_b = EV_belief_bounded + zeros(size(F_tensor), 'like', EV_belief_bounded);
 
     if is_EZ
-        RHS_belief_native = Evaluate_Universal_RHS_VFHorz(F_tensor, EV_expanded_b, 1, 1, ezc2_j, ezc3, ezc4, ezc7_j);
+        RHS_belief_native = Evaluate_Universal_RHS_VFHorz(F_tensor, EV_expanded_b, ezc1_j, weight_belief, ezc2_j, ezc3, ezc4, ezc7_j);
     else
-        RHS_belief_native = F_tensor + EV_expanded_b;
+        RHS_belief_native = F_tensor + weight_belief .* EV_expanded_b;
     end
 
     if size(RHS_belief_native, 3) ~= N_states
@@ -839,9 +859,9 @@ else
     if compute_valt
         EV_expanded_v = EV_Valt_bounded + zeros(size(F_tensor), 'like', EV_Valt_bounded);
         if is_EZ
-            RHS_Valt_native = Evaluate_Universal_RHS_VFHorz(F_tensor, EV_expanded_v, 1, 1, ezc2_j, ezc3, ezc4, ezc7_j);
+            RHS_Valt_native = Evaluate_Universal_RHS_VFHorz(F_tensor, EV_expanded_v, ezc1_j, weight_valt, ezc2_j, ezc3, ezc4, ezc7_j);
         else
-            RHS_Valt_native = F_tensor + EV_expanded_v;
+            RHS_Valt_native = F_tensor + weight_valt .* EV_expanded_v;
         end
 
         if size(RHS_Valt_native, 3) ~= N_states
