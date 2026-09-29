@@ -82,11 +82,18 @@ base_RetParams = CreateCellFromParams(Parameters, ReturnFnParamNames, 1, vfoptio
 Ret_age = false(1, length(ReturnFnParamNames));
 for ip = 1:length(ReturnFnParamNames)
     if numel(Parameters.(ReturnFnParamNames{ip})) == N_j; Ret_age(ip) = true; end
+    if vfoptions.parallel == 2 && isnumeric(base_RetParams{ip}) && ~isa(base_RetParams{ip}, 'gpuArray')
+        if ~isscalar(base_RetParams{ip}); base_RetParams{ip} = gpuArray(base_RetParams{ip}); end
+    end
 end
+
 base_ApParams = CreateCellFromParams(Parameters, aprimeFnParamNames, 1, vfoptions.precision);
 Ap_age = false(1, length(aprimeFnParamNames));
 for ip = 1:length(aprimeFnParamNames)
     if numel(Parameters.(aprimeFnParamNames{ip})) == N_j; Ap_age(ip) = true; end
+    if vfoptions.parallel == 2 && isnumeric(base_ApParams{ip}) && ~isa(base_ApParams{ip}, 'gpuArray')
+        if ~isscalar(base_ApParams{ip}); base_ApParams{ip} = gpuArray(base_ApParams{ip}); end
+    end
 end
 
 % =========================================================================
@@ -98,11 +105,13 @@ for reverse_j = 0:N_j-1
 
     ReturnFnParamsCell = base_RetParams;
     for ip = find(Ret_age)
-        ReturnFnParamsCell{ip} = Parameters.(ReturnFnParamNames{ip})(jj);
+        val = Parameters.(ReturnFnParamNames{ip})(jj);
+        if vfoptions.parallel == 2; ReturnFnParamsCell{ip} = gpuArray(val); else; ReturnFnParamsCell{ip} = val; end
     end
     aprimeFnParamsCell = base_ApParams;
     for ip = find(Ap_age)
-        aprimeFnParamsCell{ip} = Parameters.(aprimeFnParamNames{ip})(jj);
+        val = Parameters.(aprimeFnParamNames{ip})(jj);
+        if vfoptions.parallel == 2; aprimeFnParamsCell{ip} = gpuArray(val); else; aprimeFnParamsCell{ip} = val; end
     end
 
     beta_j = prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames, jj, vfoptions.precision));
