@@ -1,365 +1,260 @@
-function [V, Policy] = ValueFnIter_VFHorz_RiskyAsset_EpsteinZin(n_d, n_a1, n_a2, n_z, n_u, N_j, ...
-    d_grid, a1_grid, a2_grid, z_gridvals_J, u_grid, pi_z_J, pi_u, ...
-    ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ...
-    ReturnFnParamNames, aprimeFnParamNames, vfoptions, ...
+function [V, Policy] = ValueFnIter_VFHorz_RiskyAsset_EpsteinZin(...
+    n_d, n_a1, n_a2, n_z, n_u, N_j, d_grid, a1_grid, a2_grid, z_gridvals_J, u_grid, pi_z_J, pi_u, ...
+    ReturnFn, aprimeFn, Parameters, DiscountFactorParamNames, ~, ~, vfoptions, ...
     sj, warmglow, ezc2, ezc3, ezc4, ezc5, ezc6, ezc7, ezc8)
 
-% 1. Extract Dimensions and Grids
-has_a1 = ~isempty(n_a1) && prod(n_a1) > 0;
-N_a1 = max(prod(n_a1), 1);
-N_a2 = max(prod(n_a2), 1);
-N_a  = N_a1 * N_a2;
-N_z  = prod(n_z);
-N_u  = prod(n_u);
+% =========================================================================
+% PHASE 1: PRE-COMPUTATION & AUTONOMOUS PARSING
+% =========================================================================
+N_d_safe = max(1, prod(n_d));
+N_a1_safe = max(1, prod(n_a1));
+N_a2_safe = max(1, prod(n_a2));
+N_z = max(1, prod(n_z));
+N_u = max(1, prod(n_u));
+N_a = N_a1_safe * N_a2_safe;
 
-n_d1 = 0; N_d1 = 1;
-if vfoptions.refine_d(1) > 0
-    n_d1 = n_d(1:vfoptions.refine_d(1));
-    N_d1 = prod(n_d1);
+if vfoptions.parallel == 2
+    pi_z_J = gpuArray(pi_z_J);
+    pi_u = gpuArray(pi_u);
 end
-has_d1 = (N_d1 > 1) || (N_d1 == 1 && length(d_grid) >= sum(n_d1) && d_grid(1) ~= 0);
+pi_u_shape = reshape(pi_u(:), [1, 1, 1, 1, 1, N_u]);
 
-n_d2 = n_d(vfoptions.refine_d(1)+1 : vfoptions.refine_d(1)+vfoptions.refine_d(2));
-N_d2 = prod(n_d2);
-n_d3 = n_d(vfoptions.refine_d(1)+vfoptions.refine_d(2)+1 : end);
-N_d3 = prod(n_d3);
+% 1.1 Parse refine_d choices
+if isfield(vfoptions, 'refine_d')
+    l_d1 = vfoptions.refine_d(1); l_d2 = vfoptions.refine_d(2);
+else
+    l_d1 = 0; l_d2 = 0;
+end
+d_return_idx = [1:l_d1, (l_d1+l_d2+1):length(n_d)];
+d_aprime_idx = (l_d1+1):length(n_d);
 
-d1_grid = d_grid(1 : sum(n_d1));
-d2_grid = d_grid(sum(n_d1)+1 : sum(n_d1)+sum(n_d2));
-d3_grid = d_grid(sum(n_d1)+sum(n_d2)+1 : end);
-
-% 2. Push Variables to GPU
-if isempty(d1_grid), d1_grid = gpuArray(0); else, d1_grid = gpuArray(d1_grid(:)); end
-if isempty(a1_grid), a1_grid = gpuArray(0); else, a1_grid = gpuArray(a1_grid(:)); end
-a2_grid = gpuArray(a2_grid(:));
-d2_grid = gpuArray(d2_grid(:));
-d3_grid = gpuArray(d3_grid(:));
-u_grid  = gpuArray(u_grid(:));
-pi_u    = gpuArray(pi_u(:));
-pi_z_J  = gpuArray(pi_z_J);
-z_gridvals = gpuArray(z_gridvals_J);
-
-V = zeros(N_a, N_z, N_j, 'like', a2_grid);
-PolicyKron = zeros(1, N_a, N_z, N_j, 'like', a2_grid);
-V_next = zeros(N_a, N_z, 'like', a2_grid);
-
-D2_3D = reshape(d2_grid, [N_d2, 1, 1]);
-D3_3D = reshape(d3_grid, [1, N_d3, 1]);
-U_3D  = reshape(u_grid,  [1, 1, N_u]);
-
-ezc9 = 1;
-if isfield(vfoptions, 'ezc9')
-    ezc9 = vfoptions.ezc9;
+% 1.2 Backwards-Parser for ReturnFn (Bulletproof Parameter Extraction)
+temp_ret = getAnonymousFnInputNames(ReturnFn);
+first_param_idx = find(isfield(Parameters, temp_ret), 1, 'first');
+if isempty(first_param_idx)
+    ReturnFnParamNames = {}; num_prefix_ret = length(temp_ret);
+else
+    ReturnFnParamNames = temp_ret(first_param_idx:end); num_prefix_ret = first_param_idx - 1;
 end
 
-if isempty(aprimeFnParamNames)
-    if isfield(vfoptions, 'aprimeFnParamNames')
-        aprimeFnParamNames = vfoptions.aprimeFnParamNames;
-    else
-        temp = getAnonymousFnInputNames(aprimeFn);
-        num_d2_vars = length(n_d2); if isequal(n_d2, 0) || isempty(n_d2); num_d2_vars = 0; end
-        num_d3_vars = length(n_d3); if isequal(n_d3, 0) || isempty(n_d3); num_d3_vars = 0; end
-        num_prefix = num_d2_vars + num_d3_vars + 1; % +1 for the 'u' shock
-        if length(temp) > num_prefix
-            aprimeFnParamNames = {temp{num_prefix + 1 : end}};
-            aprimeFnParamNames = aprimeFnParamNames(isfield(Parameters, aprimeFnParamNames));
-        end
+% 1.3 Backwards-Parser for aprimeFn
+temp_ap = getAnonymousFnInputNames(aprimeFn);
+first_param_idx = find(isfield(Parameters, temp_ap), 1, 'first');
+if isempty(first_param_idx)
+    aprimeFnParamNames = {}; num_prefix_ap = length(temp_ap);
+else
+    aprimeFnParamNames = temp_ap(first_param_idx:end); num_prefix_ap = first_param_idx - 1;
+end
+
+% 1.4 Native 1D Grids
+d_grids = cell(1, length(n_d)); offset = 0;
+for i = 1:length(n_d); d_grids{i} = d_grid(offset+1 : offset+n_d(i)); offset = offset + n_d(i); end
+if length(n_d) > 1; [D_mesh{1:length(n_d)}] = ndgrid(d_grids{:}); else; D_mesh{1} = d_grids{1}; end
+D_flat = cell(1, length(n_d)); for i = 1:length(n_d); D_flat{i} = D_mesh{i}(:); end
+
+a1_grids = cell(1, length(n_a1)); offset = 0;
+for i = 1:length(n_a1); a1_grids{i} = a1_grid(offset+1 : offset+n_a1(i)); offset = offset + n_a1(i); end
+if length(n_a1) > 1; [A1_mesh{1:length(n_a1)}] = ndgrid(a1_grids{:}); else; A1_mesh{1} = a1_grids{1}; end
+A1_flat = cell(1, length(n_a1)); for i = 1:length(n_a1); A1_flat{i} = A1_mesh{i}(:); end
+
+a2_grids = cell(1, max(1, length(n_a2))); offset = 0;
+for i = 1:length(n_a2); a2_grids{i} = a2_grid(offset+1 : offset+n_a2(i)); offset = offset + n_a2(i); end
+if length(n_a2) > 1; [A2_mesh{1:length(n_a2)}] = ndgrid(a2_grids{:}); else; A2_mesh{1} = a2_grids{1}; end
+A2_flat = cell(1, max(1, length(n_a2))); for i = 1:max(1, length(n_a2)); A2_flat{i} = A2_mesh{i}(:); end
+
+% 1.5 Geometry Construction [N_d_safe, N_a1_prime, N_a1_state, N_a2_state, N_z, N_u]
+D_cells = cell(1, length(n_d));
+for i = 1:length(n_d); D_cells{i} = cast(reshape(D_flat{i}, [N_d_safe, 1, 1, 1, 1, 1]), 'like', a1_grid); end
+Apr_cells = cell(1, length(n_a1));
+for i = 1:length(n_a1); Apr_cells{i} = cast(reshape(A1_flat{i}, [1, N_a1_safe, 1, 1, 1, 1]), 'like', a1_grid); end
+A1_cells = cell(1, length(n_a1));
+for i = 1:length(n_a1); A1_cells{i} = cast(reshape(A1_flat{i}, [1, 1, N_a1_safe, 1, 1, 1]), 'like', a1_grid); end
+A2_cells = cell(1, max(1, length(n_a2)));
+for i = 1:length(n_a2); A2_cells{i} = cast(reshape(A2_flat{i}, [1, 1, 1, N_a2_safe, 1, 1]), 'like', a1_grid); end
+if isempty(n_a2); A2_cells{1} = cast(reshape(0, [1, 1, 1, 1, 1, 1]), 'like', a1_grid); end
+U_cells = {cast(reshape(u_grid, [1, 1, 1, 1, 1, N_u]), 'like', a1_grid)};
+
+% 1.6 Argument Mapping
+ret_args = cell(1, num_prefix_ret); idx = 1;
+for i = 1:length(d_return_idx); ret_args{idx} = D_cells{d_return_idx(i)}; idx = idx + 1; end
+if num_prefix_ret > idx - 1; for i = 1:length(n_a1); ret_args{idx} = Apr_cells{i}; idx = idx + 1; end; end
+if num_prefix_ret > idx - 1; for i = 1:length(n_a1); ret_args{idx} = A1_cells{i}; idx = idx + 1; end; end
+if num_prefix_ret > idx - 1; for i = 1:length(n_a2); ret_args{idx} = A2_cells{i}; idx = idx + 1; end; end
+num_z_vars = size(z_gridvals_J, 2); % Z appended dynamically in loop
+
+ap_args = cell(1, num_prefix_ap); idx = 1;
+for i = 1:length(d_aprime_idx); ap_args{idx} = D_cells{d_aprime_idx(i)}; idx = idx + 1; end
+if num_prefix_ap > length(d_aprime_idx) + 1; for i = 1:length(n_a2); ap_args{idx} = A2_cells{i}; idx = idx + 1; end; end
+ap_args{idx} = U_cells{1};
+
+V = zeros(N_a, N_z, N_j, 'like', a1_grid);
+Policy = zeros(length(n_d) + length(n_a1), N_a, N_z, N_j, 'like', a1_grid);
+V_next = zeros(N_a, N_z, 'like', a1_grid);
+
+% PTX Constant Setup
+base_RetParams = CreateCellFromParams(Parameters, ReturnFnParamNames, 1, vfoptions.precision);
+Ret_age = false(1, length(ReturnFnParamNames));
+for ip = 1:length(ReturnFnParamNames)
+    if numel(Parameters.(ReturnFnParamNames{ip})) == N_j; Ret_age(ip) = true; end
+    if vfoptions.parallel == 2 && isnumeric(base_RetParams{ip}) && ~isa(base_RetParams{ip}, 'gpuArray')
+        if ~isscalar(base_RetParams{ip}); base_RetParams{ip} = gpuArray(base_RetParams{ip}); end
+    end
+end
+base_ApParams = CreateCellFromParams(Parameters, aprimeFnParamNames, 1, vfoptions.precision);
+Ap_age = false(1, length(aprimeFnParamNames));
+for ip = 1:length(aprimeFnParamNames)
+    if numel(Parameters.(aprimeFnParamNames{ip})) == N_j; Ap_age(ip) = true; end
+    if vfoptions.parallel == 2 && isnumeric(base_ApParams{ip}) && ~isa(base_ApParams{ip}, 'gpuArray')
+        if ~isscalar(base_ApParams{ip}); base_ApParams{ip} = gpuArray(base_ApParams{ip}); end
     end
 end
 
-TensorReturnFn = CreateTensorBridge(ReturnFn);
-TensorAprimeFn = CreateTensorBridge(aprimeFn);
+ezc1 = 1 - prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames, 1, vfoptions.precision));
 
-if warmglow == 1
-    TensorWG_Fn = CreateTensorBridge(vfoptions.WarmGlowBequestsFn);
-end
+% =========================================================================
+% PHASE 2: REVERSE TIME LOOP
+% =========================================================================
+for reverse_j = 0:N_j-1
+    jj = N_j - reverse_j;
+    if vfoptions.verbose == 1; fprintf('RiskyAsset EZ Finite horizon: %i of %i \n', jj, N_j); end
 
-% =========================================================
-% TIME LOOP
-% =========================================================
-for jj = N_j : -1 : 1
-    ReturnFnParamsCell = CreateCellFromParams(Parameters, ReturnFnParamNames, jj);
-    aprimeFnParamsCell = CreateCellFromParams(Parameters, aprimeFnParamNames, jj);
-
-    DiscountFactorParamsVec = CreateVectorFromParams(Parameters, DiscountFactorParamNames, jj);
-    beta_j = prod(DiscountFactorParamsVec);
-
-    ezc1_j = 1;
-    if isfield(vfoptions, 'EZoneminusbeta')
-        if vfoptions.EZoneminusbeta == 1; ezc1_j = 1 - beta_j;
-        elseif vfoptions.EZoneminusbeta == 2; ezc1_j = 1 - sj(jj) * beta_j;
-        end
+    % 2.1 Dynamic Parameters
+    ReturnFnParamsCell = base_RetParams;
+    for ip = find(Ret_age)
+        val = cast(Parameters.(ReturnFnParamNames{ip})(jj), vfoptions.precision);
+        if vfoptions.parallel == 2; ReturnFnParamsCell{ip} = gpuArray(val); else; ReturnFnParamsCell{ip} = val; end
+    end
+    aprimeFnParamsCell = base_ApParams;
+    for ip = find(Ap_age)
+        val = cast(Parameters.(aprimeFnParamNames{ip})(jj), vfoptions.precision);
+        if vfoptions.parallel == 2; aprimeFnParamsCell{ip} = gpuArray(val); else; aprimeFnParamsCell{ip} = val; end
     end
 
-    aprime_tensor = TensorAprimeFn(D2_3D, D3_3D, U_3D, aprimeFnParamsCell{:});
+    beta_j = prod(CreateVectorFromParams(Parameters, DiscountFactorParamNames, jj, vfoptions.precision));
+    sj_val = sj(jj);
+    pi_z_j = pi_z_J(:, :, min(jj, size(pi_z_J, 3)));
 
-    % --- EXACT LEGACY INTERPOLATION PRE-COMPUTATION ---
-    a2_prime_clipped = max(min(aprime_tensor, a2_grid(end)), a2_grid(1));
-    idx = discretize(a2_prime_clipped, a2_grid);
-    idx(isnan(idx) | idx == N_a2) = N_a2 - 1;
-
-    a2_left = a2_grid(idx);
-    a2_right = a2_grid(idx+1);
-
-    aprimeProbs = (a2_right - a2_prime_clipped) ./ (a2_right - a2_left);
-    aprimeProbs(a2_right == a2_left) = 0;
-
-    idx_2D = reshape(idx, [N_d2*N_d3, N_u]);
-    aprimeProbs_2D = reshape(aprimeProbs, [N_d2*N_d3, N_u]);
-    pi_u_row = reshape(pi_u, [1, N_u]);
-
-    % ---------------------------------------------------------
-    % Warm Glow of Bequests
-    % ---------------------------------------------------------
-    if warmglow == 1
-        WG_params = CreateCellFromParams(Parameters, vfoptions.WarmGlowBequestsFnParamsNames, jj);
-        WG_raw = TensorWG_Fn(a2_grid, WG_params{:});
-        if isscalar(WG_raw)
-            WG_raw = WG_raw * ones(size(a2_grid), 'like', a2_grid);
-        end
-        WG_raw = reshape(WG_raw, size(a2_grid));
-
-        WG_temp = WG_raw;
-        valid_wg = isfinite(WG_raw);
-        WG_temp(valid_wg) = (ezc4 * WG_raw(valid_wg)) .^ ezc5(jj);
-        WG_temp(WG_raw == 0) = 0;
-
-        % Exact bit-for-bit Legacy WG Interpolation
-        skipinterp = (WG_temp(idx) == WG_temp(idx+1));
-        WG_probs = aprimeProbs;
-        WG_probs(skipinterp) = 0;
-
-        WG1 = WG_temp(idx) .* WG_probs;
-        WG2 = WG_temp(idx+1) .* (1 - WG_probs);
-
-        WG1(isnan(WG1)) = 0;
-        WG2(isnan(WG2)) = 0;
-
-        pi_u_3D = reshape(pi_u, [1, 1, N_u]);
-        WG1_u = WG1 .* pi_u_3D;
-        WG2_u = WG2 .* pi_u_3D;
-
-        WG_u = sum(WG1_u, 3) + sum(WG2_u, 3);
-        WG_u = reshape(WG_u, [N_d2*N_d3, 1]);
-    else
-        WG_u = 0;
+    ret_args_run = ret_args;
+    idx = length(ret_args_run) - num_z_vars + 1;
+    for iz = 1:num_z_vars
+        ret_args_run{idx} = cast(reshape(z_gridvals_J(:, iz, min(jj, size(z_gridvals_J,3))), [1, 1, 1, 1, N_z, 1]), 'like', a1_grid);
+        idx = idx + 1;
     end
 
-    % ---------------------------------------------------------
-    % Multi-State Interpolation & Expectations
-    % ---------------------------------------------------------
+    % 2.2 Z-Expectation
     if jj == N_j
-        if warmglow == 1
-            temp_WG = WG_u;
-            temp_WG(isfinite(WG_u)) = ( (1 - sj(jj)) * WG_u(isfinite(WG_u)).^ezc8(jj) ) .^ ezc6(jj);
-            temp_WG(WG_u == 0) = 0;
-            temp4 = temp_WG;
-        else
-            temp4 = zeros(N_d2*N_d3, 1, 'like', a2_grid);
-        end
-        temp4 = repmat(reshape(temp4, [1, N_d2*N_d3, 1]), [N_a1, 1, max(N_z,1)]);
+        EV_z = zeros(N_a1_safe, N_a2_safe, N_z, 'like', a1_grid);
     else
-        % --- Z-EXPECTATION FIRST (Bit-for-Bit match) ---
-        temp_V = reshape(V_next, [N_a, max(N_z,1)]);
-        temp_V(isfinite(temp_V)) = (ezc4 * temp_V(isfinite(temp_V))) .^ ezc5(jj);
-        temp_V(temp_V == 0) = 0;
+        valid_V = isfinite(V_next) & (V_next ~= 0);
+        V_transformed = V_next;
+        if ezc5(jj) == 1; V_transformed(valid_V) = ezc4 * V_next(valid_V); else; V_transformed(valid_V) = max(ezc4 * V_next(valid_V), 0).^ezc5(jj); end
+        V_transformed(V_next == 0) = 0;
 
-        if N_z > 0
-            pi_z_j = pi_z_J(:,:,jj);
-            EV_z_raw = temp_V .* shiftdim(pi_z_j', -1); % [N_a, N_z, N_z]
-            EV_z_raw(isnan(EV_z_raw)) = 0;
-            EV_z_sum = sum(EV_z_raw, 2); % [N_a, 1, N_z]
-            EV_pre_z = reshape(EV_z_sum, [N_a1, N_a2, N_z]);
-        else
-            EV_pre_z = reshape(temp_V, [N_a1, N_a2, 1]);
-        end
-
-        % --- EXACT LEGACY INTERPOLATION AND U-EXPECTATION ---
-        EV_z = zeros(N_a1, N_d2*N_d3, max(N_z,1), 'like', a2_grid);
-        z_offset = reshape((0:max(N_z,1)-1) * N_a2, [1, 1, max(N_z,1)]);
-        pi_u_3D = repmat(pi_u_row, [N_d2*N_d3, 1, max(N_z,1)]);
-
-        for i_a1 = 1:N_a1
-            V_slice = squeeze(EV_pre_z(i_a1, :, :));
-            if max(N_z,1) == 1, V_slice = V_slice(:); end
-
-            % Generate linear indices dynamically mapped to Z dimension
-            linear_idx_left = repmat(idx_2D, [1, 1, max(N_z,1)]) + z_offset;
-            linear_idx_right = repmat(idx_2D + 1, [1, 1, max(N_z,1)]) + z_offset;
-
-            V_left = V_slice(linear_idx_left);
-            V_right = V_slice(linear_idx_right);
-
-            % Legacy applies skipinterp exact value matching to EV
-            skipinterp = (V_left == V_right);
-            prob_lower = repmat(aprimeProbs_2D, [1, 1, max(N_z,1)]);
-            prob_lower(skipinterp) = 0;
-            prob_upper = 1 - prob_lower;
-
-            EV1 = (V_left .* prob_lower) .* pi_u_3D;
-            EV2 = (V_right .* prob_upper) .* pi_u_3D;
-
-            EV1(isnan(EV1)) = 0;
-            EV2(isnan(EV2)) = 0;
-
-            EV_z(i_a1, :, :) = sum(EV1, 2) + sum(EV2, 2);
-        end
-
-        temp4 = EV_z;
-        if warmglow == 1
-            WG_u_rs = reshape(WG_u, [1, N_d2*N_d3, 1]);
-            WG_u_expanded = repmat(WG_u_rs, [N_a1, 1, max(N_z,1)]);
-            becareful = logical(isfinite(temp4) .* isfinite(WG_u_expanded));
-            temp4(becareful) = ( sj(jj)*temp4(becareful).^ezc8(jj) + (1-sj(jj))*WG_u_expanded(becareful).^ezc8(jj) ) .^ ezc6(jj);
-            temp4((EV_z == 0) & (WG_u_expanded == 0)) = 0;
-        else
-            becareful = isfinite(temp4);
-            temp4(becareful) = ( sj(jj)*temp4(becareful).^ezc8(jj) ) .^ ezc6(jj);
-            temp4(EV_z == 0) = 0;
-        end
+        V_safe = reshape(V_transformed, [N_a, N_z]);
+        V_safe(V_safe == -Inf) = -1e250;
+        EV_z_flat = V_safe * pi_z_j';
+        EV_z_flat((V_safe == -Inf) * (pi_z_j' > 0) > 0) = -Inf;
+        EV_z = reshape(EV_z_flat, [N_a1_safe, N_a2_safe, N_z]);
     end
 
-    % ---------------------------------------------------------
-    % DIMENSIONAL COMPRESSION: Maximize out d2 (riskyshare)
-    % ---------------------------------------------------------
-    temp4_tensor = reshape(temp4, [N_a1, N_d2, N_d3, max(N_z,1)]);
-
-    safe_temp4 = temp4_tensor;
-    inf_mask = isinf(temp4_tensor);
-    safe_temp4(inf_mask) = 0;
-
-    masked_temp4 = (~inf_mask) .* safe_temp4;
-    flipped_temp4 = ezc9 * ezc3 * masked_temp4;
-    flipped_temp4(inf_mask) = -Inf;
-
-    % Exact Math Extraction
-    [EV_max_d3_raw, Pol_d2_idx] = max(flipped_temp4, [], 2);
-
-    EV_max_d3 = reshape(EV_max_d3_raw, [N_a1, N_d3, max(N_z,1)]);
-    Pol_d2_idx = reshape(Pol_d2_idx, [N_a1, N_d3, max(N_z,1)]);
-
-    % =========================================================
-    % 5D TENSOR BLOCK
-    % =========================================================
-    EvalBlockFn = @(state_idx, loweredge_matrix, maxgap_scalar) Evaluate_EZ_TensorBlock(...
-        state_idx, N_d1, N_d2, N_d3, N_a1, N_a2, max(N_z,1), ...
-        beta_j, EV_max_d3, Pol_d2_idx, d1_grid, d3_grid, a1_grid, a2_grid, ...
-        z_gridvals(:,:,jj), TensorReturnFn, ReturnFnParamsCell, ...
-        ezc1_j, ezc2(jj), ezc7(jj), ezc4, ezc9, has_d1, has_a1);
-
-    if isfield(vfoptions, 'divideandconquer') && vfoptions.divideandconquer == 1
-        vfopts_dc = vfoptions;
-        vfopts_dc.level1n = vfoptions.level1n(1);
-        [V_j_max, Pol_d_combo] = ValueFnIter_DC1_Slicer(N_a, N_a, 1, max(N_z,1), vfopts_dc, EvalBlockFn);
+    % Warm Glow
+    if warmglow == 1
+        wg_params = CreateCellFromParams(Parameters, vfoptions.WarmGlowBequestsFnParamsNames, jj, vfoptions.precision);
+        WG_eval = vfoptions.WarmGlowBequestsFn(a2_grid, wg_params{:});
+        if isscalar(WG_eval); WG_eval = WG_eval * ones(size(a2_grid), 'like', a2_grid); end
+        valid_wg = isfinite(WG_eval) & (WG_eval ~= 0);
+        WG_transformed = WG_eval;
+        if ezc5(jj) == 1; WG_transformed(valid_wg) = ezc4 * WG_eval(valid_wg); else; WG_transformed(valid_wg) = max(ezc4 * WG_eval(valid_wg), 0).^ezc5(jj); end
+        WG_transformed(WG_eval == 0) = 0;
+        WG_vec = reshape(WG_transformed, [1, 1, 1, N_a2_safe, 1, 1]);
     else
-        [V_j_max, Pol_d_combo] = EvalBlockFn(1:N_a, [], 0);
+        WG_vec = 0;
     end
 
-    V(:,:,jj) = V_j_max;
-    PolicyKron(1, :, :, jj) = Pol_d_combo;
-    V_next = V(:,:,jj);
+    % =========================================================================
+    % PHASE 3: TENSOR EVALUATION & IMPLICIT EXPANSION
+    % =========================================================================
+
+    % 1. Evaluate Return Function [N_d, N_a1_prime, N_a1_state, N_a2_state, N_z]
+    F_tensor = arrayfun(ReturnFn, ret_args_run{:}, ReturnFnParamsCell{:});
+    F_tensor(isfinite(F_tensor) & F_tensor ~= 0) = F_tensor(isfinite(F_tensor) & F_tensor ~= 0).^ezc2(jj);
+    F_tensor(F_tensor == 0) = -Inf;
+
+    % 2. Evaluate Portfolio Returns (a2_prime) [N_d, 1, 1, N_a2_state, 1, N_u]
+    A2_prime = arrayfun(aprimeFn, ap_args{:}, aprimeFnParamsCell{:});
+    a2_grid_1d_vec = a2_grids{1};
+    a2_prime_clipped = max(a2_grid_1d_vec(1), min(A2_prime, a2_grid_1d_vec(end)));
+
+    % 3. Find Interpolation Weights for A2_prime on a2_grid
+    a2_grid_shape = cast(reshape(a2_grid_1d_vec, [1,1,1,1,1,1,length(a2_grid_1d_vec)]), 'like', A2_prime);
+    idx = sum(a2_prime_clipped >= a2_grid_shape, 7);
+    idx(idx == 0) = 1;
+    idx(idx == length(a2_grid_1d_vec)) = length(a2_grid_1d_vec) - 1;
+
+    a2_left = reshape(a2_grid_1d_vec(idx), size(idx));
+    a2_right = reshape(a2_grid_1d_vec(idx+1), size(idx));
+    weight = (a2_prime_clipped - a2_left) ./ (a2_right - a2_left);
+    weight(a2_right == a2_left) = 0;
+    weight(abs(weight) < 1e-12) = 0;
+    weight(abs(weight - 1) < 1e-12) = 1;
+
+    % 4. Build Linear Indices for EV_z [N_a1_prime, N_a2_prime, N_z]
+    a1_prime_offset = reshape(0:N_a1_safe-1, [1, N_a1_safe, 1, 1, 1, 1]) * 1;
+    a2_prime_offset = (idx - 1) * N_a1_safe;
+    z_offset = reshape(0:N_z-1, [1, 1, 1, 1, N_z, 1]) * (N_a1_safe * N_a2_safe);
+
+    idx_left  = 1 + a1_prime_offset + a2_prime_offset + z_offset;
+    idx_right = idx_left + N_a1_safe;
+
+    % 5. Interpolate EV_z and Evaluate U Expectation
+    EV_flat = EV_z(:);
+    term_L = EV_flat(idx_left) .* (1 - weight);
+    term_R = EV_flat(idx_right) .* weight;
+    term_L(isnan(term_L)) = 0;
+    term_R(isnan(term_R)) = 0;
+
+    EV_u = term_L + term_R;
+    EV_compact = sum(EV_u .* pi_u_shape, 6);
+
+    % 6. Apply Outer Epstein-Zin Transforms
+    EV_compact(isnan(EV_compact)) = -Inf;
+    if warmglow == 1
+        valid_ez = isfinite(EV_compact) & isfinite(WG_vec);
+        EV_transformed = EV_compact;
+        EV_transformed(valid_ez) = (sj_val * EV_compact(valid_ez).^ezc8(jj) + (1 - sj_val) * WG_vec(valid_ez).^ezc8(jj)).^ezc6(jj);
+        EV_transformed((EV_compact == 0) & (WG_vec == 0)) = 0;
+    else
+        valid_ez = isfinite(EV_compact);
+        EV_transformed = EV_compact;
+        EV_transformed(valid_ez) = (sj_val * EV_compact(valid_ez).^ezc8(jj)).^ezc6(jj);
+        EV_transformed(EV_compact == 0) = 0;
+    end
+
+    % =========================================================================
+    % PHASE 4: UNIVERSAL RHS & MAXIMIZATION
+    % =========================================================================
+    % EV_transformed automatically broadcasts across Dim 3 (a1_state)
+    RHS_native = ezc1 * F_tensor + beta_j * EV_transformed;
+
+    valid_rhs = isfinite(RHS_native) & (RHS_native ~= 0);
+    RHS_native(valid_rhs) = RHS_native(valid_rhs).^ezc7(jj);
+
+    FLAT_CHOICES = N_d_safe * N_a1_safe;
+    FLAT_STATES  = N_a1_safe * N_a2_safe * N_z;
+    RHS_flat = reshape(RHS_native, [FLAT_CHOICES, FLAT_STATES]);
+
+    [V_max_flat, Pol_idx_flat] = max(RHS_flat, [], 1);
+    V_j_max = reshape(V_max_flat, [N_a, N_z]);
+
+    % Unpack Policies: d2 (riskyshare), d3 (savings), a1prime (hprime)
+    d_sub = mod(Pol_idx_flat - 1, N_d_safe) + 1;
+    Policy(1, :, :, jj) = reshape(mod(d_sub - 1, n_d(1)) + 1, [1, N_a, N_z]); % riskyshare
+    Policy(2, :, :, jj) = reshape(ceil(d_sub / n_d(1)), [1, N_a, N_z]); % savings
+    Policy(3, :, :, jj) = reshape(ceil(Pol_idx_flat / N_d_safe), [1, N_a, N_z]); % hprime
+
+    V(:, :, jj) = V_j_max;
+    V_next = V_j_max;
 end
-
-% =========================================================
-% UNPACK POLICY AND RESHAPE
-% =========================================================
-if isfield(vfoptions, 'outputkron') && vfoptions.outputkron == 1
-    Policy = PolicyKron;
-    return;
-end
-
-if has_a1
-    n_daprime = [n_d, n_a1];
-else
-    n_daprime = n_d;
-end
-
-PolicyKron_flat = reshape(PolicyKron, [size(PolicyKron,1), N_a, N_z, N_j]);
-Policy = UnKronPolicyIndexes1_FHorz_z(PolicyKron_flat, n_daprime, N_a, n_z, N_j, vfoptions);
-
-if has_a1
-    n_a_full = [N_a1, N_a2];
-else
-    n_a_full = N_a2;
-end
-
-if isempty(n_z) || prod(n_z) == 0
-    V = reshape(V, [n_a_full, N_j]);
-    Policy = reshape(Policy, [size(Policy, 1), n_a_full, N_j]);
-else
-    V = reshape(V, [n_a_full, n_z, N_j]);
-    Policy = reshape(Policy, [size(Policy, 1), n_a_full, n_z, N_j]);
-end
-
-end
-
-% =========================================================
-% UNIFIED EZ 5D TENSOR BLOCK FUNCTION
-% =========================================================
-function [V_sub, Pol_d_combo, L2idx, L2flag] = Evaluate_EZ_TensorBlock(...
-    state_idx, N_d1, N_d2, N_d3, N_a1, N_a2, N_z_safe, ...
-    beta_j, EV_max_d3, Pol_d2_idx, d1_grid, d3_grid, a1_grid, a2_grid, z_gridvals, ...
-    TensorReturnFn, ReturnFnParamsCell, ezc1_j, ezc2_j, ezc7_j, ezc4, ezc9, has_d1, has_a1)
-
-N_block = length(state_idx);
-
-% 1. Setup 5D Choice/State Structures (Dimension swapped for Tie-Breaking)
-d1_in      = reshape(d1_grid, [N_d1, 1, 1, 1, 1]);
-d3_in      = reshape(d3_grid, [1, N_d3, 1, 1, 1]);
-a1prime_in = reshape(a1_grid, [1, 1, N_a1, 1, 1]);
-
-[a1_idx, a2_idx] = ind2sub([N_a1, N_a2], state_idx);
-A1_cells = reshape(a1_grid(a1_idx), [1, 1, 1, N_block, 1]);
-A2_cells = reshape(a2_grid(a2_idx), [1, 1, 1, N_block, 1]);
-Z_cells  = reshape(z_gridvals, [1, 1, 1, 1, N_z_safe]);
-
-% 2. Dynamically Assemble ReturnFn Signature
-ReturnFn_Args = {};
-if has_d1, ReturnFn_Args{end+1} = d1_in; end
-ReturnFn_Args{end+1} = d3_in;
-if has_a1
-    ReturnFn_Args{end+1} = a1prime_in;
-    ReturnFn_Args{end+1} = A1_cells;
-end
-ReturnFn_Args{end+1} = A2_cells;
-if N_z_safe > 0, ReturnFn_Args{end+1} = Z_cells; end
-ReturnFn_Args = [ReturnFn_Args, ReturnFnParamsCell];
-
-% 3. Evaluate F (5D)
-F_tensor = TensorReturnFn(ReturnFn_Args{:});
-temp2 = F_tensor;
-becareful = logical(isfinite(F_tensor) .* (F_tensor ~= 0));
-temp2(becareful) = F_tensor(becareful) .^ ezc2_j;
-temp2(F_tensor == 0) = -Inf;
-
-% 4. Assemble RHS (EV_bc Permuted for Tie-Breaking)
-EV_bc_perm = permute(EV_max_d3, [2, 1, 3]);
-EV_bc = reshape(EV_bc_perm, [1, N_d3, N_a1, 1, N_z_safe]);
-entireRHS = ezc1_j .* temp2 + ezc9 .* beta_j .* EV_bc;
-
-RHS = entireRHS;
-temp5 = logical(isfinite(entireRHS) .* (entireRHS ~= 0));
-RHS(temp5) = entireRHS(temp5) .^ ezc7_j;
-
-RHS_flat = reshape(RHS, [N_d1 * N_d3 * N_a1, N_block * N_z_safe]);
-[V_sub_coarse, opt_idx_flat] = max(RHS_flat, [], 1);
-V_sub = V_sub_coarse;
-
-% 5. Simultaneous Compression (d3 before a1prime for Tie-Breaking)
-[d1_opt, d3_opt, a1prime_opt] = ind2sub([N_d1, N_d3, N_a1], opt_idx_flat);
-d1_opt = reshape(d1_opt, [N_block, N_z_safe]);
-a1prime_opt = reshape(a1prime_opt, [N_block, N_z_safe]);
-d3_opt = reshape(d3_opt, [N_block, N_z_safe]);
-
-z_idx_bc = repmat(reshape(1:N_z_safe, [1, N_z_safe]), [N_block, 1]);
-linear_d2_query = a1prime_opt + (d3_opt - 1)*N_a1 + (z_idx_bc - 1)*N_a1*N_d3;
-d2_opt = reshape(Pol_d2_idx(linear_d2_query(:)), [N_block, N_z_safe]);
-
-Pol_d_combo = d1_opt + (d2_opt - 1) * N_d1 + (d3_opt - 1) * N_d1 * N_d2 + (a1prime_opt - 1) * (N_d1 * N_d2 * N_d3);
-V_sub  = reshape(V_sub, [N_block, N_z_safe]);
-
-L2idx  = [];
-L2flag = [];
 
 
 end
