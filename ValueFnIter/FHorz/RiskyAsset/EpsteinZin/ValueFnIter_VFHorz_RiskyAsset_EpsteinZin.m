@@ -6,9 +6,7 @@ function [V, Policy] = ValueFnIter_VFHorz_RiskyAsset_EpsteinZin(...
 % =========================================================================
 % PHASE 1: PRE-COMPUTATION & AUTONOMOUS PARSING
 % =========================================================================
-% Establish a bulletproof prototype for instantiating new arrays (matches precision & device)
 if ~isempty(a2_grid); proto = a2_grid; elseif ~isempty(a1_grid); proto = a1_grid; else; proto = d_grid; end
-
 if isfield(vfoptions, 'ezc9'); ezc9 = vfoptions.ezc9; else; ezc9 = ones(N_j, 1); end
 
 n_a = [n_a1, n_a2];
@@ -19,7 +17,16 @@ N_z = max(1, prod(n_z));
 N_u = max(1, prod(n_u));
 N_a = N_a1_safe * N_a2_safe;
 
-pi_u_shape = reshape(pi_u(:), [1, 1, 1, 1, 1, 1, N_u]);
+% Dynamic Dimensionality guarantees safe expansion for any number of decisions
+dim_a1p = length(n_d) + 1;
+dim_a1s = length(n_d) + 2;
+dim_a2s = length(n_d) + 3;
+dim_z   = length(n_d) + 4;
+dim_u   = length(n_d) + 5;
+dim_eval= dim_u + 1;
+
+pi_shape = ones(1, dim_eval); pi_shape(dim_u) = N_u;
+pi_u_shape = reshape(pi_u(:), pi_shape);
 
 if isfield(vfoptions, 'refine_d')
     l_d1 = vfoptions.refine_d(1); l_d2 = vfoptions.refine_d(2);
@@ -46,20 +53,18 @@ for i = 1:length(n_a1); a1_grids{i} = a1_grid(offset+1 : offset+n_a1(i)); offset
 a2_grids = cell(1, max(1, length(n_a2))); offset = 0;
 for i = 1:length(n_a2); a2_grids{i} = a2_grid(offset+1 : offset+n_a2(i)); offset = offset + n_a2(i); end
 
-% Strict Orthogonal Dimensions 1-8 prevents VRAM blowouts
 D_cells = cell(1, length(n_d));
-for i = 1:length(n_d); shape = ones(1, 8); shape(i) = n_d(i); D_cells{i} = reshape(d_grids{i}, shape); end
-dim_a1p = length(n_d) + 1; dim_a1s = length(n_d) + 2; dim_a2s = length(n_d) + 3; dim_z = length(n_d) + 4; dim_u = length(n_d) + 5;
+for i = 1:length(n_d); shape = ones(1, dim_eval); shape(i) = n_d(i); D_cells{i} = reshape(d_grids{i}, shape); end
 
 Apr_cells = cell(1, length(n_a1));
-for i = 1:length(n_a1); shape = ones(1, 8); shape(dim_a1p) = n_a1(i); Apr_cells{i} = reshape(a1_grids{i}, shape); end
+for i = 1:length(n_a1); shape = ones(1, dim_eval); shape(dim_a1p) = n_a1(i); Apr_cells{i} = reshape(a1_grids{i}, shape); end
 A1_cells = cell(1, length(n_a1));
-for i = 1:length(n_a1); shape = ones(1, 8); shape(dim_a1s) = n_a1(i); A1_cells{i} = reshape(a1_grids{i}, shape); end
+for i = 1:length(n_a1); shape = ones(1, dim_eval); shape(dim_a1s) = n_a1(i); A1_cells{i} = reshape(a1_grids{i}, shape); end
 A2_cells = cell(1, max(1, length(n_a2)));
-for i = 1:length(n_a2); shape = ones(1, 8); shape(dim_a2s) = n_a2(i); A2_cells{i} = reshape(a2_grids{i}, shape); end
-if isempty(n_a2); shape = ones(1, 8); shape(dim_a2s) = 1; A2_cells{1} = zeros(shape, 'like', proto); end
+for i = 1:length(n_a2); shape = ones(1, dim_eval); shape(dim_a2s) = n_a2(i); A2_cells{i} = reshape(a2_grids{i}, shape); end
+if isempty(n_a2); shape = ones(1, dim_eval); shape(dim_a2s) = 1; A2_cells{1} = zeros(shape, 'like', proto); end
 
-shape = ones(1, 8); shape(dim_u) = N_u;
+shape = ones(1, dim_eval); shape(dim_u) = N_u;
 U_cells = {reshape(u_grid, shape)};
 
 ret_args = cell(1, num_prefix_ret); idx = 1;
@@ -129,7 +134,7 @@ for reverse_j = 0:N_j-1
     ret_args_run = ret_args;
     idx = length(ret_args_run) - num_z_vars + 1;
     for iz = 1:num_z_vars
-        z_shape = ones(1, 8); z_shape(dim_z) = N_z;
+        z_shape = ones(1, dim_eval); z_shape(dim_z) = N_z;
         ret_args_run{idx} = reshape(z_gridvals_J(:, iz, min(jj, size(z_gridvals_J,3))), z_shape);
         idx = idx + 1;
     end
@@ -173,7 +178,7 @@ for reverse_j = 0:N_j-1
     % PHASE 3: TENSOR EVALUATION & IMPLICIT EXPANSION
     % =========================================================================
     % 1. Evaluate Return Function (Dynamically bound to active variables)
-    ret_shape = ones(1, 8);
+    ret_shape = ones(1, dim_eval);
     for i = 1:length(ret_args_run)
         sz = size(ret_args_run{i});
         ret_shape(1:length(sz)) = max(ret_shape(1:length(sz)), sz);
@@ -189,9 +194,8 @@ for reverse_j = 0:N_j-1
     F_tensor(F_tensor == 0) = -Inf;
 
     % 2. Evaluate Portfolio Returns (a2_prime)
-    % Hoist the portfolio mapping out of the loop if parameters are static!
     if reverse_j == 0 || any(Ap_age)
-        ap_shape = ones(1, 8);
+        ap_shape = ones(1, dim_eval);
         for i = 1:length(ap_args)
             sz = size(ap_args{i});
             ap_shape(1:length(sz)) = max(ap_shape(1:length(sz)), sz);
@@ -206,9 +210,9 @@ for reverse_j = 0:N_j-1
         a2_grid_1d_vec = a2_grids{1};
         a2_prime_clipped = max(a2_grid_1d_vec(1), min(A2_prime, a2_grid_1d_vec(end)));
 
-        a2_grid_shape = ones(1, 8); a2_grid_shape(8) = length(a2_grid_1d_vec);
+        a2_grid_shape = ones(1, dim_eval); a2_grid_shape(dim_eval) = length(a2_grid_1d_vec);
         a2_grid_shape_vals = reshape(a2_grid_1d_vec, a2_grid_shape);
-        idx = sum(a2_prime_clipped >= a2_grid_shape_vals, 8);
+        idx = sum(a2_prime_clipped >= a2_grid_shape_vals, dim_eval);
         idx(idx == 0) = 1;
         idx(idx == length(a2_grid_1d_vec)) = length(a2_grid_1d_vec) - 1;
 
@@ -219,13 +223,12 @@ for reverse_j = 0:N_j-1
         weight(abs(weight) < 1e-12) = 0;
         weight(abs(weight - 1) < 1e-12) = 1;
 
-        % Strictly cast offset matrices to proto to prevent GPU/CPU indexing stalls
-        a1_prime_offset_shape = ones(1, 8); a1_prime_offset_shape(dim_a1p) = N_a1_safe;
+        a1_prime_offset_shape = ones(1, dim_eval); a1_prime_offset_shape(dim_a1p) = N_a1_safe;
         a1_prime_offset = cast(reshape(0:N_a1_safe-1, a1_prime_offset_shape), 'like', proto);
 
         a2_prime_offset = (idx - 1) * N_a1_safe;
 
-        z_offset_shape = ones(1, 8); z_offset_shape(dim_z) = N_z;
+        z_offset_shape = ones(1, dim_eval); z_offset_shape(dim_z) = N_z;
         z_offset = cast(reshape(0:N_z-1, z_offset_shape) * (N_a1_safe * N_a2_safe), 'like', proto);
 
         idx_left  = 1 + a1_prime_offset + a2_prime_offset + z_offset;
@@ -244,7 +247,6 @@ for reverse_j = 0:N_j-1
     EV_compact = sum(EV_u_weighted, dim_u);
     EV_compact(isnan(EV_compact)) = -Inf;
 
-    % Interpolate Warmglow mapping (if active)
     if warmglow == 1
         WG_flat = WG_vec;
         term_L_WG = WG_flat(idx) .* (1 - weight);
@@ -263,10 +265,14 @@ for reverse_j = 0:N_j-1
     ezc6_val = ezc6(min(jj, length(ezc6))); ezc8_val = ezc8(min(jj, length(ezc8)));
 
     if warmglow == 1
-        valid_ez = isfinite(EV_compact) & isfinite(WG_compact);
+        % WG_compact ignores 'z', so it is smaller than EV_compact.
+        % We MUST inflate it to match before applying the 6D logical mask!
+        WG_expanded = WG_compact + zeros(size(EV_compact), 'like', proto);
+
+        valid_ez = isfinite(EV_compact) & isfinite(WG_expanded);
         EV_transformed = EV_compact;
-        EV_transformed(valid_ez) = (sj_val * EV_compact(valid_ez).^ezc8_val + (1 - sj_val) * WG_compact(valid_ez).^ezc8_val).^ezc6_val;
-        EV_transformed((EV_compact == 0) & (WG_compact == 0)) = 0;
+        EV_transformed(valid_ez) = (sj_val * EV_compact(valid_ez).^ezc8_val + (1 - sj_val) * WG_expanded(valid_ez).^ezc8_val).^ezc6_val;
+        EV_transformed((EV_compact == 0) & (WG_expanded == 0)) = 0;
     else
         valid_ez = isfinite(EV_compact);
         EV_transformed = EV_compact;
@@ -286,6 +292,7 @@ for reverse_j = 0:N_j-1
             [EV_scaled, Pol_d2_indices{i}] = max(EV_scaled, [], i);
         end
     end
+
     % =========================================================================
     % PHASE 4: UNIVERSAL RHS & MAXIMIZATION
     % =========================================================================
