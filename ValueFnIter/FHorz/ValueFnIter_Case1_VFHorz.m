@@ -356,6 +356,7 @@ if has_e
     else
         e_work = vfoptions.e_grid;
     end
+    if vfoptions.parallel == 2; e_work = gpuArray(e_work); end % STRICT VRAM ASSIGNMENT
 else
     e_work = ones(1, 1, 'like', a_grid);
 end
@@ -667,7 +668,12 @@ else
 end
 
 chunk_meta = cell(1, length(ze_chunks));
-d_vec = reshape(0:N_d_safe-1, [N_d_safe, 1, 1, 1, 1]);
+if vfoptions.parallel == 2
+    d_vec = gpuArray(reshape(0:N_d_safe-1, [N_d_safe, 1, 1, 1, 1]));
+else
+    d_vec = reshape(0:N_d_safe-1, [N_d_safe, 1, 1, 1, 1]);
+end
+
 for i_ze = 1:length(ze_chunks)
     c_ze = ze_chunks{i_ze};
     if isa(c_ze, 'gpuArray'), c_ze_cpu = gather(c_ze); else, c_ze_cpu = c_ze; end
@@ -686,12 +692,9 @@ base_ReturnFnParamsCell = CreateCellFromParams(Parameters, ReturnFnParamNames, 1
 ReturnFnParam_is_age_dependent = false(1, length(ReturnFnParamNames));
 for ip = 1:length(ReturnFnParamNames)
     if numel(Parameters.(ReturnFnParamNames{ip})) == N_j; ReturnFnParam_is_age_dependent(ip) = true; end
-    % Keep STATIC scalars on the CPU so they bake into PTX as ultra-fast constants.
-    % Only push arrays to the GPU.
-    if isnumeric(base_ReturnFnParamsCell{ip}) && ~isa(base_ReturnFnParamsCell{ip}, 'gpuArray')
-        if ~isscalar(base_ReturnFnParamsCell{ip})
-            base_ReturnFnParamsCell{ip} = gpuArray(base_ReturnFnParamsCell{ip});
-        end
+    % Push EVERYTHING to GPU to prevent arrayfun PTX sync stalls
+    if vfoptions.parallel == 2 && isnumeric(base_ReturnFnParamsCell{ip}) && ~isa(base_ReturnFnParamsCell{ip}, 'gpuArray')
+        base_ReturnFnParamsCell{ip} = gpuArray(base_ReturnFnParamsCell{ip});
     end
 end
 
@@ -700,12 +703,9 @@ if is_exp_asset
     aprimeFnParam_is_age_dependent = false(1, length(aprimeFnParamNames));
     for ip = 1:length(aprimeFnParamNames)
         if numel(Parameters.(aprimeFnParamNames{ip})) == N_j; aprimeFnParam_is_age_dependent(ip) = true; end
-        % Keep STATIC scalars on the CPU so they bake into PTX as ultra-fast constants.
-        % Only push arrays to the GPU.
-        if isnumeric(base_aprimeFnParamsCell{ip}) && ~isa(base_aprimeFnParamsCell{ip}, 'gpuArray')
-            if ~isscalar(base_aprimeFnParamsCell{ip})
-                base_aprimeFnParamsCell{ip} = gpuArray(base_aprimeFnParamsCell{ip});
-            end
+        % Push EVERYTHING to GPU to prevent arrayfun PTX sync stalls
+        if vfoptions.parallel == 2 && isnumeric(base_aprimeFnParamsCell{ip}) && ~isa(base_aprimeFnParamsCell{ip}, 'gpuArray')
+            base_aprimeFnParamsCell{ip} = gpuArray(base_aprimeFnParamsCell{ip});
         end
     end
 end
@@ -726,9 +726,7 @@ for reverse_j = 0:N_j-1
     ReturnFnParamsCell = base_ReturnFnParamsCell;
     for ip = find(ReturnFnParam_is_age_dependent)
         val = Parameters.(ReturnFnParamNames{ip})(jj);
-        % Pushing DYNAMIC scalars to gpuArray prevents the JIT from recompiling 81 times,
-        % while keeping global memory reads to an absolute minimum!
-        ReturnFnParamsCell{ip} = gpuArray(val);
+        if vfoptions.parallel == 2; ReturnFnParamsCell{ip} = gpuArray(val); else; ReturnFnParamsCell{ip} = val; end
     end
 
     DiscountFactorParamsVec = CreateVectorFromParams(Parameters, DiscountFactorParamNames, jj, vfoptions.precision);
@@ -738,9 +736,7 @@ for reverse_j = 0:N_j-1
         aprimeFnParamsCell = base_aprimeFnParamsCell;
         for ip = find(aprimeFnParam_is_age_dependent)
             val = Parameters.(aprimeFnParamNames{ip})(jj);
-            % Pushing DYNAMIC scalars to gpuArray prevents the JIT from recompiling 81 times,
-            % while keeping global memory reads to an absolute minimum!
-            aprimeFnParamsCell{ip} = gpuArray(val);
+            if vfoptions.parallel == 2; aprimeFnParamsCell{ip} = gpuArray(val); else; aprimeFnParamsCell{ip} = val; end
         end
     else
         aprimeFnParamsCell = {};
@@ -947,8 +943,8 @@ for reverse_j = 0:N_j-1
                     EV_d_sliced = EV_reshaped(:, :, :, dsemiz_idx_tensor(:));
                     EV_bounded_pre = beta_j .* permute(EV_d_sliced, [4, 1, 5, 2, 3]);
 
-                    z_vec = reshape((0:n_z_loc-1) * (N_d_safe * N_a1_dc * N_a1_other), [1, 1, 1, n_z_loc, 1]);
-                    e_vec = reshape((0:n_e_loc-1) * (N_d_safe * N_a1_dc * N_a1_other * n_z_loc), [1, 1, 1, 1, n_e_loc]);
+                    z_vec = gpuArray(reshape((0:n_z_loc-1) * (N_d_safe * N_a1_dc * N_a1_other), [1, 1, 1, n_z_loc, 1]));
+                    e_vec = gpuArray(reshape((0:n_e_loc-1) * (N_d_safe * N_a1_dc * N_a1_other * n_z_loc), [1, 1, 1, 1, n_e_loc]));
                     static_EV_offset = d_vec + 1 + z_vec + e_vec;
                     static_EV_offset_fine = [];
                 else
@@ -1031,13 +1027,13 @@ for reverse_j = 0:N_j-1
                     end
 
                     % Setup static mapping offsets for all Branches (Now safely sized to N_a2_local!)
-                    z_vec = reshape((0:n_z_loc-1) * (N_d_safe * N_a1_total * N_a2_local), [1, 1, 1, n_z_loc, 1]);
-                    e_vec = reshape((0:n_e_loc-1) * (N_d_safe * N_a1_total * N_a2_local * n_z_loc), [1, 1, 1, 1, n_e_loc]);
+                    z_vec = gpuArray(reshape((0:n_z_loc-1) * (N_d_safe * N_a1_total * N_a2_local), [1, 1, 1, n_z_loc, 1]));
+                    e_vec = gpuArray(reshape((0:n_e_loc-1) * (N_d_safe * N_a1_total * N_a2_local * n_z_loc), [1, 1, 1, 1, n_e_loc]));
                     static_EV_offset = d_vec + 1 + z_vec + e_vec;
 
                     if vfoptions.gridinterplayer(1) == 1
-                        z_vec_fine = reshape((0:n_z_loc-1) * (N_d_safe * N_a1_interp * N_a2_local), [1, 1, 1, n_z_loc, 1]);
-                        e_vec_fine = reshape((0:n_e_loc-1) * (N_d_safe * N_a1_interp * N_a2_local * n_z_loc), [1, 1, 1, 1, n_e_loc]);
+                        z_vec_fine = gpuArray(reshape((0:n_z_loc-1) * (N_d_safe * N_a1_interp * N_a2_local), [1, 1, 1, n_z_loc, 1]));
+                        e_vec_fine = gpuArray(reshape((0:n_e_loc-1) * (N_d_safe * N_a1_interp * N_a2_local * n_z_loc), [1, 1, 1, 1, n_e_loc]));
                         static_EV_offset_fine = d_vec + 1 + z_vec_fine + e_vec_fine;
                     else
                         static_EV_offset_fine = [];
@@ -1175,7 +1171,6 @@ for reverse_j = 0:N_j-1
 
                     if is_exp_asset
                         N_a2_global = max(1, prod(cellfun(@length, a2_grids_1d)));
-                        % FIX 1: EV_local has N_a2_global rows. Reshape must safely map the global dimension!
                         EV_2d = reshape(EV_local, [N_a1_dc, N_a1_other * N_a2_global * N_cols]);
                         EV_left_val = EV_2d(interp_left_idx, :);
                         EV_right_val = EV_2d(interp_right_idx, :);
@@ -1201,8 +1196,8 @@ for reverse_j = 0:N_j-1
                     EV_d_sliced = EV_reshaped(:, :, :, dsemiz_idx_tensor(:));
                     EV_bounded_pre = beta_j .* permute(EV_d_sliced, [4, 1, 5, 2, 3]);
 
-                    z_vec = reshape((0:n_z_loc-1) * (N_d_safe * N_a1_dc * N_a1_other), [1, 1, 1, n_z_loc, 1]);
-                    e_vec = reshape((0:n_e_loc-1) * (N_d_safe * N_a1_dc * N_a1_other * n_z_loc), [1, 1, 1, 1, n_e_loc]);
+                    z_vec = gpuArray(reshape((0:n_z_loc-1) * (N_d_safe * N_a1_dc * N_a1_other), [1, 1, 1, n_z_loc, 1]));
+                    e_vec = gpuArray(reshape((0:n_e_loc-1) * (N_d_safe * N_a1_dc * N_a1_other * n_z_loc), [1, 1, 1, 1, n_e_loc]));
                     static_EV_offset = d_vec + 1 + z_vec + e_vec;
                     static_EV_offset_fine = [];
                 else
@@ -1210,7 +1205,6 @@ for reverse_j = 0:N_j-1
                     N_a2_global = max(1, prod(cellfun(@length, a2_grids_1d)));
 
                     A2_cells_compact = cell(1, l_a2);
-                    % FIX 2: Restrict A2 evaluation strictly to the active chunk (N_a2_local)!
                     for ia = 1:l_a2; A2_cells_compact{ia} = reshape(A2_local(:, ia), [1, 1, N_a2_local, 1, 1]); end
                     Z_cells_compact = cell(1, length(Z_cells_block));
                     for iz = 1:length(Z_cells_block); Z_cells_compact{iz} = reshape(Z_cells_block{iz}(1,1,1,:,1), [1, 1, 1, n_z_loc, 1]); end
@@ -1284,13 +1278,13 @@ for reverse_j = 0:N_j-1
                     end
 
                     % Setup static mapping offsets for all Branches (Now safely sized to N_a2_local!)
-                    z_vec = reshape((0:n_z_loc-1) * (N_d_safe * N_a1_total * N_a2_local), [1, 1, 1, n_z_loc, 1]);
-                    e_vec = reshape((0:n_e_loc-1) * (N_d_safe * N_a1_total * N_a2_local * n_z_loc), [1, 1, 1, 1, n_e_loc]);
+                    z_vec = gpuArray(reshape((0:n_z_loc-1) * (N_d_safe * N_a1_total * N_a2_local), [1, 1, 1, n_z_loc, 1]));
+                    e_vec = gpuArray(reshape((0:n_e_loc-1) * (N_d_safe * N_a1_total * N_a2_local * n_z_loc), [1, 1, 1, 1, n_e_loc]));
                     static_EV_offset = d_vec + 1 + z_vec + e_vec;
 
                     if vfoptions.gridinterplayer(1) == 1
-                        z_vec_fine = reshape((0:n_z_loc-1) * (N_d_safe * N_a1_interp * N_a2_local), [1, 1, 1, n_z_loc, 1]);
-                        e_vec_fine = reshape((0:n_e_loc-1) * (N_d_safe * N_a1_interp * N_a2_local * n_z_loc), [1, 1, 1, 1, n_e_loc]);
+                        z_vec_fine = gpuArray(reshape((0:n_z_loc-1) * (N_d_safe * N_a1_interp * N_a2_local), [1, 1, 1, n_z_loc, 1]));
+                        e_vec_fine = gpuArray(reshape((0:n_e_loc-1) * (N_d_safe * N_a1_interp * N_a2_local * n_z_loc), [1, 1, 1, 1, n_e_loc]));
                         static_EV_offset_fine = d_vec + 1 + z_vec_fine + e_vec_fine;
                     else
                         static_EV_offset_fine = [];
@@ -1305,7 +1299,6 @@ for reverse_j = 0:N_j-1
                     TensorReturnFn, ReturnFnParamsCell, ezc2(jj), ezc3, ezc4, ezc7(jj), ...
                     TensoraprimeFn, aprimeFnParamsCell, N_dsemiz, dsemiz_idx_tensor, n_z_loc, n_e_loc, static_EV_offset, dc_mode_override, 0, static_EV_offset_fine);
 
-                % FIX 3: Local indexing prevents A2_local OOB crashes inside the Slicer!
                 state_list = start_a_idx:end_a_idx;
                 total_states = length(state_list);
                 state_list_local = 1:total_states;
@@ -1314,7 +1307,6 @@ for reverse_j = 0:N_j-1
                 % --- Dynamic VRAM Protection ---
                 max_states_per_chunk = max(1, floor(safe_elements / (flat_choices * n_z_loc * n_e_loc)));
 
-                % FIX: Snap chunk size to complete A1 columns to guarantee Zero-Copy Cartesian execution
                 N_a1_total = N_a1_dc * N_a1_other;
                 if max_states_per_chunk > N_a1_total
                     max_states_per_chunk = floor(max_states_per_chunk / N_a1_total) * N_a1_total;
@@ -1443,6 +1435,7 @@ varargout{2} = Policy;
 
 end
 
+
 function [V_j_max, Pol_apr_max, Pol_d_max, Pol_L2idx_max, Pol_L2flag_max, Pol_a1_per_a2] = Evaluate_Case1_TensorBlock(...
     state_idx, loweredge_matrix, maxgap_scalar, d_gap, N_a1_dc, N_a1_other, N_a2, N_d_safe, N_ze_local, ...
     Z_cells_block, E_cells_block, D_cells_block, A1_mat, A2_mat, A1_grids_1d, a2_grids_1d, ...
@@ -1454,6 +1447,11 @@ if nargin < 39 || isempty(d_override); d_override = 0; end
 if nargin < 40; static_EV_offset_fine = []; end
 N_d_stride = N_d_safe;
 is_EZ = ~(all(ezc2_j == 1) && ezc3 == 1 && ezc4 == 1 && all(ezc7_j == 1));
+
+% VRAM LOCK: Keep slicer index strictly on GPU to prevent PCIe indexing stalls
+if ~isa(state_idx, 'gpuArray') && isa(A1_mat, 'gpuArray')
+    state_idx = gpuArray(state_idx);
+end
 
 % --- D_OVERRIDE SLICING ---
 if d_override > 0
@@ -1545,7 +1543,11 @@ if isempty(loweredge_matrix)
     end
 
     if ~is_cartesian
-        choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
+        if isa(target_EV_offset, 'gpuArray')
+            choice_idx_linear = gpuArray(reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]));
+        else
+            choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
+        end
         if N_a2 > 1
             a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * length(a1_target_grid) * N_a1_other);
             lin_idx_compact = target_EV_offset + (choice_idx_linear - 1) * N_d_stride + a2_offset;
@@ -1652,6 +1654,7 @@ end
 
 end
 
+
 function [v, p_apr, p_d, p_l2, p_l2f, p_a1] = Helper_SlicerWrapper(state_chunk_idx, low_mat, mg, dc_mode, N_a1_dc, N_a1_other, N_a2, N_ze, N_d, CoreFn)
 state_chunk = state_chunk_idx(:)';
 if isempty(low_mat)
@@ -1669,6 +1672,7 @@ end
 
 
 end
+
 
 % =========================================================================
 % TENSOR ENCAPSULATION HELPERS
@@ -1695,6 +1699,7 @@ EV_out(:) = EV_out_lazy(:);
 
 
 end
+
 
 function [choice_idx_linear, out_of_bounds, num_choices_total, Apr_cells, num_choices_total_a1, start_offset, loweredge_matrix_bounds] = Helper_SlicerBounds(...
     loweredge_matrix, N_a1_dc, N_a1_other, N_states, n_z_loc, n_e_loc, N_d_safe, A1_grids_1d, n2short, a1prime_grid, l_a1, EV_local)
@@ -1727,9 +1732,15 @@ end_offset = (n2short + 1);
 num_choices_total_a1 = end_offset - start_offset + 1;
 grid_len = length(a1prime_grid);
 
+if isa(loweredge_matrix, 'gpuArray')
+    offset_vec = gpuArray(reshape(start_offset:end_offset, [1, num_choices_total_a1, 1, 1, 1]));
+else
+    offset_vec = reshape(start_offset:end_offset, [1, num_choices_total_a1, 1, 1, 1]);
+end
+
 if l_a1 == 1
     choice_idx_linear = reshape(L2_base, [N_d_safe, 1, N_states, n_z_loc, n_e_loc]) ...
-        + reshape(start_offset:end_offset, [1, num_choices_total_a1, 1, 1, 1]);
+        + offset_vec;
     out_of_bounds = (choice_idx_linear < 1) | (choice_idx_linear > grid_len);
     choice_idx_linear = max(1, min(choice_idx_linear, grid_len));
     Apr_cells = { a1prime_grid(choice_idx_linear) };
@@ -1737,7 +1748,7 @@ if l_a1 == 1
 else
     num_choices_total = num_choices_total_a1 * N_a1_other;
     choice_idx_a1 = reshape(L2_base, [N_d_safe, 1, N_states, n_z_loc, n_e_loc]) ...
-        + reshape(start_offset:end_offset, [1, num_choices_total_a1, 1, 1, 1]);
+        + offset_vec;
     choice_idx_a1 = repmat(choice_idx_a1, [1, N_a1_other, 1, 1, 1]);
     out_of_bounds = (choice_idx_a1 < 1) | (choice_idx_a1 > grid_len);
     choice_idx_a1 = max(1, min(choice_idx_a1, grid_len));
@@ -1758,6 +1769,7 @@ end
 
 
 end
+
 
 function [V_j_max, Pol_apr_max, Pol_d_max, Pol_L2idx_max, Pol_L2flag_max, Pol_a1_per_a2] = Helper_OutputMapping(...
     RHS_flat, is_dc_mode, is_coarse_mapping, N_d_safe, num_choices_total, N_a1_other, ...
@@ -1891,3 +1903,4 @@ end
 
 
 end
+
