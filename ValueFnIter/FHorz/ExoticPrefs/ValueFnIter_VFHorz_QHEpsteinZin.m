@@ -923,7 +923,9 @@ else
 end
 loweredge_matrix = low_reshaped + target_shape;
 
-loweredge_matrix_bounds = max(2, min(loweredge_matrix, length(a1prime_grid)/(n2short+1) - 1));
+% FIX: Safely clamp to N_a1_dc - 1 to guarantee the Zoom pass can reach the absolute boundary!
+loweredge_matrix_bounds = max(2, min(loweredge_matrix, N_a1_dc - 1));
+
 L2_base = (loweredge_matrix_bounds - 1) * (n2short + 1) + 1;
 start_offset = -(n2short + 1);
 end_offset = (n2short + 1);
