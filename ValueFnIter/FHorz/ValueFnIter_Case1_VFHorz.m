@@ -1137,34 +1137,29 @@ for reverse_j = 0:N_j-1
 
                     % ---- Compute EV_interp_local for FINE pass ----
                     if vfoptions.gridinterplayer(1) == 1
+                        % Because Expectation (over u) and linear interpolation are both linear
+                        % operators, they commute. We directly interpolate the coarse EV_bounded_pre
+                        % to avoid re-evaluating the massive shock transitions over the fine grid.
+
+                        EV_b_reshaped = reshape(EV_bounded_pre, [N_d_safe, N_a1_dc, N_a1_other, N_a2_local, n_z_loc, n_e_loc]);
+
+                        EV_left_int  = EV_b_reshaped(:, interp_left_idx, :, :, :, :);
+                        EV_right_int = EV_b_reshaped(:, interp_right_idx, :, :, :, :);
+
+                        w_shape = cast(reshape(interp_weights, [1, length(interp_weights), 1, 1, 1, 1]), 'like', EV_bounded_pre);
+
+                        term_L = EV_left_int .* (1 - w_shape);
+                        term_R = EV_right_int .* w_shape;
+
+                        % Protect against 0 * -Inf = NaN
+                        term_L(isnan(term_L)) = 0;
+                        term_R(isnan(term_R)) = 0;
+
+                        EV_interp_local = term_L + term_R;
+
+                        % Collapse back to [N_d_safe, a1prime_interp * N_a1_other, N_a2_local, z, e]
                         N_a1_interp = length(a1prime_grid) * N_a1_other;
-                        EV_flat_int = EV_interp_local(:);
-
-                        a1_vec_int = cast(reshape(1:N_a1_interp, [1, N_a1_interp, 1, 1, 1, 1]), 'like', EV_interp_local);
-
-                        lin_left_int  = a1_vec_int + (idx_2d_left_base - 1) * N_a1_interp;
-                        lin_right_int = a1_vec_int + (idx_2d_right_base - 1) * N_a1_interp;
-
-                        EV_left_int  = EV_flat_int(lin_left_int);
-                        EV_right_int = EV_flat_int(lin_right_int);
-
-                        term_left_int  = EV_left_int .* (1 - weight);
-                        term_right_int = EV_right_int .* weight;
-                        term_left_int(isnan(term_left_int)) = 0;
-                        term_right_int(isnan(term_right_int)) = 0;
-
-                        EV_u_int = term_left_int + term_right_int;
-
-                        if ~isempty(pi_u_shape)
-                            pi_ND = cast(reshape(pi_u_shape, [1, 1, 1, 1, 1, n_u_loc]), 'like', EV_u_int);
-                            EV_compact_int = sum(EV_u_int .* pi_ND, 6);
-                        else
-                            EV_compact_int = EV_u_int;
-                        end
-                        EV_compact_int(isnan(EV_compact_int)) = -Inf;
-
-                        % Natively born as [N_d, N_a1_interp, N_a2, z, e]. No permute needed!
-                        EV_interp_local = beta_j .* EV_compact_int;
+                        EV_interp_local = reshape(EV_interp_local, [N_d_safe, N_a1_interp, N_a2_local, n_z_loc, n_e_loc]);
                     end
 
                     % Setup static mapping offsets for all Branches (Now safely sized to N_a2_local!)
