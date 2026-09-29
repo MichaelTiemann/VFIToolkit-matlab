@@ -786,6 +786,7 @@ end
 % =========================================================================
 FLAT_CHOICES = max(1, N_d_safe) * num_choices;
 FLAT_STATES  = N_states * N_ze_local;
+is_EZ = ~(all(ezc2_j == 1) && ezc3 == 1 && ezc4 == 1 && all(ezc7_j == 1));
 
 if is_cartesian
     if isempty(loweredge_matrix) && (gridinterplayer(1) == 0 || is_dc_mode == 2)
@@ -802,26 +803,51 @@ if is_cartesian
     F_tensor_native = reshape(F_tensor, [N_d_safe, num_choices, N_a1, max(1, N_a2_len), N_ze_local]);
 
     EV_expanded_b = EV_slice_b + zeros(size(F_tensor_native), 'like', EV_slice_b);
-    RHS_belief_flat = reshape(F_tensor_native + EV_expanded_b, [FLAT_CHOICES, FLAT_STATES]);
+
+    if is_EZ
+        RHS_belief_native = Evaluate_Universal_RHS_VFHorz(F_tensor_native, EV_expanded_b, 1, 1, ezc2_j, ezc3, ezc4, ezc7_j);
+    else
+        RHS_belief_native = F_tensor_native + EV_expanded_b;
+    end
+    RHS_belief_flat = reshape(RHS_belief_native, [FLAT_CHOICES, FLAT_STATES]);
 
     if compute_valt
         EV_expanded_v = EV_slice_v + zeros(size(F_tensor_native), 'like', EV_slice_v);
-        RHS_Valt_flat = reshape(F_tensor_native + EV_expanded_v, [FLAT_CHOICES, FLAT_STATES]);
+        if is_EZ
+            RHS_Valt_native = Evaluate_Universal_RHS_VFHorz(F_tensor_native, EV_expanded_v, 1, 1, ezc2_j, ezc3, ezc4, ezc7_j);
+        else
+            RHS_Valt_native = F_tensor_native + EV_expanded_v;
+        end
+        RHS_Valt_flat = reshape(RHS_Valt_native, [FLAT_CHOICES, FLAT_STATES]);
     else
         RHS_Valt_flat = [];
     end
 else
-    if size(F_tensor, 3) ~= N_states
-        F_tensor = F_tensor + zeros([1, 1, N_states, 1, 1], 'like', F_tensor);
-    end
-    F_tensor_reshaped = reshape(F_tensor, [FLAT_CHOICES, N_states, N_ze_local]);
+    EV_expanded_b = EV_belief_bounded + zeros(size(F_tensor), 'like', EV_belief_bounded);
 
-    EV_expanded_b = EV_belief_bounded + zeros([1, 1, N_states, 1, 1], 'like', EV_belief_bounded);
-    RHS_belief_flat = reshape(F_tensor_reshaped + EV_expanded_b, [FLAT_CHOICES, FLAT_STATES]);
+    if is_EZ
+        RHS_belief_native = Evaluate_Universal_RHS_VFHorz(F_tensor, EV_expanded_b, 1, 1, ezc2_j, ezc3, ezc4, ezc7_j);
+    else
+        RHS_belief_native = F_tensor + EV_expanded_b;
+    end
+
+    if size(RHS_belief_native, 3) ~= N_states
+        RHS_belief_native = RHS_belief_native + zeros([1, 1, N_states, 1, 1], 'like', RHS_belief_native);
+    end
+    RHS_belief_flat = reshape(RHS_belief_native, [FLAT_CHOICES, FLAT_STATES]);
 
     if compute_valt
-        EV_expanded_v = EV_Valt_bounded + zeros([1, 1, N_states, 1, 1], 'like', EV_Valt_bounded);
-        RHS_Valt_flat = reshape(F_tensor_reshaped + EV_expanded_v, [FLAT_CHOICES, FLAT_STATES]);
+        EV_expanded_v = EV_Valt_bounded + zeros(size(F_tensor), 'like', EV_Valt_bounded);
+        if is_EZ
+            RHS_Valt_native = Evaluate_Universal_RHS_VFHorz(F_tensor, EV_expanded_v, 1, 1, ezc2_j, ezc3, ezc4, ezc7_j);
+        else
+            RHS_Valt_native = F_tensor + EV_expanded_v;
+        end
+
+        if size(RHS_Valt_native, 3) ~= N_states
+            RHS_Valt_native = RHS_Valt_native + zeros([1, 1, N_states, 1, 1], 'like', RHS_Valt_native);
+        end
+        RHS_Valt_flat = reshape(RHS_Valt_native, [FLAT_CHOICES, FLAT_STATES]);
     else
         RHS_Valt_flat = [];
     end
