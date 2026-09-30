@@ -1865,9 +1865,8 @@ if is_coarse_mapping
         num_choices_a1 = num_choices_total / N_a1_other;
         RHS_for_d = reshape(RHS_flat, [N_d_safe, num_choices_a1, N_a1_other, FLAT_STATES]);
         [~, max_a1_idx_per_d] = max(RHS_for_d, [], 2);
-
         if ~isempty(loweredge_matrix_bounds)
-            low_mat_4d = reshape(loweredge_matrix_bounds, [N_d_safe, N_a1_other, N_states, N_ze_local]);
+            low_mat_4d = reshape(loweredge_matrix_bounds, size(max_a1_idx_per_d));
             max_a1_idx_per_d = max_a1_idx_per_d + low_mat_4d - 1;
         end
         Pol_a1_per_a2 = reshape(max_a1_idx_per_d, [N_d_safe, N_a1_other, N_states, N_ze_local]);
