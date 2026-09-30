@@ -80,9 +80,20 @@ for ii = 1:(num_anchors - 1)
     end
 end
 
+% Evaluate each group optimally without padding (Dynamic VRAM Profiling)
+if vfoptions.parallel == 2
+    gpu_device_info = gpuDevice();
+    safe_elements = max(1e7, floor((gpu_device_info.AvailableMemory / 8) / 8));
+else
+    safe_elements = 50000000;
+end
+
 % Evaluate each group optimally without padding (Chunked for VRAM safety)
-CHUNK_SIZE = 50;
 for g = 1:length(unique_mg)
+    mg_e = unique_mg(g);
+    
+    flat_choices_L2 = max(1, N_d) * (mg_e + 1);
+    CHUNK_SIZE = max(1, floor(safe_elements / (flat_choices_L2 * max(1, N_other_states) * max(1, N_ze))));
     mg_e = unique_mg(g);
     sub_idx_all = l2_indices_grp{g};
     sub_low_all = l2_low_grp{g};

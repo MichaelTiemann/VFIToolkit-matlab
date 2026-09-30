@@ -304,6 +304,30 @@ for reverse_j = 0:N_j-1
     % =========================================================================
     % PHASE 4: THE MASTER ORCHESTRATOR
     % =========================================================================
+    % --- SMART DC BYPASS ---
+    if vfoptions.divideandconquer == 1
+        n_d_safe = max(1, N_d);
+
+        if vfoptions.gridinterplayer(1) == 1
+            choices = N_a1 + (N_a1 - 1) * n2short;
+        else
+            choices = N_a1;
+        end
+
+        brute_elements = n_d_safe * N_a * choices * n_z_work * n_e_work;
+
+        if vfoptions.parallel == 2
+            dc_threshold = 25000000;
+        else
+            dc_threshold = 5000000;
+        end
+
+        if brute_elements < dc_threshold
+            disp('V-World QHEZ: State space is highly compact. Bypassing DC to use ultra-fast Brute-Force Tensor.');
+            vfoptions.divideandconquer = 0;
+        end
+    end
+
     if vfoptions.divideandconquer == 1
         % --- SCENARIO 4A: Divide and Conquer Active ---
         for i_ze = 1:length(ze_chunks)

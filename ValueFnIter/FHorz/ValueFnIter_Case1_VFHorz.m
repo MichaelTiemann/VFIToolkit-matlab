@@ -276,6 +276,38 @@ l_exp_ze    = vfoptions.experienceassetze >= 1;
 l_exp_semiz = vfoptions.experienceassetsemiz >= 1;
 is_exp_asset = l_exp_base || l_exp_u || l_exp_z || l_exp_e || l_exp_ze || l_exp_semiz;
 
+% --- SMART DC BYPASS ---
+% DC has fixed kernel dispatch overhead. For small/medium grids,
+% native implicit expansion is orders of magnitude faster.
+if vfoptions.divideandconquer == 1
+    n_d_safe = max(1, prod(n_d));
+    n_a_safe = max(1, prod(n_a));
+    n_z_safe = max(1, prod(n_combined_z));
+    n_e_safe = max(1, prod(vfoptions.n_e));
+
+    if vfoptions.gridinterplayer(1) == 1
+        n2short_check = vfoptions.ngridinterp;
+        n_a1_target = n_a(1);
+        choices = n_a1_target + (n_a1_target - 1) * n2short_check;
+    else
+        choices = n_a(1);
+    end
+
+    % Compute full tensor size if evaluated brute-force
+    brute_elements = n_d_safe * n_a_safe * choices * n_z_safe * n_e_safe;
+
+    if vfoptions.parallel == 2
+        dc_threshold = 50000000; % 50 Million elements (~10ms on GPU)
+    else
+        dc_threshold = 5000000;  % 5 Million for CPU
+    end
+
+    if brute_elements < dc_threshold
+        disp('V-World: State space is highly compact. Bypassing DC to use ultra-fast Brute-Force Tensor.');
+        vfoptions.divideandconquer = 0;
+    end
+end
+
 if vfoptions.divideandconquer == 1 && vfoptions.gridinterplayer(1) == 0 && ~is_EZ && ~is_exp_asset
     if length(n_a) == 1
         disp("ValueFnIter_VFHorz_DC1 version")
