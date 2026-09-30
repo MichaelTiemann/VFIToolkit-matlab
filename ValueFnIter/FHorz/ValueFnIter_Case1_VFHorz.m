@@ -125,6 +125,8 @@ else
     return
 end
 
+% vfoptions.parallel is 2 for the rest of this function
+
 % Let VFIToolkit's native parser slice the grids and define l_a2 / l_d2
 vfoptions = SetupNonStandardEndoStates_FHorz(n_d, n_a, d_grid, a_grid, vfoptions);
 
@@ -220,14 +222,12 @@ if vfoptions.alreadygridvals_semiexo==0
     if N_semiz > 0; vfoptions = SemiExogShockSetup_FHorz(n_d, N_j, d_grid, Parameters, vfoptions, 3); end
 end
 
-if vfoptions.parallel == 2
-    z_gridvals_J = gpuArray(z_gridvals_J);
-    pi_z_J = gpuArray(pi_z_J);
-    if isfield(vfoptions, 'e_gridvals_J'); vfoptions.e_gridvals_J = gpuArray(vfoptions.e_gridvals_J); end
-    if isfield(vfoptions, 'semiz_gridvals_J'); vfoptions.semiz_gridvals_J = gpuArray(vfoptions.semiz_gridvals_J); end
-    if isfield(vfoptions, 'pi_e_J'); vfoptions.pi_e_J = gpuArray(vfoptions.pi_e_J); end
-    if isfield(vfoptions, 'pi_semiz_J'); vfoptions.pi_semiz_J = gpuArray(vfoptions.pi_semiz_J); end
-end
+z_gridvals_J = gpuArray(z_gridvals_J);
+pi_z_J = gpuArray(pi_z_J);
+if isfield(vfoptions, 'e_gridvals_J'); vfoptions.e_gridvals_J = gpuArray(vfoptions.e_gridvals_J); end
+if isfield(vfoptions, 'semiz_gridvals_J'); vfoptions.semiz_gridvals_J = gpuArray(vfoptions.semiz_gridvals_J); end
+if isfield(vfoptions, 'pi_e_J'); vfoptions.pi_e_J = gpuArray(vfoptions.pi_e_J); end
+if isfield(vfoptions, 'pi_semiz_J'); vfoptions.pi_semiz_J = gpuArray(vfoptions.pi_semiz_J); end
 
 N_d = prod(n_d);
 N_a = prod(n_a);
@@ -383,11 +383,9 @@ if isempty(n_d) || isequal(n_d, 0); n_daprime_sig = n_a(1:l_a1); else; n_daprime
 
 [~, D_cells_block, A1_cells, Z_cells_block, E_cells_block] = CreateTensorFnAndCells(ReturnFn, n_d, n_a(1:l_a1), n_combined_z, n_e_pass, d_grid, a1_endo_grid_vals, [], []);
 
-if vfoptions.parallel == 2
-    for i = 1:length(D_cells_block); D_cells_block{i} = gpuArray(D_cells_block{i}); end
-    for i = 1:length(Z_cells_block); Z_cells_block{i} = gpuArray(Z_cells_block{i}); end
-    for i = 1:length(E_cells_block); E_cells_block{i} = gpuArray(E_cells_block{i}); end
-end
+for i = 1:length(D_cells_block); D_cells_block{i} = gpuArray(D_cells_block{i}); end
+for i = 1:length(Z_cells_block); Z_cells_block{i} = gpuArray(Z_cells_block{i}); end
+for i = 1:length(E_cells_block); E_cells_block{i} = gpuArray(E_cells_block{i}); end
 
 if l_a2 > 0
     n_z_pass_exp = 0; if l_exp_z || l_exp_ze; n_z_pass_exp = n_z; end
@@ -510,6 +508,7 @@ elseif vfoptions.lowmemory == 1
     end
 else; ze_chunks = {1:N_ze}; end
 
+% We know vfoptions.parallel == 2 but leave this for documentation
 if vfoptions.parallel == 2; safe_elements = 750000000; else; safe_elements = 50000000; end
 
 if l_a2 > 0
@@ -526,14 +525,14 @@ else
 end
 
 chunk_meta = cell(1, length(ze_chunks));
-if vfoptions.parallel == 2; d_vec = gpuArray(reshape(0:N_d_safe-1, [N_d_safe, 1, 1, 1, 1])); else; d_vec = reshape(0:N_d_safe-1, [N_d_safe, 1, 1, 1, 1]); end
+d_vec = gpuArray(reshape(0:N_d_safe-1, [N_d_safe, 1, 1, 1, 1]));
 
 for i_ze = 1:length(ze_chunks)
     c_ze = ze_chunks{i_ze};
     if isa(c_ze, 'gpuArray'), c_ze_cpu = gather(c_ze); else, c_ze_cpu = c_ze; end
     [z_ind, e_ind] = ind2sub([n_z_work, n_e_work], c_ze_cpu);
-    if vfoptions.parallel == 2; meta.z_vals = gpuArray(unique(z_ind)); meta.e_vals = gpuArray(unique(e_ind));
-    else; meta.z_vals = unique(z_ind); meta.e_vals = unique(e_ind); end
+    meta.z_vals = gpuArray(unique(z_ind));
+    meta.e_vals = gpuArray(unique(e_ind));
     meta.n_z_loc = length(meta.z_vals); meta.n_e_loc = length(meta.e_vals); meta.N_ze_local = length(c_ze);
     meta.z_offset_local = reshape((0:meta.N_ze_local-1) * N_a, [1, 1, 1, meta.N_ze_local]);
     if vfoptions.gridinterplayer(1) == 1; meta.z_offset_fine_local = reshape((0:meta.N_ze_local-1) * length(a1prime_grid), [1, 1, 1, meta.N_ze_local]); else; meta.z_offset_fine_local = []; end
@@ -548,8 +547,8 @@ base_ReturnFnParamsCell = CreateCellFromParams(Parameters, ReturnFnParamNames, 1
 ReturnFnParam_is_age_dependent = false(1, length(ReturnFnParamNames));
 for ip = 1:length(ReturnFnParamNames)
     if numel(Parameters.(ReturnFnParamNames{ip})) == N_j; ReturnFnParam_is_age_dependent(ip) = true; end
-    if vfoptions.parallel == 2 && isnumeric(base_ReturnFnParamsCell{ip}) && ~isa(base_ReturnFnParamsCell{ip}, 'gpuArray')
-        if ~isscalar(base_ReturnFnParamsCell{ip}); base_ReturnFnParamsCell{ip} = gpuArray(base_ReturnFnParamsCell{ip}); end
+    if isnumeric(base_ReturnFnParamsCell{ip}) && ~isa(base_ReturnFnParamsCell{ip}, 'gpuArray')
+        base_ReturnFnParamsCell{ip} = gpuArray(base_ReturnFnParamsCell{ip});
     end
 end
 
@@ -558,8 +557,8 @@ if is_exp_asset
     aprimeFnParam_is_age_dependent = false(1, length(aprimeFnParamNames));
     for ip = 1:length(aprimeFnParamNames)
         if numel(Parameters.(aprimeFnParamNames{ip})) == N_j; aprimeFnParam_is_age_dependent(ip) = true; end
-        if vfoptions.parallel == 2 && isnumeric(base_aprimeFnParamsCell{ip}) && ~isa(base_aprimeFnParamsCell{ip}, 'gpuArray')
-            if ~isscalar(base_aprimeFnParamsCell{ip}); base_aprimeFnParamsCell{ip} = gpuArray(base_aprimeFnParamsCell{ip}); end
+        if isnumeric(base_aprimeFnParamsCell{ip}) && ~isa(base_aprimeFnParamsCell{ip}, 'gpuArray')
+            base_aprimeFnParamsCell{ip} = gpuArray(base_aprimeFnParamsCell{ip});
         end
     end
 else
@@ -578,17 +577,17 @@ for reverse_j = 0:N_j-1
     ReturnFnParamsCell = base_ReturnFnParamsCell;
     for ip = find(ReturnFnParam_is_age_dependent)
         val = Parameters.(ReturnFnParamNames{ip})(jj);
-        if vfoptions.parallel == 2 && ~isscalar(val); ReturnFnParamsCell{ip} = gpuArray(val); else; ReturnFnParamsCell{ip} = val; end
+        ReturnFnParamsCell{ip} = gpuArray(val);
     end
 
     DiscountFactorParamsVec = CreateVectorFromParams(Parameters, DiscountFactorParamNames, jj, vfoptions.precision);
-    beta_j = prod(DiscountFactorParamsVec);
+    beta_j = gpuArray(prod(DiscountFactorParamsVec));
 
     if is_exp_asset
         aprimeFnParamsCell = base_aprimeFnParamsCell;
         for ip = find(aprimeFnParam_is_age_dependent)
             val = Parameters.(aprimeFnParamNames{ip})(jj);
-            if vfoptions.parallel == 2 && ~isscalar(val); aprimeFnParamsCell{ip} = gpuArray(val); else; aprimeFnParamsCell{ip} = val; end
+            aprimeFnParamsCell{ip} = gpuArray(val);
         end
     else
         aprimeFnParamsCell = {};
@@ -596,7 +595,7 @@ for reverse_j = 0:N_j-1
 
     if jj == N_j && isfield(vfoptions, 'V_Jplus1') && ~isempty(vfoptions.V_Jplus1)
         V_next = reshape(vfoptions.V_Jplus1, [n_a_work, n_z_work, n_e_work]);
-        if vfoptions.parallel == 2 && ~isa(V_next, 'gpuArray'); V_next = gpuArray(V_next); end
+        if ~isa(V_next, 'gpuArray'); V_next = gpuArray(V_next); end
     end
 
     if jj == N_j && (~isfield(vfoptions, 'V_Jplus1') || isempty(vfoptions.V_Jplus1))
@@ -623,7 +622,7 @@ for reverse_j = 0:N_j-1
 
         if has_e
             if isfield(vfoptions, 'pi_e_J'); pi_e_j = cast(vfoptions.pi_e_J(:, min(jj + 1, size(vfoptions.pi_e_J, 2))), 'like', a_grid); else; pi_e_j = cast(vfoptions.pi_e, 'like', a_grid); end
-            if vfoptions.parallel == 2 && ~isa(pi_e_j, 'gpuArray'); pi_e_j = gpuArray(pi_e_j); end
+            if ~isa(pi_e_j, 'gpuArray'); pi_e_j = gpuArray(pi_e_j); end
 
             V_trans_flat = reshape(V_transformed, [N_a * n_z_work, n_e_work]);
             V_inf_mask = (V_trans_flat == -Inf); V_safe = V_trans_flat; V_safe(V_inf_mask) = -1e250;
