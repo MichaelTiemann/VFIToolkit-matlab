@@ -434,7 +434,7 @@ else
         choice_idx_a1 = reshape(base_idx_a1 + offsets_a1, [N_d_safe, num_choices_total, N_states, n_z_loc, n_e_loc]);
 
         % Generate immediately using ceil (no repmat required)
-        choice_idx_a2 = reshape(ceil((1:num_choices_total) / (total_gap + 1)), [1, num_choices_total, 1, 1, 1]);
+        choice_idx_a2 = gpuArray(reshape(ceil((1:num_choices_total) / (total_gap + 1)), [1, num_choices_total, 1, 1, 1]));
 
         Apr_cells = cell(1, l_a1);
         Apr_cells{1} = A1_grids_1d{1}(choice_idx_a1);

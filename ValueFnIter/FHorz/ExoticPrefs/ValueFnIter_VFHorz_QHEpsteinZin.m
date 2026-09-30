@@ -413,46 +413,60 @@ for reverse_j = 0:N_j-1
                 maxgap = squeeze(max(max(max(max(maxindex1(:,:,2:end,:,:) - maxindex1(:,:,1:end-1,:,:), [], 5), [], 4), [], 2), [], 1));
                 if isempty(maxgap); maxgap = 0; end
 
-                l2_indices = [];
-                l2_loweredge = [];
-                global_mg_eval = 0;
-                
-                for ii = 1:(level1n_scalar - 1)
+                unique_mg = [];
+                l2_indices_grp = {};
+                l2_low_grp = {};
+
+                for ii = 1:(vfoptions.level1n - 1)
                     curraindex = (level1ii(ii)+1 : level1ii(ii+1)-1)';
                     if isempty(curraindex); continue; end
 
                     if maxgap(ii) > 0
-                        loweredge = min(maxindex1(:, :, ii, :, :), N_a1);
+                        loweredge = min(maxindex1(:, :, ii, :, :), N_a1_dc);
                         upper_bound_req = loweredge + maxgap(ii);
                         mg_eval = max(maxgap(ii), max(upper_bound_req - loweredge, [], 'all'));
-                        mg_eval = min(mg_eval, N_a1 - 1);
-                        loweredge = min(loweredge, N_a1 - mg_eval);
+                        mg_eval = min(mg_eval, N_a1_dc - 1);
+                        loweredge = min(loweredge, N_a1_dc - mg_eval);
 
-                        global_mg_eval = max(global_mg_eval, mg_eval);
                         loweredge_rep = repmat(loweredge, [1, 1, length(curraindex), 1, 1]);
 
-                        l2_indices = [l2_indices; curraindex(:)];
-                        l2_loweredge = cat(3, l2_loweredge, loweredge_rep);
+                        % Group segments by their exact mg_eval requirement
+                        grp_idx = find(unique_mg == mg_eval, 1);
+                        if isempty(grp_idx)
+                            unique_mg(end+1) = mg_eval;
+                            l2_indices_grp{end+1} = curraindex(:);
+                            l2_low_grp{end+1} = loweredge_rep;
+                        else
+                            l2_indices_grp{grp_idx} = [l2_indices_grp{grp_idx}; curraindex(:)];
+                            l2_low_grp{grp_idx} = cat(3, l2_low_grp{grp_idx}, loweredge_rep);
+                        end
                     else
                         loweredge_pass(:, :, curraindex, :, :) = repmat(maxindex1(:, :, ii, :, :), [1, 1, level1iidiff(ii), 1, 1]);
                     end
                 end
 
-                if ~isempty(l2_indices)
-                    flat_choices_L2 = N_d_safe * (global_mg_eval + 1);
-                    max_L2_per_chunk = max(1, floor(safe_elements / (flat_choices_L2 * N_ze_local)));
-                    for c_start = 1:max_L2_per_chunk:length(l2_indices)
-                        c_end = min(length(l2_indices), c_start + max_L2_per_chunk - 1);
-                        sub_idx = l2_indices(c_start:c_end);
-                        sub_low = l2_loweredge(:, :, c_start:c_end, :, :);
+                % Evaluate each group optimally without padding
+                for g = 1:length(unique_mg)
+                    mg_e = unique_mg(g);
+                    sub_idx_all = l2_indices_grp{g};
+                    sub_low_all = l2_low_grp{g};
 
-                        [~, ~, ~, ~, ~, p_a1_per_a2_L2] = LocalBlockFn_Actual_Coarse_Flat(sub_idx(:)', sub_low(:), global_mg_eval);
-                        maxindex_L2 = reshape(p_a1_per_a2_L2, [N_d_safe, 1, length(sub_idx), 1, N_ze_local]);
+                    flat_choices_L2 = N_d_safe * (mg_e + 1) * max(1, N_a1_other);
+                    max_L2_per_chunk = max(1, floor(safe_elements / (flat_choices_L2 * N_other * N_ze_local)));
+
+                    for c_start = 1:max_L2_per_chunk:length(sub_idx_all)
+                        c_end = min(length(sub_idx_all), c_start + max_L2_per_chunk - 1);
+                        sub_idx = sub_idx_all(c_start:c_end);
+                        sub_low = sub_low_all(:, :, c_start:c_end, :, :);
+
+                        state_chunk_mat_L2 = sub_idx(:) + (0:N_other-1) * N_a1_dc;
+                        [~, ~, ~, ~, ~, p_a1_per_a2_L2] = LocalBlockFn(state_chunk_mat_L2(:)', sub_low(:), mg_e, 0, 2);
+                        maxindex_L2 = reshape(p_a1_per_a2_L2, [N_d_safe, N_a1_other, length(sub_idx), N_other, N_ze_local]);
                         loweredge_pass(:, :, sub_idx, :, :) = maxindex_L2;
                     end
                 end
 
-                loweredge_pass = reshape(loweredge_pass, [N_d_safe, 1, N_a1, N_ze_local]);
+                loweredge_pass = reshape(loweredge_pass, [N_d_safe, N_a1_other, N_a1_dc * N_other, N_ze_local]);
 
                 v = zeros(N_a1, N_ze_local, 'like', EV_Valt_local); valt = zeros(N_a1, N_ze_local, 'like', EV_Valt_local);
                 p_apr = zeros(N_a1, N_ze_local, 'like', EV_Valt_local); p_d = zeros(N_a1, N_ze_local, 'like', EV_Valt_local);

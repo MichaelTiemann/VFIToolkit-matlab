@@ -40,12 +40,13 @@ maxgap = maxgap(:)'; % Ensure it is a row vector
 % CRITICAL FIX: Gather maxgap to the CPU to prevent pipeline flushes in the loop below
 maxgap = gather(maxgap);
 
+unique_mg = [];
+l2_indices_grp = {};
+l2_low_grp = {};
+
 for ii = 1:(num_anchors - 1)
     segment_states = (level1ii(ii) + 1) : (level1ii(ii+1) - 1);
     if isempty(segment_states); continue; end
-
-    num_seg = length(segment_states);
-    state_chunk_mat_seg = segment_states(:) + (0:N_other_states-1) * N_a1;
 
     % Extract the specific loweredge conditional bounds for this anchor
     mg_eval = maxgap(ii);
@@ -65,14 +66,41 @@ for ii = 1:(num_anchors - 1)
     end
 
     % Replicate the bounds across the intermediate segment states
-    loweredge_rep = repmat(loweredge, [1, 1, num_seg, 1, 1]);
+    loweredge_rep = repmat(loweredge, [1, 1, length(segment_states), 1, 1]);
 
-    % Evaluate the full flattened segment block
-    [V_seg_flat, Pol_apr_seg_flat, ~] = EvalBlockFn(state_chunk_mat_seg(:)', loweredge_rep(:), mg_eval);
+    % Group segments by their exact mg_eval requirement
+    grp_idx = find(unique_mg == mg_eval, 1);
+    if isempty(grp_idx)
+        unique_mg(end+1) = mg_eval;
+        l2_indices_grp{end+1} = segment_states(:);
+        l2_low_grp{end+1} = loweredge_rep;
+    else
+        l2_indices_grp{grp_idx} = [l2_indices_grp{grp_idx}; segment_states(:)];
+        l2_low_grp{grp_idx} = cat(3, l2_low_grp{grp_idx}, loweredge_rep);
+    end
+end
 
-    % Reshape and assign directly back to the global tensor
-    V_d(:, segment_states, :, :)       = reshape(V_seg_flat, [N_d, num_seg, N_other_states, N_ze]);
-    Pol_apr_d(:, segment_states, :, :) = reshape(Pol_apr_seg_flat, [N_d, num_seg, N_other_states, N_ze]);
+% Evaluate each group optimally without padding (Chunked for VRAM safety)
+CHUNK_SIZE = 50;
+for g = 1:length(unique_mg)
+    mg_e = unique_mg(g);
+    sub_idx_all = l2_indices_grp{g};
+    sub_low_all = l2_low_grp{g};
+
+    for c_start = 1:CHUNK_SIZE:length(sub_idx_all)
+        c_end = min(length(sub_idx_all), c_start + CHUNK_SIZE - 1);
+        sub_idx = sub_idx_all(c_start:c_end);
+        sub_low = sub_low_all(:, :, c_start:c_end, :, :);
+
+        state_chunk_mat_seg = sub_idx(:) + (0:N_other_states-1) * N_a1;
+
+        % Evaluate the chunk
+        [V_seg_flat, Pol_apr_seg_flat, ~] = EvalBlockFn(state_chunk_mat_seg(:)', sub_low(:), mg_e);
+
+        % Reshape and assign directly back to the global tensor
+        V_d(:, sub_idx, :, :)       = reshape(V_seg_flat, [N_d, length(sub_idx), N_other_states, N_ze]);
+        Pol_apr_d(:, sub_idx, :, :) = reshape(Pol_apr_seg_flat, [N_d, length(sub_idx), N_other_states, N_ze]);
+    end
 end
 
 % Collapse N_d Dimension Safely
