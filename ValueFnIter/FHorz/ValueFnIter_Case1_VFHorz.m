@@ -1422,47 +1422,52 @@ if isfield(vfoptions, 'outputkron') && vfoptions.outputkron == 1
     return
 end
 
-disp('Unpacking Policy tensor to System RAM...');
 num_pol_vars = length(n_daprime);
 n_daprime_col = n_daprime(:);
 divisors = cumprod([1; n_daprime_col(1:end-1)]);
 MAX_INT32 = 2147483647;
 
 if vfoptions.gridinterplayer(1) == 1
-    total_elements = (num_pol_vars + 2) * n_a_work * n_z_work * n_e_work * N_j;
-    if total_elements < (MAX_INT32 * 0.9)
-        BaseIndexKron = PolicyKron(1, :, :, :, :);
-        P_base_gpu = mod(floor((BaseIndexKron - 1) ./ divisors), n_daprime_col) + 1;
-        P_gpu = [P_base_gpu; PolicyKron(2:3, :, :, :, :)];
-        Policy_flat = gather(P_gpu);
-    else
-        disp('Using memory-safe iterative unpacking due to massive array size...');
-        Policy_flat = zeros([num_pol_vars + 2, n_a_work, n_z_work, n_e_work, N_j], vfoptions.precision);
+    num_out_pol_vars = num_pol_vars + 2;
+else
+    num_out_pol_vars = num_pol_vars;
+end
+
+total_elements_pol = num_out_pol_vars * n_a_work * n_z_work * n_e_work * N_j;
+total_elements_v = n_a_work * n_z_work * n_e_work * N_j;
+
+% Only gather to CPU if combined size risks exceeding memory/indexing limits
+force_cpu_gather = (total_elements_pol + total_elements_v) > (MAX_INT32 * 0.9);
+
+if force_cpu_gather
+    disp('Massive array size detected. Iteratively unpacking tensors to System RAM...');
+    Policy_flat = zeros([num_out_pol_vars, n_a_work, n_z_work, n_e_work, N_j], vfoptions.precision);
+    if vfoptions.gridinterplayer(1) == 1
         for jj = 1:N_j
             PK_j = PolicyKron(1, :, :, :, jj);
             P_base = mod(floor((PK_j - 1) ./ divisors), n_daprime_col) + 1;
             Policy_flat(:, :, :, :, jj) = gather([P_base; PolicyKron(2:3, :, :, :, jj)]);
         end
-    end
-else
-    total_elements = num_pol_vars * n_a_work * n_z_work * n_e_work * N_j;
-    if total_elements < (MAX_INT32 * 0.9)
-        P_gpu = mod(floor((PolicyKron - 1) ./ divisors), n_daprime_col) + 1;
-        Policy_flat = gather(P_gpu);
     else
-        disp('Using memory-safe iterative unpacking due to massive array size...');
-        Policy_flat = zeros([num_pol_vars, n_a_work, n_z_work, n_e_work, N_j], vfoptions.precision);
         for jj = 1:N_j
             PK_j = PolicyKron(:, :, :, :, jj);
             P_j_gpu = mod(floor((PK_j - 1) ./ divisors), n_daprime_col) + 1;
             Policy_flat(:, :, :, :, jj) = gather(P_j_gpu);
         end
     end
+    V_out = gather(V);
+else
+    % Fast Path: Keep on GPU and process natively
+    if vfoptions.gridinterplayer(1) == 1
+        BaseIndexKron = PolicyKron(1, :, :, :, :);
+        P_base_gpu = mod(floor((BaseIndexKron - 1) ./ divisors), n_daprime_col) + 1;
+        Policy_flat = [P_base_gpu; PolicyKron(2:3, :, :, :, :)];
+    else
+        Policy_flat = mod(floor((PolicyKron - 1) ./ divisors), n_daprime_col) + 1;
+    end
+    V_out = V; % Keep V on GPU
 end
 
-V_cpu = gather(V);
-
-out_pol_vars = size(Policy_flat, 1);
 out_n_a = n_a(n_a > 0); if isempty(out_n_a); out_n_a = 1; end
 out_n_all_z = n_all_z(n_all_z > 0); if isempty(out_n_all_z); out_n_all_z = 1; end
 
@@ -1471,8 +1476,8 @@ if has_z || has_semiz; state_shape = [state_shape, out_n_all_z]; end
 if has_e; state_shape = [state_shape, n_e_pass]; end
 state_shape = [state_shape, N_j];
 
-Policy = reshape(Policy_flat, [out_pol_vars, state_shape]);
-V = reshape(V_cpu, state_shape);
+Policy = reshape(Policy_flat, [num_out_pol_vars, state_shape]);
+V = reshape(V_out, state_shape);
 
 varargout{1} = V;
 varargout{2} = Policy;
