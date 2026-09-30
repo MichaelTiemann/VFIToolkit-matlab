@@ -695,26 +695,36 @@ N_states = length(state_idx);
 if l_a2 > 0; [a1_sub, a2_sub] = ind2sub([N_a1, size(A2_mat, 1)], state_idx); else; a1_sub = state_idx; a2_sub = []; end
 
 num_a1 = size(A1_mat, 2);
-N_a2_len = N_states / N_a1;
-is_cartesian = false;
-if l_a2 == 0
-    is_cartesian = (N_a2_len == floor(N_a2_len)) && isempty(loweredge_matrix) && (a1_sub(1) == 1) && (a1_sub(end) == N_a1);
-end
+% --- REBUILD LOCAL 5D ORTHOGONAL STATE CELLS FOR NATIVE EXECUTION ---
+N_a2_len = N_states / N_a1_total;
+is_cartesian = (N_a2_len == floor(N_a2_len)) && isempty(loweredge_matrix) && (a1_sub(1) == 1) && (a1_sub(end) == N_a1_total);
+
+% Set safe defaults for all standard branches
+Z_cells_eval = Z_cells_block;
+E_cells_eval = E_cells_block;
+A2_cells = {};
 
 if is_cartesian
-    A1_cells = cell(1, num_a1);
-    for ia = 1:num_a1; A1_cells{ia} = reshape(A1_mat(1:N_a1, ia), [1, 1, N_a1, 1, 1, 1]); end
-    A2_cells = {}; Z_cells_eval = Z_cells_block; E_cells_eval = E_cells_block;
-else
-    A1_cells = cell(1, num_a1);
-    for ia = 1:num_a1; A1_cells{ia} = reshape(A1_mat(a1_sub, ia), [1, 1, N_states, 1, 1]); end
-    if l_a2 > 0
-        num_a2 = size(A2_mat, 2); A2_cells = cell(1, num_a2);
-        for ia = 1:num_a2; A2_cells{ia} = reshape(A2_mat(a2_sub, ia), [1, 1, N_states, 1, 1]); end
-    else
-        A2_cells = {};
+    A1_cells = cell(1, l_a1);
+    for ia = 1:l_a1; A1_cells{ia} = reshape(A1_mat(1:N_a1_total, ia), [1, 1, N_a1_total, 1, 1, 1]); end
+    if N_a2 > 1
+        A2_cells = cell(1, l_a2);
+        a2_unique_idx = a2_sub(1:N_a1_total:end);
+        for ia = 1:l_a2; A2_cells{ia} = reshape(A2_mat(a2_unique_idx, ia), [1, 1, 1, N_a2_len, 1, 1]); end
+
+        % Only override Z and E if building a full 6D tensor mesh
+        Z_cells_eval = cell(1, length(Z_cells_block));
+        for iz = 1:length(Z_cells_block); Z_cells_eval{iz} = reshape(Z_cells_block{iz}(1,1,1,:,1), [1, 1, 1, 1, n_z_loc, 1]); end
+        E_cells_eval = cell(1, length(E_cells_block));
+        for ie = 1:length(E_cells_block); E_cells_eval{ie} = reshape(E_cells_block{ie}(1,1,1,1,:), [1, 1, 1, 1, 1, n_e_loc]); end
     end
-    Z_cells_eval = Z_cells_block; E_cells_eval = E_cells_block;
+else
+    A1_cells = cell(1, l_a1);
+    for ia = 1:l_a1; A1_cells{ia} = reshape(A1_mat(a1_sub, ia), [1, 1, N_states, 1, 1]); end
+    if N_a2 > 1
+        A2_cells = cell(1, l_a2);
+        for ia = 1:l_a2; A2_cells{ia} = reshape(A2_mat(a2_sub, ia), [1, 1, N_states, 1, 1]); end
+    end
 end
 
 is_coarse = isempty(loweredge_matrix) && (gridinterplayer(1) == 0 || is_dc_mode == 2);
@@ -722,26 +732,22 @@ is_coarse = isempty(loweredge_matrix) && (gridinterplayer(1) == 0 || is_dc_mode 
 % =========================================================================
 % PHASE 1: EVALUATION (CHOICE MATRIX GENERATION)
 % =========================================================================
+is_coarse = (gridinterplayer(1) == 0 || is_dc_mode == 2);
+
 if isempty(loweredge_matrix)
     if is_coarse
         num_choices = N_a1;
         Apr_cells = cell(1, num_a1);
         for ia = 1:num_a1; Apr_cells{ia} = reshape(A1_mat(:, ia), [1, num_choices, 1, 1, 1]); end
         EV_source_b = EV_belief_pre; EV_source_v = EV_Valt_pre; target_offset = static_EV_offset;
+        a1_target_grid = A1_grids_1d{1};
     else
         num_choices = length(a1prime_grid);
         Apr_cells = cell(1, num_a1);
         Apr_cells{1} = reshape(a1prime_grid, [1, num_choices, 1, 1, 1]);
         if num_a1 > 1; for ia = 2:num_a1; Apr_cells{ia} = reshape(A1_mat(a1_sub, ia), [1, 1, N_states, 1, 1]); end; end
-        EV_source_b = EV_belief_interp; EV_source_v = EV_Valt_interp;
-        if l_a2 > 0
-            d_vec = reshape(0:N_d_safe-1, [N_d_safe, 1, 1, 1, 1]);
-            z_vec_fine = reshape((0:n_z_loc-1) * (N_d_safe * num_choices * N_a2), [1, 1, 1, n_z_loc, 1]);
-            e_vec_fine = reshape((0:n_e_loc-1) * (N_d_safe * num_choices * N_a2 * n_z_loc), [1, 1, 1, 1, n_e_loc]);
-            target_offset = d_vec + 1 + z_vec_fine + e_vec_fine;
-        else
-            target_offset = [];
-        end
+        EV_source_b = EV_belief_interp; EV_source_v = EV_Valt_interp; target_offset = static_EV_offset_fine;
+        a1_target_grid = a1prime_grid;
     end
 
     if N_a2 > 1
@@ -751,10 +757,14 @@ if isempty(loweredge_matrix)
     end
 
     if ~is_cartesian
-        choice_idx_linear = reshape(1:num_choices, [1, num_choices, 1, 1, 1]);
+        if isa(target_offset, 'gpuArray')
+            choice_idx_linear = gpuArray(reshape(1:num_choices, [1, num_choices, 1, 1, 1]));
+        else
+            choice_idx_linear = reshape(1:num_choices, [1, num_choices, 1, 1, 1]);
+        end
         if N_a2 > 1
-            a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_safe * num_choices);
-            lin_idx_compact = target_offset + (choice_idx_linear - 1) * N_d_safe + a2_offset;
+            a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_safe * length(a1_target_grid));
+            lin_idx_compact = target_offset + ((choice_idx_linear - 1) * N_d_safe + a2_offset);
             EV_belief_bounded = EV_source_b(lin_idx_compact);
             if compute_valt; EV_Valt_bounded = EV_source_v(lin_idx_compact); end
         else
@@ -764,7 +774,11 @@ if isempty(loweredge_matrix)
                 if compute_valt; EV_Valt_bounded = EV_source_v(lin_idx_compact); end
             else
                 stride_z = num_choices;
-                ze_offset = reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]);
+                if isa(EV_source_b, 'gpuArray')
+                    ze_offset = gpuArray(reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]));
+                else
+                    ze_offset = reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]);
+                end
                 if N_dsemiz > 1; ze_offset = ze_offset + (dsemiz_idx_tensor - 1) * (stride_z * N_ze_local); end
                 EV_belief_bounded = EV_source_b(choice_idx_linear + ze_offset);
                 if compute_valt; EV_Valt_bounded = EV_source_v(choice_idx_linear + ze_offset); end
@@ -776,26 +790,44 @@ else
     [choice_idx_linear, out_of_bounds, num_choices, Apr_cells, num_choices_total_a1, start_offset, loweredge_matrix_bounds] = Helper_SlicerBounds_QHEZ(...
         loweredge_matrix, N_a1, N_states, n_z_loc, n_e_loc, N_d_safe, n2short, a1prime_grid, num_a1, A1_mat, a1_sub, EV_belief_local);
 
+    if is_coarse
+        target_offset = static_EV_offset;
+        EV_source_b = EV_belief_pre; EV_source_v = EV_Valt_pre;
+        a1_target_grid = A1_grids_1d{1};
+    else
+        target_offset = static_EV_offset_fine;
+        EV_source_b = EV_belief_interp; EV_source_v = EV_Valt_interp;
+        a1_target_grid = a1prime_grid;
+    end
+
     if N_a2 > 1
         F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_eval{:}, E_cells_eval{:}, ReturnFnParamsCell{:});
-        a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_safe * length(a1prime_grid));
-        d_vec = reshape(0:N_d_safe-1, [N_d_safe, 1, 1, 1, 1]);
-        z_vec_fine = reshape((0:n_z_loc-1) * (N_d_safe * length(a1prime_grid) * N_a2), [1, 1, 1, n_z_loc, 1]);
-        e_vec_fine = reshape((0:n_e_loc-1) * (N_d_safe * length(a1prime_grid) * N_a2 * n_z_loc), [1, 1, 1, 1, n_e_loc]);
-        static_EV_offset_fine = d_vec + 1 + z_vec_fine + e_vec_fine;
-        lin_idx_compact = static_EV_offset_fine + (choice_idx_linear - 1) * N_d_safe + a2_offset;
-        EV_belief_bounded = EV_belief_interp(lin_idx_compact);
-        if compute_valt; EV_Valt_bounded = EV_Valt_interp(lin_idx_compact); end
+        a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_safe * length(a1_target_grid));
+        lin_idx_compact = target_offset + ((choice_idx_linear - 1) * N_d_safe + a2_offset);
+        EV_belief_bounded = EV_source_b(lin_idx_compact);
+        if compute_valt; EV_Valt_bounded = EV_source_v(lin_idx_compact); end
     else
         F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_eval{:}, E_cells_eval{:}, ReturnFnParamsCell{:});
-        stride_z = length(a1prime_grid);
-        ze_offset = reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]);
-        if N_dsemiz > 1; ze_offset = ze_offset + (dsemiz_idx_tensor - 1) * (stride_z * N_ze_local); end
-        EV_belief_bounded = EV_belief_interp(choice_idx_linear + ze_offset);
-        if compute_valt; EV_Valt_bounded = EV_Valt_interp(choice_idx_linear + ze_offset); end
+        if is_coarse
+            lin_idx_compact = target_offset + (choice_idx_linear - 1) * N_d_safe;
+            EV_belief_bounded = EV_source_b(lin_idx_compact);
+            if compute_valt; EV_Valt_bounded = EV_source_v(lin_idx_compact); end
+        else
+            stride_z = length(a1_target_grid);
+            if isa(EV_source_b, 'gpuArray')
+                ze_offset = gpuArray(reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]));
+            else
+                ze_offset = reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]);
+            end
+            if N_dsemiz > 1; ze_offset = ze_offset + (dsemiz_idx_tensor - 1) * (stride_z * N_ze_local); end
+            EV_belief_bounded = EV_source_b(choice_idx_linear + ze_offset);
+            if compute_valt; EV_Valt_bounded = EV_source_v(choice_idx_linear + ze_offset); end
+        end
     end
     EV_belief_bounded(out_of_bounds) = -Inf;
-    if compute_valt; EV_Valt_bounded(out_of_bounds) = -Inf; end
+    if compute_valt
+        EV_Valt_bounded(out_of_bounds) = -Inf;
+    end
 end
 
 % =========================================================================

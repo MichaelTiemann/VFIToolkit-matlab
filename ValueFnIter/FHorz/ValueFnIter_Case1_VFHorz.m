@@ -1601,7 +1601,7 @@ if isempty(loweredge_matrix)
         end
         if N_a2 > 1
             a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * length(a1_target_grid) * N_a1_other);
-            lin_idx_compact = target_EV_offset + (choice_idx_linear - 1) * N_d_stride + a2_offset;
+            lin_idx_compact = target_EV_offset + ((choice_idx_linear - 1) * N_d_stride + a2_offset);
             EV_bounded = EV_source(lin_idx_compact);
         else
             if is_coarse
@@ -1609,41 +1609,50 @@ if isempty(loweredge_matrix)
                 EV_bounded = EV_source(lin_idx_compact);
             else
                 stride_z = length(a1_target_grid) * N_a1_other;
-                ze_offset = reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]);
+                if isa(EV_source, 'gpuArray')
+                    ze_offset = gpuArray(reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]));
+                else
+                    ze_offset = reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]);
+                end
                 if N_dsemiz > 1; ze_offset = ze_offset + (dsemiz_idx_tensor - 1) * (stride_z * N_ze_local); end
                 EV_bounded = beta_j .* EV_source(choice_idx_linear + ze_offset);
             end
         end
     end
-
 else
     % --- ZOOM PHASE (Optimized Slicer Bounds Helper) ---
     [choice_idx_linear, out_of_bounds, num_choices_total, Apr_cells, num_choices_total_a1, start_offset, loweredge_matrix_bounds] = Helper_SlicerBounds(...
         loweredge_matrix, N_a1_dc, N_a1_other, N_states, n_z_loc, n_e_loc, N_d_safe, A1_grids_1d, n2short, a1prime_grid, l_a1, EV_local, is_coarse, maxgap_scalar);
 
+    if is_coarse
+        target_EV_offset = static_EV_offset;
+        EV_source = EV_bounded_pre;
+        a1_target_grid = A1_grids_1d{1};
+    else
+        target_EV_offset = static_EV_offset_fine;
+        EV_source = EV_interp_local;
+        a1_target_grid = a1prime_grid;
+    end
+
     if N_a2 > 1
         F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_eval{:}, E_cells_eval{:}, ReturnFnParamsCell{:});
-        if is_coarse
-            a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * length(A1_grids_1d{1}) * N_a1_other);
-            lin_idx_compact = static_EV_offset + (choice_idx_linear - 1) * N_d_stride + a2_offset;
-            EV_bounded = EV_bounded_pre(lin_idx_compact);
-        else
-            a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * length(a1prime_grid) * N_a1_other);
-            lin_idx_compact = static_EV_offset_fine + (choice_idx_linear - 1) * N_d_stride + a2_offset;
-            EV_bounded = EV_interp_local(lin_idx_compact);
-        end
+        a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * length(a1_target_grid) * N_a1_other);
+        lin_idx_compact = target_EV_offset + ((choice_idx_linear - 1) * N_d_stride + a2_offset);
+        EV_bounded = EV_source(lin_idx_compact);
     else
         F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_eval{:}, E_cells_eval{:}, ReturnFnParamsCell{:});
         if is_coarse
-            stride_z = length(A1_grids_1d{1}) * N_a1_other;
-            ze_offset = reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]);
-            if N_dsemiz > 1; ze_offset = ze_offset + (dsemiz_idx_tensor - 1) * (stride_z * N_ze_local); end
-            EV_bounded = beta_j .* EV_bounded_pre(choice_idx_linear + ze_offset);
+            lin_idx_compact = target_EV_offset + (choice_idx_linear - 1) * N_d_stride;
+            EV_bounded = EV_source(lin_idx_compact);
         else
-            stride_z = length(a1prime_grid) * N_a1_other;
-            ze_offset = reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]);
+            stride_z = length(a1_target_grid) * N_a1_other;
+            if isa(EV_source, 'gpuArray')
+                ze_offset = gpuArray(reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]));
+            else
+                ze_offset = reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]);
+            end
             if N_dsemiz > 1; ze_offset = ze_offset + (dsemiz_idx_tensor - 1) * (stride_z * N_ze_local); end
-            EV_bounded = beta_j .* EV_interp_local(choice_idx_linear + ze_offset);
+            EV_bounded = beta_j .* EV_source(choice_idx_linear + ze_offset);
         end
     end
     EV_bounded(out_of_bounds) = -Inf;
@@ -1767,25 +1776,24 @@ else
 end
 loweredge_matrix = low_reshaped + target_shape;
 
-if nargin < 13 || ~is_coarse
-    % FINE ZOOM PASS
+% --- DYNAMIC SLICER ROUTING ---
+if is_coarse
+    target_grid = A1_grids_1d{1};
+    loweredge_matrix_bounds = max(1, min(loweredge_matrix, length(target_grid) - maxgap_scalar));
+    L2_base = loweredge_matrix_bounds;
+    start_offset = 0;
+    end_offset = maxgap_scalar;
+else
+    target_grid = a1prime_grid;
     loweredge_matrix_bounds = max(2, min(loweredge_matrix, length(A1_grids_1d{1}) - 1));
     L2_base = (loweredge_matrix_bounds - 1) * (n2short + 1) + 1;
     start_offset = -(n2short + 1);
     end_offset = (n2short + 1);
-    grid_len = length(a1prime_grid);
-    target_grid = a1prime_grid;
-else
-    % COARSE GAP PASS
-    loweredge_matrix_bounds = max(1, min(loweredge_matrix, N_a1_dc));
-    L2_base = loweredge_matrix_bounds;
-    start_offset = 0;
-    end_offset = maxgap_scalar;
-    grid_len = length(A1_grids_1d{1});
-    target_grid = A1_grids_1d{1};
 end
 
 num_choices_total_a1 = end_offset - start_offset + 1;
+grid_len = length(target_grid);
+
 if isa(loweredge_matrix, 'gpuArray')
     offset_vec = gpuArray(reshape(start_offset:end_offset, [1, num_choices_total_a1, 1, 1, 1]));
 else
@@ -1811,6 +1819,7 @@ else
     Apr_cells = cell(1, l_a1);
     Apr_cells{1} = target_grid(choice_idx_a1);
     if l_a1 > 2; [mesh_a2{1:l_a1-1}] = ndgrid(A1_grids_1d{2:end}); else; mesh_a2{1} = A1_grids_1d{2}; end
+
     for ia = 2:l_a1
         flat_grid = mesh_a2{ia-1}(:);
         Apr_cells{ia} = flat_grid(choice_idx_a2);
