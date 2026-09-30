@@ -691,22 +691,20 @@ end
 base_ReturnFnParamsCell = CreateCellFromParams(Parameters, ReturnFnParamNames, 1, vfoptions.precision);
 ReturnFnParam_is_age_dependent = false(1, length(ReturnFnParamNames));
 for ip = 1:length(ReturnFnParamNames)
-    if numel(Parameters.(ReturnFnParamNames{ip})) == N_j; ReturnFnParam_is_age_dependent(ip) = true; end
-    % Push EVERYTHING to GPU to prevent arrayfun PTX sync stalls
-    if vfoptions.parallel == 2 && isnumeric(base_ReturnFnParamsCell{ip}) && ~isa(base_ReturnFnParamsCell{ip}, 'gpuArray')
-        base_ReturnFnParamsCell{ip} = gpuArray(base_ReturnFnParamsCell{ip});
+    if numel(Parameters.(ReturnFnParamNames{ip})) == N_j
+        ReturnFnParam_is_age_dependent(ip) = true;
     end
+    base_ReturnFnParamsCell{ip} = gpuArray(base_ReturnFnParamsCell{ip});
 end
 
 if is_exp_asset
     base_aprimeFnParamsCell = CreateCellFromParams(Parameters, aprimeFnParamNames, 1, vfoptions.precision);
     aprimeFnParam_is_age_dependent = false(1, length(aprimeFnParamNames));
     for ip = 1:length(aprimeFnParamNames)
-        if numel(Parameters.(aprimeFnParamNames{ip})) == N_j; aprimeFnParam_is_age_dependent(ip) = true; end
-        % Push EVERYTHING to GPU to prevent arrayfun PTX sync stalls
-        if vfoptions.parallel == 2 && isnumeric(base_aprimeFnParamsCell{ip}) && ~isa(base_aprimeFnParamsCell{ip}, 'gpuArray')
-            base_aprimeFnParamsCell{ip} = gpuArray(base_aprimeFnParamsCell{ip});
+        if numel(Parameters.(aprimeFnParamNames{ip})) == N_j
+            aprimeFnParam_is_age_dependent(ip) = true;
         end
+        base_aprimeFnParamsCell{ip} = gpuArray(base_aprimeFnParamsCell{ip});
     end
 end
 
@@ -725,8 +723,7 @@ for reverse_j = 0:N_j-1
 
     ReturnFnParamsCell = base_ReturnFnParamsCell;
     for ip = find(ReturnFnParam_is_age_dependent)
-        val = Parameters.(ReturnFnParamNames{ip})(jj);
-        if vfoptions.parallel == 2; ReturnFnParamsCell{ip} = gpuArray(val); else; ReturnFnParamsCell{ip} = val; end
+        ReturnFnParamsCell{ip} = gpuArray(Parameters.(ReturnFnParamNames{ip})(jj));
     end
 
     DiscountFactorParamsVec = CreateVectorFromParams(Parameters, DiscountFactorParamNames, jj, vfoptions.precision);
@@ -735,8 +732,7 @@ for reverse_j = 0:N_j-1
     if is_exp_asset
         aprimeFnParamsCell = base_aprimeFnParamsCell;
         for ip = find(aprimeFnParam_is_age_dependent)
-            val = Parameters.(aprimeFnParamNames{ip})(jj);
-            if vfoptions.parallel == 2; aprimeFnParamsCell{ip} = gpuArray(val); else; aprimeFnParamsCell{ip} = val; end
+            aprimeFnParamsCell{ip} = gpuArray(Parameters.(aprimeFnParamNames{ip})(jj));
         end
     else
         aprimeFnParamsCell = {};
@@ -991,39 +987,60 @@ for reverse_j = 0:N_j-1
                     % ---- Compute EV_bounded_pre for COARSE pass ----
                     N_a1_total = N_a1_dc * N_a1_other;
                     EV_flat = EV_local(:);
-                    a1_vec = reshape(1:N_a1_total, [1, N_a1_total, 1, 1, 1, 1]);
-                    if ~isempty(pi_u_shape)
-                        pi_ND = reshape(pi_u_shape, [1, 1, 1, 1, 1, n_u_loc]);
+
+                    if vfoptions.parallel == 2
+                        a1_vec = gpuArray(reshape(1:N_a1_total, [1, N_a1_total, 1, 1, 1, 1]));
+                        if ~isempty(pi_u_shape); pi_ND = gpuArray(reshape(pi_u_shape, [1, 1, 1, 1, 1, n_u_loc])); else; pi_ND = []; end
                     else
-                        pi_ND = [];
+                        a1_vec = reshape(1:N_a1_total, [1, N_a1_total, 1, 1, 1, 1]);
+                        if ~isempty(pi_u_shape); pi_ND = reshape(pi_u_shape, [1, 1, 1, 1, 1, n_u_loc]); else; pi_ND = []; end
                     end
 
-                    EV_bounded_pre = Helper_ComputeExpectation(EV_flat, a1_vec, N_a1_total, idx_2d_left_base, idx_2d_right_base, weight, pi_ND, n_u_loc, beta_j);
+                    lin_left  = a1_vec + (idx_2d_left_base - 1) * N_a1_total;
+                    lin_right = a1_vec + (idx_2d_right_base - 1) * N_a1_total;
+
+                    EV_left  = EV_flat(lin_left);
+                    EV_right = EV_flat(lin_right);
+
+                    term_left  = EV_left .* (1 - weight);
+                    term_right = EV_right .* weight;
+
+                    term_left(isnan(term_left)) = 0;
+                    term_right(isnan(term_right)) = 0;
+
+                    EV_u = term_left + term_right;
+
+                    if ~isempty(pi_ND)
+                        EV_compact = sum(EV_u .* pi_ND, 6);
+                    else
+                        EV_compact = EV_u;
+                    end
+
+                    EV_compact(isnan(EV_compact)) = -Inf;
+                    EV_bounded_pre = beta_j .* EV_compact;
+
 
                     % ---- Compute EV_interp_local for FINE pass ----
                     if vfoptions.gridinterplayer(1) == 1
-                        % Because Expectation (over u) and linear interpolation are both linear
-                        % operators, they commute. We directly interpolate the coarse EV_bounded_pre
-                        % to avoid re-evaluating the massive shock transitions over the fine grid.
-                        EV_b_reshaped = reshape(EV_bounded_pre, [N_d_safe, N_a1_dc, N_a1_other, N_a2_local, n_z_loc, n_e_loc]);
-                        EV_left_int  = EV_b_reshaped(:, interp_left_idx, :, :, :, :);
-                        EV_right_int = EV_b_reshaped(:, interp_right_idx, :, :, :, :);
+                        % Flatten dimensions 3-6 to allow highly optimized 3D matrix math
+                        N_cols_interp = N_a1_other * max(1, N_a2_local) * n_z_loc * n_e_loc;
+                        EV_b_reshaped = reshape(EV_bounded_pre, [N_d_safe, N_a1_dc, N_cols_interp]);
 
-                        w_shape = reshape(interp_weights, [1, length(interp_weights), 1, 1, 1, 1]);
+                        EV_left_int  = EV_b_reshaped(:, interp_left_idx, :);
+                        EV_right_int = EV_b_reshaped(:, interp_right_idx, :);
+
+                        w_shape = reshape(interp_weights, [1, length(interp_weights), 1]);
+
                         term_L = EV_left_int .* (1 - w_shape);
                         term_R = EV_right_int .* w_shape;
-                        % Protect against 0 * -Inf = NaN
+
                         term_L(isnan(term_L)) = 0;
                         term_R(isnan(term_R)) = 0;
+
+                        % Directly reshape back without solidifying zeros() buffer
                         EV_interp_lazy = term_L + term_R;
-
-                        % --- SOLIDIFY LAZY TREE ---
-                        EV_interp_flat = zeros(size(EV_interp_lazy), 'like', EV_interp_lazy);
-                        EV_interp_flat(:) = EV_interp_lazy(:);
-
-                        % Collapse back to [N_d_safe, a1prime_interp * N_a1_other, N_a2_local, z, e]
                         N_a1_interp = length(a1prime_grid) * N_a1_other;
-                        EV_interp_local = reshape(EV_interp_flat, [N_d_safe, N_a1_interp, N_a2_local, n_z_loc, n_e_loc]);
+                        EV_interp_local = reshape(EV_interp_lazy, [N_d_safe, N_a1_interp, max(1, N_a2_local), n_z_loc, n_e_loc]);
                     end
 
                     % Setup static mapping offsets for all Branches (Now safely sized to N_a2_local!)
@@ -1245,36 +1262,64 @@ for reverse_j = 0:N_j-1
                     N_a1_total = N_a1_dc * N_a1_other;
                     EV_flat = EV_local(:);
 
-                    % Broadcast a1 down the rows
-                    a1_vec = reshape(1:N_a1_total, [1, N_a1_total, 1, 1, 1, 1]);
+                    % Directly allocate on GPU
+                    a1_vec = gpuArray(reshape(1:N_a1_total, [1, N_a1_total, 1, 1, 1, 1]));
+
                     if ~isempty(pi_u_shape)
-                        pi_ND = reshape(pi_u_shape, [1, 1, 1, 1, 1, n_u_loc]);
+                        pi_ND = gpuArray(reshape(pi_u_shape, [1, 1, 1, 1, 1, n_u_loc]));
                     else
                         pi_ND = [];
                     end
 
-                    EV_bounded_pre = Helper_ComputeExpectation(EV_flat, a1_vec, N_a1_total, idx_2d_left_base, idx_2d_right_base, weight, pi_ND, n_u_loc, beta_j);
+                    % Native Implicit Expansion builds perfectly contiguous tensors without function overhead
+                    lin_left  = a1_vec + (idx_2d_left_base - 1) * N_a1_total;
+                    lin_right = a1_vec + (idx_2d_right_base - 1) * N_a1_total;
+
+                    EV_left  = EV_flat(lin_left);
+                    EV_right = EV_flat(lin_right);
+
+                    term_left  = EV_left .* (1 - weight);
+                    term_right = EV_right .* weight;
+
+                    % Protect against 0 * -Inf = NaN natively
+                    term_left(isnan(term_left)) = 0;
+                    term_right(isnan(term_right)) = 0;
+
+                    EV_u = term_left + term_right;
+
+                    if ~isempty(pi_ND)
+                        EV_compact = sum(EV_u .* pi_ND, 6);
+                    else
+                        EV_compact = EV_u;
+                    end
+
+                    EV_compact(isnan(EV_compact)) = -Inf;
+
+                    % Natively born as [N_d, N_a1, N_a2, z, e]. No permute needed!
+                    EV_bounded_pre = beta_j .* EV_compact;
+
 
                     % ---- Compute EV_interp_local for FINE pass ----
                     if vfoptions.gridinterplayer(1) == 1
-                        % Because Expectation (over u) and linear interpolation are both linear
-                        % operators, they commute. We directly interpolate the coarse EV_bounded_pre
-                        % to avoid re-evaluating the massive shock transitions over the fine grid.
-                        EV_b_reshaped = reshape(EV_bounded_pre, [N_d_safe, N_a1_dc, N_a1_other, N_a2_local, n_z_loc, n_e_loc]);
-                        EV_left_int  = EV_b_reshaped(:, interp_left_idx, :, :, :, :);
-                        EV_right_int = EV_b_reshaped(:, interp_right_idx, :, :, :, :);
+                        % Flatten dimensions 3-6 to allow highly optimized 3D matrix math
+                        N_cols_interp = N_a1_other * max(1, N_a2_local) * n_z_loc * n_e_loc;
+                        EV_b_reshaped = reshape(EV_bounded_pre, [N_d_safe, N_a1_dc, N_cols_interp]);
 
-                        w_shape = reshape(interp_weights, [1, length(interp_weights), 1, 1, 1, 1]);
+                        EV_left_int  = EV_b_reshaped(:, interp_left_idx, :);
+                        EV_right_int = EV_b_reshaped(:, interp_right_idx, :);
+
+                        w_shape = reshape(interp_weights, [1, length(interp_weights), 1]);
+
                         term_L = EV_left_int .* (1 - w_shape);
                         term_R = EV_right_int .* w_shape;
-                        % Protect against 0 * -Inf = NaN
+
                         term_L(isnan(term_L)) = 0;
                         term_R(isnan(term_R)) = 0;
-                        EV_interp_local = term_L + term_R;
 
-                        % Collapse back to [N_d_safe, a1prime_interp * N_a1_other, N_a2_local, z, e]
+                        % Directly reshape back without solidifying zeros() buffer
+                        EV_interp_lazy = term_L + term_R;
                         N_a1_interp = length(a1prime_grid) * N_a1_other;
-                        EV_interp_local = reshape(EV_interp_local, [N_d_safe, N_a1_interp, N_a2_local, n_z_loc, n_e_loc]);
+                        EV_interp_local = reshape(EV_interp_lazy, [N_d_safe, N_a1_interp, max(1, N_a2_local), n_z_loc, n_e_loc]);
                     end
 
                     % Setup static mapping offsets for all Branches (Now safely sized to N_a2_local!)
@@ -1677,29 +1722,6 @@ end
 % =========================================================================
 % TENSOR ENCAPSULATION HELPERS
 % =========================================================================
-function EV_out = Helper_ComputeExpectation(EV_flat, a1_vec, N_a1_stride, idx_left, idx_right, weight, pi_ND, n_u_loc, beta_j)
-% Fused evaluation: prevents allocating massive linear index arrays in VRAM
-term_left  = EV_flat(a1_vec + (idx_left - 1) * N_a1_stride) .* (1 - weight);
-term_right = EV_flat(a1_vec + (idx_right - 1) * N_a1_stride) .* weight;
-term_left(isnan(term_left)) = 0;
-term_right(isnan(term_right)) = 0;
-EV_u = term_left + term_right;
-
-if ~isempty(pi_ND)
-    EV_compact = sum(EV_u .* pi_ND, 6);
-else
-    EV_compact = EV_u;
-end
-EV_compact(isnan(EV_compact)) = -Inf;
-
-% --- SOLIDIFY LAZY TREE ---
-EV_out_lazy = beta_j .* EV_compact;
-EV_out = zeros(size(EV_out_lazy), 'like', EV_out_lazy);
-EV_out(:) = EV_out_lazy(:);
-
-
-end
-
 
 function [choice_idx_linear, out_of_bounds, num_choices_total, Apr_cells, num_choices_total_a1, start_offset, loweredge_matrix_bounds] = Helper_SlicerBounds(...
     loweredge_matrix, N_a1_dc, N_a1_other, N_states, n_z_loc, n_e_loc, N_d_safe, A1_grids_1d, n2short, a1prime_grid, l_a1, EV_local)
