@@ -1651,21 +1651,25 @@ if isempty(loweredge_matrix)
     if l_a1 > 1; [mesh_out{1:l_a1}] = ndgrid(grids_for_choices{:}); else; mesh_out{1} = grids_for_choices{1}; end
     num_choices_total = numel(mesh_out{1});
 
-    Apr_cells = cell(1, l_a1);
-    for ia = 1:l_a1; Apr_cells{ia} = reshape(mesh_out{ia}(:), [1, num_choices_total, 1, 1, 1]); end
-
-    if N_a2 > 1
-        F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_eval{:}, E_cells_eval{:}, ReturnFnParamsCell{:});
+    % --- USER'S DAprime ARCHITECTURE ---
+    % Specialize choice dims so the largest array always hits Dim 1 for GPU coalescing
+    if N_d_safe == 1
+        choice_shape = [num_choices_total, 1, 1, 1, 1];
     else
-        F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_eval{:}, E_cells_eval{:}, ReturnFnParamsCell{:});
+        choice_shape = [1, num_choices_total, 1, 1, 1];
     end
 
+    Apr_cells = cell(1, l_a1);
+    for ia = 1:l_a1; Apr_cells{ia} = reshape(mesh_out{ia}(:), choice_shape); end
+
+    choice_idx_linear = gpuArray(reshape(1:num_choices_total, choice_shape));
+    DAprime_cells = [D_cells_block, Apr_cells];
+
+    % A2_cells{:} collapses when N_a2 is zero
+    F_tensor = TensorReturnFn(DAprime_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_eval{:}, E_cells_eval{:}, ReturnFnParamsCell{:});
+
     if ~is_cartesian
-        if isa(target_EV_offset, 'gpuArray')
-            choice_idx_linear = gpuArray(reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]));
-        else
-            choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
-        end
+        choice_idx_linear = gpuArray(reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]));
         if N_a2 > 1
             a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * length(a1_target_grid) * N_a1_other);
             lin_idx_compact = target_EV_offset + ((choice_idx_linear - 1) * N_d_stride + a2_offset);
@@ -1676,33 +1680,32 @@ if isempty(loweredge_matrix)
                 EV_bounded = EV_source(lin_idx_compact);
             else
                 stride_z = length(a1_target_grid) * N_a1_other;
-                if isa(EV_source, 'gpuArray')
-                    ze_offset = gpuArray(reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]));
-                else
-                    ze_offset = reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]);
-                end
+                ze_offset = gpuArray(reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]));
                 if N_dsemiz > 1; ze_offset = ze_offset + (dsemiz_idx_tensor - 1) * (stride_z * N_ze_local); end
                 EV_bounded = beta_j .* EV_source(choice_idx_linear + ze_offset);
             end
         end
     end
 else
-    % --- ZOOM PHASE (Optimized Slicer Bounds Helper) ---
+    % --- ZOOM PHASE ---
     [choice_idx_linear, out_of_bounds, num_choices_total, Apr_cells, num_choices_total_a1, start_offset, loweredge_matrix_bounds] = Helper_SlicerBounds(...
         loweredge_matrix, N_a1_dc, N_a1_other, N_states, n_z_loc, n_e_loc, N_d_safe, A1_grids_1d, n2short, a1prime_grid, l_a1, EV_local, is_coarse, maxgap_scalar);
 
-    if is_coarse
-        target_EV_offset = static_EV_offset;
-        EV_source = EV_bounded_pre;
-        a1_target_grid = A1_grids_1d{1};
-    else
-        target_EV_offset = static_EV_offset_fine;
-        EV_source = EV_interp_local;
-        a1_target_grid = a1prime_grid;
+    if N_d_safe == 1
+        % Shift the Slicer's Dim 2 choices into Dim 1 for perfect GPU coalescing
+        for ia = 1:length(Apr_cells)
+            Apr_cells{ia} = reshape(Apr_cells{ia}, [num_choices_total, 1, size(Apr_cells{ia}, 3), size(Apr_cells{ia}, 4), size(Apr_cells{ia}, 5)]);
+        end
+        choice_idx_linear = reshape(choice_idx_linear, [num_choices_total, 1, size(choice_idx_linear, 3), size(choice_idx_linear, 4), size(choice_idx_linear, 5)]);
+        out_of_bounds = reshape(out_of_bounds, [num_choices_total, 1, size(out_of_bounds, 3), size(out_of_bounds, 4), size(out_of_bounds, 5)]);
     end
 
+    DAprime_cells = {D_cells_block, Apr_cells};
+
+    % ... (Keep the target_EV_offset block here) ...
+
     if N_a2 > 1
-        F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_eval{:}, E_cells_eval{:}, ReturnFnParamsCell{:});
+        F_tensor = TensorReturnFn(DAprime_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_eval{:}, E_cells_eval{:}, ReturnFnParamsCell{:});
         a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * length(a1_target_grid) * N_a1_other);
         lin_idx_compact = target_EV_offset + ((choice_idx_linear - 1) * N_d_stride + a2_offset);
         EV_bounded = EV_source(lin_idx_compact);

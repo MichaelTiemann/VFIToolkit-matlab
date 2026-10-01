@@ -399,30 +399,47 @@ end
 
 local_ze = n_z_loc * n_e_loc;
 
+% =========================================================================
 % --- PHASE 1: GRID & TENSOR SETUP ---
+% =========================================================================
 if isempty(loweredge_matrix)
+    % ---------------------------------------------------------------------
+    % COARSE PASS
+    % ---------------------------------------------------------------------
     grids_for_choices = A1_grids_1d;
     [mesh_out{1:l_a1}] = ndgrid(grids_for_choices{:});
     num_choices_total = numel(mesh_out{1});
 
+    % --- DAprime ARCHITECTURE: Shift choices to Dim 1 if N_d_safe == 1 ---
+    if N_d_safe == 1
+        choice_shape = [num_choices_total, 1, 1, 1, 1];
+    else
+        choice_shape = [1, num_choices_total, 1, 1, 1];
+    end
+
     Apr_cells = cell(1, l_a1);
     for ia = 1:l_a1
-        Apr_cells{ia} = cast(reshape(mesh_out{ia}(:), [1, num_choices_total, 1, 1, 1]), 'like', EV_bounded_pre);
+        Apr_cells{ia} = cast(reshape(mesh_out{ia}(:), choice_shape), 'like', EV_bounded_pre);
     end
 
-    if N_a2 > 1
-        F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_local{:}, E_cells_local{:}, ReturnFnParamsCell{:});
-    else
-        F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_local{:}, E_cells_local{:}, ReturnFnParamsCell{:});
-    end
+    choice_idx_a1 = gpuArray(reshape(1:num_choices_total, choice_shape));
+
+    % MUST USE SQUARE BRACKETS [] to concatenate cells flatly!
+    DAprime_cells = [D_cells_block, Apr_cells];
+
+    % A2_cells{:} collapses when N_a2 is zero
+    F_tensor = TensorReturnFn(DAprime_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_local{:}, E_cells_local{:}, ReturnFnParamsCell{:});
 
 else
+    % ---------------------------------------------------------------------
+    % ZOOM PASS
+    % ---------------------------------------------------------------------
     total_gap = maxgap_scalar;
     if l_a1 == 1
         base_idx_a1 = reshape(loweredge_matrix, [N_d_safe, 1, N_states, n_z_loc, n_e_loc]);
         offsets_a1 = reshape(0:total_gap, [1, total_gap + 1, 1, 1, 1]);
-        choice_idx_a1_base = max(1, min(base_idx_a1 + offsets_a1, length(A1_grids_1d{1})));
-        Apr_cells = { A1_grids_1d{1}(choice_idx_a1_base) };
+        choice_idx_a1 = max(1, min(base_idx_a1 + offsets_a1, length(A1_grids_1d{1})));
+        Apr_cells = { A1_grids_1d{1}(choice_idx_a1) };
         num_choices_total = total_gap + 1;
     else
         num_choices_total = (total_gap + 1) * N_a1_other;
@@ -445,10 +462,30 @@ else
         end
     end
 
+    % --- DAprime ARCHITECTURE: Shift generated zoom arrays if N_d_safe == 1 ---
+    if N_d_safe == 1
+        for ia = 1:l_a1
+            s = size(Apr_cells{ia});
+            s = [s, ones(1, 5 - length(s))]; % Pad to 5 dims for safe reshape
+            Apr_cells{ia} = reshape(Apr_cells{ia}, [s(2), 1, s(3), s(4), s(5)]);
+        end
+
+        s_c1 = size(choice_idx_a1); s_c1 = [s_c1, ones(1, 5 - length(s_c1))];
+        choice_idx_a1 = reshape(choice_idx_a1, [s_c1(2), 1, s_c1(3), s_c1(4), s_c1(5)]);
+
+        if l_a1 > 1
+            s_c2 = size(choice_idx_a2); s_c2 = [s_c2, ones(1, 5 - length(s_c2))];
+            choice_idx_a2 = reshape(choice_idx_a2, [s_c2(2), 1, s_c2(3), s_c2(4), s_c2(5)]);
+        end
+    end
+
+    % MUST USE SQUARE BRACKETS [] to concatenate cells flatly!
+    DAprime_cells = [D_cells_block, Apr_cells];
+
     if N_a2 > 1
-        F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_local{:}, E_cells_local{:}, ReturnFnParamsCell{:});
+        F_tensor = TensorReturnFn(DAprime_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_local{:}, E_cells_local{:}, ReturnFnParamsCell{:});
     else
-        F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_local{:}, E_cells_local{:}, ReturnFnParamsCell{:});
+        F_tensor = TensorReturnFn(DAprime_cells{:}, A1_cells{:}, Z_cells_local{:}, E_cells_local{:}, ReturnFnParamsCell{:});
     end
 end
 
