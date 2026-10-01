@@ -1426,10 +1426,10 @@ else
     else; A2_cells = {}; end
 end
 
-Z_cells_eval = cell(1, length(Z_cells_local));
-for iz = 1:length(Z_cells_local); Z_cells_eval{iz} = reshape(Z_cells_local{iz}(:), shape_Z); end
-E_cells_eval = cell(1, length(E_cells_local));
-for ie = 1:length(E_cells_local); E_cells_eval{ie} = reshape(E_cells_local{ie}(:), shape_E); end
+Z_cells_eval = cell(1, length(Z_cells_block));
+for iz = 1:length(Z_cells_block); Z_cells_eval{iz} = reshape(Z_cells_block{iz}(:), shape_Z); end
+E_cells_eval = cell(1, length(E_cells_block));
+for ie = 1:length(E_cells_block); E_cells_eval{ie} = reshape(E_cells_block{ie}(:), shape_E); end
 for i_d = 1:length(D_cells_block); D_cells_block{i_d} = reshape(D_cells_block{i_d}(1:N_d_safe), d_shape); end
 
 % =========================================================================
@@ -1509,10 +1509,10 @@ else
     N_a2_global = max(1, prod(cellfun(@length, a2_grids_1d)));
     A2_cells_compact = cell(1, l_a2);
     for ia = 1:l_a2; A2_cells_compact{ia} = reshape(A2_mat(:, ia), [1, 1, N_a2, 1, 1]); end
-    Z_cells_compact = cell(1, length(Z_cells_local));
-    for iz = 1:length(Z_cells_local); Z_cells_compact{iz} = reshape(Z_cells_local{iz}(:), [1, 1, 1, n_z_loc, 1]); end
-    E_cells_compact = cell(1, length(E_cells_local));
-    for ie = 1:length(E_cells_local); E_cells_compact{ie} = reshape(E_cells_local{ie}(:), [1, 1, 1, 1, n_e_loc]); end
+    Z_cells_compact = cell(1, length(Z_cells_block));
+    for iz = 1:length(Z_cells_block); Z_cells_compact{iz} = reshape(Z_cells_block{iz}(:), [1, 1, 1, n_z_loc, 1]); end
+    E_cells_compact = cell(1, length(E_cells_block));
+    for ie = 1:length(E_cells_block); E_cells_compact{ie} = reshape(E_cells_block{ie}(:), [1, 1, 1, 1, n_e_loc]); end
 
     A2_prime = TensoraprimeFn(D_cells_block, A2_cells_compact, Z_cells_compact, E_cells_compact, aprimeFnParamsCell);
     A2_prime = A2_prime + zeros([N_d_safe, 1, N_a2, n_z_loc, n_e_loc], 'like', A2_prime);
