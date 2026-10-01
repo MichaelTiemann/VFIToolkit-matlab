@@ -1191,7 +1191,12 @@ for reverse_j = 0:N_j-1
                 state_list_local = 1:total_states;
                 flat_choices = N_d_safe * N_a1_dc * N_a1_other;
 
-                max_states_per_chunk = max(1, floor(safe_elements / (flat_choices * n_z_loc * n_e_loc)));
+                if vfoptions.gridinterplayer(1) == 1
+                    % Revert to safe_elements
+                    max_states_per_chunk = max(1, floor(safe_elements / (n2long * N_a1_other * n_z_loc * n_e_loc)));
+                else
+                    max_states_per_chunk = max(1, floor(safe_elements / (flat_choices * n_z_loc * n_e_loc)));
+                end
                 N_a1_total = N_a1_dc * N_a1_other;
                 if max_states_per_chunk > N_a1_total
                     max_states_per_chunk = floor(max_states_per_chunk / N_a1_total) * N_a1_total;
@@ -1485,40 +1490,45 @@ end
 % --- PHASE 2: UNIVERSAL RHS EVALUATION ---
 if ~is_exp_asset
     if is_coarse
-        EV_source = EV_bounded_pre;
+        % EV_bounded_pre size: [N_d_safe, N_a1_dc, N_a1_other, n_z_loc, n_e_loc]
+        stride_D  = 1;
         stride_C1 = N_d_safe;
         stride_C2 = N_d_safe * N_a1_dc;
+        stride_Z  = stride_C2 * N_a1_other;
+        stride_E  = stride_Z * n_z_loc;
+
+        d_offset = gpuArray(reshape(0:N_d_safe-1, d_shape)) * stride_D;
+        c1_offset = (choice_idx_a1 - 1) * stride_C1;
+        if l_a1 > 1; c2_offset = (choice_idx_a2 - 1) * stride_C2; else; c2_offset = 0; end
+
+        z_offset = gpuArray(reshape(0:n_z_loc-1, shape_Z) * stride_Z);
+        e_offset = gpuArray(reshape(0:n_e_loc-1, shape_E) * stride_E);
+
+        lin_idx_compact = 1 + d_offset + c1_offset + c2_offset + z_offset + e_offset;
+        EV_flat_source = EV_bounded_pre(:);
+        EV_bounded = EV_flat_source(lin_idx_compact);
     else
-        EV_source = EV_interp_local;
-        stride_C1 = N_d_safe;
-        stride_C2 = N_d_safe * length(a1prime_grid);
+        % EV_interp_local size: [length(a1prime_grid), N_a1_other, n_z_loc, n_e_loc, N_dsemiz]
+        % Lacks N_d_safe, so stride_C1 is 1!
+        stride_C1 = 1;
+        stride_C2 = length(a1prime_grid);
+        stride_Z  = stride_C2 * N_a1_other;
+        stride_E  = stride_Z * n_z_loc;
+        stride_DS = stride_E * n_e_loc;
+
+        c1_offset = (choice_idx_a1 - 1) * stride_C1;
+        if l_a1 > 1; c2_offset = (choice_idx_a2 - 1) * stride_C2; else; c2_offset = 0; end
+
+        z_offset = gpuArray(reshape(0:n_z_loc-1, shape_Z) * stride_Z);
+        e_offset = gpuArray(reshape(0:n_e_loc-1, shape_E) * stride_E);
+
+        if N_dsemiz > 1; ds_offset = gpuArray(reshape(dsemiz_idx_tensor - 1, d_shape) * stride_DS);
+        else; ds_offset = 0; end
+
+        lin_idx_compact = 1 + c1_offset + c2_offset + z_offset + e_offset + ds_offset;
+        EV_flat_source = EV_interp_local(:);
+        EV_bounded = beta_j .* EV_flat_source(lin_idx_compact);
     end
-
-    stride_A2 = stride_C2 * N_a1_other;
-    stride_Z  = stride_A2 * max(1, N_a2_len);
-    stride_E  = stride_Z * n_z_loc;
-
-    d_offset = gpuArray(reshape(0:N_d_safe-1, d_shape));
-    c1_offset = (choice_idx_a1 - 1) * stride_C1;
-    if l_a1 > 1; c2_offset = (choice_idx_a2 - 1) * stride_C2; else; c2_offset = 0; end
-    c_offset  = c1_offset + c2_offset;
-
-    if N_a2 > 1
-        if is_cartesian; a2_idx = reshape(0:N_a2_len-1, shape_A2);
-        else; a2_idx = reshape(a2_sub - 1, shape_A2); end
-        a2_offset = gpuArray(a2_idx * stride_A2);
-    else; a2_offset = 0; end
-
-    z_offset = gpuArray(reshape(0:n_z_loc-1, shape_Z) * stride_Z);
-    e_offset = gpuArray(reshape(0:n_e_loc-1, shape_E) * stride_E);
-
-    if N_dsemiz > 1; ds_offset = gpuArray(reshape(dsemiz_idx_tensor - 1, d_shape) * (stride_E * n_e_loc));
-    else; ds_offset = 0; end
-
-    lin_idx_compact = 1 + d_offset + c_offset + a2_offset + z_offset + e_offset + ds_offset;
-    EV_flat_source = EV_source(:); 
-    EV_bounded = EV_flat_source(lin_idx_compact);
-    if ~is_coarse; EV_bounded = beta_j .* EV_bounded; end
 else
     % Exp Asset Native Offset Reconstruction
     choice_idx_linear = choice_idx_a1 + (choice_idx_a2 - 1) * length(target_grid);
@@ -1632,8 +1642,8 @@ if isempty(loweredge_matrix)
 else
     num_choices_total_a1 = num_a1_choices;
     if is_coarse
-        % DC Level 2 Coarse pass doesn't use L2 bounds in output mapping
-        loweredge_matrix_bounds_pass = [];
+        % CRITICAL FIX: DC Level 2 Coarse pass MUST use base_idx_a1 to return absolute indices!
+        loweredge_matrix_bounds_pass = reshape(base_idx_a1, [N_d_safe, num_a2_choices, N_states, n_z_loc, n_e_loc]);
     else
         % GI Zoom Pass requires the L2 Bounds for the fine grid mapping
         loweredge_matrix_bounds_pass = reshape(loweredge_matrix_bounds, [N_d_safe, num_a2_choices, N_states, n_z_loc, n_e_loc]);
