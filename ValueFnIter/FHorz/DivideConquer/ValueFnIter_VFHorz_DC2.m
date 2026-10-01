@@ -371,6 +371,7 @@ function [V_j_max, Pol_apr_max, Pol_d_max, Pol_a1_per_a2] = Evaluate_DC2_TensorB
 N_states = length(state_idx);
 state_idx = cast(state_idx, 'like', EV_bounded_pre);
 if ~isempty(loweredge_matrix); loweredge_matrix = cast(loweredge_matrix, 'like', EV_bounded_pre); end
+
 l_a1 = length(A1_grids_1d);
 l_a2 = size(A2_mat, 2);
 
@@ -379,152 +380,133 @@ if N_a2 > 1
     a2_sub = ceil(state_idx / N_a1_total);
     a1_sub = state_idx - (a2_sub - 1) * N_a1_total;
 else
+    N_a1_total = N_a1_dc * N_a1_other;
     a1_sub = state_idx;
     a2_sub = [];
-end
-
-A1_cells = cell(1, l_a1);
-for ia = 1:l_a1
-    A1_cells{ia} = reshape(A1_mat(a1_sub, ia), [1, 1, N_states, 1, 1]);
-end
-
-if N_a2 > 1
-    A2_cells = cell(1, l_a2);
-    for ia = 1:l_a2
-        A2_cells{ia} = reshape(A2_mat(a2_sub, ia), [1, 1, N_states, 1, 1]);
-    end
-else
-    A2_cells = {};
 end
 
 local_ze = n_z_loc * n_e_loc;
 
 % =========================================================================
-% --- PHASE 1: GRID & TENSOR SETUP ---
+% --- COMPUTE CHOICE & DYNAMIC PACKING GEOMETRY ---
 % =========================================================================
 if isempty(loweredge_matrix)
-    % ---------------------------------------------------------------------
-    % COARSE PASS
-    % ---------------------------------------------------------------------
+    num_choices_total = length(A1_grids_1d{1});
+    if l_a1 > 1; for ia = 2:l_a1; num_choices_total = num_choices_total * length(A1_grids_1d{ia}); end; end
+else
+    if l_a1 == 1; num_choices_total = maxgap_scalar + 1;
+    else; num_choices_total = (maxgap_scalar + 1) * N_a1_other; end
+end
+
+if N_d_safe > 1 && num_choices_total > 1
+    C = 2; d_shape = [N_d_safe, 1]; apr_shape = [1, num_choices_total];
+elseif N_d_safe > 1
+    C = 1; d_shape = [N_d_safe, 1]; apr_shape = [1, 1];
+elseif num_choices_total > 1
+    C = 1; d_shape = [1, 1]; apr_shape = [num_choices_total, 1];
+else
+    C = 1; d_shape = [1, 1]; apr_shape = [1, 1];
+end
+
+dim_A1 = C + 1; shape_A1 = [ones(1, dim_A1 - 1), N_states];
+dim_A2 = dim_A1; shape_A2 = [ones(1, dim_A2 - 1), N_states];
+dim_Z = dim_A1 + 1; shape_Z = [ones(1, dim_Z - 1), n_z_loc];
+dim_E = dim_Z + 1; shape_E = [ones(1, dim_E - 1), n_e_loc];
+
+pack_shape = [N_d_safe, num_choices_total, shape_A1(dim_A1), shape_Z(dim_Z), shape_E(dim_E)];
+if N_d_safe == 1; pack_shape = pack_shape(2:end); end
+
+A1_cells = cell(1, l_a1);
+for ia = 1:l_a1; A1_cells{ia} = reshape(A1_mat(a1_sub, ia), shape_A1); end
+if N_a2 > 1
+    A2_cells = cell(1, l_a2);
+    for ia = 1:l_a2; A2_cells{ia} = reshape(A2_mat(a2_sub, ia), shape_A2); end
+else; A2_cells = {}; end
+
+Z_cells_eval = cell(1, length(Z_cells_local));
+for iz = 1:length(Z_cells_local); Z_cells_eval{iz} = reshape(Z_cells_local{iz}(1,1,1,:,1), shape_Z); end
+E_cells_eval = cell(1, length(E_cells_local));
+for ie = 1:length(E_cells_local); E_cells_eval{ie} = reshape(E_cells_local{ie}(1,1,1,1,:), shape_E); end
+for i_d = 1:length(D_cells_block); D_cells_block{i_d} = reshape(D_cells_block{i_d}(1:N_d_safe), d_shape); end
+
+% --- PHASE 1: EVALUATION ---
+if isempty(loweredge_matrix)
     grids_for_choices = A1_grids_1d;
     [mesh_out{1:l_a1}] = ndgrid(grids_for_choices{:});
-    num_choices_total = numel(mesh_out{1});
-
-    % --- DAprime ARCHITECTURE: Shift choices to Dim 1 if N_d_safe == 1 ---
-    if N_d_safe == 1
-        choice_shape = [num_choices_total, 1, 1, 1, 1];
-    else
-        choice_shape = [1, num_choices_total, 1, 1, 1];
-    end
-
     Apr_cells = cell(1, l_a1);
-    for ia = 1:l_a1
-        Apr_cells{ia} = cast(reshape(mesh_out{ia}(:), choice_shape), 'like', EV_bounded_pre);
-    end
-
-    choice_idx_a1 = gpuArray(reshape(1:num_choices_total, choice_shape));
-
-    % MUST USE SQUARE BRACKETS [] to concatenate cells flatly!
-    DAprime_cells = [D_cells_block, Apr_cells];
-
-    % A2_cells{:} collapses when N_a2 is zero
-    F_tensor = TensorReturnFn(DAprime_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_local{:}, E_cells_local{:}, ReturnFnParamsCell{:});
-
+    for ia = 1:l_a1; Apr_cells{ia} = reshape(mesh_out{ia}(:), apr_shape); end
+    choice_idx_linear = reshape(1:num_choices_total, apr_shape);
 else
-    % ---------------------------------------------------------------------
-    % ZOOM PASS
-    % ---------------------------------------------------------------------
     total_gap = maxgap_scalar;
     if l_a1 == 1
         base_idx_a1 = reshape(loweredge_matrix, [N_d_safe, 1, N_states, n_z_loc, n_e_loc]);
         offsets_a1 = reshape(0:total_gap, [1, total_gap + 1, 1, 1, 1]);
-        choice_idx_a1 = max(1, min(base_idx_a1 + offsets_a1, length(A1_grids_1d{1})));
+        choice_idx_a1 = base_idx_a1 + offsets_a1;
         Apr_cells = { A1_grids_1d{1}(choice_idx_a1) };
-        num_choices_total = total_gap + 1;
+        choice_idx_linear = choice_idx_a1;
     else
-        num_choices_total = (total_gap + 1) * N_a1_other;
-
         base_idx_a1 = reshape(loweredge_matrix, [N_d_safe, 1, N_a1_other, N_states, n_z_loc, n_e_loc]);
         offsets_a1 = reshape(0:total_gap, [1, total_gap + 1, 1, 1, 1, 1]);
-
-        % Slicer bounds guarantee safety, eliminating min/max array overhead
         choice_idx_a1 = reshape(base_idx_a1 + offsets_a1, [N_d_safe, num_choices_total, N_states, n_z_loc, n_e_loc]);
-
-        % Generate immediately using ceil (no repmat required)
-        choice_idx_a2 = gpuArray(reshape(ceil((1:num_choices_total) / (total_gap + 1)), [1, num_choices_total, 1, 1, 1]));
-
+        choice_idx_a2 = reshape(ceil((1:num_choices_total) / (total_gap + 1)), [1, num_choices_total, 1, 1, 1]);
         Apr_cells = cell(1, l_a1);
         Apr_cells{1} = A1_grids_1d{1}(choice_idx_a1);
         if l_a1 > 2; [mesh_a2{1:l_a1-1}] = ndgrid(A1_grids_1d{2:end}); else; mesh_a2{1} = A1_grids_1d{2}; end
         for ia = 2:l_a1
             flat_grid = mesh_a2{ia-1}(:);
-            Apr_cells{ia} = reshape(flat_grid(choice_idx_a2), [1, num_choices_total, 1, 1, 1]);
+            grid_u = reshape(flat_grid(choice_idx_a2), [1, num_choices_total, 1, 1, 1]);
+            Apr_cells{ia} = grid_u + zeros([N_d_safe, num_choices_total, 1, 1, 1], 'like', grid_u);
         end
+        choice_idx_linear = choice_idx_a1 + (choice_idx_a2 - 1) * length(A1_grids_1d{1});
     end
-
-    % --- DAprime ARCHITECTURE: Shift generated zoom arrays if N_d_safe == 1 ---
-    if N_d_safe == 1
-        for ia = 1:l_a1
-            s = size(Apr_cells{ia});
-            s = [s, ones(1, 5 - length(s))]; % Pad to 5 dims for safe reshape
-            Apr_cells{ia} = reshape(Apr_cells{ia}, [s(2), 1, s(3), s(4), s(5)]);
-        end
-
-        s_c1 = size(choice_idx_a1); s_c1 = [s_c1, ones(1, 5 - length(s_c1))];
-        choice_idx_a1 = reshape(choice_idx_a1, [s_c1(2), 1, s_c1(3), s_c1(4), s_c1(5)]);
-
-        if l_a1 > 1
-            s_c2 = size(choice_idx_a2); s_c2 = [s_c2, ones(1, 5 - length(s_c2))];
-            choice_idx_a2 = reshape(choice_idx_a2, [s_c2(2), 1, s_c2(3), s_c2(4), s_c2(5)]);
-        end
-    end
-
-    % MUST USE SQUARE BRACKETS [] to concatenate cells flatly!
-    DAprime_cells = [D_cells_block, Apr_cells];
-
-    if N_a2 > 1
-        F_tensor = TensorReturnFn(DAprime_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_local{:}, E_cells_local{:}, ReturnFnParamsCell{:});
-    else
-        F_tensor = TensorReturnFn(DAprime_cells{:}, A1_cells{:}, Z_cells_local{:}, E_cells_local{:}, ReturnFnParamsCell{:});
-    end
+    choice_idx_linear = reshape(choice_idx_linear, pack_shape);
+    for ia = 1:l_a1; Apr_cells{ia} = reshape(Apr_cells{ia}, pack_shape); end
 end
 
-% --- PHASE 2: UNIFIED EXPECTED VALUE INDEXING ---
-FLAT_CHOICES = N_d_safe * num_choices_total;
-F_tensor = reshape(F_tensor, [FLAT_CHOICES, N_states, local_ze]);
+if isa(EV_bounded_pre, 'gpuArray') && ~isa(choice_idx_linear, 'gpuArray')
+    choice_idx_linear = gpuArray(choice_idx_linear);
+end
 
-% --- MASSIVE SPEEDUP 3: Fused Indexing (Restored to Native Types) ---
-if isempty(loweredge_matrix)
-    % Coarse Pass
-    choice_idx_linear = reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]);
-    base_offset = static_EV_offset + (choice_idx_linear - 1) * N_d_safe;
+DAprime_cells = [D_cells_block, Apr_cells];
 
-    if N_a2 > 1
-        a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_safe * N_a1_dc * N_a1_other);
-        lin_idx_compact = base_offset + a2_offset;
-    else
-        % Force implicit expansion across the N_states dimension
-        lin_idx_compact = base_offset + zeros(1, 1, N_states, 'like', base_offset);
-    end
+if N_a2 > 1
+    F_tensor = TensorReturnFn(DAprime_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_eval{:}, E_cells_eval{:}, ReturnFnParamsCell{:});
 else
-    % Zoom Pass: Combine choice 1 and 2 offsets natively
-    term1 = static_EV_offset - N_d_safe;
-    term2 = (choice_idx_a2 - 1) * (length(A1_grids_1d{1}) * N_d_safe);
-    base_offset = term1 + term2; % Evaluates cheaply to [N_d, num_choices, 1, z, e]
-
-    if N_a2 > 1
-        a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_safe * N_a1_dc * N_a1_other);
-        lin_idx_compact = base_offset + choice_idx_a1 * N_d_safe + a2_offset;
-    else
-        lin_idx_compact = base_offset + choice_idx_a1 * N_d_safe;
-    end
+    F_tensor = TensorReturnFn(DAprime_cells{:}, A1_cells{:}, Z_cells_eval{:}, E_cells_eval{:}, ReturnFnParamsCell{:});
 end
 
-EV_bounded = EV_bounded_pre(lin_idx_compact);
-EV_bounded = reshape(EV_bounded, [FLAT_CHOICES, N_states, local_ze]);
+% --- PHASE 2: RECONSTRUCTION ---
+stride_C  = N_d_safe;
+stride_A2 = N_d_safe * N_a1_dc * N_a1_other;
+stride_Z  = N_d_safe * N_a1_dc * N_a1_other * max(1, N_a2);
+stride_E  = stride_Z * n_z_loc;
 
-FLAT_STATES = N_states * local_ze;
-RHS_flat = reshape(F_tensor + EV_bounded, [FLAT_CHOICES, FLAT_STATES]);
+d_offset = reshape(0:N_d_safe-1, d_shape);
+c_offset = (choice_idx_linear - 1) * stride_C;
+
+if N_a2 > 1
+    a2_idx = reshape(a2_sub - 1, shape_A2);
+    a2_offset = a2_idx * stride_A2;
+else; a2_offset = 0; end
+
+z_offset = reshape(0:n_z_loc-1, shape_Z) * stride_Z;
+e_offset = reshape(0:n_e_loc-1, shape_E) * stride_E;
+
+if isa(EV_bounded_pre, 'gpuArray')
+    if ~isa(d_offset, 'gpuArray'); d_offset = gpuArray(d_offset); end
+    if ~isa(a2_offset, 'gpuArray'); a2_offset = gpuArray(a2_offset); end
+    if ~isa(z_offset, 'gpuArray'); z_offset = gpuArray(z_offset); end
+    if ~isa(e_offset, 'gpuArray'); e_offset = gpuArray(e_offset); end
+end
+
+lin_idx_compact = 1 + d_offset + c_offset + a2_offset + z_offset + e_offset;
+EV_bounded = EV_bounded_pre(lin_idx_compact);
+
+F_tensor = F_tensor + EV_bounded;
+
+FLAT_CHOICES = N_d_safe * num_choices_total;
+FLAT_STATES  = N_states * local_ze;
+RHS_flat = reshape(F_tensor, [FLAT_CHOICES, FLAT_STATES]);
 
 % --- PHASE 3 OUTPUT MAPPING ---
 % Find max across all choices for each decision and state

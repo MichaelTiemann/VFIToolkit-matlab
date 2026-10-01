@@ -1565,27 +1565,20 @@ if nargin < 40; static_EV_offset_fine = []; end
 N_d_stride = N_d_safe;
 is_EZ = ~(all(ezc2_j == 1) && ezc3 == 1 && ezc4 == 1 && all(ezc7_j == 1));
 
-% VRAM LOCK: Keep slicer index strictly on GPU to prevent PCIe indexing stalls
 if ~isa(state_idx, 'gpuArray') && isa(A1_mat, 'gpuArray')
     state_idx = gpuArray(state_idx);
 end
 
-% --- D_OVERRIDE SLICING ---
 if d_override > 0
     N_d_safe = 1;
-    for i_d = 1:length(D_cells_block)
-        D_cells_block{i_d} = D_cells_block{i_d}(d_override, :, :, :, :);
-    end
+    for i_d = 1:length(D_cells_block); D_cells_block{i_d} = D_cells_block{i_d}(d_override, :, :, :, :); end
     if size(dsemiz_idx_tensor, 1) >= d_override; dsemiz_idx_tensor = dsemiz_idx_tensor(d_override, :, :, :); end
-    if size(static_EV_offset, 1) >= d_override; static_EV_offset = static_EV_offset(d_override, :, :, :, :); end
-    if size(static_EV_offset_fine, 1) >= d_override; static_EV_offset_fine = static_EV_offset_fine(d_override, :, :, :, :); end
 end
 
 N_states = length(state_idx);
 l_a1 = length(A1_grids_1d);
 l_a2 = sum(size(A2_mat)>1);
 
-% --- ALWAYS EXTRACT SUB-INDICES ---
 if N_a2 > 1
     N_a1_total = N_a1_dc * N_a1_other;
     a2_sub = ceil(state_idx / N_a1_total);
@@ -1596,188 +1589,175 @@ else
     a2_sub = [];
 end
 
-% --- REBUILD LOCAL 5D ORTHOGONAL STATE CELLS FOR NATIVE EXECUTION ---
 N_a2_len = N_states / N_a1_total;
 is_cartesian = (N_a2_len == floor(N_a2_len)) && isempty(loweredge_matrix) && (a1_sub(1) == 1) && (a1_sub(end) == N_a1_total);
+is_coarse = (gridinterplayer(1) == 0 || is_dc_mode == 2);
 
-if is_cartesian
-    A1_cells = cell(1, l_a1);
-    for ia = 1:l_a1; A1_cells{ia} = reshape(A1_mat(1:N_a1_total, ia), [1, 1, N_a1_total, 1, 1, 1]); end
-    if N_a2 > 1
-        A2_cells = cell(1, l_a2);
-        a2_unique_idx = a2_sub(1:N_a1_total:end);
-        for ia = 1:l_a2; A2_cells{ia} = reshape(A2_mat(a2_unique_idx, ia), [1, 1, 1, N_a2_len, 1, 1]); end
-        Z_cells_eval = cell(1, length(Z_cells_block));
-        for iz = 1:length(Z_cells_block); Z_cells_eval{iz} = reshape(Z_cells_block{iz}(1,1,1,:,1), [1, 1, 1, 1, n_z_loc, 1]); end
-        E_cells_eval = cell(1, length(E_cells_block));
-        for ie = 1:length(E_cells_block); E_cells_eval{ie} = reshape(E_cells_block{ie}(1,1,1,1,:), [1, 1, 1, 1, 1, n_e_loc]); end
+% =========================================================================
+% --- COMPUTE CHOICE & DYNAMIC PACKING GEOMETRY ---
+% =========================================================================
+if isempty(loweredge_matrix)
+    if is_coarse
+        num_choices_total = length(A1_grids_1d{1});
+        if l_a1 > 1; for ia = 2:l_a1; num_choices_total = num_choices_total * length(A1_grids_1d{ia}); end; end
     else
-        A2_cells = {};
-        Z_cells_eval = Z_cells_block;
-        E_cells_eval = E_cells_block;
+        num_choices_total = length(a1prime_grid);
+        if l_a1 > 1; for ia = 2:l_a1; num_choices_total = num_choices_total * length(A1_grids_1d{ia}); end; end
     end
 else
-    A1_cells = cell(1, l_a1);
-    for ia = 1:l_a1; A1_cells{ia} = reshape(A1_mat(a1_sub, ia), [1, 1, N_states, 1, 1]); end
+    if l_a1 == 1; num_choices_total = maxgap_scalar + 1;
+    else; num_choices_total = (maxgap_scalar + 1) * N_a1_other; end
+end
+
+% --- The User's Dynamic Packing Shift ---
+if N_d_safe > 1 && num_choices_total > 1
+    C = 2; d_shape = [N_d_safe, 1]; apr_shape = [1, num_choices_total];
+elseif N_d_safe > 1
+    C = 1; d_shape = [N_d_safe, 1]; apr_shape = [1, 1];
+elseif num_choices_total > 1
+    C = 1; d_shape = [1, 1]; apr_shape = [num_choices_total, 1];
+else
+    C = 1; d_shape = [1, 1]; apr_shape = [1, 1];
+end
+
+dim_A1 = C + 1;
+if is_cartesian
+    shape_A1 = [ones(1, dim_A1 - 1), N_a1_total];
+    if N_a2 > 1
+        dim_A2 = dim_A1 + 1; shape_A2 = [ones(1, dim_A2 - 1), N_a2_len]; dim_Z = dim_A2 + 1;
+    else
+        dim_A2 = dim_A1; shape_A2 = [1, 1]; dim_Z = dim_A1 + 1;
+    end
+else
+    shape_A1 = [ones(1, dim_A1 - 1), N_states];
+    dim_A2 = dim_A1; shape_A2 = [ones(1, dim_A2 - 1), N_states];
+    dim_Z = dim_A1 + 1;
+end
+dim_E = dim_Z + 1;
+
+shape_Z = [ones(1, dim_Z - 1), n_z_loc];
+shape_E = [ones(1, dim_E - 1), n_e_loc];
+
+% Pre-compute pack shape for Slicer bounds natively
+pack_shape = [N_d_safe, num_choices_total, shape_A1(dim_A1)];
+if is_cartesian && N_a2 > 1; pack_shape = [pack_shape, shape_A2(dim_A2)]; end
+pack_shape = [pack_shape, shape_Z(dim_Z), shape_E(dim_E)];
+if N_d_safe == 1; pack_shape = pack_shape(2:end); end
+
+% --- REBUILD DYNAMICALLY PACKED STATE CELLS ---
+A1_cells = cell(1, l_a1);
+if is_cartesian
+    for ia = 1:l_a1; A1_cells{ia} = reshape(A1_mat(1:N_a1_total, ia), shape_A1); end
+    if N_a2 > 1
+        A2_cells = cell(1, l_a2); a2_unique_idx = a2_sub(1:N_a1_total:end);
+        for ia = 1:l_a2; A2_cells{ia} = reshape(A2_mat(a2_unique_idx, ia), shape_A2); end
+    else; A2_cells = {}; end
+else
+    for ia = 1:l_a1; A1_cells{ia} = reshape(A1_mat(a1_sub, ia), shape_A1); end
     if N_a2 > 1
         A2_cells = cell(1, l_a2);
-        for ia = 1:l_a2; A2_cells{ia} = reshape(A2_mat(a2_sub, ia), [1, 1, N_states, 1, 1]); end
-    else
-        A2_cells = {};
-    end
-    Z_cells_eval = Z_cells_block;
-    E_cells_eval = E_cells_block;
+        for ia = 1:l_a2; A2_cells{ia} = reshape(A2_mat(a2_sub, ia), shape_A2); end
+    else; A2_cells = {}; end
 end
+
+Z_cells_eval = cell(1, length(Z_cells_block));
+for iz = 1:length(Z_cells_block); Z_cells_eval{iz} = reshape(Z_cells_block{iz}(1,1,1,:,1), shape_Z); end
+E_cells_eval = cell(1, length(E_cells_block));
+for ie = 1:length(E_cells_block); E_cells_eval{ie} = reshape(E_cells_block{ie}(1,1,1,1,:), shape_E); end
+for i_d = 1:length(D_cells_block); D_cells_block{i_d} = reshape(D_cells_block{i_d}(1:N_d_safe), d_shape); end
 
 % =========================================================================
 % PHASE 1: EVALUATION (CHOICE MATRIX GENERATION)
 % =========================================================================
-is_coarse = (gridinterplayer(1) == 0 || is_dc_mode == 2);
-
 if isempty(loweredge_matrix)
-    % --- SINGLE UNIFIED BLOCK: Coarse or 1-Step Brute Force ---
-    if is_coarse
-        a1_target_grid = A1_grids_1d{1};
-        target_EV_offset = static_EV_offset;
-        EV_source = EV_bounded_pre;
-    else
-        a1_target_grid = a1prime_grid;
-        target_EV_offset = static_EV_offset_fine;
-        EV_source = EV_interp_local;
-    end
-
     grids_for_choices = A1_grids_1d;
-    grids_for_choices{1} = a1_target_grid;
+    if is_coarse; grids_for_choices{1} = A1_grids_1d{1}; else; grids_for_choices{1} = a1prime_grid; end
     if l_a1 > 1; [mesh_out{1:l_a1}] = ndgrid(grids_for_choices{:}); else; mesh_out{1} = grids_for_choices{1}; end
-    num_choices_total = numel(mesh_out{1});
-
-    % --- USER'S DAprime ARCHITECTURE ---
-    % Specialize choice dims so the largest array always hits Dim 1 for GPU coalescing
-    if N_d_safe == 1
-        choice_shape = [num_choices_total, 1, 1, 1, 1];
-    else
-        choice_shape = [1, num_choices_total, 1, 1, 1];
-    end
 
     Apr_cells = cell(1, l_a1);
-    for ia = 1:l_a1; Apr_cells{ia} = reshape(mesh_out{ia}(:), choice_shape); end
+    for ia = 1:l_a1; Apr_cells{ia} = reshape(mesh_out{ia}(:), apr_shape); end
 
-    choice_idx_linear = gpuArray(reshape(1:num_choices_total, choice_shape));
-    DAprime_cells = [D_cells_block, Apr_cells];
-
-    % A2_cells{:} collapses when N_a2 is zero
-    F_tensor = TensorReturnFn(DAprime_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_eval{:}, E_cells_eval{:}, ReturnFnParamsCell{:});
-
-    if ~is_cartesian
-        choice_idx_linear = gpuArray(reshape(1:num_choices_total, [1, num_choices_total, 1, 1, 1]));
-        if N_a2 > 1
-            a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * length(a1_target_grid) * N_a1_other);
-            lin_idx_compact = target_EV_offset + ((choice_idx_linear - 1) * N_d_stride + a2_offset);
-            EV_bounded = EV_source(lin_idx_compact);
-        else
-            if is_coarse
-                lin_idx_compact = target_EV_offset + (choice_idx_linear - 1) * N_d_stride;
-                EV_bounded = EV_source(lin_idx_compact);
-            else
-                stride_z = length(a1_target_grid) * N_a1_other;
-                ze_offset = gpuArray(reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]));
-                if N_dsemiz > 1; ze_offset = ze_offset + (dsemiz_idx_tensor - 1) * (stride_z * N_ze_local); end
-                EV_bounded = beta_j .* EV_source(choice_idx_linear + ze_offset);
-            end
-        end
-    end
+    choice_idx_linear = reshape(1:num_choices_total, apr_shape);
 else
-    % --- ZOOM PHASE ---
-    [choice_idx_linear, out_of_bounds, num_choices_total, Apr_cells, num_choices_total_a1, start_offset, loweredge_matrix_bounds] = Helper_SlicerBounds(...
+    [choice_idx_linear, out_of_bounds, ~, Apr_cells, ~, start_offset, loweredge_matrix_bounds] = Helper_SlicerBounds(...
         loweredge_matrix, N_a1_dc, N_a1_other, N_states, n_z_loc, n_e_loc, N_d_safe, A1_grids_1d, n2short, a1prime_grid, l_a1, EV_local, is_coarse, maxgap_scalar);
 
-    if N_d_safe == 1
-        % Shift the Slicer's Dim 2 choices into Dim 1 for perfect GPU coalescing
-        for ia = 1:length(Apr_cells)
-            Apr_cells{ia} = reshape(Apr_cells{ia}, [num_choices_total, 1, size(Apr_cells{ia}, 3), size(Apr_cells{ia}, 4), size(Apr_cells{ia}, 5)]);
-        end
-        choice_idx_linear = reshape(choice_idx_linear, [num_choices_total, 1, size(choice_idx_linear, 3), size(choice_idx_linear, 4), size(choice_idx_linear, 5)]);
-        out_of_bounds = reshape(out_of_bounds, [num_choices_total, 1, size(out_of_bounds, 3), size(out_of_bounds, 4), size(out_of_bounds, 5)]);
-    end
+    choice_idx_linear = reshape(choice_idx_linear, pack_shape);
+    out_of_bounds = reshape(out_of_bounds, pack_shape);
+    for ia = 1:l_a1; Apr_cells{ia} = reshape(Apr_cells{ia}, pack_shape); end
+end
 
-    DAprime_cells = {D_cells_block, Apr_cells};
+DAprime_cells = [D_cells_block, Apr_cells];
 
-    % ... (Keep the target_EV_offset block here) ...
-
-    if N_a2 > 1
-        F_tensor = TensorReturnFn(DAprime_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_eval{:}, E_cells_eval{:}, ReturnFnParamsCell{:});
-        a2_offset = reshape(a2_sub - 1, [1, 1, N_states, 1, 1]) * (N_d_stride * length(a1_target_grid) * N_a1_other);
-        lin_idx_compact = target_EV_offset + ((choice_idx_linear - 1) * N_d_stride + a2_offset);
-        EV_bounded = EV_source(lin_idx_compact);
-    else
-        F_tensor = TensorReturnFn(D_cells_block{:}, Apr_cells{:}, A1_cells{:}, Z_cells_eval{:}, E_cells_eval{:}, ReturnFnParamsCell{:});
-        if is_coarse
-            lin_idx_compact = target_EV_offset + (choice_idx_linear - 1) * N_d_stride;
-            EV_bounded = EV_source(lin_idx_compact);
-        else
-            stride_z = length(a1_target_grid) * N_a1_other;
-            if isa(EV_source, 'gpuArray')
-                ze_offset = gpuArray(reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]));
-            else
-                ze_offset = reshape((0:N_ze_local-1) * stride_z, [1, 1, 1, n_z_loc, n_e_loc]);
-            end
-            if N_dsemiz > 1; ze_offset = ze_offset + (dsemiz_idx_tensor - 1) * (stride_z * N_ze_local); end
-            EV_bounded = beta_j .* EV_source(choice_idx_linear + ze_offset);
-        end
-    end
-    EV_bounded(out_of_bounds) = -Inf;
+if N_a2 > 1
+    F_tensor = TensorReturnFn(DAprime_cells{:}, A1_cells{:}, A2_cells{:}, Z_cells_eval{:}, E_cells_eval{:}, ReturnFnParamsCell{:});
+else
+    F_tensor = TensorReturnFn(DAprime_cells{:}, A1_cells{:}, Z_cells_eval{:}, E_cells_eval{:}, ReturnFnParamsCell{:});
 end
 
 % =========================================================================
-% PHASE 2: UNIVERSAL RHS EVALUATION & ADDITION
+% PHASE 2: UNIVERSAL RHS EVALUATION & EXPECTED VALUE RECONSTRUCTION
 % =========================================================================
+if is_coarse
+    EV_source = EV_bounded_pre;
+    stride_C  = N_d_safe;
+    stride_A2 = N_d_safe * N_a1_total;
+    stride_Z  = N_d_safe * N_a1_total * max(1, N_a2_len);
+    stride_E  = stride_Z * n_z_loc;
+else
+    EV_source = EV_interp_local;
+    stride_C  = N_d_safe;
+    stride_A2 = N_d_safe * length(a1prime_grid) * N_a1_other;
+    stride_Z  = stride_A2 * max(1, N_a2_len);
+    stride_E  = stride_Z * n_z_loc;
+end
+
+d_offset = reshape(0:N_d_safe-1, d_shape);
+c_offset = (choice_idx_linear - 1) * stride_C;
+
+if N_a2 > 1
+    if is_cartesian; a2_idx = reshape(0:N_a2_len-1, shape_A2);
+    else; a2_idx = reshape(a2_sub - 1, shape_A2); end
+    a2_offset = a2_idx * stride_A2;
+else; a2_offset = 0; end
+
+z_offset = reshape(0:n_z_loc-1, shape_Z) * stride_Z;
+e_offset = reshape(0:n_e_loc-1, shape_E) * stride_E;
+
+if N_dsemiz > 1; ds_offset = reshape(dsemiz_idx_tensor - 1, d_shape) * (stride_E * n_e_loc);
+else; ds_offset = 0; end
+
+if isa(EV_source, 'gpuArray')
+    if ~isa(d_offset, 'gpuArray'); d_offset = gpuArray(d_offset); end
+    if ~isa(c_offset, 'gpuArray'); c_offset = gpuArray(c_offset); end
+    if ~isa(a2_offset, 'gpuArray'); a2_offset = gpuArray(a2_offset); end
+    if ~isa(z_offset, 'gpuArray'); z_offset = gpuArray(z_offset); end
+    if ~isa(e_offset, 'gpuArray'); e_offset = gpuArray(e_offset); end
+    if ~isa(ds_offset, 'gpuArray'); ds_offset = gpuArray(ds_offset); end
+end
+
+% The linear offset natively adopts F_tensor's exact geometry!
+lin_idx_compact = 1 + d_offset + c_offset + a2_offset + z_offset + e_offset + ds_offset;
+EV_bounded = EV_source(lin_idx_compact);
+
+if ~is_coarse; EV_bounded = beta_j .* EV_bounded; end
+if ~isempty(loweredge_matrix)
+    inf_mask = zeros(size(out_of_bounds), 'like', EV_bounded);
+    inf_mask(out_of_bounds) = -Inf;
+    EV_bounded = EV_bounded + inf_mask;
+end
+
 FLAT_CHOICES = N_d_safe * num_choices_total;
 FLAT_STATES  = N_states * N_ze_local;
 
 if ~is_EZ
-    if is_cartesian
-        if isempty(loweredge_matrix) && (gridinterplayer(1) == 0 || is_dc_mode == 2)
-            EV_slice = reshape(EV_bounded_pre, [N_d_safe, num_choices_total, 1, N_a2_len, N_ze_local]);
-        else
-            EV_slice = reshape(EV_interp_local, [N_d_safe, num_choices_total, 1, N_a2_len, N_ze_local]);
-        end
-        if size(F_tensor, 3) ~= N_a1_total || size(F_tensor, 4) ~= N_a2_len
-            F_tensor = F_tensor + zeros([1, 1, N_a1_total, N_a2_len, 1], 'like', F_tensor);
-        end
-        F_tensor = reshape(F_tensor, [N_d_safe, num_choices_total, N_a1_total, N_a2_len, N_ze_local]);
-        F_tensor = F_tensor + EV_slice;
-        RHS_flat = reshape(F_tensor, [FLAT_CHOICES, FLAT_STATES]);
-    else
-        F_tensor = F_tensor + EV_bounded;
-        if size(F_tensor, 3) ~= N_states
-            F_tensor = F_tensor + zeros([1, 1, N_states, 1, 1], 'like', F_tensor);
-        end
-        RHS_flat = reshape(F_tensor, [FLAT_CHOICES, FLAT_STATES]);
-    end
+    F_tensor = F_tensor + EV_bounded;
+    RHS_flat = reshape(F_tensor, [FLAT_CHOICES, FLAT_STATES]);
 else
-    % Fallback for Exotic Preferences
-    if is_cartesian
-        if isempty(loweredge_matrix) && (gridinterplayer(1) == 0 || is_dc_mode == 2)
-            EV_slice = reshape(EV_bounded_pre, [N_d_safe, num_choices_total, 1, N_a2_len, N_ze_local]);
-        else
-            EV_slice = reshape(EV_interp_local, [N_d_safe, num_choices_total, 1, N_a2_len, N_ze_local]);
-        end
-        if size(F_tensor, 3) ~= N_a1_total || size(F_tensor, 4) ~= N_a2_len
-            F_tensor = F_tensor + zeros([1, 1, N_a1_total, N_a2_len, 1], 'like', F_tensor);
-        end
-        F_tensor_native = reshape(F_tensor, [N_d_safe, num_choices_total, N_a1_total, N_a2_len, N_ze_local]);
-        EV_expanded = EV_slice + zeros(size(F_tensor_native), 'like', EV_slice);
-        F_tensor_reshaped = reshape(F_tensor_native, [FLAT_CHOICES, N_states, N_ze_local]);
-        EV_bounded_reshaped = reshape(EV_expanded, [FLAT_CHOICES, N_states, N_ze_local]);
-    else
-        if size(F_tensor, 3) ~= N_states
-            F_tensor = F_tensor + zeros([1, 1, N_states, 1, 1], 'like', F_tensor);
-        end
-        EV_expanded = EV_bounded + zeros([1, 1, N_states, 1, 1], 'like', EV_bounded);
-        F_tensor_reshaped = reshape(F_tensor, [FLAT_CHOICES, N_states, N_ze_local]);
-        EV_bounded_reshaped = reshape(EV_expanded, [FLAT_CHOICES, N_states, N_ze_local]);
-    end
-
+    EV_expanded = EV_bounded + zeros(size(F_tensor), 'like', EV_bounded);
+    F_tensor_native = F_tensor + zeros(size(F_tensor), 'like', F_tensor);
+    F_tensor_reshaped = reshape(F_tensor_native, [FLAT_CHOICES, N_states, N_ze_local]);
+    EV_bounded_reshaped = reshape(EV_expanded, [FLAT_CHOICES, N_states, N_ze_local]);
     RHS = Evaluate_Universal_RHS_VFHorz(F_tensor_reshaped, EV_bounded_reshaped, 1, 1, ezc2_j, ezc3, ezc4, ezc7_j);
     RHS_flat = reshape(RHS, [FLAT_CHOICES, FLAT_STATES]);
 end
