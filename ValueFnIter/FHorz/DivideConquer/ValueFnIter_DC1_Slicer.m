@@ -33,38 +33,69 @@ if N_d == 1 && size(maxgap, 1) > 1; maxgap = maxgap'; end
 % Gather maxgap to the CPU to prevent pipeline flushes in the loop below
 maxgap = gather(maxgap);
 
+unique_mg = [];
+l2_indices_grp = {};
+l2_low_grp = {};
+
 for ii = 1:(num_anchors - 1)
     segment_states = (level1ii(ii) + 1) : (level1ii(ii+1) - 1);
     if isempty(segment_states); continue; end
 
     num_seg = length(segment_states);
-
-    % Replicates bounds safely across segment states to prevent TensorBlock scrambling
     anchor_slice = reshape(Pol_apr_anch(:, ii, :, :), [N_d, 1, 1, max(1, N_a2), N_ze]);
     loweredge = repmat(anchor_slice, [1, 1, num_seg, 1, 1]);
     loweredge = reshape(loweredge, [N_d, 1, num_seg * max(1, N_a2), N_ze]);
 
-    mg_seg = maxgap(:, ii);
-    mg_eval = max(mg_seg);
+    mg_eval = max(maxgap(:, ii));
 
-    % --- DEAD ZONE SURVIVAL PATCH (Zero-Sync Version) ---
+    % --- DEAD ZONE SURVIVAL PATCH ---
     if anch_is_inf(ii) || anch_is_inf(ii+1)
         mg_eval = N_choice - 1;
         loweredge(:) = 1;
     end
-    % ----------------------------------------------------
 
     if mg_eval > 0
-        % Cap the evaluation window so it doesn't physically exceed the grid
         mg_eval = min(mg_eval, N_choice - 1);
         loweredge = min(loweredge, N_choice - mg_eval);
     end
 
-    state_chunk_mat_seg = segment_states(:) + (0:max(1, N_a2)-1) * N_a1;
-    [V_seg_flat, Pol_apr_seg_flat, ~] = EvalBlockFn(state_chunk_mat_seg(:)', loweredge(:), mg_eval);
+    grp_idx = find(unique_mg == mg_eval, 1);
+    if isempty(grp_idx)
+        unique_mg(end+1) = mg_eval;
+        l2_indices_grp{end+1} = segment_states(:);
+        l2_low_grp{end+1} = loweredge;
+    else
+        l2_indices_grp{grp_idx} = [l2_indices_grp{grp_idx}; segment_states(:)];
+        l2_low_grp{grp_idx} = cat(3, l2_low_grp{grp_idx}, loweredge);
+    end
+end
 
-    V_d(:, segment_states, :, :)       = reshape(V_seg_flat, [N_d, num_seg, max(1, N_a2), N_ze]);
-    Pol_apr_d(:, segment_states, :, :) = reshape(Pol_apr_seg_flat, [N_d, num_seg, max(1, N_a2), N_ze]);
+if vfoptions.parallel == 2
+    gpu_device_info = gpuDevice();
+    safe_elements = max(1e7, floor((gpu_device_info.AvailableMemory / 8) / 8));
+else
+    safe_elements = 50000000;
+end
+
+for g = 1:length(unique_mg)
+    mg_e = unique_mg(g);
+    flat_choices_L2 = max(1, N_d) * (mg_e + 1);
+    CHUNK_SIZE = max(1, floor(safe_elements / (flat_choices_L2 * max(1, N_a2) * max(1, N_ze))));
+
+    sub_idx_all = l2_indices_grp{g};
+    sub_low_all = l2_low_grp{g};
+
+    for c_start = 1:CHUNK_SIZE:length(sub_idx_all)
+        c_end = min(length(sub_idx_all), c_start + CHUNK_SIZE - 1);
+        sub_idx = sub_idx_all(c_start:c_end);
+        sub_low = sub_low_all(:, :, c_start:c_end, :, :);
+
+        state_chunk_mat_seg = sub_idx(:) + (0:max(1, N_a2)-1) * N_a1;
+        [V_seg_flat, Pol_apr_seg_flat, ~] = EvalBlockFn(state_chunk_mat_seg(:)', sub_low(:), mg_e);
+
+        V_d(:, sub_idx, :, :)       = reshape(V_seg_flat, [N_d, length(sub_idx), max(1, N_a2), N_ze]);
+        Pol_apr_d(:, sub_idx, :, :) = reshape(Pol_apr_seg_flat, [N_d, length(sub_idx), max(1, N_a2), N_ze]);
+    end
 end
 
 % Collapse N_d Dimension Safely
