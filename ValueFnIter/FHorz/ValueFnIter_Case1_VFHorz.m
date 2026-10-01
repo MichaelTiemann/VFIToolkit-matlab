@@ -1089,51 +1089,38 @@ for reverse_j = 0:N_j-1
                     maxgap = squeeze(max(max(max(max(maxindex1(:,:,2:end,:,:) - maxindex1(:,:,1:end-1,:,:), [], 5), [], 4), [], 2), [], 1));
                     if isempty(maxgap); maxgap = 0; end
 
-                    unique_mg = [];
-                    l2_indices_grp = {};
-                    l2_low_grp = {};
+                    % --- UNIFIED L2 VECTORIZATION ---
+                    % Force all segments into a single massive GPU kernel
+                    % to prevent kernel-dispatch starvation overhead
+                    global_mg = max(maxgap(:));
 
+                    l2_indices_all = [];
+                    l2_low_all = [];
                     for ii = 1:(vfoptions.level1n - 1)
                         curraindex = (level1ii(ii)+1 : level1ii(ii+1)-1)';
                         if isempty(curraindex); continue; end
 
-                        if maxgap(ii) > 0
-                            loweredge = min(maxindex1(:, :, ii, :, :), N_a1_dc);
-                            upper_bound_req = loweredge + maxgap(ii);
-                            mg_eval = max(maxgap(ii), max(upper_bound_req - loweredge, [], 'all'));
-                            mg_eval = min(mg_eval, N_a1_dc - 1);
-                            loweredge = min(loweredge, N_a1_dc - mg_eval);
+                        if global_mg > 0
+                            loweredge = min(maxindex1(1, :, ii, :, :), N_a1_dc - global_mg);
                             loweredge_rep = repmat(loweredge, [1, 1, length(curraindex), 1, 1]);
-
-                            grp_idx = find(unique_mg == mg_eval, 1);
-                            if isempty(grp_idx)
-                                unique_mg(end+1) = mg_eval;
-                                l2_indices_grp{end+1} = curraindex(:);
-                                l2_low_grp{end+1} = loweredge_rep;
-                            else
-                                l2_indices_grp{grp_idx} = [l2_indices_grp{grp_idx}; curraindex(:)];
-                                l2_low_grp{grp_idx} = cat(3, l2_low_grp{grp_idx}, loweredge_rep);
-                            end
+                            l2_indices_all = [l2_indices_all; curraindex(:)];
+                            l2_low_all = cat(3, l2_low_all, loweredge_rep);
                         else
-                            loweredge_pass(:, :, curraindex, :, :) = repmat(maxindex1(:, :, ii, :, :), [1, 1, level1iidiff(ii), 1, 1]);
+                            loweredge_pass(:, :, curraindex, :, :) = repmat(maxindex1(1, :, ii, :, :), [1, 1, length(curraindex), 1, 1]);
                         end
                     end
 
-                    for g = 1:length(unique_mg)
-                        mg_e = unique_mg(g);
-                        sub_idx_all = l2_indices_grp{g};
-                        sub_low_all = l2_low_grp{g};
-
-                        flat_choices_L2 = N_d_safe * (mg_e + 1) * max(1, N_a1_other);
+                    if ~isempty(l2_indices_all)
+                        flat_choices_L2 = N_d_safe * (global_mg + 1) * max(1, N_a1_other);
                         max_L2_per_chunk = max(1, floor(safe_elements / (flat_choices_L2 * N_other * N_ze_local)));
 
-                        for c_start = 1:max_L2_per_chunk:length(sub_idx_all)
-                            c_end = min(length(sub_idx_all), c_start + max_L2_per_chunk - 1);
-                            sub_idx = sub_idx_all(c_start:c_end);
-                            sub_low = sub_low_all(:, :, c_start:c_end, :, :);
+                        for c_start = 1:max_L2_per_chunk:length(l2_indices_all)
+                            c_end = min(length(l2_indices_all), c_start + max_L2_per_chunk - 1);
+                            sub_idx = l2_indices_all(c_start:c_end);
+                            sub_low = l2_low_all(:, :, c_start:c_end, :, :);
 
                             state_chunk_mat_L2 = sub_idx(:) + (0:N_other-1) * N_a1_dc;
-                            [~, ~, ~, ~, ~, p_a1_per_a2_L2] = LocalBlockFn(state_chunk_mat_L2(:)', sub_low(:), mg_e, 0, 2);
+                            [~, ~, ~, ~, ~, p_a1_per_a2_L2] = LocalBlockFn(state_chunk_mat_L2(:)', sub_low(:), global_mg, 0, 2);
                             maxindex_L2 = reshape(p_a1_per_a2_L2, [N_d_safe, N_a1_other, length(sub_idx), N_other, N_ze_local]);
                             loweredge_pass(:, :, sub_idx, :, :) = maxindex_L2;
                         end
@@ -1434,11 +1421,11 @@ for i_d = 1:length(D_cells_block); D_cells_block{i_d} = reshape(D_cells_block{i_
 
 % --- PHASE 1: EVALUATION ---
 Apr_cells = cell(1, l_a1);
-choice_idx_a2 = gpuArray(reshape(1:num_a2_choices, c2_shape));
+choice_idx_a2 = reshape(1:num_a2_choices, c2_shape);
 
 if isempty(loweredge_matrix)
     if is_coarse; target_grid = A1_grids_1d{1}; else; target_grid = a1prime_grid; end
-    choice_idx_a1 = gpuArray(reshape(1:num_a1_choices, c1_shape));
+    choice_idx_a1 = reshape(1:num_a1_choices, c1_shape);
     Apr_cells{1} = reshape(cast(target_grid(choice_idx_a1), 'like', EV_bounded_pre), c1_shape);
     out_of_bounds = [];
 else
@@ -1449,7 +1436,7 @@ else
     if is_coarse
         % DC Level 2 Coarse Pass
         target_grid = A1_grids_1d{1};
-        offsets_a1 = gpuArray(reshape(0:maxgap_scalar, c1_shape));
+        offsets_a1 = reshape(0:maxgap_scalar, c1_shape);
         choice_idx_a1 = base_idx_a1 + offsets_a1;
         out_of_bounds = (choice_idx_a1 < 1) | (choice_idx_a1 > length(target_grid));
         choice_idx_a1 = max(1, min(choice_idx_a1, length(target_grid)));
@@ -1462,12 +1449,11 @@ else
         L2_base = (loweredge_matrix_bounds - 1) * (n2short + 1) + 1;
         start_offset = -(n2short + 1);
         end_offset = (n2short + 1);
-        offsets_a1 = gpuArray(reshape(start_offset:end_offset, c1_shape));
+        offsets_a1 = reshape(start_offset:end_offset, c1_shape);
         choice_idx_a1 = L2_base + offsets_a1;
         out_of_bounds = (choice_idx_a1 < 1) | (choice_idx_a1 > length(target_grid));
         choice_idx_a1 = max(1, min(choice_idx_a1, length(target_grid)));
     end
-    % Let implicit expansion create the dense evaluation grid natively
     Apr_cells{1} = cast(target_grid(choice_idx_a1), 'like', EV_bounded_pre);
 end
 
@@ -1490,26 +1476,23 @@ end
 % --- PHASE 2: UNIVERSAL RHS EVALUATION ---
 if ~is_exp_asset
     if is_coarse
-        % EV_bounded_pre size: [N_d_safe, N_a1_dc, N_a1_other, n_z_loc, n_e_loc]
         stride_D  = 1;
         stride_C1 = N_d_safe;
         stride_C2 = N_d_safe * N_a1_dc;
         stride_Z  = stride_C2 * N_a1_other;
         stride_E  = stride_Z * n_z_loc;
 
-        d_offset = gpuArray(reshape(0:N_d_safe-1, d_shape)) * stride_D;
+        d_offset = reshape(0:N_d_safe-1, d_shape) * stride_D;
         c1_offset = (choice_idx_a1 - 1) * stride_C1;
         if l_a1 > 1; c2_offset = (choice_idx_a2 - 1) * stride_C2; else; c2_offset = 0; end
 
-        z_offset = gpuArray(reshape(0:n_z_loc-1, shape_Z) * stride_Z);
-        e_offset = gpuArray(reshape(0:n_e_loc-1, shape_E) * stride_E);
+        z_offset = reshape(0:n_z_loc-1, shape_Z) * stride_Z;
+        e_offset = reshape(0:n_e_loc-1, shape_E) * stride_E;
 
         lin_idx_compact = 1 + d_offset + c1_offset + c2_offset + z_offset + e_offset;
         EV_flat_source = EV_bounded_pre(:);
         EV_bounded = EV_flat_source(lin_idx_compact);
     else
-        % EV_interp_local size: [length(a1prime_grid), N_a1_other, n_z_loc, n_e_loc, N_dsemiz]
-        % Lacks N_d_safe, so stride_C1 is 1!
         stride_C1 = 1;
         stride_C2 = length(a1prime_grid);
         stride_Z  = stride_C2 * N_a1_other;
@@ -1519,10 +1502,10 @@ if ~is_exp_asset
         c1_offset = (choice_idx_a1 - 1) * stride_C1;
         if l_a1 > 1; c2_offset = (choice_idx_a2 - 1) * stride_C2; else; c2_offset = 0; end
 
-        z_offset = gpuArray(reshape(0:n_z_loc-1, shape_Z) * stride_Z);
-        e_offset = gpuArray(reshape(0:n_e_loc-1, shape_E) * stride_E);
+        z_offset = reshape(0:n_z_loc-1, shape_Z) * stride_Z;
+        e_offset = reshape(0:n_e_loc-1, shape_E) * stride_E;
 
-        if N_dsemiz > 1; ds_offset = gpuArray(reshape(dsemiz_idx_tensor - 1, d_shape) * stride_DS);
+        if N_dsemiz > 1; ds_offset = reshape(dsemiz_idx_tensor - 1, d_shape) * stride_DS;
         else; ds_offset = 0; end
 
         lin_idx_compact = 1 + c1_offset + c2_offset + z_offset + e_offset + ds_offset;
