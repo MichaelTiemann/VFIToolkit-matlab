@@ -1371,7 +1371,12 @@ if isempty(loweredge_matrix)
     else;         num_a1_choices = length(a1prime_grid); end
     start_offset = 0; loweredge_matrix_bounds = [];
 else
-    num_a1_choices = n2long;
+    % CRITICAL FIX: Distinguish between DC Level 2 Coarse and GI Zoom passes
+    if is_coarse
+        num_a1_choices = maxgap_scalar + 1;
+    else
+        num_a1_choices = n2long;
+    end
 end
 num_a2_choices = N_a1_other;
 num_choices_total = num_a1_choices * num_a2_choices;
@@ -1429,24 +1434,35 @@ choice_idx_a2 = gpuArray(reshape(1:num_a2_choices, c2_shape));
 if isempty(loweredge_matrix)
     if is_coarse; target_grid = A1_grids_1d{1}; else; target_grid = a1prime_grid; end
     choice_idx_a1 = gpuArray(reshape(1:num_a1_choices, c1_shape));
-    Apr_cells{1} = cast(target_grid(choice_idx_a1), 'like', EV_bounded_pre);
+    Apr_cells{1} = reshape(cast(target_grid(choice_idx_a1), 'like', EV_bounded_pre), c1_shape);
     out_of_bounds = [];
 else
-    target_grid = a1prime_grid;
     if N_d_safe > 1; low_shape = [N_d_safe, 1, num_a2_choices, N_states, n_z_loc, n_e_loc];
     else;            low_shape = [1, num_a2_choices, N_states, n_z_loc, n_e_loc, 1]; end
-
     base_idx_a1 = reshape(loweredge_matrix, low_shape);
-    loweredge_matrix_bounds = max(2, min(base_idx_a1, length(A1_grids_1d{1}) - 1));
-    L2_base = (loweredge_matrix_bounds - 1) * (n2short + 1) + 1;
 
-    start_offset = -(n2short + 1);
-    end_offset = (n2short + 1);
-    offsets_a1 = gpuArray(reshape(start_offset:end_offset, c1_shape));
-
-    choice_idx_a1 = L2_base + offsets_a1;
-    out_of_bounds = (choice_idx_a1 < 1) | (choice_idx_a1 > length(target_grid));
-    choice_idx_a1 = max(1, min(choice_idx_a1, length(target_grid)));
+    if is_coarse
+        % DC Level 2 Coarse Pass
+        target_grid = A1_grids_1d{1};
+        offsets_a1 = gpuArray(reshape(0:maxgap_scalar, c1_shape));
+        choice_idx_a1 = base_idx_a1 + offsets_a1;
+        out_of_bounds = (choice_idx_a1 < 1) | (choice_idx_a1 > length(target_grid));
+        choice_idx_a1 = max(1, min(choice_idx_a1, length(target_grid)));
+        start_offset = 0;
+        loweredge_matrix_bounds = [];
+    else
+        % GI Zoom Pass
+        target_grid = a1prime_grid;
+        loweredge_matrix_bounds = max(2, min(base_idx_a1, length(A1_grids_1d{1}) - 1));
+        L2_base = (loweredge_matrix_bounds - 1) * (n2short + 1) + 1;
+        start_offset = -(n2short + 1);
+        end_offset = (n2short + 1);
+        offsets_a1 = gpuArray(reshape(start_offset:end_offset, c1_shape));
+        choice_idx_a1 = L2_base + offsets_a1;
+        out_of_bounds = (choice_idx_a1 < 1) | (choice_idx_a1 > length(target_grid));
+        choice_idx_a1 = max(1, min(choice_idx_a1, length(target_grid)));
+    end
+    % Let implicit expansion create the dense evaluation grid natively
     Apr_cells{1} = cast(target_grid(choice_idx_a1), 'like', EV_bounded_pre);
 end
 
@@ -1454,7 +1470,7 @@ if l_a1 > 1
     if l_a1 > 2; [mesh_a2{1:l_a1-1}] = ndgrid(A1_grids_1d{2:end}); else; mesh_a2{1} = A1_grids_1d{2}; end
     for ia = 2:l_a1
         flat_grid = mesh_a2{ia-1}(:);
-        Apr_cells{ia} = cast(flat_grid(choice_idx_a2), 'like', EV_bounded_pre);
+        Apr_cells{ia} = reshape(cast(flat_grid(choice_idx_a2), 'like', EV_bounded_pre), c2_shape);
     end
 end
 
@@ -1500,7 +1516,8 @@ if ~is_exp_asset
     else; ds_offset = 0; end
 
     lin_idx_compact = 1 + d_offset + c_offset + a2_offset + z_offset + e_offset + ds_offset;
-    EV_bounded = EV_source(lin_idx_compact);
+    EV_flat_source = EV_source(:); 
+    EV_bounded = EV_flat_source(lin_idx_compact);
     if ~is_coarse; EV_bounded = beta_j .* EV_bounded; end
 else
     % Exp Asset Native Offset Reconstruction
@@ -1581,7 +1598,9 @@ else
         e_offset_f = gpuArray(reshape(0:n_e_loc-1, shape_E) * (N_d_safe * N_a1_interp * N_a2 * n_z_loc));
 
         lin_idx_compact = 1 + d_offset_f + c_offset_f + a2_offset_f + z_offset_f + e_offset_f;
-        EV_bounded = EV_interp_local(lin_idx_compact);
+        % Flatten to prevent Cartesian broadcasting bugs during linear gather
+        EV_interp_flat = EV_interp_local(:);
+        EV_bounded = EV_interp_flat(lin_idx_compact);
     end
 end
 
@@ -1611,8 +1630,14 @@ if isempty(loweredge_matrix)
     num_choices_total_a1 = 0;
     loweredge_matrix_bounds_pass = [];
 else
-    num_choices_total_a1 = n2long;
-    loweredge_matrix_bounds_pass = reshape(loweredge_matrix_bounds, [N_d_safe, num_a2_choices, N_states, n_z_loc, n_e_loc]);
+    num_choices_total_a1 = num_a1_choices;
+    if is_coarse
+        % DC Level 2 Coarse pass doesn't use L2 bounds in output mapping
+        loweredge_matrix_bounds_pass = [];
+    else
+        % GI Zoom Pass requires the L2 Bounds for the fine grid mapping
+        loweredge_matrix_bounds_pass = reshape(loweredge_matrix_bounds, [N_d_safe, num_a2_choices, N_states, n_z_loc, n_e_loc]);
+    end
 end
 
 [V_j_max, Pol_apr_max, Pol_d_max, Pol_L2idx_max, Pol_L2flag_max, Pol_a1_per_a2] = Helper_OutputMapping(...

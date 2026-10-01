@@ -419,7 +419,7 @@ choice_idx_a2 = gpuArray(reshape(1:num_a2_choices, c2_shape));
 
 if is_coarse
     choice_idx_a1 = gpuArray(reshape(1:num_a1_choices, c1_shape));
-    Apr_cells{1} = cast(A1_grids_1d{1}(choice_idx_a1), 'like', EV_bounded_pre);
+    Apr_cells{1} = reshape(cast(A1_grids_1d{1}(choice_idx_a1), 'like', EV_bounded_pre), c1_shape);
 else
     % We reshape the conditional loweredge natively into Orthogonal Dim 3 (a2prime)
     if N_d_safe > 1; low_shape = [N_d_safe, 1, num_a2_choices, N_states, n_z_loc, n_e_loc];
@@ -437,7 +437,8 @@ if l_a1 > 1
     if l_a1 > 2; [mesh_a2{1:l_a1-1}] = ndgrid(A1_grids_1d{2:end}); else; mesh_a2{1} = A1_grids_1d{2}; end
     for ia = 2:l_a1
         flat_grid = mesh_a2{ia-1}(:);
-        Apr_cells{ia} = cast(flat_grid(choice_idx_a2), 'like', EV_bounded_pre);
+        % Explicitly reshape to lock Orthogonal Dim 2 (a2prime)
+        Apr_cells{ia} = reshape(cast(flat_grid(choice_idx_a2), 'like', EV_bounded_pre), c2_shape);
     end
 end
 
