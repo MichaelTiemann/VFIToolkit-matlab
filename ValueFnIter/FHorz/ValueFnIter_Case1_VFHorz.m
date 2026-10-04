@@ -1065,11 +1065,11 @@ for reverse_j = 0:N_j-1
                     maxgap = squeeze(max(max(max(max(maxindex1(:,:,2:end,:,:) - maxindex1(:,:,1:end-1,:,:), [], 5), [], 4), [], 2), [], 1));
                     if isempty(maxgap); maxgap = 0; end
 
-                    % --- UNIFIED L2 VECTORIZATION ---
+                    % --- NATIVE DC L2 SEGMENTATION ---
+                    % By passing one segment at a time (like the reference code), A1_prime remains orthogonal to S1,
+                    % allowing the AutoBridge to implicitly broadcast across S1 in ultra-fast L1 cache!
                     global_mg = max(maxgap(:));
 
-                    l2_indices_all = [];
-                    l2_low_all = [];
                     for ii = 1:(vfoptions.level1n - 1)
                         curraindex = (level1ii(ii)+1 : level1ii(ii+1)-1)';
                         if isempty(curraindex); continue; end
@@ -1077,27 +1077,10 @@ for reverse_j = 0:N_j-1
                         if global_mg > 0
                             loweredge = min(maxindex1(1, :, ii, :, :), N_a1_dc - global_mg);
                             loweredge_rep = repmat(loweredge, [1, 1, length(curraindex), 1, 1]);
-                            l2_indices_all = [l2_indices_all; curraindex(:)];
-                            l2_low_all = cat(3, l2_low_all, loweredge_rep);
+                            [~, ~, ~, ~, ~, p_a1_per_a2_L2] = LocalBlockFn({curraindex(:), curr_a2(:)}, loweredge_rep(:), global_mg, 0, 2);
+                            loweredge_pass(:, :, curraindex, :, :) = reshape(p_a1_per_a2_L2, [N_d_safe, N_a1_other, length(curraindex), N_other, N_ze_local]);
                         else
                             loweredge_pass(:, :, curraindex, :, :) = repmat(maxindex1(1, :, ii, :, :), [1, 1, length(curraindex), 1, 1]);
-                        end
-                    end
-
-                    if ~isempty(l2_indices_all)
-                        flat_choices_L2 = N_d_safe * (global_mg + 1) * max(1, N_a1_other);
-                        max_L2_per_chunk = max(1, floor(safe_elements / (flat_choices_L2 * N_other * N_ze_local)));
-
-                        for c_start = 1:max_L2_per_chunk:length(l2_indices_all)
-                            c_end = min(length(l2_indices_all), c_start + max_L2_per_chunk - 1);
-                            sub_idx = l2_indices_all(c_start:c_end);
-                            sub_low = l2_low_all(:, :, c_start:c_end, :, :);
-
-                            % NATIVE 5D DEPLOYMENT: Pass coordinates directly
-                            [~, ~, ~, ~, ~, p_a1_per_a2_L2] = LocalBlockFn({sub_idx(:), curr_a2(:)}, sub_low(:), global_mg, 0, 2);
-
-                            maxindex_L2 = reshape(p_a1_per_a2_L2, [N_d_safe, N_a1_other, length(sub_idx), N_other, N_ze_local]);
-                            loweredge_pass(:, :, sub_idx, :, :) = maxindex_L2;
                         end
                     end
 
@@ -1326,21 +1309,33 @@ if iscell(state_idx)
     a1_sub = state_idx{1};
     a2_sub = state_idx{2};
 
-    % Fetch actual state values directly from grid axes
     num_unique_cols = zeros(1, l_a1);
-    unique_cols = {A1_grids_1d{1}(a1_sub)};
+    unique_cols = cell(1, l_a1);
     unique_cols{1} = A1_grids_1d{1}(a1_sub);
     num_unique_cols(1) = length(unique_cols{1});
-    if l_a1 > 1; for i = 2:l_a1; unique_cols{i} = unique(A1_mat(a1_sub, i)); end; end
+    if l_a1 > 1
+        for i = 2:l_a1
+            unique_cols{i} = A1_grids_1d{i}; % CRITICAL FIX: Full grid for orthogonal dimensions!
+            num_unique_cols(i) = length(unique_cols{i});
+        end
+    end
 
     num_unique_cols_a2 = zeros(1, max(1, l_a2));
     unique_cols_a2 = cell(1, max(1, l_a2));
     if N_a2 > 1
         unique_cols_a2{1} = a2_grids_1d{1}(a2_sub);
-        for i = 2:l_a2; unique_cols_a2{i} = unique(A2_mat(a2_sub, i)); end
+        num_unique_cols_a2(1) = length(unique_cols_a2{1});
+        if l_a2 > 1
+            for i = 2:l_a2
+                unique_cols_a2{i} = a2_grids_1d{i}; % CRITICAL FIX: Full grid for orthogonal dimensions!
+                num_unique_cols_a2(i) = length(unique_cols_a2{i});
+            end
+        end
     end
 
-    N_states = num_unique_cols(1) * max(1, num_unique_cols_a2(1)) * N_a1_other;
+    cartesian_state_dims = num_unique_cols;
+    if N_a2 > 1; cartesian_state_dims = [cartesian_state_dims, num_unique_cols_a2]; end
+    N_states = prod(cartesian_state_dims);
     is_cartesian = true;
 else
     % Fallback jagged logic for pure Brute-Force evaluations
@@ -1637,9 +1632,7 @@ else
 end
 
 if ~isempty(out_of_bounds)
-    inf_mask = zeros(size(out_of_bounds), 'like', EV_bounded);
-    inf_mask(out_of_bounds) = -Inf;
-    EV_bounded = EV_bounded + inf_mask;
+    EV_bounded(out_of_bounds) = -Inf;
 end
 
 FLAT_CHOICES = N_d_safe * num_choices_total;
