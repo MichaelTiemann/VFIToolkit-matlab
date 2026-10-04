@@ -4,21 +4,9 @@ N_d=prod(n_d);
 N_a=prod(n_a);
 N_z=prod(n_z);
 
-has_d = (N_d > 0);
-Nd_eff = max(N_d, 1);
-
 V=zeros(N_a,N_z,N_j,'gpuArray');
-
-% Dynamic Policy allocation
-if has_d
-    Policy = zeros(4, N_a, N_z, N_j, 'gpuArray');
-    Policy(4, :, :, :) = 2;
-    d_offset = 1;
-else
-    Policy = zeros(3, N_a, N_z, N_j, 'gpuArray');
-    Policy(3, :, :, :) = 2;
-    d_offset = 0;
-end
+Policy=zeros(4,N_a,N_z,N_j,'gpuArray'); % first dim indexes the optimal choice for aprime and aprime2 (in GI layer)
+Policy(4,:,:,:)=2; % 1=all weight to lower coarse pt, 2=usual linear weights, 3=all weight to upper coarse pt
 % When ReturnFn is -Inf on one of the course grid points, we will allow fine index between that and the neighbouring course grid point, but we use L2flag to record this and so later avoid that -Inf point when simulating/iteration
 
 %%
@@ -196,9 +184,6 @@ else
 
         % Attempt for improved version
         maxgap=max(max(maxindex1(:,1,2:end,:)-maxindex1(:,1,1:end-1,:),[],4),[],1);
-        if has_d; maxgap = max(maxgap, [], 1); end
-        maxgap = squeeze(maxgap);
-
         for ii=1:(vfoptions.level1n-1)
             curraindex=level1ii(ii)+1:1:level1ii(ii+1)-1;
             if maxgap(ii)>0
@@ -263,9 +248,6 @@ else
 
             % Attempt for improved version
             maxgap=max(maxindex1(:,1,2:end,:)-maxindex1(:,1,1:end-1),[],1);
-            if has_d; maxgap = max(maxgap, [], 1); end
-            maxgap = squeeze(maxgap);
-
             for ii=1:(vfoptions.level1n-1)
                 curraindex=level1ii(ii)+1:1:level1ii(ii+1)-1;
                 if maxgap(ii)>0
@@ -349,9 +331,6 @@ for reverse_j=1:N_j-1
 
         % Attempt for improved version
         maxgap=max(max(maxindex1(:,1,2:end,:)-maxindex1(:,1,1:end-1,:),[],4),[],1);
-        if has_d; maxgap = max(maxgap, [], 1); end
-        maxgap = squeeze(maxgap);
-
         for ii=1:(vfoptions.level1n-1)
             curraindex=level1ii(ii)+1:1:level1ii(ii+1)-1;
             if maxgap(ii)>0
@@ -416,9 +395,6 @@ for reverse_j=1:N_j-1
 
             % Attempt for improved version
             maxgap=max(maxindex1(:,1,2:end)-maxindex1(:,1,1:end-1),[],1);
-            if has_d; maxgap = max(maxgap, [], 1); end
-            maxgap = squeeze(maxgap);
-
             for ii=1:(vfoptions.level1n-1)
                 curraindex=level1ii(ii)+1:1:level1ii(ii+1)-1;
                 if maxgap(ii)>0
