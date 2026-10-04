@@ -1808,13 +1808,24 @@ if l_a1 == 1
     num_choices_total = num_choices_total_a1;
 else
     num_choices_total = num_choices_total_a1 * N_a1_other;
-    choice_idx_a1 = reshape(L2_base, [N_d_safe, 1, N_states, n_z_loc, n_e_loc]) + offset_vec;
-    choice_idx_a1 = repmat(choice_idx_a1, [1, N_a1_other, 1, 1, 1]);
+
+    % CRITICAL FIX: L2_base contains N_a1_other in dim 2. Push it to dim 3
+    % so we can safely broadcast the Zoom choices in dim 2.
+    L2_base_6D = reshape(L2_base, [N_d_safe, 1, N_a1_other, N_states, n_z_loc, n_e_loc]);
+
+    offset_vec_6D = gpuArray(reshape(start_offset:end_offset, [1, num_choices_total_a1, 1, 1, 1, 1]));
+    choice_idx_a1_6D = L2_base_6D + offset_vec_6D;
+
+    % Flatten dimensions 2 and 3 back into a single dense choices dimension
+    choice_idx_a1 = reshape(choice_idx_a1_6D, [N_d_safe, num_choices_total, N_states, n_z_loc, n_e_loc]);
+
     out_of_bounds = (choice_idx_a1 < 1) | (choice_idx_a1 > grid_len);
     choice_idx_a1 = max(1, min(choice_idx_a1, grid_len));
 
-    a2_base_vec = reshape(1:N_a1_other, [1, 1, N_a1_other]);
-    choice_idx_a2 = reshape(repmat(a2_base_vec, [N_d_safe, num_choices_total_a1, 1]), size(choice_idx_a1));
+    % CRITICAL FIX: Expand a2 choices across all state dimensions before flattening
+    a2_base_vec = gpuArray(reshape(1:N_a1_other, [1, 1, N_a1_other, 1, 1, 1]));
+    choice_idx_a2_6D = repmat(a2_base_vec, [N_d_safe, num_choices_total_a1, 1, N_states, n_z_loc, n_e_loc]);
+    choice_idx_a2 = reshape(choice_idx_a2_6D, size(choice_idx_a1));
 
     Apr_cells = cell(1, l_a1);
     Apr_cells{1} = target_grid(choice_idx_a1);
