@@ -1051,14 +1051,13 @@ for reverse_j = 0:N_j-1
                 SlicerWrapper = @(a1_idx, low_mat, mg, dc_mode) Helper_SlicerWrapper(a1_idx, low_mat, mg, dc_mode, N_a1_dc, N_a1_other, max(1, N_a2_local), N_ze_local, N_d_safe, LocalBlockFn);
 
                 if vfoptions.gridinterplayer(1) == 1
-                    % --- DC LEVEL 1 & 2 for COARSE PASS ---
+                    % --- UNIFIED NATIVE DC ORCHESTRATOR (Bypassing Legacy Slicers) ---
                     level1ii = round(linspace(1, N_a1_dc, vfoptions.level1n));
                     level1iidiff = level1ii(2:end) - level1ii(1:end-1) - 1;
                     N_other = N_a1_other * max(1, N_a2_local);
 
                     [~, ~, ~, ~, ~, p_a1_per_a2_L1] = LocalBlockFn({level1ii(:), curr_a2(:)}, [], 0, 0, 2);
 
-                    % CRITICAL FIX: Restore N_a1_other dimension so lower bounds correctly adapt to a2 choices!
                     maxindex1 = reshape(p_a1_per_a2_L1, [N_d_safe, N_a1_other, length(level1ii), N_other, N_ze_local]);
 
                     loweredge_pass = zeros(N_d_safe, N_a1_other, N_a1_dc, N_other, N_ze_local, 'like', EV_local);
@@ -1067,7 +1066,6 @@ for reverse_j = 0:N_j-1
                     maxgap = squeeze(max(max(max(max(maxindex1(:,:,2:end,:,:) - maxindex1(:,:,1:end-1,:,:), [], 5), [], 4), [], 2), [], 1));
                     if isempty(maxgap); maxgap = 0; end
 
-                    % --- NATIVE DC L2 SEGMENTATION ---
                     global_mg = max(maxgap(:));
 
                     for ii = 1:(vfoptions.level1n - 1)
@@ -1086,10 +1084,15 @@ for reverse_j = 0:N_j-1
 
                     loweredge_pass = reshape(loweredge_pass, [N_d_safe, N_a1_other, N_a1_dc * N_other, N_ze_local]);
 
-                    % --- VRAM Protection chunking for the Zoom pass (DC) ---
-                    flat_choices = N_d_safe * n2long * max(1, N_a1_other);
-                    max_a1_per_chunk = max(1, floor(safe_elements / (flat_choices * N_other * N_ze_local)));
+                    if vfoptions.gridinterplayer(1) == 1
+                        flat_choices = N_d_safe * n2long * max(1, N_a1_other);
+                        mg_pass = n2long - 1;
+                    else
+                        flat_choices = N_d_safe * (global_mg + 1) * max(1, N_a1_other);
+                        mg_pass = global_mg;
+                    end
 
+                    max_a1_per_chunk = max(1, floor(safe_elements / (flat_choices * N_other * N_ze_local)));
                     v = zeros(total_states_local, N_ze_local, 'like', EV_local);
                     p_apr = zeros(total_states_local, N_ze_local, 'like', EV_local);
                     p_d = zeros(total_states_local, N_ze_local, 'like', EV_local);
@@ -1100,13 +1103,11 @@ for reverse_j = 0:N_j-1
                         chunk_end = min(N_a1_dc, chunk_start + max_a1_per_chunk - 1);
                         a1_chunk = (chunk_start:chunk_end)';
 
-                        % Keep state_chunk for mapping outputs to v, p_apr, etc.
                         state_chunk_mat = a1_chunk + (0:N_other-1) * N_a1_dc;
                         state_chunk = state_chunk_mat(:)';
                         loweredge_chunk = loweredge_pass(:, :, state_chunk, :);
 
-                        % NATIVE 5D DEPLOYMENT: Pass coordinates directly
-                        [v_c, p_apr_c, p_d_c, p_l2idx_c, p_l2flag_c] = LocalBlockFn({a1_chunk(:), curr_a2(:)}, loweredge_chunk, n2long - 1, 0, 1);
+                        [v_c, p_apr_c, p_d_c, p_l2idx_c, p_l2flag_c] = LocalBlockFn({a1_chunk(:), curr_a2(:)}, loweredge_chunk, mg_pass, 0, 1);
 
                         v(state_chunk, :) = v_c;
                         p_apr(state_chunk, :) = p_apr_c;
@@ -1824,6 +1825,23 @@ if is_coarse_mapping
         Pol_a1_per_a2 = reshape(max_a1_idx_per_d, [N_d_safe, N_a1_other, N_states, N_ze_local]);
         d_idx_local = repmat(reshape(1:N_d_safe, [N_d_safe, 1]), [1, FLAT_STATES]);
 
+        % CRITICAL FIX: Convert local offset to absolute global index for DC Slicers
+        a2_apr_offset = ceil(apr_idx_local / num_choices_a1);
+        if ~isempty(loweredge_matrix_bounds)
+            if low_dim2 == 1
+                a1_abs = mod(apr_idx_local - 1, num_choices_a1) + low_mat;
+            else
+                low_mat_full = reshape(low_mat, [low_dim1, low_dim2, FLAT_STATES]);
+                if low_dim1 == 1; low_expanded = repmat(low_mat_full, [N_d_safe, 1, 1]); else; low_expanded = low_mat_full; end
+                idx_d = repmat((1:N_d_safe)', [1, FLAT_STATES]);
+                idx_state = repmat(1:FLAT_STATES, [N_d_safe, 1]);
+                lin_idx = sub2ind([N_d_safe, low_dim2, FLAT_STATES], idx_d(:), a2_apr_offset(:), idx_state(:));
+                a1_abs = mod(apr_idx_local(:) - 1, num_choices_a1) + low_expanded(lin_idx);
+                a1_abs = reshape(a1_abs, [N_d_safe, 1, FLAT_STATES]);
+            end
+            apr_idx_local = a1_abs + (a2_apr_offset - 1) * N_a1_dc;
+        end
+
         V_j_max     = reshape(V_sub_coarse,  [N_d_safe, N_states, N_ze_local]);
         Pol_apr_max = reshape(apr_idx_local, [N_d_safe, N_states, N_ze_local]);
         Pol_d_max   = reshape(d_idx_local,   [N_d_safe, N_states, N_ze_local]);
@@ -1864,8 +1882,14 @@ else
         end
 
         d_idx_local = repmat(reshape(1:N_d_safe, [N_d_safe, 1]), [1, FLAT_STATES]);
-        V_j_max   = reshape(V_sub_fine,  [N_d_safe, N_states, N_ze_local]);
-        Pol_d_max = reshape(d_idx_local, [N_d_safe, N_states, N_ze_local]);
+
+        % --- REMOVED DOUBLE-ADDITION BUG IN ZOOM PASS ---
+        % Just like the Coarse Pass, DC1_Slicer natively expects the LOCAL choice index
+        % (1 to maxgap+1) and performs the loweredge addition internally.
+
+        V_j_max     = reshape(V_sub_fine,  [N_d_safe, N_states, N_ze_local]);
+        Pol_apr_max = reshape(apr_offset,  [N_d_safe, N_states, N_ze_local]);
+        Pol_d_max   = reshape(d_idx_local, [N_d_safe, N_states, N_ze_local]);
 
         apr_offset_2d = reshape(apr_offset, [N_d_safe, N_a1_other, FLAT_STATES]);
         a1_apr_offset = mod(apr_offset_2d - 1, num_choices_total_a1) + 1;
