@@ -1036,7 +1036,9 @@ for reverse_j = 0:N_j-1
             end
 
             % --- 4. Unified LocalBlockFn Definition ---
-            vfoptions.level1n = vfoptions.level1n(1);
+            if vfoptions.divideandconquer
+                vfoptions.level1n = vfoptions.level1n(1);
+            end
             LocalBlockFn = @(state_idx, loweredge_matrix, maxgap_scalar, d_gap, dc_mode_override) Evaluate_Case1_TensorBlock(...
                 state_idx, loweredge_matrix, maxgap_scalar, d_gap, N_a1_dc, N_a1_other, max(1, N_a2_local), N_d_safe, N_ze_local, ...
                 Z_cells_local, E_cells_local, D_cells_block, A1_mat, A2_local, A1_grids_1d, a2_grids_1d, ...
@@ -1054,9 +1056,9 @@ for reverse_j = 0:N_j-1
                     level1iidiff = level1ii(2:end) - level1ii(1:end-1) - 1;
                     N_other = N_a1_other * max(1, N_a2_local);
 
-                    % NATIVE 5D DEPLOYMENT: Pass coordinates directly instead of flattening to linear indices
                     [~, ~, ~, ~, ~, p_a1_per_a2_L1] = LocalBlockFn({level1ii(:), curr_a2(:)}, [], 0, 0, 2);
 
+                    % CRITICAL FIX: Restore N_a1_other dimension so lower bounds correctly adapt to a2 choices!
                     maxindex1 = reshape(p_a1_per_a2_L1, [N_d_safe, N_a1_other, length(level1ii), N_other, N_ze_local]);
 
                     loweredge_pass = zeros(N_d_safe, N_a1_other, N_a1_dc, N_other, N_ze_local, 'like', EV_local);
@@ -1066,8 +1068,6 @@ for reverse_j = 0:N_j-1
                     if isempty(maxgap); maxgap = 0; end
 
                     % --- NATIVE DC L2 SEGMENTATION ---
-                    % By passing one segment at a time (like the reference code), A1_prime remains orthogonal to S1,
-                    % allowing the AutoBridge to implicitly broadcast across S1 in ultra-fast L1 cache!
                     global_mg = max(maxgap(:));
 
                     for ii = 1:(vfoptions.level1n - 1)
@@ -1388,13 +1388,10 @@ end
 num_a2_choices = N_a1_other;
 num_choices_total = num_a1_choices * num_a2_choices;
 
-if N_d_safe > 1
-    dim_D = 1; dim_C1 = 2; dim_C2 = 3; next_dim = 4;
-    d_shape = [N_d_safe, 1, 1, 1, 1, 1, 1, 1, 1, 1];
-else
-    dim_D = 1; dim_C1 = 1; dim_C2 = 2; next_dim = 3;
-    d_shape = [1, 1];
-end
+% CRITICAL FIX: Lock the tensor dimensions permanently.
+% Do NOT shift dimensions left when N_d_safe == 1, or it breaks the AutoBridge signature!
+dim_D = 1; dim_C1 = 2; dim_C2 = 3; next_dim = 4;
+d_shape = ones(1, 10); d_shape(1) = N_d_safe;
 
 c1_shape = ones(1, 10); c1_shape(dim_C1) = num_a1_choices;
 c2_shape = ones(1, 10); c2_shape(dim_C2) = num_a2_choices;
@@ -1451,12 +1448,9 @@ choice_idx_a2 = gpuArray(reshape(1:num_a2_choices, c2_shape));
 if isempty(loweredge_matrix)
     if is_coarse; target_grid = A1_grids_1d{1}; else; target_grid = a1prime_grid; end
     choice_idx_a1 = gpuArray(reshape(1:num_a1_choices, c1_shape));
-    Apr_cells{1} = target_grid(choice_idx_a1);
     out_of_bounds = [];
 else
-    % CRITICAL FIX: Dynamically align loweredge bounds to the exact dimensions calculated above
     low_shape = ones(1, 10);
-    if N_d_safe > 1; low_shape(1) = N_d_safe; end
     low_shape(dim_C2) = num_a2_choices;
 
     idx = max(dim_C2, 1) + 1;
@@ -1466,6 +1460,11 @@ else
     end
     low_shape(dim_Z_real) = n_z_loc;
     low_shape(dim_E_real) = n_e_loc;
+
+    % Consolidate: Dynamically detect if lower bounds vary by discrete choice (Zoom)
+    % or are uniform across discrete choices (Coarse) to prevent reshape mismatches.
+    expected_base = prod(low_shape(2:end));
+    low_shape(1) = numel(loweredge_matrix) / expected_base;
 
     base_idx_a1 = reshape(loweredge_matrix, low_shape);
 
@@ -1488,8 +1487,8 @@ else
         out_of_bounds = (choice_idx_a1 < 1) | (choice_idx_a1 > length(target_grid));
         choice_idx_a1 = max(1, min(choice_idx_a1, length(target_grid)));
     end
-    Apr_cells{1} = target_grid(choice_idx_a1);
 end
+Apr_cells{1} = reshape(target_grid(choice_idx_a1), size(choice_idx_a1));
 
 if l_a1 > 1
     if l_a1 > 2; [mesh_a2{1:l_a1-1}] = ndgrid(A1_grids_1d{2:end}); else; mesh_a2{1} = A1_grids_1d{2}; end
@@ -1516,14 +1515,16 @@ if ~is_exp_asset
         stride_Z  = stride_C2 * N_a1_other;
         stride_E  = stride_Z * n_z_loc;
 
+        % CRITICAL FIX: Add tiny orthogonal vectors first to avoid 24,000 dense kernel allocations
         d_offset = gpuArray(reshape(0:N_d_safe-1, d_shape)) * stride_D;
-        c1_offset = (choice_idx_a1 - 1) * stride_C1;
         if l_a1 > 1; c2_offset = (choice_idx_a2 - 1) * stride_C2; else; c2_offset = 0; end
-
         z_offset = gpuArray(reshape(0:n_z_loc-1, shape_Z) * stride_Z);
         e_offset = gpuArray(reshape(0:n_e_loc-1, shape_E) * stride_E);
 
-        lin_idx_compact = 1 + d_offset + c1_offset + c2_offset + z_offset + e_offset;
+        ortho_offset = 1 + d_offset + c2_offset + z_offset + e_offset;
+        c1_offset = (choice_idx_a1 - 1) * stride_C1;
+
+        lin_idx_compact = c1_offset + ortho_offset;
         EV_flat_source = EV_bounded_pre(:);
         EV_bounded = EV_flat_source(lin_idx_compact);
     else
@@ -1533,16 +1534,15 @@ if ~is_exp_asset
         stride_E  = stride_Z * n_z_loc;
         stride_DS = stride_E * n_e_loc;
 
-        c1_offset = (choice_idx_a1 - 1) * stride_C1;
         if l_a1 > 1; c2_offset = (choice_idx_a2 - 1) * stride_C2; else; c2_offset = 0; end
-
         z_offset = gpuArray(reshape(0:n_z_loc-1, shape_Z) * stride_Z);
         e_offset = gpuArray(reshape(0:n_e_loc-1, shape_E) * stride_E);
+        if N_dsemiz > 1; ds_offset = gpuArray(reshape(dsemiz_idx_tensor - 1, d_shape)) * stride_DS; else; ds_offset = 0; end
 
-        if N_dsemiz > 1; ds_offset = gpuArray(reshape(dsemiz_idx_tensor - 1, d_shape)) * stride_DS;
-        else; ds_offset = 0; end
+        ortho_offset = 1 + c2_offset + z_offset + e_offset + ds_offset;
+        c1_offset = (choice_idx_a1 - 1) * stride_C1;
 
-        lin_idx_compact = 1 + c1_offset + c2_offset + z_offset + e_offset + ds_offset;
+        lin_idx_compact = c1_offset + ortho_offset;
         EV_flat_source = EV_interp_local(:);
         EV_bounded = beta_j .* EV_flat_source(lin_idx_compact);
     end
@@ -1657,9 +1657,9 @@ if isempty(loweredge_matrix)
 else
     num_choices_total_a1 = num_a1_choices;
     if is_coarse
-        loweredge_matrix_bounds_pass = reshape(base_idx_a1, [N_d_safe, num_a2_choices, cartesian_state_dims, n_z_loc, n_e_loc]);
+        loweredge_matrix_bounds_pass = reshape(base_idx_a1, [low_shape(1), num_a2_choices, cartesian_state_dims, n_z_loc, n_e_loc]);
     else
-        loweredge_matrix_bounds_pass = reshape(loweredge_matrix_bounds, [N_d_safe, num_a2_choices, cartesian_state_dims, n_z_loc, n_e_loc]);
+        loweredge_matrix_bounds_pass = reshape(loweredge_matrix_bounds, [low_shape(1), num_a2_choices, cartesian_state_dims, n_z_loc, n_e_loc]);
     end
 end
 
@@ -1783,12 +1783,21 @@ Pol_L2idx_max = [];
 Pol_L2flag_max = [];
 Pol_a1_per_a2 = [];
 
+if ~isempty(loweredge_matrix_bounds)
+    low_dim1 = size(loweredge_matrix_bounds, 1);
+    low_dim2 = size(loweredge_matrix_bounds, 2);
+else
+    low_dim1 = 1;
+    low_dim2 = 1;
+end
+
 if is_coarse_mapping
     if is_dc_mode == 3
         if N_d_safe == 1
             [V_sub_coarse, apr_idx_local] = max(RHS_flat, [], 1);
             V_sub_coarse = reshape(V_sub_coarse, [1, 1, FLAT_STATES]);
             apr_idx_local = reshape(apr_idx_local, [1, 1, FLAT_STATES]);
+
             num_choices_a1 = num_choices_total / N_a1_other;
             RHS_a1 = reshape(RHS_flat, [num_choices_a1, N_a1_other * FLAT_STATES]);
             [~, max_a1_idx_per_d] = max(RHS_a1, [], 1);
@@ -1797,30 +1806,39 @@ if is_coarse_mapping
             [V_sub_coarse, apr_idx_local] = max(RHS_for_d, [], 2);
             V_sub_coarse = reshape(V_sub_coarse, [N_d_safe, 1, FLAT_STATES]);
             apr_idx_local = reshape(apr_idx_local, [N_d_safe, 1, FLAT_STATES]);
+
             num_choices_a1 = num_choices_total / N_a1_other;
             RHS_a1 = reshape(RHS_flat, [N_d_safe, num_choices_a1, N_a1_other, FLAT_STATES]);
             [~, max_a1_idx_per_d] = max(RHS_a1, [], 2);
         end
 
         if ~isempty(loweredge_matrix_bounds)
-            low_mat_4d = reshape(loweredge_matrix_bounds, size(max_a1_idx_per_d));
-            max_a1_idx_per_d = max_a1_idx_per_d + low_mat_4d - 1;
+            low_mat = reshape(loweredge_matrix_bounds, [low_dim1, 1, low_dim2, FLAT_STATES]);
+            if low_dim2 == 1
+                max_a1_idx_per_d = max_a1_idx_per_d + low_mat - 1;
+            else
+                max_a1_idx_per_d = max_a1_idx_per_d + reshape(low_mat, [low_dim1, 1, low_dim2, FLAT_STATES]) - 1;
+            end
         end
-        Pol_a1_per_a2 = reshape(max_a1_idx_per_d, [N_d_safe, N_a1_other, N_states, N_ze_local]);
 
+        Pol_a1_per_a2 = reshape(max_a1_idx_per_d, [N_d_safe, N_a1_other, N_states, N_ze_local]);
         d_idx_local = repmat(reshape(1:N_d_safe, [N_d_safe, 1]), [1, FLAT_STATES]);
+
         V_j_max     = reshape(V_sub_coarse,  [N_d_safe, N_states, N_ze_local]);
         Pol_apr_max = reshape(apr_idx_local, [N_d_safe, N_states, N_ze_local]);
         Pol_d_max   = reshape(d_idx_local,   [N_d_safe, N_states, N_ze_local]);
     else
         [V_sub_coarse, Pol_sub_idx] = max(RHS_flat, [], 1);
+
         num_choices_a1 = num_choices_total / N_a1_other;
         RHS_for_d = reshape(RHS_flat, [N_d_safe, num_choices_a1, N_a1_other, FLAT_STATES]);
         [~, max_a1_idx_per_d] = max(RHS_for_d, [], 2);
+
         if ~isempty(loweredge_matrix_bounds)
-            low_mat_4d = reshape(loweredge_matrix_bounds, size(max_a1_idx_per_d));
+            low_mat_4d = reshape(loweredge_matrix_bounds, [low_dim1, 1, low_dim2, FLAT_STATES]);
             max_a1_idx_per_d = max_a1_idx_per_d + low_mat_4d - 1;
         end
+
         Pol_a1_per_a2 = reshape(max_a1_idx_per_d, [N_d_safe, N_a1_other, N_states, N_ze_local]);
 
         d_idx_local = mod(Pol_sub_idx - 1, N_d_safe) + 1;
@@ -1844,6 +1862,7 @@ else
             V_sub_fine = reshape(V_sub_fine, [N_d_safe, 1, FLAT_STATES]);
             apr_offset = reshape(apr_offset, [N_d_safe, 1, FLAT_STATES]);
         end
+
         d_idx_local = repmat(reshape(1:N_d_safe, [N_d_safe, 1]), [1, FLAT_STATES]);
         V_j_max   = reshape(V_sub_fine,  [N_d_safe, N_states, N_ze_local]);
         Pol_d_max = reshape(d_idx_local, [N_d_safe, N_states, N_ze_local]);
@@ -1851,27 +1870,22 @@ else
         apr_offset_2d = reshape(apr_offset, [N_d_safe, N_a1_other, FLAT_STATES]);
         a1_apr_offset = mod(apr_offset_2d - 1, num_choices_total_a1) + 1;
         a2_offset_factor = ceil(apr_offset_2d / num_choices_total_a1);
-        loweredge_matrix_2d = reshape(loweredge_matrix_bounds, [N_d_safe, N_a1_other, FLAT_STATES]);
 
-        d_vec_row = (1:N_d_safe)';
-        s_vec = shiftdim((0:FLAT_STATES-1) * (N_d_safe * N_a1_other), -1);
-        lin_idx_loweredge = d_vec_row + (a2_offset_factor - 1) * N_d_safe + s_vec;
-        chosen_loweredge = loweredge_matrix_2d(lin_idx_loweredge);
+        loweredge_matrix_2d = reshape(loweredge_matrix_bounds, [low_dim1, low_dim2, FLAT_STATES]);
 
+        if low_dim1 == 1; low_expanded = repmat(loweredge_matrix_2d, [N_d_safe, 1, 1]); else; low_expanded = loweredge_matrix_2d; end
+        if low_dim2 == 1; low_expanded = repmat(low_expanded, [1, N_a1_other, 1]); end
+
+        [idx_d, ~, idx_state] = ndgrid(1:N_d_safe, 1:N_a1_other, 1:FLAT_STATES);
+        lin_idx_loweredge = sub2ind([N_d_safe, N_a1_other, FLAT_STATES], idx_d, a2_offset_factor, idx_state);
+
+        chosen_loweredge = low_expanded(lin_idx_loweredge);
         a1_Pol_apr = min(chosen_loweredge + a1_apr_offset - 1, N_a1_dc);
         Pol_apr_max = a1_Pol_apr + (a2_offset_factor - 1) * N_a1_dc;
         Pol_apr_max = reshape(Pol_apr_max, [N_d_safe, N_states, N_ze_local]);
+
     else
         [V_sub_fine, Pol_sub_idx] = max(RHS_flat, [], 1);
-        num_choices_a1 = num_choices_total / N_a1_other;
-        RHS_for_d = reshape(RHS_flat, [N_d_safe, num_choices_a1, N_a1_other, FLAT_STATES]);
-        [~, max_a1_idx_rel] = max(RHS_for_d, [], 2);
-
-        if gridinterplayer(1) == 0 || is_dc_mode == 2
-            max_a1_idx_rel = reshape(max_a1_idx_rel, [N_d_safe, N_a1_other, N_states, N_ze_local]);
-            low_mat_4d = reshape(loweredge_matrix_bounds, [N_d_safe, N_a1_other, N_states, N_ze_local]);
-            Pol_a1_per_a2 = min(low_mat_4d + max_a1_idx_rel - 1, N_a1_dc);
-        end
 
         d_idx_local = mod(Pol_sub_idx - 1, N_d_safe) + 1;
         apr_offset  = ceil(Pol_sub_idx / N_d_safe);
@@ -1882,18 +1896,24 @@ else
 
         a1_apr_offset = mod(apr_offset(:) - 1, num_choices_total_a1) + 1;
         a2_offset_factor = ceil(apr_offset(:) / num_choices_total_a1);
+
         chosen_offset = start_offset + a1_apr_offset(:) - 1;
 
-        loweredge_matrix_2d = reshape(loweredge_matrix_bounds, [N_d_safe, N_a1_other, FLAT_STATES]);
-        lin_idx_loweredge = d_idx_local(:) + (a2_offset_factor(:) - 1) * N_d_safe + (0:FLAT_STATES-1)' * (N_d_safe * N_a1_other);
-        chosen_loweredge = loweredge_matrix_2d(lin_idx_loweredge);
+        loweredge_matrix_2d = reshape(loweredge_matrix_bounds, [low_dim1, low_dim2, FLAT_STATES]);
+
+        if low_dim1 == 1; low_expanded = repmat(loweredge_matrix_2d, [N_d_safe, 1, 1]); else; low_expanded = loweredge_matrix_2d; end
+        if low_dim2 == 1; low_expanded = repmat(low_expanded, [1, N_a1_other, 1]); end
+
+        lin_idx_loweredge = sub2ind([N_d_safe, N_a1_other, FLAT_STATES], d_idx_local(:), a2_offset_factor(:), (1:FLAT_STATES)');
+        chosen_loweredge = low_expanded(lin_idx_loweredge);
 
         abs_fine_idx_flat = (chosen_loweredge(:) - 1) * (n2short + 1) + 1 + chosen_offset(:);
         a1_Pol_apr = floor((abs_fine_idx_flat(:) - 1) / (n2short + 1)) + 1;
         a1_Pol_apr = min(a1_Pol_apr, N_a1_dc - 1);
-        Pol_L2idx_max = abs_fine_idx_flat(:) - (a1_Pol_apr(:) - 1) * (n2short + 1);
 
+        Pol_L2idx_max = abs_fine_idx_flat(:) - (a1_Pol_apr(:) - 1) * (n2short + 1);
         Pol_apr_max = a1_Pol_apr(:) + (a2_offset_factor(:) - 1) * N_a1_dc;
+
         Pol_apr_max = reshape(Pol_apr_max, [N_states, N_ze_local]);
         Pol_L2idx_max = reshape(Pol_L2idx_max, [N_states, N_ze_local]);
 
@@ -1902,6 +1922,7 @@ else
 
         isInfLower = (RHS_flat(lin_lower) == -Inf);
         isInfUpper = (RHS_flat(lin_upper) == -Inf);
+
         inLowerStrict = (a1_apr_offset(:) >= 2) & (a1_apr_offset(:) <= n2short + 1);
         inUpperStrict = (a1_apr_offset(:) >= n2short + 3 + d_gap * (n2short + 1)) & (a1_apr_offset(:) <= num_choices_total_a1 - 1);
 
@@ -1914,3 +1935,4 @@ end
 
 
 end
+
