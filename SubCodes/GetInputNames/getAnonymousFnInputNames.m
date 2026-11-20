@@ -1,26 +1,32 @@
-function names=getAnonymousFnInputNames(FnToEvaluate)
-
-temp=func2str(FnToEvaluate); % Note that this strips out any spaces automatically
-
-names=cell(nargin(FnToEvaluate),1);
-vv=1;
-
-v1=3; % The first two should be '@('
-% Following commented lines would test for this.
-% if strcmp(temp(1:2),'@(')
-%     error('one of the functions appears to be incorrectly declared (cant read the variable input names) \n')
-% end
-
-for ii=3:length(temp)
-    currchar=temp(ii);
-    if strcmp(currchar,',')
-        names{vv}=temp(v1:ii-1);
-        vv=vv+1;
-        v1=ii+1;
-    elseif strcmp(currchar,')')
-        names{vv}=temp(v1:ii-1);
-        break
+function fninputnames = getAnonymousFnInputNames(FnToEvaluate)
+% GETANONYMOUSFNINPUTNAMES Supports both @(a, b) anonymous handles and @named_fn handles,
+% trimming whitespace around parameter names (Octave func2str preserves spaces after commas).
+str = strtrim(func2str(FnToEvaluate));
+if ~isempty(str) && str(1) == '@'
+    open_p  = find(str == '(', 1, 'first');
+    close_p = find(str == ')', 1, 'first');
+    if isempty(open_p) || isempty(close_p) || close_p <= open_p + 1
+        fninputnames = {};
+    else
+        parts = strsplit(str(open_p+1 : close_p-1), ',');
+        fninputnames = cellfun(@strtrim, parts, 'UniformOutput', false);
     end
+    return;
 end
 
+% Named function handle (@fn -> 'fn'): parse `function ... = fn(arg1, arg2, ...)` header
+fpath = which(str);
+if isempty(fpath)
+    error('getAnonymousFnInputNames: could not locate function file for @%s', str);
+end
+txt = fileread(fpath);
+txt = regexprep(txt, '%[^\r\n]*', '');
+txt = regexprep(txt, '\.\.\.\s*[\r\n]+', ' ');
+tok = regexp(txt, ['function\s+(?:[^=\(\r\n]+=\s*)?', regexptranslate('escape', str), '\s*\(([^\)]*)\)'], 'tokens', 'once');
+if isempty(tok) || isempty(strtrim(tok{1}))
+    fninputnames = {};
+else
+    parts = strsplit(strtrim(tok{1}), ',');
+    fninputnames = cellfun(@strtrim, parts, 'UniformOutput', false);
+end
 end
