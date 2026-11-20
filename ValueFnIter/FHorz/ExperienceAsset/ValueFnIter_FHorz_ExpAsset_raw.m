@@ -10,6 +10,11 @@ N_z=prod(n_z);
 V=zeros(N_a,N_z,N_j,'gpuArray');
 Policy=zeros(N_a,N_z,N_j,'gpuArray'); % indexes the optimal choice for d and a1prime rest of dimensions a,z
 
+use_vec_broadcast = isfield(vfoptions,'vectorized') && (vfoptions.vectorized==1);
+if use_vec_broadcast
+    ReturnFn_Direct = unwrap_passthrough_fn_local(ReturnFn);
+end
+
 %%
 a2_gridvals=CreateGridvals(n_a2,a2_grid,1);
 
@@ -23,12 +28,30 @@ end
 ReturnFnParamsVec=CreateVectorFromParams(Parameters, ReturnFnParamNames,N_j);
 
 if ~isfield(vfoptions,'V_Jplus1')
-    if vfoptions.lowmemory==0
-        ReturnMatrix=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1, n_d2, n_a1, n_a1,n_a2, n_z, d_gridvals, a1_gridvals, a1_gridvals, a2_gridvals, z_gridvals_J(:,:,N_j), ReturnFnParamsVec,0,0); % Level=0, Refine=0
+    if use_vec_broadcast
+        [F_ref, d1_idx] = eval_expasset_return_refine1_broadcast(ReturnFn_Direct, n_d1, n_d2, n_a1, n_a2, n_z, d_gridvals, a1_gridvals, a2_gridvals, z_gridvals_J(:,:,N_j), ReturnFnParamsVec);
+        [Vtemp, d2a1p_idx] = max(F_ref, [], 1);
+        d2a1p_mat = reshape(d2a1p_idx, [N_a, N_z]);
+        lin_idx = d2a1p_mat + (N_d2*N_a1) * ((0:N_a-1)' + N_a * (0:N_z-1));
+        v_j = reshape(Vtemp, [N_a, N_z]);
+        pol_j = d1_idx(lin_idx) + N_d1 * (d2a1p_mat - 1);
+        pol_j(~isfinite(v_j)) = 1;
+        V(:,:,N_j) = v_j;
+        Policy(:,:,N_j) = pol_j;
+    elseif vfoptions.lowmemory==0
+        ReturnMatrix=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1, n_d2, n_a1, n_a1,n_a2, n_z, d_gridvals, a1_gridvals, a1_gridvals, a2_gridvals, z_gridvals_J(:,:,N_j), ReturnFnParamsVec,0,1); % Level=0, Refine=1
+        [F_ref, d1_idx]=max(ReturnMatrix,[],1);
+        F_ref=reshape(F_ref,[N_d2*N_a1,N_a,N_z]);
+        d1_idx=reshape(d1_idx,[N_d2*N_a1,N_a,N_z]);
         %Calc the max and its index
-        [Vtemp,maxindex]=max(ReturnMatrix,[],1);
-        V(:,:,N_j)=Vtemp;
-        Policy(:,:,N_j)=maxindex;
+        [Vtemp, d2a1p_idx]=max(F_ref,[],1);
+        d2a1p_mat = reshape(d2a1p_idx, [N_a, N_z]);
+        lin_idx = d2a1p_mat + (N_d2*N_a1) * ((0:N_a-1)' + N_a * (0:N_z-1));
+        v_j = reshape(Vtemp,[N_a,N_z]);
+        pol_j = d1_idx(lin_idx) + N_d1*(d2a1p_mat-1);
+        pol_j(~isfinite(v_j)) = 1;
+        V(:,:,N_j)=v_j;
+        Policy(:,:,N_j)=pol_j;
     elseif vfoptions.lowmemory==1
         for z_c=1:N_z
             z_val=z_gridvals_J(z_c,:,N_j);
@@ -105,21 +128,40 @@ else
     EV=squeeze(reshape(EV,[N_d2*N_a1,N_a2,N_z]));
     % EV is over (d2,a1prime,a2,z)
 
-    DiscountedEV=DiscountFactorParamsVec*repelem(EV,N_d1,N_a1);
+    if use_vec_broadcast
+        DiscountedEV_ref = DiscountFactorParamsVec * repelem(EV, 1, N_a1); % [N_d2*N_a1, N_a1*N_a2, N_z]
+        [F_ref, d1_idx] = eval_expasset_return_refine1_broadcast(ReturnFn_Direct, n_d1, n_d2, n_a1, n_a2, n_z, d_gridvals, a1_gridvals, a2_gridvals, z_gridvals_J(:,:,N_j), ReturnFnParamsVec);
+        entireRHS = F_ref + DiscountedEV_ref;
+        [Vtemp, d2a1p_idx] = max(entireRHS, [], 1);
+        d2a1p_mat = reshape(d2a1p_idx, [N_a, N_z]);
+        lin_idx = d2a1p_mat + (N_d2*N_a1) * ((0:N_a-1)' + N_a * (0:N_z-1));
+        v_j = reshape(Vtemp, [N_a, N_z]);
+        pol_j = d1_idx(lin_idx) + N_d1 * (d2a1p_mat - 1);
+        pol_j(~isfinite(v_j)) = 1;
+        V(:,:,N_j) = v_j;
+        Policy(:,:,N_j) = pol_j;
+    elseif vfoptions.lowmemory==0
+        DiscountedEV_ref = DiscountFactorParamsVec * repelem(EV, 1, N_a1); % Refine=1: 1/N_d1 size!
+        ReturnMatrix=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2, n_a1, n_a1,n_a2,n_z, d_gridvals, a1_gridvals, a1_gridvals, a2_gridvals, z_gridvals_J(:,:,N_j), ReturnFnParamsVec,0,1); % Level=0, Refine=1
+        [F_ref, d1_idx]=max(ReturnMatrix,[],1);
+        F_ref=reshape(F_ref,[N_d2*N_a1,N_a,N_z]);
+        d1_idx=reshape(d1_idx,[N_d2*N_a1,N_a,N_z]);
 
-    if vfoptions.lowmemory==0
-        ReturnMatrix=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2, n_a1, n_a1,n_a2,n_z, d_gridvals, a1_gridvals, a1_gridvals, a2_gridvals, z_gridvals_J(:,:,N_j), ReturnFnParamsVec,0,0); % Level=0, Refine=0
-        % (d,a1prime,a)
-
-        entireRHS=ReturnMatrix+DiscountedEV;
+        entireRHS=F_ref+DiscountedEV_ref;
 
         %Calc the max and its index
-        [Vtemp,maxindex]=max(entireRHS,[],1);
+        [Vtemp,d2a1p_idx]=max(entireRHS,[],1);
+        d2a1p_mat = reshape(d2a1p_idx, [N_a, N_z]);
+        lin_idx = d2a1p_mat + (N_d2*N_a1) * ((0:N_a-1)' + N_a * (0:N_z-1));
 
-        V(:,:,N_j)=shiftdim(Vtemp,1);
-        Policy(:,:,N_j)=shiftdim(maxindex,1);
+        v_j = reshape(Vtemp,[N_a,N_z]);
+        pol_j = d1_idx(lin_idx) + N_d1*(d2a1p_mat-1);
+        pol_j(~isfinite(v_j)) = 1;
+        V(:,:,N_j)=v_j;
+        Policy(:,:,N_j)=pol_j;
 
     elseif vfoptions.lowmemory==1
+        DiscountedEV=DiscountFactorParamsVec*repelem(EV,N_d1,N_a1);
         for z_c=1:N_z
             z_val=z_gridvals_J(z_c,:,N_j);
             DiscountedEV_z=DiscountedEV(:,:,z_c);
@@ -212,21 +254,41 @@ for reverse_j=1:N_j-1
     EV=squeeze(reshape(EV,[N_d2*N_a1,N_a2,N_z]));
     % EV is over (d2,a1prime,a2,z)
 
-    DiscountedEV=DiscountFactorParamsVec*repelem(EV,N_d1,N_a1);
+    if use_vec_broadcast
+        DiscountedEV_ref = DiscountFactorParamsVec * repelem(EV, 1, N_a1); % [N_d2*N_a1, N_a1*N_a2, N_z]
+        [F_ref, d1_idx] = eval_expasset_return_refine1_broadcast(ReturnFn_Direct, n_d1, n_d2, n_a1, n_a2, n_z, d_gridvals, a1_gridvals, a2_gridvals, z_gridvals_J(:,:,jj), ReturnFnParamsVec);
+        entireRHS = F_ref + DiscountedEV_ref;
+        [Vtemp, d2a1p_idx] = max(entireRHS, [], 1);
+        d2a1p_mat = reshape(d2a1p_idx, [N_a, N_z]);
+        lin_idx = d2a1p_mat + (N_d2*N_a1) * ((0:N_a-1)' + N_a * (0:N_z-1));
+        v_j = reshape(Vtemp, [N_a, N_z]);
+        pol_j = d1_idx(lin_idx) + N_d1 * (d2a1p_mat - 1);
+        pol_j(~isfinite(v_j)) = 1;
+        V(:,:,jj) = v_j;
+        Policy(:,:,jj) = pol_j;
 
-    if vfoptions.lowmemory==0
-        ReturnMatrix=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2, n_a1, n_a1,n_a2,n_z, d_gridvals, a1_gridvals, a1_gridvals, a2_gridvals,z_gridvals_J(:,:,jj), ReturnFnParamsVec,0,0); % Level=0, Refine=0
-        % (d,aprime,a,z)
+    elseif vfoptions.lowmemory==0
+        DiscountedEV_ref = DiscountFactorParamsVec * repelem(EV, 1, N_a1); % Refine=1: 1/N_d1 size!
+        ReturnMatrix=CreateReturnFnMatrix_ExpAsset_Disc(ReturnFn, n_d1,n_d2, n_a1, n_a1,n_a2,n_z, d_gridvals, a1_gridvals, a1_gridvals, a2_gridvals,z_gridvals_J(:,:,jj), ReturnFnParamsVec,0,1); % Level=0, Refine=1
+        [F_ref, d1_idx]=max(ReturnMatrix,[],1);
+        F_ref=reshape(F_ref,[N_d2*N_a1,N_a,N_z]);
+        d1_idx=reshape(d1_idx,[N_d2*N_a1,N_a,N_z]);
 
-        entireRHS=ReturnMatrix+DiscountedEV;
+        entireRHS=F_ref+DiscountedEV_ref;
 
         %Calc the max and its index
-        [Vtemp,maxindex]=max(entireRHS,[],1);
+        [Vtemp,d2a1p_idx]=max(entireRHS,[],1);
+        d2a1p_mat = reshape(d2a1p_idx, [N_a, N_z]);
+        lin_idx = d2a1p_mat + (N_d2*N_a1) * ((0:N_a-1)' + N_a * (0:N_z-1));
 
-        V(:,:,jj)=shiftdim(Vtemp,1);
-        Policy(:,:,jj)=shiftdim(maxindex,1);
+        v_j = reshape(Vtemp,[N_a,N_z]);
+        pol_j = d1_idx(lin_idx) + N_d1*(d2a1p_mat-1);
+        pol_j(~isfinite(v_j)) = 1;
+        V(:,:,jj)=v_j;
+        Policy(:,:,jj)=pol_j;
 
     elseif vfoptions.lowmemory==1
+        DiscountedEV=DiscountFactorParamsVec*repelem(EV,N_d1,N_a1);
         for z_c=1:N_z
             z_val=z_gridvals_J(z_c,:,jj);
             DiscountedEV_z=DiscountedEV(:,:,z_c);
@@ -245,6 +307,98 @@ end
 
 %%
 Policy=shiftdim(Policy,-1);
+
+end
+
+%% ---- LOCAL HELPERS FOR TILED GPU BROADCAST + FUSED REFINE=1 ----
+function [F_max, F_idx] = eval_expasset_return_refine1_broadcast(ReturnFn, n_d1, n_d2, n_a1, n_a2, n_z, d_gridvals, a1_gridvals, a2_gridvals, z_gridvals, ReturnFnParamsVec)
+% Evaluates dual-compatible ReturnFn via gpuArray implicit expansion in ~2 GB tiles
+% along a1, reducing max(..., [], 1) over N_d1 inside each tile to minimize VRAM traffic.
+N_d1 = prod(n_d1);
+N_d2 = prod(n_d2);
+N_d  = N_d1 * N_d2;
+N_a1 = prod(n_a1);
+N_a2 = prod(n_a2);
+N_z  = prod(n_z);
+
+l_d  = length([n_d1, n_d2]);
+l_a1 = length(n_a1);
+l_a2 = length(n_a2);
+l_z  = length(n_z);
+
+pcell = num2cell(ReturnFnParamsVec)';
+
+d_args = cell(1, l_d);
+for k = 1:l_d, d_args{k} = d_gridvals(:, k); end
+
+ap_args = cell(1, l_a1);
+for k = 1:l_a1, ap_args{k} = shiftdim(a1_gridvals(:, k), -1); end
+
+a2_args = cell(1, l_a2);
+for k = 1:l_a2, a2_args{k} = shiftdim(a2_gridvals(:, k), -3); end
+
+z_args = cell(1, l_z);
+for k = 1:l_z, z_args{k} = shiftdim(z_gridvals(:, k), -4); end
+
+F_max = zeros(N_d2 * N_a1, N_a1 * N_a2, N_z, 'gpuArray');
+F_idx = zeros(N_d2 * N_a1, N_a1 * N_a2, N_z, 'gpuArray');
+
+% Target ~268M doubles (~2.1 GB) per tile so peak temporary VRAM stays comfortably < 8 GB
+pts_per_a1 = max(1, N_d * N_a1 * N_a2 * N_z);
+blk_sz     = max(1, min(N_a1, floor(268435456 / pts_per_a1)));
+a2_offsets = N_a1 * (0:N_a2-1);
+
+a1_args = cell(1, l_a1);
+for s = 1:blk_sz:N_a1
+    idx = s:min(N_a1, s + blk_sz - 1);
+    nb  = numel(idx);
+    for k = 1:l_a1
+        a1_args{k} = shiftdim(a1_gridvals(idx, k), -2);
+    end
+    Fb = ReturnFn(d_args{:}, ap_args{:}, a1_args{:}, a2_args{:}, z_args{:}, pcell{:});
+    target_sz = [N_d, N_a1, nb, N_a2, N_z];
+    cur_sz    = [size(Fb,1), size(Fb,2), size(Fb,3), size(Fb,4), size(Fb,5)];
+    if ~isequal(cur_sz, target_sz)
+        rep_fac = ones(1, 5);
+        for dim = 1:5
+            if cur_sz(dim) == 1 && target_sz(dim) > 1
+                rep_fac(dim) = target_sz(dim);
+            end
+        end
+        Fb = reshape(Fb, [N_d1, N_d2 * cur_sz(2), cur_sz(3), cur_sz(4), cur_sz(5)]);
+        [m_b, i_b] = max(Fb, [], 1);
+        if any(rep_fac(2:5) > 1)
+            m_b = repmat(m_b, [1, rep_fac(2), rep_fac(3), rep_fac(4), rep_fac(5)]);
+            i_b = repmat(i_b, [1, rep_fac(2), rep_fac(3), rep_fac(4), rep_fac(5)]);
+        end
+    else
+        Fb = reshape(Fb, [N_d1, N_d2 * N_a1, nb, N_a2, N_z]);
+        [m_b, i_b] = max(Fb, [], 1);
+    end
+    lin_cols = idx(:) + a2_offsets;
+    F_max(:, lin_cols(:), :) = reshape(m_b, [N_d2 * N_a1, nb * N_a2, N_z]);
+    F_idx(:, lin_cols(:), :) = reshape(i_b, [N_d2 * N_a1, nb * N_a2, N_z]);
+end
+end
+
+function fn_out = unwrap_passthrough_fn_local(fn_in)
+% Unwraps @(x1,x2,...) target_fn(x1,x2,...) to @target_fn when arguments pass 1:1 in order.
+fn_out = fn_in;
+if ischar(fn_in) || isstring(fn_in)
+    fn_out = str2func(char(fn_in));
+    return;
+end
+if ~isa(fn_in, 'function_handle'), return; end
+s = func2str(fn_in);
+if isempty(s) || s(1) ~= '@', return; end
+tok = regexp(s, '^@\s*\(([^)]*)\)\s*([A-Za-z]\w*)\s*\(([^)]*)\)\s*$', 'tokens', 'once');
+if numel(tok) == 3
+    lhs = regexprep(tok{1}, '\s+', '');
+    rhs = regexprep(tok{3}, '\s+', '');
+    if strcmp(lhs, rhs) && ~isempty(lhs)
+        fn_out = str2func(tok{2});
+    end
+end
 
 
 end

@@ -17,6 +17,11 @@ function StationaryDist=StationaryDist_MixHorz_PType(jequaloneDist,AgeWeightsPar
 % Any input that does not depend on the permanent type is just passed in
 % exactly the same form as normal.
 
+persistent infhorz_cache
+if isempty(infhorz_cache)
+    infhorz_cache = struct();
+end
+
 % Names_i can either be a cell containing the 'names' of the different
 % permanent types, or if there are no structures used (just parameters that
 % depend on permanent type and inputted as vectors or matrices as appropriate)
@@ -51,6 +56,14 @@ if abs(sum(Parameters.(PTypeDistParamNames{1}))-1)>10^(-12) % allowing for small
     warning('The permanent type mass weights must sum to one (PTypeDistParamNames points to weights that do not sum to one)')
 end
 
+pool_st = struct('active', false, 'ncores', 0, 'ram_dir', '');
+if exist('OCTAVE_VERSION', 'builtin') ~= 0 && exist('vfi_pool', 'file') ~= 0 ...
+        && (~isfield(simoptions, 'in_worker') || ~simoptions.in_worker)
+    pool_st = vfi_pool('status');
+end
+fhorz_jobs   = {};
+fhorz_idx    = [];
+fhorz_s_cpu  = [];
 
 %%
 for ii=1:N_i
@@ -198,6 +211,7 @@ for ii=1:N_i
             if isfinite(N_j_temp)
                 error(['You must input a jequaloneDist for permanent type ', Names_i{ii}, ' \n'])
             end
+            jequaloneDist_temp=[];
         end
     else
         % Note: when jequaloneDist is not a structure all ptypes must have the same grids
@@ -222,9 +236,31 @@ for ii=1:N_i
     end
 
     if isfinite(N_j_temp)
+        if pool_st.active && pool_st.ncores > 1
+            simoptions_temp.in_worker = true;
+            fhorz_idx(end+1)   = ii; %#ok<AGROW>
+            fhorz_s_cpu(end+1) = simoptions_temp.ptypestorecpu; %#ok<AGROW>
+            fhorz_jobs{end+1}  = {jequaloneDist_temp, AgeWeightParamNames_temp, Policy_temp, ...
+                n_d_temp, n_a_temp, n_z_temp, N_j_temp, pi_z_temp, Parameters_temp, simoptions_temp}; %#ok<AGROW>
+            continue;
+        end
         StationaryDist_ii=StationaryDist_FHorz_Case1(jequaloneDist_temp,AgeWeightParamNames_temp,Policy_temp,n_d_temp,n_a_temp,n_z_temp,N_j_temp,pi_z_temp,Parameters_temp,simoptions_temp);
     else % PType actually allows for infinite horizon as well
-        StationaryDist_ii=StationaryDist_InfHorz(Policy_temp,n_d_temp,n_a_temp,n_z_temp,pi_z_temp,simoptions_temp,Parameters_temp); % EntryExitParams not yet supported (is on my to-do list)
+        % Memoize infinite-horizon stationary dist when (Policy, pi_z, grids) are unchanged across outer loops
+        pol_cpu = double(gather(Policy_temp(:)));
+        piz_cpu = double(gather(pi_z_temp(:)));
+        if isfield(infhorz_cache, iistr) ...
+                && isequal(infhorz_cache.(iistr).pol, pol_cpu) ...
+                && isequal(infhorz_cache.(iistr).piz, piz_cpu) ...
+                && isequal(infhorz_cache.(iistr).nd, n_d_temp) ...
+                && isequal(infhorz_cache.(iistr).na, n_a_temp) ...
+                && isequal(infhorz_cache.(iistr).nz, n_z_temp)
+            StationaryDist_ii = infhorz_cache.(iistr).dist;
+        else
+            StationaryDist_ii=StationaryDist_InfHorz(Policy_temp,n_d_temp,n_a_temp,n_z_temp,pi_z_temp,simoptions_temp,Parameters_temp); % EntryExitParams not yet supported (is on my to-do list)
+            infhorz_cache.(iistr) = struct('pol', pol_cpu, 'piz', piz_cpu, ...
+                'nd', n_d_temp, 'na', n_a_temp, 'nz', n_z_temp, 'dist', StationaryDist_ii);
+        end
     end
 
     if simoptions_temp.ptypestorecpu==1
@@ -235,10 +271,42 @@ for ii=1:N_i
 
 end
 
+% Dispatch collected finite-horizon PTypes concurrently across persistent Octave workers
+if ~isempty(fhorz_jobs)
+    K_fh = numel(fhorz_jobs);
+    if K_fh == 1
+        jb = fhorz_jobs{1};
+        StationaryDist_ii = StationaryDist_FHorz_Case1(jb{:});
+        if fhorz_s_cpu(1) == 1
+            StationaryDist.(Names_i{fhorz_idx(1)}) = gather(StationaryDist_ii);
+        else
+            StationaryDist.(Names_i{fhorz_idx(1)}) = StationaryDist_ii;
+        end
+    else
+        for k = 1:K_fh
+            so = fhorz_jobs{k}{10};
+            if isfield(so, 'aprimeFn') && isa(so.aprimeFn, 'function_handle')
+                so.aprimeFn_str = func2str(so.aprimeFn);
+                so = rmfield(so, 'aprimeFn');
+                fhorz_jobs{k}{10} = so;
+            end
+        end
+        w_res = vfi_dispatch_chunks('statdist_fhorz_ptype_worker', fhorz_jobs, pool_st.ram_dir, 1);
+        for k = 1:K_fh
+            if fhorz_s_cpu(k) == 1
+                StationaryDist.(Names_i{fhorz_idx(k)}) = gather(w_res{k, 1});
+            else
+                StationaryDist.(Names_i{fhorz_idx(k)}) = w_res{k, 1};
+            end
+        end
+    end
+end
+
 if length(Parameters.(PTypeDistParamNames{:}))==N_i
     StationaryDist.ptweights=reshape(Parameters.(PTypeDistParamNames{:}),[],1); % reshape is to make sure this is a column vector
 else
     error('Parameter for PTypeDistParamNames does not have the same number of permanent types as N_i/Names_i \n')
 end
+
 
 end

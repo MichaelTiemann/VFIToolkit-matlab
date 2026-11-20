@@ -7,10 +7,15 @@ N_z=prod(n_z);
 % Policy=zeros(N_a,N_z,'gpuArray');
 % Ftemp=zeros(N_a,N_z,'gpuArray');
 
-pi_z_alt=shiftdim(pi_z',-1);
+pi_z_T=pi_z';
+has_piz_pos=(pi_z_T>0);
 pi_z_howards=repelem(pi_z,N_a,1);
 
 addindexforaz=gpuArray(shiftdim((0:1:N_a-1)*N_d*N_a+shiftdim((0:1:N_z-1)*N_d*N_a*N_a,-1),1));
+
+if N_d>1
+    RM_4D=reshape(ReturnMatrix,[N_d,N_a,N_a,N_z]);
+end
 
 %%
 tempcounter=1;
@@ -19,11 +24,21 @@ while currdist>Tolerance && tempcounter<=maxiter
     VKronold=VKron;
 
     % Calc the condl expectation term (except beta), which depends on z but not on control variables
-    EV=VKronold.*pi_z_alt;
-    EV(isnan(EV))=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
-    EV=sum(EV,2); % sum over z', leaving a singular second dimension
+    Vinf=(VKronold==-Inf);
+    if any(Vinf(:))
+        Vclean=VKronold;
+        Vclean(Vinf)=0; %multiplications of -Inf with 0 gives NaN, this replaces them with zeros (as the zeros come from the transition probabilities)
+        EV=Vclean*pi_z_T; % sum over z', leaving a singular second dimension
+        EV(Vinf*has_piz_pos>0)=-Inf;
+    else
+        EV=VKronold*pi_z_T; % sum over z', leaving a singular second dimension
+    end
 
-    entireRHS=ReturnMatrix+beta*repelem(EV,N_d,1); % z dimension of EV will autoexpand
+    if N_d>1
+        entireRHS=reshape(RM_4D+reshape(beta*EV,[1,N_a,1,N_z]),[N_d*N_a,N_a,N_z]); % z and d dimensions of EV will autoexpand without repelem
+    else
+        entireRHS=ReturnMatrix+reshape(beta*EV,[N_a,1,N_z]); % z dimension of EV will autoexpand
+    end
 
     % Calc the max and it's index
     [VKron,PolicyIndexes]=max(entireRHS,[],1);
@@ -42,13 +57,20 @@ while currdist>Tolerance && tempcounter<=maxiter
 
     if isfinite(currdist) && currdist/Tolerance>10 && tempcounter<Howards2 %Use Howards Policy Fn Iteration Improvement
         Policy_aprime=ceil(PolicyIndexes(:)/N_d);
-        for Howards_counter=1:Howards
-            EVKrontemp=VKron(Policy_aprime,:);
+        if ~any(~isfinite(Ftemp(:))) && isfinite(currdist)
+            for Howards_counter=1:Howards
+                EVKrontemp=reshape(sum(VKron(Policy_aprime,:).*pi_z_howards,2),[N_a,N_z]);
+                VKron=Ftemp+beta*EVKrontemp;
+            end
+        else
+            for Howards_counter=1:Howards
+                EVKrontemp=VKron(Policy_aprime,:);
 
-            EVKrontemp=EVKrontemp.*pi_z_howards;
-            EVKrontemp(isnan(EVKrontemp))=0;
-            EVKrontemp=reshape(sum(EVKrontemp,2),[N_a,N_z]);
-            VKron=Ftemp+beta*EVKrontemp;
+                EVKrontemp=EVKrontemp.*pi_z_howards;
+                EVKrontemp(isnan(EVKrontemp))=0;
+                EVKrontemp=reshape(sum(EVKrontemp,2),[N_a,N_z]);
+                VKron=Ftemp+beta*EVKrontemp;
+            end
         end
     end
 
@@ -63,9 +85,10 @@ Policy(2,:,:)=shiftdim(ceil(PolicyIndexes/N_d),-1);
 
 if currdist > Tolerance
     warning(['Value fn iteration has stopped due to reaching the maximum number of iterations ', ...
-             '(not due to convergence); can be set by vfoptions.maxiter. ', ...
-             'Last currdist = %.16g; tolerance = %.16g.'], ...
-             currdist, Tolerance)
+        '(not due to convergence); can be set by vfoptions.maxiter. ', ...
+        'Last currdist = %.16g; tolerance = %.16g.'], ...
+        currdist, Tolerance)
 end
+
 
 end
